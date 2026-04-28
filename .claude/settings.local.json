@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm --version)",
+      "Bash(npx *)",
+      "Bash(npm install *)",
+      "Bash(node -e \"console.log\\(require\\('phaser/package.json'\\).version\\)\")",
+      "Bash(npm start *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:4200)",
+      "Bash(npm run *)"
+    ]
+  }
+}
