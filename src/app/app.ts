@@ -1,6 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import Phaser from 'phaser';
 import { GameScene } from './game/scenes/game.scene';
+import { BossScene } from './game/scenes/boss-scene';
 
 @Component({
   selector: 'app-root',
@@ -16,7 +17,7 @@ export class App implements OnInit {
       width: window.innerWidth,
       height: window.innerHeight,
       backgroundColor: '#1a1a2e',
-      scene: [GameScene],
+      scene: [GameScene, BossScene],
       scale: {
         mode: Phaser.Scale.RESIZE,
         autoCenter: Phaser.Scale.CENTER_BOTH,

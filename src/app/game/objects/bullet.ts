@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 
 export class Bullet extends Phaser.Physics.Arcade.Sprite {
-  private damage = 10;
+  protected damage = 10;
   private speed = 400;
   private lifespan = 2000; // ms
   private lifespanTimer: Phaser.Time.TimerEvent | null = null;
@@ -12,6 +12,12 @@ export class Bullet extends Phaser.Physics.Arcade.Sprite {
     scene.physics.add.existing(this);
     this.setActive(false).setVisible(false);
     this.setDepth(15);
+  }
+
+  configure(dmg: number, tint: number): this {
+    this.damage = dmg;
+    this.setTint(tint);
+    return this;
   }
 
   fire(fromX: number, fromY: number, targetX: number, targetY: number): void {

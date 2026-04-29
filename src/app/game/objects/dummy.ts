@@ -54,6 +54,13 @@ export class Dummy extends Phaser.Physics.Arcade.Sprite {
     this.hpBar.fillRect(bx, by, bw * pct, bh);
   }
 
+  applySlow(duration: number): void {
+    this.setTint(0x88ccff);
+    this.scene.time.delayedCall(duration, () => {
+      if (this.active) this.clearTint();
+    });
+  }
+
   private die(): void {
     this.setActive(false).setVisible(false);
     (this.body as Phaser.Physics.Arcade.Body).enable = false;
