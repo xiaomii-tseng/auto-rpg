@@ -10,20 +10,19 @@ export class PrepScene extends Phaser.Scene {
   }
 
   preload(): void {
-    const pBase = 'sprite/hero/PNG/Swordsman_lvl1/Without_shadow/';
-    const cfg   = { frameWidth: 64, frameHeight: 64 };
-    if (!this.textures.exists('player_idle'))
-      this.load.spritesheet('player_idle', pBase + 'Swordsman_lvl1_Idle_without_shadow.png', cfg);
+    const cfg = { frameWidth: 64, frameHeight: 64 };
+    if (!this.textures.exists('player_idle_shadow'))
+      this.load.spritesheet('player_idle_shadow', 'sprite/hero/PNG/Swordsman_lvl1/With_shadow/Swordsman_lvl1_Idle_with_shadow.png', cfg);
   }
 
   create(): void {
     const W = this.scale.width;   // 960
     const H = this.scale.height;  // 540
 
-    if (!this.anims.exists('player_idle')) {
+    if (!this.anims.exists('player_idle_shadow')) {
       this.anims.create({
-        key: 'player_idle',
-        frames: this.anims.generateFrameNumbers('player_idle', { start: 0, end: 11 }),
+        key: 'player_idle_shadow',
+        frames: this.anims.generateFrameNumbers('player_idle_shadow', { start: 0, end: 3 }),
         frameRate: 8,
         repeat: -1,
       });
@@ -197,22 +196,11 @@ export class PrepScene extends Phaser.Scene {
     shadowGfx.fillEllipse(cx, cy + 134, 130, 18);
 
     // Hero sprite
-    const hero = this.add.sprite(cx, cy, 'player_idle', 0)
+    const hero = this.add.sprite(cx, cy, 'player_idle_shadow', 0)
       .setScale(scale)
       .setDepth(10);
-    hero.play('player_idle');
+    hero.play('player_idle_shadow');
 
-    // Breathing animation
-    this.tweens.add({
-      targets: hero,
-      props: {
-        scaleY: { value: scale * 0.955, ease: 'Sine.easeInOut' },
-        scaleX: { value: scale * 1.018, ease: 'Sine.easeInOut' },
-      },
-      duration: 1600,
-      yoyo: true,
-      repeat: -1,
-    });
 
     // Name tag
     const nameGfx = this.add.graphics();

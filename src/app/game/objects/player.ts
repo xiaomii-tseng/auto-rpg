@@ -2,6 +2,8 @@ import Phaser from 'phaser';
 
 export class Player extends Phaser.Physics.Arcade.Sprite {
   private isMoving = false;
+  private isAttacking = false;
+  private lastDir: 'down' | 'left' | 'right' | 'up' = 'down';
   private readonly speed = 180;
 
   private hp = 100;
@@ -11,23 +13,19 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   private playingHurt = false;
 
   private readonly headGfx: Phaser.GameObjects.Graphics;
-  private ammoCurrent = 0;
-  private ammoMax = 0;
-  private ammoColor = 0xffdd44;
-  private noAmmoFlashUntil = 0;
 
   onHpChanged?: (hp: number, maxHp: number) => void;
   onDead?: () => void;
 
   constructor(scene: Phaser.Scene, x: number, y: number) {
-    super(scene, x, y, 'player_idle', 0);
+    super(scene, x, y, 'player_idle_shadow', 0);
     scene.add.existing(this);
     scene.physics.add.existing(this);
     this.setScale(1.5);
     this.setCollideWorldBounds(true);
     this.setDepth(10);
     this.setBodySize(22, 32).setOffset(21, 16);
-    this.play('player_idle');
+    this.play('player_idle_down');
 
     this.headGfx = scene.add.graphics().setDepth(15);
   }
@@ -37,59 +35,38 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.refreshHeadDisplay();
   }
 
-  /** Call when ammo state changes so the display updates. */
-  showAmmo(current: number, max: number, color = 0xffdd44): void {
-    this.ammoCurrent = current;
-    this.ammoMax     = max;
-    this.ammoColor   = color;
-  }
-
-  /** Flash ammo squares red briefly to signal empty-gun attempt. */
-  noAmmoFlash(): void {
-    this.noAmmoFlashUntil = this.scene.time.now + 280;
-  }
-
   private refreshHeadDisplay(): void {
     this.headGfx.clear();
     if (!this.active) return;
-
-    const now = this.scene.time.now;
-    const flashing = now < this.noAmmoFlashUntil;
-
-    // ── Ammo squares ──────────────────────────────────
-    if (this.ammoMax > 0) {
-      const sqSz = 7, sqGap = 3;
-      const totalW = this.ammoMax * sqSz + (this.ammoMax - 1) * sqGap;
-      const sqX0 = this.x - totalW / 2;
-      const sqY  = this.y - 78;
-
-      for (let i = 0; i < this.ammoMax; i++) {
-        const sx = sqX0 + i * (sqSz + sqGap);
-        const charged = i < this.ammoCurrent;
-        if (flashing) {
-          this.headGfx.fillStyle(0xff2222, 1);
-        } else {
-          this.headGfx.fillStyle(charged ? this.ammoColor : 0x333333, 1);
-        }
-        this.headGfx.fillRect(sx, sqY, sqSz, sqSz);
-        // Small highlight on charged squares
-        if (charged && !flashing) {
-          this.headGfx.fillStyle(0xffffff, 0.35);
-          this.headGfx.fillRect(sx + 1, sqY + 1, 3, 2);
-        }
-      }
-    }
-
-    // ── HP bar ────────────────────────────────────────
     const bw = 44, bh = 5;
     const bx = this.x - bw / 2;
     const by = this.y - 68;
     this.headGfx.fillStyle(0x220000);
     this.headGfx.fillRect(bx - 1, by - 1, bw + 2, bh + 2);
-    const pct = this.hp / this.maxHp;
+    const pct   = this.hp / this.maxHp;
     const color = pct > 0.5 ? 0x00cc44 : pct > 0.25 ? 0xffaa00 : 0xff2222;
     this.headGfx.fillStyle(color);
     this.headGfx.fillRect(bx, by, bw * pct, bh);
+  }
+
+  playAttack(targetX: number, targetY: number, onHit?: () => void): void {
+    if (this.playingHurt || this.isAttacking) return;
+    const dx = targetX - this.x;
+    const dy = targetY - this.y;
+    const dir: 'down' | 'left' | 'right' | 'up' =
+      Math.abs(dx) >= Math.abs(dy)
+        ? (dx < 0 ? 'left' : 'right')
+        : (dy < 0 ? 'up'   : 'down');
+    this.lastDir = dir;
+    this.isAttacking = true;
+    const key = this.isMoving ? `player_run_attack_${dir}` : `player_attack_${dir}`;
+    this.play(key, true);
+    // Hit frame ≈ frame 4 of 8 at 14 fps → ~285 ms
+    if (onHit) this.scene.time.delayedCall(285, () => { if (this.isAttacking) onHit(); });
+    this.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => {
+      this.isAttacking = false;
+      this.playAnim(this.isMoving ? `player_run_${this.lastDir}` : `player_idle_${this.lastDir}`);
+    });
   }
 
   move(velX: number, velY: number): void {
@@ -97,13 +74,15 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     if (moving) {
       const len = Math.sqrt(velX * velX + velY * velY);
       this.setVelocity((velX / len) * this.speed, (velY / len) * this.speed);
-      if (velX !== 0) this.setFlipX(velX < 0);
+      this.lastDir = Math.abs(velX) >= Math.abs(velY)
+        ? (velX < 0 ? 'left' : 'right')
+        : (velY < 0 ? 'up'   : 'down');
       this.isMoving = true;
-      if (!this.playingHurt) this.playAnim('player_walk');
+      if (!this.playingHurt && !this.isAttacking) this.playAnim(`player_run_${this.lastDir}`);
     } else {
       this.setVelocity(0, 0);
       this.isMoving = false;
-      if (!this.playingHurt) this.playAnim('player_idle');
+      if (!this.playingHurt && !this.isAttacking) this.playAnim(`player_idle_${this.lastDir}`);
     }
   }
 
@@ -126,7 +105,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.play('player_hurt', true);
     this.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => {
       this.playingHurt = false;
-      this.playAnim(this.isMoving ? 'player_walk' : 'player_idle');
+      this.playAnim(this.isMoving ? `player_run_${this.lastDir}` : `player_idle_${this.lastDir}`);
     });
 
     this.flashTween = this.scene.tweens.add({
@@ -152,4 +131,5 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   get moving(): boolean { return this.isMoving; }
   get currentHp(): number { return this.hp; }
   get maxHpValue(): number { return this.maxHp; }
+  get attackDir(): 'down' | 'left' | 'right' | 'up' { return this.lastDir; }
 }

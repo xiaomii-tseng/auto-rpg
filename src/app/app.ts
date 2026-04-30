@@ -14,13 +14,12 @@ export class App implements OnInit {
     new Phaser.Game({
       type: Phaser.AUTO,
       parent: 'game-container',
-      width: 960,
-      height: 540,
       backgroundColor: '#0d0d1a',
       scene: [PrepScene, GameScene],
       scale: {
-        mode: Phaser.Scale.FIT,
-        autoCenter: Phaser.Scale.CENTER_BOTH,
+        mode: Phaser.Scale.RESIZE,
+        width: '100%',
+        height: '100%',
       },
       physics: {
         default: 'arcade',

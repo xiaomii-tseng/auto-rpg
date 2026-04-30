@@ -1,26 +1,22 @@
 import Phaser from 'phaser';
 import { Player } from '../objects/player';
-import { Boss, BossState } from '../objects/boss';
-import { StrikeEffect } from '../objects/strike-effect';
+import { Boss } from '../objects/boss';
+import { SlashEffect } from '../objects/slash-effect';
 import { VirtualJoystick } from '../ui/joystick';
-import { WeaponSystem } from '../systems/weapon-system';
-import { WeaponHUD } from '../ui/weapon-hud';
-import { ElementTint } from '../data/weapons';
 
 const AIM_DRAG_THRESHOLD = 15;
+const MELEE_RANGE       = 95;
 
 export class GameScene extends Phaser.Scene {
   private player!: Player;
   private boss!: Boss;
-  private weaponSystem!: WeaponSystem;
-  private weaponHud!: WeaponHUD;
+  private slashEffect!: SlashEffect;
   private joystick!: VirtualJoystick;
   private keys!: Phaser.Types.Input.Keyboard.CursorKeys & {
     w: Phaser.Input.Keyboard.Key;
     a: Phaser.Input.Keyboard.Key;
     s: Phaser.Input.Keyboard.Key;
     d: Phaser.Input.Keyboard.Key;
-    q: Phaser.Input.Keyboard.Key;
     space: Phaser.Input.Keyboard.Key;
   };
   private bossHpGfx!: Phaser.GameObjects.Graphics;
@@ -40,16 +36,20 @@ export class GameScene extends Phaser.Scene {
 
   preload(): void {
     const pBase = 'sprite/hero/PNG/Swordsman_lvl1/Without_shadow/';
-    const sBase = 'sprite/slime/PNG/Slime1/Without_shadow/';
+    const sBase = 'sprite/slime/PNG/Slime1/With_shadow/';
     const cfg = { frameWidth: 64, frameHeight: 64 };
-    if (!this.textures.exists('player_idle')) this.load.spritesheet('player_idle', pBase + 'Swordsman_lvl1_Idle_without_shadow.png', cfg);
-    if (!this.textures.exists('player_walk')) this.load.spritesheet('player_walk', pBase + 'Swordsman_lvl1_Walk_without_shadow.png', cfg);
-    if (!this.textures.exists('player_hurt')) this.load.spritesheet('player_hurt', pBase + 'Swordsman_lvl1_Hurt_without_shadow.png', cfg);
-    if (!this.textures.exists('slime_idle'))   this.load.spritesheet('slime_idle',   sBase + 'Slime1_Idle_without_shadow.png',   cfg);
-    if (!this.textures.exists('slime_walk'))   this.load.spritesheet('slime_walk',   sBase + 'Slime1_Walk_without_shadow.png',   cfg);
-    if (!this.textures.exists('slime_attack')) this.load.spritesheet('slime_attack', sBase + 'Slime1_Attack_without_shadow.png', cfg);
-    if (!this.textures.exists('slime_hurt'))   this.load.spritesheet('slime_hurt',   sBase + 'Slime1_Hurt_without_shadow.png',   cfg);
-    if (!this.textures.exists('slime_death'))  this.load.spritesheet('slime_death',  sBase + 'Slime1_Death_without_shadow.png',  cfg);
+    const ws = 'sprite/hero/PNG/Swordsman_lvl1/With_shadow/';
+    if (!this.textures.exists('player_idle_shadow'))       this.load.spritesheet('player_idle_shadow',       ws + 'Swordsman_lvl1_Idle_with_shadow.png',       cfg);
+    if (!this.textures.exists('player_run_shadow'))        this.load.spritesheet('player_run_shadow',        ws + 'Swordsman_lvl1_Run_with_shadow.png',        cfg);
+    if (!this.textures.exists('player_attack_shadow'))     this.load.spritesheet('player_attack_shadow',     ws + 'Swordsman_lvl1_attack_with_shadow.png',     cfg);
+    if (!this.textures.exists('player_run_attack_shadow')) this.load.spritesheet('player_run_attack_shadow', ws + 'Swordsman_lvl1_Run_Attack_with_shadow.png', cfg);
+    if (!this.textures.exists('player_hurt'))              this.load.spritesheet('player_hurt',              pBase + 'Swordsman_lvl1_Hurt_without_shadow.png', cfg);
+    if (!this.textures.exists('slime_idle'))   this.load.spritesheet('slime_idle',   sBase + 'Slime1_Idle_with_shadow.png',   cfg);
+    if (!this.textures.exists('slime_walk'))   this.load.spritesheet('slime_walk',   sBase + 'Slime1_Walk_with_shadow.png',   cfg);
+    if (!this.textures.exists('slime_run'))    this.load.spritesheet('slime_run',    sBase + 'Slime1_Run_with_shadow.png',    cfg);
+    if (!this.textures.exists('slime_attack')) this.load.spritesheet('slime_attack', sBase + 'Slime1_Attack_with_shadow.png', cfg);
+    if (!this.textures.exists('slime_hurt'))   this.load.spritesheet('slime_hurt',   sBase + 'Slime1_Hurt_with_shadow.png',   cfg);
+    if (!this.textures.exists('slime_death'))  this.load.spritesheet('slime_death',  sBase + 'Slime1_Death_with_shadow.png',  cfg);
     this.generateTextures();
   }
 
@@ -72,24 +72,7 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
     this.player.onDead = () => this.handlePlayerDead();
 
-    const bossGroup = this.physics.add.group();
-    this.weaponSystem = new WeaponSystem(this, this.player, bossGroup);
-    this.weaponHud = new WeaponHUD(this);
-    this.weaponHud.refresh(this.weaponSystem.slots, this.weaponSystem.activeSlot);
-    this.weaponHud.flashName(this.weaponSystem.activeWeapon);
-
-    const syncAmmo = () => this.player.showAmmo(
-      this.weaponSystem.currentAmmo,
-      this.weaponSystem.activeWeapon.maxAmmo,
-      ElementTint[this.weaponSystem.activeWeapon.element],
-    );
-    syncAmmo();
-    this.weaponSystem.onAmmoChanged = () => syncAmmo();
-    this.weaponSystem.onWeaponChanged = (w, slot) => {
-      this.weaponHud.refresh(this.weaponSystem.slots, slot);
-      this.weaponHud.flashName(w);
-      syncAmmo();
-    };
+    this.slashEffect = new SlashEffect(this);
 
     this.boss = new Boss(this, this.worldW * 0.5, this.worldH * 0.25);
     this.boss.getTargetPos = () => [this.player.x, this.player.y];
@@ -100,18 +83,14 @@ export class GameScene extends Phaser.Scene {
       if (dSq <= Boss.AOE_RADIUS ** 2) this.player.takeDamage(30);
     };
 
-    this.weaponSystem.onStrikeFired = (x, y, dmg) => {
-      const dSq = Phaser.Math.Distance.BetweenPointsSquared({ x, y }, this.boss);
-      if (dSq <= StrikeEffect.RADIUS ** 2 && this.boss.active) this.boss.takeDamage(dmg);
-    };
-
+    const bossGroup = this.physics.add.group();
     bossGroup.add(this.boss, false);
     // group.add() resets body defaults (collideWorldBounds → false), so re-assert here
     this.player.setCollideWorldBounds(true);
     (this.boss.body as Phaser.Physics.Arcade.Body).setCollideWorldBounds(true);
 
     this.physics.add.overlap(bossGroup, this.player, () => {
-      if (this.boss.currentState === BossState.DASHING) this.player.takeDamage(25);
+      if (this.boss.currentState === 'DASHING') this.player.takeDamage(25);
     });
 
     this.bossHpGfx = this.add.graphics().setScrollFactor(0).setDepth(200);
@@ -129,7 +108,6 @@ export class GameScene extends Phaser.Scene {
       a:     kb.addKey(Phaser.Input.Keyboard.KeyCodes.A),
       s:     kb.addKey(Phaser.Input.Keyboard.KeyCodes.S),
       d:     kb.addKey(Phaser.Input.Keyboard.KeyCodes.D),
-      q:     kb.addKey(Phaser.Input.Keyboard.KeyCodes.Q),
       space: kb.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE),
     };
 
@@ -147,9 +125,10 @@ export class GameScene extends Phaser.Scene {
   override update(): void {
     if (this.gameOver) return;
 
-    if (Phaser.Input.Keyboard.JustDown(this.keys.q)) this.weaponSystem.switch();
     if (Phaser.Input.Keyboard.JustDown(this.keys.space)) {
-      if (!this.weaponSystem.fireAtNearest()) this.player.noAmmoFlash();
+      const tx = this.boss.active ? this.boss.x : this.player.x;
+      const ty = this.boss.active ? this.boss.y : this.player.y - 1;
+      this.meleeAttack(tx, ty);
     }
 
     const joy = this.joystick.value;
@@ -172,13 +151,6 @@ export class GameScene extends Phaser.Scene {
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
       if (this.gameOver || this.aimActive) return;
       if (p.x <= W * 0.5) return;
-
-      const tapped = this.weaponHud.hitTestSlot(p.x, p.y);
-      if (tapped !== null) {
-        if (tapped !== this.weaponSystem.activeSlot) this.weaponSystem.switch();
-        return;
-      }
-
       this.aimActive = true;
       this.aimStartX = p.x;
       this.aimStartY = p.y;
@@ -200,15 +172,10 @@ export class GameScene extends Phaser.Scene {
       const dx = p.x - this.aimStartX;
       const dy = p.y - this.aimStartY;
       const dist = Math.sqrt(dx * dx + dy * dy);
-
-      if (dist > AIM_DRAG_THRESHOLD) {
-        const range = this.weaponSystem.effectiveRange;
-        const tx = this.player.x + (dx / dist) * range;
-        const ty = this.player.y + (dy / dist) * range;
-        if (!this.weaponSystem.fire(tx, ty)) this.player.noAmmoFlash();
-      } else {
-        if (!this.weaponSystem.fireAtNearest()) this.player.noAmmoFlash();
-      }
+      const tx = this.player.x + (dx / Math.max(dist, 1)) * MELEE_RANGE;
+      const ty = this.player.y + (dy / Math.max(dist, 1)) * MELEE_RANGE;
+      this.meleeAttack(dist > AIM_DRAG_THRESHOLD ? tx : (this.boss.active ? this.boss.x : this.player.x),
+                       dist > AIM_DRAG_THRESHOLD ? ty : (this.boss.active ? this.boss.y : this.player.y - 1));
     });
   }
 
@@ -218,15 +185,25 @@ export class GameScene extends Phaser.Scene {
     if (dist < 1) return;
     const nx = dx / dist;
     const ny = dy / dist;
-    const range = this.weaponSystem.effectiveRange;
-    const color = ElementTint[this.weaponSystem.activeWeapon.element];
 
-    this.aimLine.fillStyle(color, 0.75);
-    for (let d = 14; d < range; d += 12) {
+    this.aimLine.fillStyle(0xffffff, 0.5);
+    for (let d = 14; d < MELEE_RANGE; d += 10) {
       this.aimLine.fillRect(this.player.x + nx * d - 2, this.player.y + ny * d - 2, 4, 4);
     }
-    this.aimLine.fillStyle(color, 1);
-    this.aimLine.fillRect(this.player.x + nx * range - 5, this.player.y + ny * range - 5, 10, 10);
+    this.aimLine.fillStyle(0xffffff, 0.9);
+    this.aimLine.fillCircle(this.player.x + nx * MELEE_RANGE, this.player.y + ny * MELEE_RANGE, 5);
+  }
+
+  private meleeAttack(tx: number, ty: number): void {
+    this.player.playAttack(tx, ty, () => {
+      if (!this.boss.active) return;
+      const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, this.boss.x, this.boss.y);
+      if (dist > MELEE_RANGE) return;
+      const dir = this.player.attackDir;
+      this.boss.takeDamage(30);
+      this.slashEffect.play(this.boss.x, this.boss.y, dir);
+      this.boss.knockback(this.player.x, this.player.y);
+    });
   }
 
   // ── HUD refresh ───────────────────────────────────────
@@ -335,25 +312,71 @@ export class GameScene extends Phaser.Scene {
   // ── Scene helpers ─────────────────────────────────────
 
   private addHUD(): void {
-    this.add.text(12, 12, 'WASD / Joystick: 移動\n點擊右半邊: 鎖定攻擊\n拖曳右半邊: 瞄準射擊\nQ / Space: 快速攻擊', {
+    this.add.text(12, 12, 'WASD / Joystick: 移動\n點擊右半邊: 近戰攻擊\n拖曳右半邊: 指定方向攻擊\nSpace: 攻擊Boss', {
       fontSize: '12px', color: '#aaaaaa', stroke: '#000', strokeThickness: 2,
     }).setScrollFactor(0).setDepth(200);
   }
 
   private createPlayerAnims(): void {
-    if (this.anims.exists('player_idle')) return;
-    this.anims.create({ key: 'player_idle', frames: this.anims.generateFrameNumbers('player_idle', { start: 0, end: 11 }), frameRate: 8,  repeat: -1 });
-    this.anims.create({ key: 'player_walk', frames: this.anims.generateFrameNumbers('player_walk', { start: 0, end: 5  }), frameRate: 10, repeat: -1 });
-    this.anims.create({ key: 'player_hurt', frames: this.anims.generateFrameNumbers('player_hurt', { start: 0, end: 4  }), frameRate: 14, repeat: 0  });
+    if (!this.anims.exists('player_idle_down'))
+      this.anims.create({ key: 'player_idle_down',  frames: this.anims.generateFrameNumbers('player_idle_shadow', { start: 0,  end: 3  }), frameRate: 8, repeat: -1 });
+    if (!this.anims.exists('player_idle_left'))
+      this.anims.create({ key: 'player_idle_left',  frames: this.anims.generateFrameNumbers('player_idle_shadow', { start: 12, end: 15 }), frameRate: 8, repeat: -1 });
+    if (!this.anims.exists('player_idle_right'))
+      this.anims.create({ key: 'player_idle_right', frames: this.anims.generateFrameNumbers('player_idle_shadow', { start: 24, end: 27 }), frameRate: 8, repeat: -1 });
+    if (!this.anims.exists('player_idle_up'))
+      this.anims.create({ key: 'player_idle_up',    frames: this.anims.generateFrameNumbers('player_idle_shadow', { start: 36, end: 39 }), frameRate: 8, repeat: -1 });
+    if (!this.anims.exists('player_run_down'))
+      this.anims.create({ key: 'player_run_down',    frames: this.anims.generateFrameNumbers('player_run_shadow',  { start: 0,  end: 7  }), frameRate: 10, repeat: -1 });
+    if (!this.anims.exists('player_run_left'))
+      this.anims.create({ key: 'player_run_left',    frames: this.anims.generateFrameNumbers('player_run_shadow',  { start: 8,  end: 15 }), frameRate: 10, repeat: -1 });
+    if (!this.anims.exists('player_run_right'))
+      this.anims.create({ key: 'player_run_right',   frames: this.anims.generateFrameNumbers('player_run_shadow',  { start: 16, end: 23 }), frameRate: 10, repeat: -1 });
+    if (!this.anims.exists('player_run_up'))
+      this.anims.create({ key: 'player_run_up',      frames: this.anims.generateFrameNumbers('player_run_shadow',  { start: 24, end: 31 }), frameRate: 10, repeat: -1 });
+    if (!this.anims.exists('player_attack_down'))
+      this.anims.create({ key: 'player_attack_down',      frames: this.anims.generateFrameNumbers('player_attack_shadow',     { start: 0,  end: 7  }), frameRate: 14, repeat: 0 });
+    if (!this.anims.exists('player_attack_left'))
+      this.anims.create({ key: 'player_attack_left',      frames: this.anims.generateFrameNumbers('player_attack_shadow',     { start: 8,  end: 15 }), frameRate: 14, repeat: 0 });
+    if (!this.anims.exists('player_attack_right'))
+      this.anims.create({ key: 'player_attack_right',     frames: this.anims.generateFrameNumbers('player_attack_shadow',     { start: 16, end: 23 }), frameRate: 14, repeat: 0 });
+    if (!this.anims.exists('player_attack_up'))
+      this.anims.create({ key: 'player_attack_up',        frames: this.anims.generateFrameNumbers('player_attack_shadow',     { start: 24, end: 31 }), frameRate: 14, repeat: 0 });
+    if (!this.anims.exists('player_run_attack_down'))
+      this.anims.create({ key: 'player_run_attack_down',  frames: this.anims.generateFrameNumbers('player_run_attack_shadow', { start: 0,  end: 7  }), frameRate: 14, repeat: 0 });
+    if (!this.anims.exists('player_run_attack_left'))
+      this.anims.create({ key: 'player_run_attack_left',  frames: this.anims.generateFrameNumbers('player_run_attack_shadow', { start: 8,  end: 15 }), frameRate: 14, repeat: 0 });
+    if (!this.anims.exists('player_run_attack_right'))
+      this.anims.create({ key: 'player_run_attack_right', frames: this.anims.generateFrameNumbers('player_run_attack_shadow', { start: 16, end: 23 }), frameRate: 14, repeat: 0 });
+    if (!this.anims.exists('player_run_attack_up'))
+      this.anims.create({ key: 'player_run_attack_up',    frames: this.anims.generateFrameNumbers('player_run_attack_shadow', { start: 24, end: 31 }), frameRate: 14, repeat: 0 });
+    if (!this.anims.exists('player_hurt'))
+      this.anims.create({ key: 'player_hurt',             frames: this.anims.generateFrameNumbers('player_hurt',              { start: 0,  end: 4  }), frameRate: 14, repeat: 0 });
   }
 
   private createSlimeAnims(): void {
-    if (this.anims.exists('slime_idle')) return;
-    this.anims.create({ key: 'slime_idle',   frames: this.anims.generateFrameNumbers('slime_idle',   { start: 0, end: 5  }), frameRate: 8,  repeat: -1 });
-    this.anims.create({ key: 'slime_walk',   frames: this.anims.generateFrameNumbers('slime_walk',   { start: 0, end: 7  }), frameRate: 10, repeat: -1 });
-    this.anims.create({ key: 'slime_attack', frames: this.anims.generateFrameNumbers('slime_attack', { start: 0, end: 9  }), frameRate: 10, repeat: -1 });
-    this.anims.create({ key: 'slime_hurt',   frames: this.anims.generateFrameNumbers('slime_hurt',   { start: 0, end: 4  }), frameRate: 14, repeat: 0  });
-    this.anims.create({ key: 'slime_death',  frames: this.anims.generateFrameNumbers('slime_death',  { start: 0, end: 9  }), frameRate: 8,  repeat: 0  });
+    if (this.anims.exists('slime_idle_down')) return;
+    const dirs: Array<'down' | 'up' | 'left' | 'right'> = ['down', 'up', 'left', 'right'];
+    // cols × rows: idle=6×4, walk=8×4, run=8×4, attack=10×4, hurt=5×4, death=10×4
+    const defs = [
+      { base: 'slime_idle',   tex: 'slime_idle',   cols: 6,  fps: 8,  repeat: -1 },
+      { base: 'slime_walk',   tex: 'slime_walk',   cols: 8,  fps: 10, repeat: -1 },
+      { base: 'slime_run',    tex: 'slime_run',    cols: 8,  fps: 14, repeat: -1 },
+      { base: 'slime_attack', tex: 'slime_attack', cols: 10, fps: 10, repeat: -1 },
+      { base: 'slime_hurt',   tex: 'slime_hurt',   cols: 5,  fps: 14, repeat: 0  },
+      { base: 'slime_death',  tex: 'slime_death',  cols: 10, fps: 8,  repeat: 0  },
+    ];
+    dirs.forEach((dir, row) => {
+      defs.forEach(d => {
+        const start = row * d.cols;
+        this.anims.create({
+          key: `${d.base}_${dir}`,
+          frames: this.anims.generateFrameNumbers(d.tex, { start, end: start + d.cols - 1 }),
+          frameRate: d.fps,
+          repeat: d.repeat,
+        });
+      });
+    });
   }
 
   private drawArenaFloor(): void {
