@@ -1,6 +1,6 @@
 {
   "configVersion": 1,
-  "timestamp": 1777545723167,
+  "timestamp": 1777549764091,
   "index": "/auto-rpg/index.html",
   "assetGroups": [
     {
@@ -13,9 +13,9 @@
       "urls": [
         "/auto-rpg/favicon.ico",
         "/auto-rpg/index.html",
-        "/auto-rpg/main-KFGUWHO2.js",
+        "/auto-rpg/main-QDEOHL2Q.js",
         "/auto-rpg/manifest.webmanifest",
-        "/auto-rpg/styles-4HDHL22G.css"
+        "/auto-rpg/styles-5FO5G3CS.css"
       ],
       "patterns": []
     },
@@ -2886,8 +2886,8 @@
     "/auto-rpg/icons/icon-512x512.png": "1de182f76f7329dfa8f9fcdd1fdcdd695bea6a99",
     "/auto-rpg/icons/icon-72x72.png": "aa88a6096bd973be7f6d7a5489bfa6bc2463f8c4",
     "/auto-rpg/icons/icon-96x96.png": "7fb8f59c30ce2ff12c700321a0b39e14b3dc8f95",
-    "/auto-rpg/index.html": "62eae6de421592f9a70955a03d7e7c1b996bd288",
-    "/auto-rpg/main-KFGUWHO2.js": "9cbbbb42a96f2625e36e06ae1a53badd97b60576",
+    "/auto-rpg/index.html": "c45363796a6f7c9fd789a83863090957bb8f264d",
+    "/auto-rpg/main-QDEOHL2Q.js": "3fbae4710b70b93140edb624f549b6d09cb475d3",
     "/auto-rpg/manifest.webmanifest": "f04d22a221939a5219406cd035205863da56e7ea",
     "/auto-rpg/sprite/flower/COUPON.png": "cd62c14c9f44c9738f31f56ab6c54ece7457fbb6",
     "/auto-rpg/sprite/flower/PNG/Plant1/Parts/Plant1_Attack_body.png": "170f200a28d6de59303700bf24ddc05d33409fd9",
@@ -5725,7 +5725,7 @@
     "/auto-rpg/sprite/vampire/__MACOSX/Tiled/._Vampires3_Walk_without_shadow.png": "b9e60d4f1b32a9da8d84b37d58aff19921ecf03d",
     "/auto-rpg/sprite/vampire/__MACOSX/Tiled/._shadow_death.png": "b9e60d4f1b32a9da8d84b37d58aff19921ecf03d",
     "/auto-rpg/sprite/vampire/__MACOSX/Tiled/._shadow_single.png": "b9e60d4f1b32a9da8d84b37d58aff19921ecf03d",
-    "/auto-rpg/styles-4HDHL22G.css": "85d0a38c53e7d99f6f40d4417eb3177cc10f0f46"
+    "/auto-rpg/styles-5FO5G3CS.css": "c345062afc5b9a9a1052874458cd5a5bbe71000b"
   },
   "navigationUrls": [
     {
