@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { VERSION } from '../version';
 
 const TOP_H  = 52;
 const BOT_H  = 54;
@@ -33,6 +34,10 @@ export class PrepScene extends Phaser.Scene {
     this.drawSidebars(W, H);
     this.drawCenterHero(W, H);
     this.drawBottomBar(W, H);
+
+    this.add.text(W / 2, H / 2, VERSION, {
+      fontSize: '20px', color: '#ffffff', stroke: '#000', strokeThickness: 3,
+    }).setOrigin(0.5).setDepth(999);
   }
 
   // ── Background ──────────────────────────────────────────
