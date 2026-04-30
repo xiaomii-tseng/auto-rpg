@@ -19,6 +19,9 @@ body {
 
 @media (orientation: portrait) {
   #game-container {
+    inset: auto;
+    right: auto;
+    bottom: auto;
     width: 100vh;
     height: 100vw;
     top: calc((100vh - 100vw) / 2);
