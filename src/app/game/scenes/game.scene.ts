@@ -3,6 +3,8 @@ import { Player } from '../objects/player';
 import { Boss } from '../objects/boss';
 import { SlashEffect } from '../objects/slash-effect';
 import { VirtualJoystick } from '../ui/joystick';
+import { PlayerStore } from '../data/player-store';
+import { InventoryStore } from '../data/inventory-store';
 
 const MELEE_RANGE = 95;
 
@@ -82,6 +84,10 @@ export class GameScene extends Phaser.Scene {
     this.player.setCollideWorldBounds(true);
     (this.boss.body as Phaser.Physics.Arcade.Body).setCollideWorldBounds(true);
 
+    (this.boss.body as Phaser.Physics.Arcade.Body).immovable = true;
+    this.physics.add.collider(this.player, bossGroup, undefined, () => {
+      return this.boss.currentState !== 'DASHING';
+    }, this);
     this.physics.add.overlap(bossGroup, this.player, () => {
       if (this.boss.currentState === 'DASHING') this.player.takeDamage(25);
     });
@@ -131,6 +137,10 @@ export class GameScene extends Phaser.Scene {
     else if (this.keys.down.isDown || this.keys.s.isDown) vy = 1;
 
     this.player.move(vx, vy);
+
+    // Y-sort: higher Y → higher depth (drawn on top)
+    this.player.setDepth(this.player.y);
+    this.boss.setDepth(this.boss.y);
   }
 
   private meleeAttack(tx: number, ty: number): void {
@@ -138,8 +148,11 @@ export class GameScene extends Phaser.Scene {
       if (!this.boss.active) return;
       const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, this.boss.x, this.boss.y);
       if (dist > MELEE_RANGE) return;
-      const dir = this.player.attackDir;
-      this.boss.takeDamage(30);
+      const dir    = this.player.attackDir;
+      const stats  = PlayerStore.getStats();
+      const isCrit = Math.random() < stats.crit;
+      const dmg    = stats.atk * (isCrit ? 2 : 1);
+      this.boss.takeDamage(dmg);
       this.slashEffect.play(this.boss.x, this.boss.y, dir);
       this.boss.knockback(this.player.x, this.player.y);
     });
@@ -173,13 +186,183 @@ export class GameScene extends Phaser.Scene {
 
   private handleBossDefeated(): void {
     this.gameOver = true;
-    this.showEndScreen(true);
+
+    const chunks  = Phaser.Math.Between(1, 3);
+    const essence = Phaser.Math.Between(0, 1);
+    const coins   = Phaser.Math.Between(20, 200);
+    const expGain = Phaser.Math.Between(25, 50);
+
+    InventoryStore.addItem('slime_chunk', '綠史萊姆碎塊', chunks);
+    if (essence > 0)
+      InventoryStore.addItem('slime_essence', '綠史萊姆精華', essence);
+    InventoryStore.addGold(coins);
+    PlayerStore.addExp(expGain);
+
+    const drops: { icon: string; name: string; qty: number }[] = [
+      { icon: 'icon_slime_chunk', name: '綠史萊姆碎塊', qty: chunks },
+    ];
+    if (essence > 0)
+      drops.push({ icon: 'icon_slime_essence', name: '綠史萊姆精華', qty: essence });
+
+    this.showVictoryScreen(coins, expGain, drops);
   }
 
   private handlePlayerDead(): void {
     this.gameOver = true;
     this.player.setActive(false).setVisible(false);
     this.showEndScreen(false);
+  }
+
+  private showVictoryScreen(coins: number, exp: number, drops: { icon: string; name: string; qty: number }[]): void {
+    const W = this.scale.width;
+    const H = this.scale.height;
+    const D = 250;
+
+    this.launchFireworks(W, H);
+
+    // Full overlay
+    const overlay = this.add.graphics().setScrollFactor(0).setDepth(D - 2);
+    overlay.fillStyle(0x000000, 0.72);
+    overlay.fillRect(0, 0, W, H);
+
+    // ── Title ─────────────────────────────────────────────
+    const titleY = H * 0.12;
+
+    // Glow halo behind text
+    const halo = this.add.graphics().setScrollFactor(0).setDepth(D);
+    halo.fillStyle(0xffdd00, 0.07);
+    halo.fillEllipse(W / 2, titleY, 340, 70);
+    halo.fillStyle(0xffdd00, 0.04);
+    halo.fillEllipse(W / 2, titleY, 440, 90);
+
+    // Decorative lines flanking title
+    const lineGfx = this.add.graphics().setScrollFactor(0).setDepth(D);
+    lineGfx.lineStyle(1, 0xd4a044, 0.6);
+    lineGfx.lineBetween(W / 2 - 160, titleY, W / 2 - 72, titleY);
+    lineGfx.lineBetween(W / 2 + 72,  titleY, W / 2 + 160, titleY);
+    lineGfx.fillStyle(0xd4a044, 0.8);
+    lineGfx.fillRect(W / 2 - 162, titleY - 3, 6, 6);
+    lineGfx.fillRect(W / 2 + 156, titleY - 3, 6, 6);
+
+    this.add.text(W / 2, titleY, '勝  利', {
+      fontSize: '46px', fontStyle: 'bold',
+      color: '#ffe866', stroke: '#7a4400', strokeThickness: 7,
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(D + 1);
+
+    // Subtitle
+    this.add.text(W / 2, titleY + 34, 'V I C T O R Y', {
+      fontSize: '11px', color: '#c49050', letterSpacing: 6,
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(D);
+
+    // ── Results panel ─────────────────────────────────────
+    const rowH   = 34;
+    const panelW = 260;
+    const panelH = 40 + (drops.length + 2) * rowH + 14;
+    const panelX = W / 2 - panelW / 2;
+    const panelY = H * 0.28;
+
+    const panel = this.add.graphics().setScrollFactor(0).setDepth(D);
+    // Outer glow border
+    panel.lineStyle(4, 0xd4a044, 0.15);
+    panel.strokeRect(panelX - 4, panelY - 4, panelW + 8, panelH + 8);
+    // Iron outer frame
+    panel.fillStyle(0x1a1408, 1);
+    panel.fillRect(panelX - 2, panelY - 2, panelW + 4, panelH + 4);
+    // Gold border
+    panel.lineStyle(1.5, 0xd4a044, 0.7);
+    panel.strokeRect(panelX - 2, panelY - 2, panelW + 4, panelH + 4);
+    // Panel body
+    panel.fillStyle(0x0c1408, 0.97);
+    panel.fillRect(panelX, panelY, panelW, panelH);
+    // Title bar
+    panel.fillStyle(0x1a2810, 1);
+    panel.fillRect(panelX, panelY, panelW, 40);
+    panel.fillStyle(0xd4a044, 0.6);
+    panel.fillRect(panelX, panelY, panelW, 2);
+    panel.fillStyle(0xd4a044, 0.12);
+    panel.fillRect(panelX, panelY + 2, panelW, 38);
+    // Divider after header
+    panel.lineStyle(1, 0xd4a044, 0.2);
+    panel.lineBetween(panelX + 12, panelY + 40, panelX + panelW - 12, panelY + 40);
+    // Corner accents
+    [[panelX, panelY], [panelX + panelW - 10, panelY],
+     [panelX, panelY + panelH - 10], [panelX + panelW - 10, panelY + panelH - 10]]
+      .forEach(([cx, cy]) => {
+        panel.fillStyle(0xd4a044, 0.5);
+        panel.fillRect(cx, cy, 10, 10);
+        panel.fillStyle(0x0c1408, 1);
+        panel.fillRect(cx + 2, cy + 2, 6, 6);
+      });
+
+    this.add.text(W / 2, panelY + 16, '獲  得', {
+      fontSize: '11px', color: '#d4a044', stroke: '#000', strokeThickness: 2,
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(D + 1);
+
+    // Item rows
+    const renderRow = (ry: number, iconKey: string, name: string, valueStr: string, valueColor: string) => {
+      const rowGfx = this.add.graphics().setScrollFactor(0).setDepth(D);
+      rowGfx.lineStyle(1, 0xd4a044, 0.08);
+      rowGfx.lineBetween(panelX + 10, ry + rowH, panelX + panelW - 10, ry + rowH);
+      // Icon cell
+      const iconSz = 24;
+      rowGfx.fillStyle(0x1a2a10, 1);
+      rowGfx.fillRect(panelX + 10, ry + (rowH - iconSz) / 2, iconSz, iconSz);
+      rowGfx.lineStyle(1, 0xd4a044, 0.3);
+      rowGfx.strokeRect(panelX + 10, ry + (rowH - iconSz) / 2, iconSz, iconSz);
+
+      if (this.textures.exists(iconKey))
+        this.add.image(panelX + 10 + iconSz / 2, ry + rowH / 2, iconKey)
+          .setDisplaySize(18, 18).setScrollFactor(0).setDepth(D + 1);
+
+      this.add.text(panelX + 42, ry + rowH / 2, name, {
+        fontSize: '10px', color: '#c8c8c8', stroke: '#000', strokeThickness: 1,
+      }).setOrigin(0, 0.5).setScrollFactor(0).setDepth(D + 1);
+
+      this.add.text(panelX + panelW - 10, ry + rowH / 2, valueStr, {
+        fontSize: '11px', fontStyle: 'bold', color: valueColor, stroke: '#000', strokeThickness: 2,
+      }).setOrigin(1, 0.5).setScrollFactor(0).setDepth(D + 1);
+    };
+
+    drops.forEach((drop, i) =>
+      renderRow(panelY + 40 + i * rowH, drop.icon, drop.name, `× ${drop.qty}`, '#88ee44'));
+    renderRow(panelY + 40 + drops.length * rowH,       'icon_gold', '金幣', `+ ${coins}`, '#ffcc44');
+    renderRow(panelY + 40 + (drops.length + 1) * rowH, 'icon_exp',  '經驗值', `+ ${exp}`,  '#88ccff');
+
+    // ── Return button ─────────────────────────────────────
+    const btnW  = 96;
+    const btnH  = 23;
+    const btnCX = W / 2;
+    const btnCY = panelY + panelH + 42;
+
+    const btnGfx = this.add.graphics().setScrollFactor(0).setDepth(D);
+    // Shadow
+    btnGfx.fillStyle(0x000000, 0.4);
+    btnGfx.fillRect(btnCX - btnW / 2 + 3, btnCY - btnH / 2 + 3, btnW, btnH);
+    // Outer frame
+    btnGfx.fillStyle(0x2a1e04, 1);
+    btnGfx.fillRect(btnCX - btnW / 2 - 2, btnCY - btnH / 2 - 2, btnW + 4, btnH + 4);
+    // Gold border
+    btnGfx.lineStyle(2, 0xd4a044, 0.85);
+    btnGfx.strokeRect(btnCX - btnW / 2 - 2, btnCY - btnH / 2 - 2, btnW + 4, btnH + 4);
+    // Body
+    btnGfx.fillStyle(0x3a2a08, 1);
+    btnGfx.fillRect(btnCX - btnW / 2, btnCY - btnH / 2, btnW, btnH);
+    btnGfx.fillStyle(0xd4a044, 0.12);
+    btnGfx.fillRect(btnCX - btnW / 2, btnCY - btnH / 2, btnW, btnH);
+    // Top shine
+    btnGfx.fillStyle(0xd4a044, 0.35);
+    btnGfx.fillRect(btnCX - btnW / 2 + 2, btnCY - btnH / 2, btnW - 4, 2);
+
+    const btnLabel = this.add.text(btnCX, btnCY, '返 回 大 廳', {
+      fontSize: '10px', fontStyle: 'bold',
+      color: '#e8c070', stroke: '#1a0800', strokeThickness: 3,
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(D + 1);
+
+    const hitArea = this.add.rectangle(btnCX, btnCY, btnW, btnH)
+      .setScrollFactor(0).setDepth(D + 2).setInteractive({ useHandCursor: true });
+    hitArea.on('pointerover', () => btnLabel.setStyle({ color: '#ffe866' }));
+    hitArea.on('pointerout',  () => btnLabel.setStyle({ color: '#e8c070' }));
+    hitArea.on('pointerdown', () => this.scene.start('PrepScene'));
   }
 
   private showEndScreen(victory: boolean): void {
@@ -308,10 +491,6 @@ export class GameScene extends Phaser.Scene {
   // ── Scene helpers ─────────────────────────────────────
 
   private addHUD(): void {
-    this.add.text(12, 12, 'WASD / Joystick: 移動\nSpace / 攻擊鍵: 揮劍', {
-      fontSize: '12px', color: '#aaaaaa', stroke: '#000', strokeThickness: 2,
-    }).setScrollFactor(0).setDepth(200);
-
     this.addAttackButton();
   }
 
@@ -534,6 +713,42 @@ export class GameScene extends Phaser.Scene {
       spg.fillStyle(0xffffff, 1); spg.fillRect(0, 0, 2, 2);
       spg.generateTexture('pxl2', 2, 2);
       spg.destroy();
+    }
+    if (!this.textures.exists('icon_slime_chunk')) {
+      const g = (this.make.graphics as any)({ x: 0, y: 0, add: false }) as Phaser.GameObjects.Graphics;
+      g.fillStyle(0x44cc44, 1); g.fillCircle(16, 18, 13);
+      g.fillStyle(0x22aa22, 1); g.fillCircle(10, 22, 8); g.fillCircle(22, 22, 8);
+      g.fillStyle(0x88ff88, 0.5); g.fillCircle(12, 12, 5);
+      g.generateTexture('icon_slime_chunk', 32, 32);
+      g.destroy();
+    }
+    if (!this.textures.exists('icon_slime_essence')) {
+      const g = (this.make.graphics as any)({ x: 0, y: 0, add: false }) as Phaser.GameObjects.Graphics;
+      g.fillStyle(0x44ddaa, 1); g.fillCircle(16, 20, 10);
+      g.fillStyle(0x22bbaa, 1);
+      g.fillTriangle(16, 4, 8, 20, 24, 20);
+      g.fillStyle(0xaaffee, 0.6); g.fillCircle(13, 14, 4);
+      g.generateTexture('icon_slime_essence', 32, 32);
+      g.destroy();
+    }
+    if (!this.textures.exists('icon_gold')) {
+      const g = (this.make.graphics as any)({ x: 0, y: 0, add: false }) as Phaser.GameObjects.Graphics;
+      g.fillStyle(0xcc8800, 1); g.fillCircle(16, 16, 14);
+      g.fillStyle(0xffcc00, 1); g.fillCircle(16, 16, 12);
+      g.fillStyle(0xffee88, 0.7); g.fillCircle(12, 11, 5);
+      g.fillStyle(0xcc8800, 1); g.fillRect(13, 9, 6, 14); g.fillRect(10, 12, 12, 3); g.fillRect(10, 19, 12, 3);
+      g.generateTexture('icon_gold', 32, 32);
+      g.destroy();
+    }
+    if (!this.textures.exists('icon_exp')) {
+      const g = (this.make.graphics as any)({ x: 0, y: 0, add: false }) as Phaser.GameObjects.Graphics;
+      g.fillStyle(0x2244aa, 1); g.fillCircle(16, 16, 14);
+      g.fillStyle(0x4488ff, 1); g.fillCircle(16, 16, 11);
+      g.fillStyle(0xaaddff, 0.8); g.fillCircle(11, 10, 4);
+      g.fillStyle(0xffffff, 1);
+      g.fillRect(14, 8, 4, 16); g.fillRect(9, 13, 14, 4);
+      g.generateTexture('icon_exp', 32, 32);
+      g.destroy();
     }
   }
 }

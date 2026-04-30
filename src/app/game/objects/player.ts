@@ -1,14 +1,14 @@
 import Phaser from 'phaser';
+import { PlayerStore } from '../data/player-store';
 
 export class Player extends Phaser.Physics.Arcade.Sprite {
-  private isMoving = false;
+  private isMoving    = false;
   private isAttacking = false;
   private lastDir: 'down' | 'left' | 'right' | 'up' = 'down';
-  private readonly speed = 180;
 
-  private hp = 100;
-  private readonly maxHp = 100;
-  private invincible = false;
+  private hp:    number;
+  private maxHp: number;
+  private invincible  = false;
   private flashTween?: Phaser.Tweens.Tween;
   private playingHurt = false;
 
@@ -24,8 +24,13 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.setScale(1.5);
     this.setCollideWorldBounds(true);
     this.setDepth(10);
-    this.setBodySize(22, 32).setOffset(21, 16);
+    this.setBodySize(16, 11).setOffset(24, 37);
     this.play('player_idle_down');
+
+    // Initialise HP from current equipment stats
+    const stats = PlayerStore.getStats();
+    this.maxHp = stats.maxHp;
+    this.hp    = stats.maxHp;
 
     this.headGfx = scene.add.graphics().setDepth(15);
   }
@@ -57,7 +62,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       Math.abs(dx) >= Math.abs(dy)
         ? (dx < 0 ? 'left' : 'right')
         : (dy < 0 ? 'up'   : 'down');
-    this.lastDir = dir;
+    this.lastDir    = dir;
     this.isAttacking = true;
     const key = this.isMoving ? `player_run_attack_${dir}` : `player_attack_${dir}`;
     this.play(key, true);
@@ -70,10 +75,11 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   move(velX: number, velY: number): void {
+    const speed  = PlayerStore.getStats().speed;
     const moving = velX !== 0 || velY !== 0;
     if (moving) {
       const len = Math.sqrt(velX * velX + velY * velY);
-      this.setVelocity((velX / len) * this.speed, (velY / len) * this.speed);
+      this.setVelocity((velX / len) * speed, (velY / len) * speed);
       this.lastDir = Math.abs(velX) >= Math.abs(velY)
         ? (velX < 0 ? 'left' : 'right')
         : (velY < 0 ? 'up'   : 'down');
@@ -88,7 +94,9 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
   takeDamage(amount: number): void {
     if (this.invincible || !this.active) return;
-    this.hp = Math.max(0, this.hp - amount);
+    const def    = PlayerStore.getStats().def;
+    const actual = Math.max(1, amount - def);
+    this.hp = Math.max(0, this.hp - actual);
     this.onHpChanged?.(this.hp, this.maxHp);
     if (this.hp <= 0) {
       this.onDead?.();
@@ -128,8 +136,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.play(key, true);
   }
 
-  get moving(): boolean { return this.isMoving; }
-  get currentHp(): number { return this.hp; }
+  get moving(): boolean    { return this.isMoving; }
+  get currentHp(): number  { return this.hp; }
   get maxHpValue(): number { return this.maxHp; }
   get attackDir(): 'down' | 'left' | 'right' | 'up' { return this.lastDir; }
 }

@@ -36,7 +36,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
   onDead?: () => void;
   onAoeExplode?: (x: number, y: number) => void;
 
-  constructor(scene: Phaser.Scene, x: number, y: number, totalHp = 500) {
+  constructor(scene: Phaser.Scene, x: number, y: number, totalHp = 50) {
     super(scene, x, y, 'slime_idle_down', 0);
     this.hp = totalHp;
     this.maxHp = totalHp;
@@ -47,7 +47,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     this.setDepth(12);
     this.setScale(2);
     // Body in unscaled coords — slime occupies lower-center of 64×64 frame
-    body.setSize(30, 24).setOffset(17, 36);
+    body.setSize(19, 12).setOffset(23, 29);
     this.warningGfx = scene.add.graphics().setDepth(8);
   }
 
