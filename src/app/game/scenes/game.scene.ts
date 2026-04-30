@@ -186,23 +186,7 @@ export class GameScene extends Phaser.Scene {
     const W = this.scale.width;
     const H = this.scale.height;
 
-    if (victory) {
-      for (let i = 0; i < 14; i++) {
-        const angle = (i / 14) * Math.PI * 2;
-        const p = this.add.graphics().setDepth(250).setPosition(W / 2, H / 2);
-        p.fillStyle(0xffdd00, 1);
-        p.fillCircle(0, 0, 7);
-        this.tweens.add({
-          targets: p,
-          x: W / 2 + Math.cos(angle) * 200,
-          y: H / 2 + Math.sin(angle) * 200,
-          alpha: 0,
-          duration: 950,
-          ease: 'Sine.easeOut',
-          onComplete: () => p.destroy(),
-        });
-      }
-    }
+    if (victory) this.launchFireworks(W, H);
 
     const overlay = this.add.graphics().setScrollFactor(0).setDepth(248);
     overlay.fillStyle(0x000000, 0.65);
@@ -242,6 +226,83 @@ export class GameScene extends Phaser.Scene {
       lobbyBtn.on('pointerout',  () => lobbyBtn.setStyle({ color: '#ffffff' }));
       lobbyBtn.on('pointerdown', () => this.scene.start('PrepScene'));
     }
+  }
+
+  private launchFireworks(W: number, H: number): void {
+    const colors = [0xffdd00, 0xff3355, 0x33aaff, 0x44ff88, 0xff66bb, 0xffffff, 0xff8833];
+
+    const burst = (cx: number, cy: number, color: number, delay: number) => {
+      this.time.delayedCall(delay, () => {
+        // White flash
+        const flash = this.add.graphics().setScrollFactor(0).setDepth(249).setPosition(cx, cy);
+        flash.fillStyle(0xffffff, 1);
+        flash.fillCircle(0, 0, 16);
+        this.tweens.add({
+          targets: flash, alpha: 0, scaleX: 3, scaleY: 3,
+          duration: 250, ease: 'Cubic.easeOut',
+          onComplete: () => flash.destroy(),
+        });
+
+        // Main sparks
+        for (let i = 0; i < 24; i++) {
+          const angle = (i / 24) * Math.PI * 2 + Phaser.Math.FloatBetween(-0.15, 0.15);
+          const dist  = Phaser.Math.Between(80, 170);
+          const sz    = Phaser.Math.Between(3, 7);
+          const c     = i % 5 === 0 ? 0xffffff : color;
+
+          const spark = this.add.graphics().setScrollFactor(0).setDepth(250).setPosition(cx, cy);
+          spark.fillStyle(c, 1);
+          spark.fillCircle(0, 0, sz);
+          this.tweens.add({
+            targets: spark,
+            x: cx + Math.cos(angle) * dist,
+            y: cy + Math.sin(angle) * dist,
+            alpha: 0, scaleX: 0.1, scaleY: 0.1,
+            duration: Phaser.Math.Between(700, 1200),
+            ease: 'Cubic.easeOut',
+            onComplete: () => spark.destroy(),
+          });
+        }
+
+        // Inner sparkles
+        for (let i = 0; i < 12; i++) {
+          const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
+          const dist  = Phaser.Math.Between(20, 55);
+          const s = this.add.graphics().setScrollFactor(0).setDepth(250).setPosition(cx, cy);
+          s.fillStyle(0xffffcc, 1);
+          s.fillCircle(0, 0, 2);
+          this.tweens.add({
+            targets: s,
+            x: cx + Math.cos(angle) * dist,
+            y: cy + Math.sin(angle) * dist,
+            alpha: 0, duration: Phaser.Math.Between(300, 600),
+            delay: Phaser.Math.Between(50, 200),
+            ease: 'Sine.easeOut',
+            onComplete: () => s.destroy(),
+          });
+        }
+      });
+    };
+
+    const spots: [number, number][] = [
+      [W / 2,    H / 2   ],
+      [W * 0.28, H * 0.30],
+      [W * 0.72, H * 0.30],
+      [W * 0.20, H * 0.65],
+      [W * 0.80, H * 0.65],
+      [W / 2,    H * 0.18],
+      [W / 2,    H * 0.78],
+    ];
+
+    spots.forEach(([x, y], i) =>
+      burst(x, y, colors[i % colors.length], i * 320));
+    spots.forEach(([x, y], i) =>
+      burst(
+        x + Phaser.Math.Between(-25, 25),
+        y + Phaser.Math.Between(-25, 25),
+        colors[(i + 3) % colors.length],
+        2400 + i * 280,
+      ));
   }
 
   // ── Scene helpers ─────────────────────────────────────

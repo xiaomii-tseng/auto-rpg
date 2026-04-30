@@ -2,7 +2,6 @@ import Phaser from 'phaser';
 import { VERSION } from '../version';
 
 const TOP_H  = 52;
-const BOT_H  = 54;
 const SIDE_W = 76;
 
 export class PrepScene extends Phaser.Scene {
@@ -17,8 +16,8 @@ export class PrepScene extends Phaser.Scene {
   }
 
   create(): void {
-    const W = this.scale.width;   // 960
-    const H = this.scale.height;  // 540
+    const W = this.scale.width;
+    const H = this.scale.height;
 
     if (!this.anims.exists('player_idle_shadow')) {
       this.anims.create({
@@ -33,39 +32,69 @@ export class PrepScene extends Phaser.Scene {
     this.drawTopBar(W);
     this.drawSidebars(W, H);
     this.drawCenterHero(W, H);
-    this.drawBottomBar(W, H);
+    this.drawBattleButton(W, H);
 
     this.add.text(W / 2, H / 3, VERSION, {
       fontSize: '20px', color: '#ffffff', stroke: '#000', strokeThickness: 3,
     }).setOrigin(0.5).setDepth(999);
   }
 
-  // ── Background ──────────────────────────────────────────
+  // ── Background (stone floor) ────────────────────────────
 
   private drawBackground(W: number, H: number): void {
-    this.add.rectangle(W / 2, H / 2, W, H, 0x091624);
+    // Base fill
+    this.add.rectangle(W / 2, H / 2, W, H, 0x1e1b18);
 
-    // Hex grid overlay
     const gfx = this.add.graphics();
-    gfx.lineStyle(0.6, 0x1a3a5c, 0.2);
-    const r     = 28;
-    const hexW  = r * Math.sqrt(3);
-    const rowSt = r * 1.5;
+    const tW = 88;
+    const tH = 56;
 
-    for (let row = -1; row <= Math.ceil(H / rowSt) + 1; row++) {
-      for (let col = -1; col <= Math.ceil(W / hexW) + 1; col++) {
-        const cx = col * hexW + (row % 2 !== 0 ? hexW / 2 : 0);
-        const cy = row * rowSt;
-        gfx.beginPath();
-        for (let vi = 0; vi <= 6; vi++) {
-          const a  = (vi / 6) * Math.PI * 2 - Math.PI / 6;
-          const vx = cx + Math.cos(a) * (r - 1);
-          const vy = cy + Math.sin(a) * (r - 1);
-          if (vi === 0) gfx.moveTo(vx, vy); else gfx.lineTo(vx, vy);
-        }
-        gfx.strokePath();
+    for (let row = 0; row <= Math.ceil(H / tH); row++) {
+      const offset = (row % 2 === 0) ? 0 : tW / 2;
+      for (let col = -1; col <= Math.ceil(W / tW) + 1; col++) {
+        const tx = col * tW + offset;
+        const ty = row * tH;
+
+        // Vary stone shade slightly per tile
+        const v = ((row * 7 + col * 13) % 5);
+        const shade = [0x35302b, 0x302c28, 0x3a3530, 0x2e2a26, 0x383330][v];
+        gfx.fillStyle(shade, 1);
+        gfx.fillRect(tx + 1, ty + 1, tW - 1, tH - 1);
+
+        // Top highlight (light edge)
+        gfx.fillStyle(0x4a4540, 0.45);
+        gfx.fillRect(tx + 1, ty + 1, tW - 1, 3);
+
+        // Left highlight
+        gfx.fillStyle(0x444040, 0.25);
+        gfx.fillRect(tx + 1, ty + 1, 3, tH - 1);
+
+        // Bottom shadow
+        gfx.fillStyle(0x100d0a, 0.5);
+        gfx.fillRect(tx + 1, ty + tH - 3, tW - 1, 3);
       }
     }
+
+    // Mortar grid
+    gfx.lineStyle(1, 0x100d0a, 0.9);
+    for (let row = 0; row <= Math.ceil(H / tH) + 1; row++) {
+      const offset = (row % 2 === 0) ? 0 : tW / 2;
+      const y = row * tH;
+      // horizontal line
+      gfx.lineBetween(0, y, W, y);
+      // vertical lines (offset per row)
+      for (let col = -1; col <= Math.ceil(W / tW) + 2; col++) {
+        const x = col * tW + offset;
+        gfx.lineBetween(x, y, x, y + tH);
+      }
+    }
+
+    // Subtle dark vignette overlay
+    const vig = this.add.graphics();
+    vig.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0.55, 0.55, 0, 0);
+    vig.fillRect(0, 0, W, H / 3);
+    vig.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0, 0, 0.45, 0.45);
+    vig.fillRect(0, H * 0.67, W, H * 0.33);
   }
 
   // ── Top bar ─────────────────────────────────────────────
@@ -130,32 +159,26 @@ export class PrepScene extends Phaser.Scene {
   // ── Sidebars ────────────────────────────────────────────
 
   private drawSidebars(W: number, H: number): void {
-    const midH  = H - TOP_H - BOT_H;
-    const btnSz = 66;
-    const gap   = 10;
-    const n     = 3;
-    const totalH = n * btnSz + (n - 1) * gap;
-    const btnY0  = TOP_H + (midH - totalH) / 2;
+    const midH   = H - TOP_H;
+    const btnSz  = 66;
+    const gap    = 10;
 
+    // Left: 3 buttons
     const leftDefs = [
+      { label: '任務', accent: 0xffdd22, badge: 2 },
       { label: '商店', accent: 0xffaa22, badge: 0 },
-      { label: '英雄', accent: 0x44aaff, badge: 9 },
-      { label: '新聞', accent: 0xff4455, badge: 1 },
+      { label: '拍賣', accent: 0xee44aa, badge: 0 },
     ];
+    const leftTotalH = leftDefs.length * btnSz + (leftDefs.length - 1) * gap;
+    const leftY0 = TOP_H + (midH - leftTotalH) / 2;
     leftDefs.forEach((b, i) => {
-      const by = btnY0 + i * (btnSz + gap) + btnSz / 2;
+      const by = leftY0 + i * (btnSz + gap) + btnSz / 2;
       this.addSideBtn(SIDE_W / 2, by, btnSz, b.label, b.accent, b.badge);
     });
 
-    const rightDefs = [
-      { label: '好友', accent: 0x44ff88, badge: 0 },
-      { label: '戰隊', accent: 0xff6644, badge: 0 },
-      { label: '現天', accent: 0xaa44ff, badge: 0 },
-    ];
-    rightDefs.forEach((b, i) => {
-      const by = btnY0 + i * (btnSz + gap) + btnSz / 2;
-      this.addSideBtn(W - SIDE_W / 2, by, btnSz, b.label, b.accent, b.badge);
-    });
+    // Right: 1 button (好友), centered
+    const rightY = TOP_H + midH / 2;
+    this.addSideBtn(W - SIDE_W / 2, rightY, btnSz, '好友', 0x44ff88, 0);
   }
 
   private addSideBtn(x: number, y: number, sz: number, label: string, accent: number, badge = 0): void {
@@ -164,7 +187,6 @@ export class PrepScene extends Phaser.Scene {
     gfx.fillRect(x - sz / 2, y - sz / 2, sz, sz);
     gfx.lineStyle(1.5, accent, 0.4);
     gfx.strokeRect(x - sz / 2, y - sz / 2, sz, sz);
-    // Accent top strip
     gfx.fillStyle(accent, 0.65);
     gfx.fillRect(x - sz / 2, y - sz / 2, sz, 4);
 
@@ -186,21 +208,18 @@ export class PrepScene extends Phaser.Scene {
 
   private drawCenterHero(W: number, H: number): void {
     const cx    = W / 2;
-    const midH  = H - TOP_H - BOT_H;
-    const cy    = TOP_H + midH * 0.48;
+    const midH  = H - TOP_H;
+    const cy    = TOP_H + midH * 0.44;
     const scale = 4.4;
 
-    // Platform glow
     const platformGfx = this.add.graphics();
     platformGfx.fillStyle(0x1155aa, 0.08);
     platformGfx.fillEllipse(cx, cy + 130, 200, 40);
 
-    // Ground shadow
     const shadowGfx = this.add.graphics();
-    shadowGfx.fillStyle(0x000000, 0.22);
+    shadowGfx.fillStyle(0x000000, 0.28);
     shadowGfx.fillEllipse(cx, cy + 134, 130, 18);
 
-    // Hero sprite
     const hero = this.add.sprite(cx, cy, 'player_idle_shadow', 0)
       .setScale(scale)
       .setDepth(10);
@@ -213,8 +232,6 @@ export class PrepScene extends Phaser.Scene {
     };
     playIdle();
 
-
-    // Name tag
     const nameGfx = this.add.graphics();
     nameGfx.fillStyle(0x060f1c, 0.8);
     nameGfx.fillRect(cx - 64, cy + 140, 128, 24);
@@ -225,56 +242,14 @@ export class PrepScene extends Phaser.Scene {
     }).setOrigin(0.5);
   }
 
-  // ── Bottom bar ──────────────────────────────────────────
+  // ── Battle button (standalone) ──────────────────────────
 
-  private drawBottomBar(W: number, H: number): void {
-    const gfx = this.add.graphics();
-    gfx.fillStyle(0x050e1a, 0.97);
-    gfx.fillRect(0, H - BOT_H, W, BOT_H);
-    gfx.lineStyle(1, 0x1b3352, 0.7);
-    gfx.lineBetween(0, H - BOT_H, W, H - BOT_H);
-
-    const by = H - BOT_H;
-
-    // ── Token / pass (left) ──
-    const passGfx = this.add.graphics();
-    passGfx.fillStyle(0x7a4412, 1);
-    passGfx.fillRect(8, by + 7, 40, 40);
-    passGfx.lineStyle(1, 0xffaa44, 0.45);
-    passGfx.strokeRect(8, by + 7, 40, 40);
-    this.add.text(28, by + 27, '通', {
-      fontSize: '15px', color: '#ffcc88', stroke: '#000', strokeThickness: 2,
-    }).setOrigin(0.5);
-
-    this.add.text(54, by + 16, '通行券', {
-      fontSize: '10px', color: '#887766',
-    }).setOrigin(0, 0.5);
-    this.add.text(54, by + 32, '35 / 200', {
-      fontSize: '12px', color: '#ccbbaa', stroke: '#000', strokeThickness: 2,
-    }).setOrigin(0, 0.5);
-
-    // Progress bar
-    const pbGfx = this.add.graphics();
-    pbGfx.fillStyle(0x1a1a1a, 1);
-    pbGfx.fillRect(54, by + 42, 90, 5);
-    pbGfx.fillStyle(0xffaa33, 1);
-    pbGfx.fillRect(54, by + 42, 90 * (35 / 200), 5);
-
-    // ── Event info (center) ──
-    const ex = SIDE_W + (W - SIDE_W * 2 - 220) / 2 + SIDE_W;
-    this.add.text(ex, by + 10, '活動剩餘：23小時', {
-      fontSize: '10px', color: '#556677',
-    }).setOrigin(0, 0);
-    this.add.text(ex, by + 25, '史萊姆 Boss 挑戰', {
-      fontSize: '14px', color: '#aabbcc', stroke: '#000', strokeThickness: 2,
-    }).setOrigin(0, 0);
-
-    // ── Battle button (right) ──
-    const battleBtn = this.add.text(W - 110, H - BOT_H / 2, '對  戰', {
+  private drawBattleButton(W: number, H: number): void {
+    const battleBtn = this.add.text(W / 2, H - 36, '對  戰', {
       fontSize: '28px',
       color: '#0a0800',
       backgroundColor: '#ffdd00',
-      padding: { x: 26, y: 8 },
+      padding: { x: 36, y: 10 },
       stroke: '#bb8800',
       strokeThickness: 2,
     }).setOrigin(0.5).setInteractive({ useHandCursor: true });
@@ -285,11 +260,8 @@ export class PrepScene extends Phaser.Scene {
 
     this.tweens.add({
       targets: battleBtn,
-      scaleX: 1.04,
-      scaleY: 1.04,
-      duration: 800,
-      yoyo: true,
-      repeat: -1,
+      scaleX: 1.04, scaleY: 1.04,
+      duration: 800, yoyo: true, repeat: -1,
       ease: 'Sine.easeInOut',
     });
   }
