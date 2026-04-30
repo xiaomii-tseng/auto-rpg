@@ -16,11 +16,11 @@
 /* Portrait: fake landscape via CSS rotation */
 @media (orientation: portrait) {
   #game-wrapper {
-    width: 100dvh;
-    height: 100vw;
-    position: absolute;
+    position: fixed;
     top: 0;
     left: 0;
+    width: 100vh;
+    height: 100vw;
     transform-origin: top left;
     transform: rotate(90deg) translateY(-100%);
   }
