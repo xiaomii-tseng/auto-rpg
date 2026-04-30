@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, AfterViewInit } from '@angular/core';
 import Phaser from 'phaser';
 import { PrepScene } from './game/scenes/prep-scene';
 import { GameScene } from './game/scenes/game.scene';
@@ -9,16 +9,15 @@ import { GameScene } from './game/scenes/game.scene';
   templateUrl: './app.html',
   styleUrl: './app.scss',
 })
-export class App implements OnInit {
+export class App implements AfterViewInit {
   private game!: Phaser.Game;
 
-  ngOnInit(): void {
+  ngAfterViewInit(): void {
     (screen.orientation as any)?.lock?.('landscape')?.catch(() => {});
 
     this.applyRotation();
     window.addEventListener('resize', () => {
       this.applyRotation();
-      // Let the DOM settle before Phaser re-reads container dimensions
       setTimeout(() => this.game?.scale.refresh(), 50);
     });
 
@@ -44,31 +43,34 @@ export class App implements OnInit {
   private applyRotation(): void {
     const el = document.getElementById('game-container');
     if (!el) return;
-    const W = window.innerWidth;
-    const H = window.innerHeight;
 
-    if (H > W) {
-      // Portrait: rotate container 90deg CW so content appears landscape
-      el.style.position       = 'fixed';
-      el.style.width          = `${H}px`;
-      el.style.height         = `${W}px`;
-      el.style.top            = `${(H - W) / 2}px`;
-      el.style.left           = `${(W - H) / 2}px`;
-      el.style.right          = 'auto';
-      el.style.bottom         = 'auto';
-      el.style.transform      = 'rotate(90deg)';
-      el.style.transformOrigin = 'center center';
+    // Use screen dimensions (physical, unaffected by URL bar / browser chrome)
+    const SW = Math.min(screen.width, screen.height); // narrow side
+    const SH = Math.max(screen.width, screen.height); // tall side
+    const isPortrait = window.innerHeight > window.innerWidth;
+
+    if (isPortrait) {
+      // Container is SH×SW (landscape), rotated 90deg CW to fill portrait screen
+      el.style.cssText = `
+        position: fixed;
+        width: ${SH}px;
+        height: ${SW}px;
+        top: ${(SH - SW) / 2}px;
+        left: ${(SW - SH) / 2}px;
+        transform: rotate(90deg);
+        transform-origin: center center;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      `;
     } else {
-      el.style.position       = 'fixed';
-      el.style.inset          = '0';
-      el.style.width          = '';
-      el.style.height         = '';
-      el.style.top            = '';
-      el.style.left           = '';
-      el.style.right          = '';
-      el.style.bottom         = '';
-      el.style.transform      = '';
-      el.style.transformOrigin = '';
+      el.style.cssText = `
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      `;
     }
   }
 
