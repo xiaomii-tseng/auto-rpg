@@ -2,6 +2,7 @@
   "name": "auto-rpg",
   "short_name": "auto-rpg",
   "display": "standalone",
+  "orientation": "landscape",
   "scope": "./",
   "start_url": "./",
   "icons": [

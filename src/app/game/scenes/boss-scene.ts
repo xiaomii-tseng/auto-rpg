@@ -31,6 +31,17 @@ export class BossScene extends Phaser.Scene {
   }
 
   preload(): void {
+    const pBase = 'sprite/player/PNG/Unarmed/Without_shadow/';
+    const sBase = 'sprite/slime/PNG/Slime1/Without_shadow/';
+    const cfg = { frameWidth: 64, frameHeight: 64 };
+    if (!this.textures.exists('player_idle')) this.load.spritesheet('player_idle', pBase + 'Unarmed_Idle_without_shadow.png', cfg);
+    if (!this.textures.exists('player_walk')) this.load.spritesheet('player_walk', pBase + 'Unarmed_Walk_without_shadow.png', cfg);
+    if (!this.textures.exists('player_hurt')) this.load.spritesheet('player_hurt', pBase + 'Unarmed_Hurt_without_shadow.png', cfg);
+    if (!this.textures.exists('slime_idle'))   this.load.spritesheet('slime_idle',   sBase + 'Slime1_Idle_without_shadow.png',   cfg);
+    if (!this.textures.exists('slime_walk'))   this.load.spritesheet('slime_walk',   sBase + 'Slime1_Walk_without_shadow.png',   cfg);
+    if (!this.textures.exists('slime_attack')) this.load.spritesheet('slime_attack', sBase + 'Slime1_Attack_without_shadow.png', cfg);
+    if (!this.textures.exists('slime_hurt'))   this.load.spritesheet('slime_hurt',   sBase + 'Slime1_Hurt_without_shadow.png',   cfg);
+    if (!this.textures.exists('slime_death'))  this.load.spritesheet('slime_death',  sBase + 'Slime1_Death_without_shadow.png',  cfg);
     this.generateTextures();
   }
 
@@ -39,11 +50,17 @@ export class BossScene extends Phaser.Scene {
     const H = this.scale.height;
     this.gameOver = false;
 
-    this.physics.world.setBounds(0, 0, W, H);
-    this.drawArenaFloor(W, H);
+    const WW = Math.round(W * 1.5);
+    const WH = Math.round(H * 1.5);
+    // Camera shows full world; physics bounds inset so boss/player sprites stay inside the border
+    this.physics.world.setBounds(36, 72, WW - 72, WH - 144);
+    this.cameras.main.setBounds(0, 0, WW, WH);
+    this.createAllAnims();
+    this.drawArenaFloor(WW, WH);
 
-    // Player
-    this.player = new Player(this, W / 2, H * 0.75);
+    // Player — spawn at world center-bottom area
+    this.player = new Player(this, W * 0.75, H * 1.1);
+    this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
     this.player.onHpChanged = () => this.refreshPlayerBar();
     this.player.onDead = () => this.handlePlayerDead();
 
@@ -62,8 +79,8 @@ export class BossScene extends Phaser.Scene {
       this.weaponHud.flashName(w);
     };
 
-    // Boss
-    this.boss = new Boss(this, W / 2, H * 0.25);
+    // Boss — spawn at world center-upper area
+    this.boss = new Boss(this, W * 0.75, H * 0.4);
     this.boss.getTargetPos = () => [this.player.x, this.player.y];
     this.boss.onHpChanged = () => this.refreshBossBar();
     this.boss.onDead = () => this.handleBossDefeated();
@@ -183,7 +200,7 @@ export class BossScene extends Phaser.Scene {
     this.bossHpGfx.lineStyle(2, 0xff4400, 0.8);
     this.bossHpGfx.strokeRect(bx, by, bw, bh);
 
-    this.bossHpLabel.setText(`石像怪   ${this.boss.currentHp} / ${this.boss.maxHpValue}`);
+    this.bossHpLabel.setText(`綠史萊姆   ${this.boss.currentHp} / ${this.boss.maxHpValue}`);
     this.bossHpLabel.setPosition(W / 2, by - 14);
   }
 
@@ -282,48 +299,63 @@ export class BossScene extends Phaser.Scene {
   private drawRangeCircle(): void {
     this.rangeCircle.clear();
     if (!this.player.moving) {
-      this.rangeCircle.lineStyle(1, 0xffffff, 0.12);
+      this.rangeCircle.lineStyle(1, 0xffffff, 0.18);
       this.rangeCircle.strokeCircle(
         this.player.x, this.player.y,
-        this.weaponSystem.activeWeapon.range,
+        this.weaponSystem.effectiveRange,
       );
     }
   }
 
-  private drawArenaFloor(W: number, H: number): void {
-    const g    = this.add.graphics().setDepth(0);
-    const tile = 80;
-
-    g.fillStyle(0x0d0d1f);
-    g.fillRect(0, 0, W, H);
-
-    for (let x = 0; x < W; x += tile) {
-      for (let y = 0; y < H; y += tile) {
-        const shade = ((x / tile + y / tile) % 2 === 0) ? 0x0d0d1f : 0x0f0f26;
-        g.fillStyle(shade);
-        g.fillRect(x, y, tile, tile);
-      }
+  private createAllAnims(): void {
+    if (!this.anims.exists('player_idle')) {
+      this.anims.create({ key: 'player_idle', frames: this.anims.generateFrameNumbers('player_idle', { start: 0, end: 11 }), frameRate: 8,  repeat: -1 });
+      this.anims.create({ key: 'player_walk', frames: this.anims.generateFrameNumbers('player_walk', { start: 0, end: 5  }), frameRate: 10, repeat: -1 });
+      this.anims.create({ key: 'player_hurt', frames: this.anims.generateFrameNumbers('player_hurt', { start: 0, end: 4  }), frameRate: 14, repeat: 0  });
     }
+    if (!this.anims.exists('slime_idle')) {
+      this.anims.create({ key: 'slime_idle',   frames: this.anims.generateFrameNumbers('slime_idle',   { start: 0, end: 5  }), frameRate: 8,  repeat: -1 });
+      this.anims.create({ key: 'slime_walk',   frames: this.anims.generateFrameNumbers('slime_walk',   { start: 0, end: 7  }), frameRate: 10, repeat: -1 });
+      this.anims.create({ key: 'slime_attack', frames: this.anims.generateFrameNumbers('slime_attack', { start: 0, end: 9  }), frameRate: 10, repeat: -1 });
+      this.anims.create({ key: 'slime_hurt',   frames: this.anims.generateFrameNumbers('slime_hurt',   { start: 0, end: 4  }), frameRate: 14, repeat: 0  });
+      this.anims.create({ key: 'slime_death',  frames: this.anims.generateFrameNumbers('slime_death',  { start: 0, end: 9  }), frameRate: 8,  repeat: 0  });
+    }
+  }
 
-    g.lineStyle(1, 0x334455, 0.22);
-    for (let x = 0; x <= W; x += tile) g.lineBetween(x, 0, x, H);
-    for (let y = 0; y <= H; y += tile) g.lineBetween(0, y, W, y);
+  private drawArenaFloor(W: number, H: number): void {
+    // Grass tile base
+    this.add.tileSprite(W / 2, H / 2, W, H, 'grass').setDepth(0);
 
-    g.lineStyle(4, 0x882299, 0.65);
-    g.strokeRect(2, 2, W - 4, H - 4);
+    // Pixel-art arena boundary — stone border (4-pixel thick, 2 shades for depth)
+    const border = this.add.graphics().setDepth(1);
+    border.fillStyle(0x2e7018, 0.65);
+    border.fillRect(0, 0, W, 6);
+    border.fillRect(0, H - 6, W, 6);
+    border.fillRect(0, 0, 6, H);
+    border.fillRect(W - 6, 0, 6, H);
+    border.fillStyle(0x1a5010, 0.8);
+    border.fillRect(0, 0, W, 3);
+    border.fillRect(0, 0, 3, H);
+    border.fillStyle(0x70bc4c, 0.3);
+    border.fillRect(3, H - 3, W - 3, 3);
+    border.fillRect(W - 3, 3, 3, H - 3);
   }
 
   private generateTextures(): void {
-    if (!this.textures.exists('player')) {
+    if (!this.textures.exists('grass')) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const pg = (this.make.graphics as any)({ x: 0, y: 0, add: false }) as Phaser.GameObjects.Graphics;
-      pg.fillStyle(0x4a9eff); pg.fillRect(4, 8, 8, 10);
-      pg.fillStyle(0xffcc99); pg.fillRect(5, 1, 6, 7);
-      pg.fillStyle(0x222222); pg.fillRect(6, 3, 1, 2); pg.fillRect(9, 3, 1, 2);
-      pg.fillStyle(0x2244aa); pg.fillRect(4, 18, 3, 6); pg.fillRect(9, 18, 3, 6);
-      pg.fillStyle(0x3388dd); pg.fillRect(1, 9, 3, 7); pg.fillRect(12, 9, 3, 7);
-      pg.generateTexture('player', 16, 24);
-      pg.destroy();
+      const gg = (this.make.graphics as any)({ x: 0, y: 0, add: false }) as Phaser.GameObjects.Graphics;
+      gg.fillStyle(0x5aa838, 1); gg.fillRect(0, 0, 64, 64);
+      gg.fillStyle(0x70bc4c, 0.30); gg.fillRect(4, 6, 18, 10); gg.fillRect(38, 36, 16, 12); gg.fillRect(22, 50, 20, 14);
+      gg.fillStyle(0x429228, 0.25); gg.fillRect(18, 28, 14, 10); gg.fillRect(46, 8, 14, 10); gg.fillRect(6, 44, 14, 14);
+      gg.fillStyle(0x2e7018, 0.75);
+      for (const [dx, dy] of [[4,4],[16,10],[28,4],[44,16],[56,28],[6,36],[20,44],[36,50],[52,42],[10,54],[40,24],[60,48],[30,32],[8,20],[50,58],[24,18]]) {
+        gg.fillRect(dx, dy, 2, 2);
+      }
+      gg.fillStyle(0x88d060, 0.50);
+      for (const [gx, gy] of [[10,2],[26,18],[48,2],[2,48],[58,54],[34,40],[18,60]]) { gg.fillRect(gx, gy, 1, 1); }
+      gg.generateTexture('grass', 64, 64);
+      gg.destroy();
     }
 
     if (!this.textures.exists('bullet')) {
@@ -334,114 +366,6 @@ export class BossScene extends Phaser.Scene {
       bg.generateTexture('bullet', 8, 8);
       bg.destroy();
     }
-
-    // Boss: Stone Golem — 80×96, light source top-left
-    // Uses fillGradientStyle(TL,TR,BL,BR,alpha) to fake 3-D shading on each surface
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const b = (this.make.graphics as any)({ x: 0, y: 0, add: false }) as Phaser.GameObjects.Graphics;
-
-    const HI   = 0xd2e2ce;   // lit highlight
-    const MID  = 0x8a9e86;   // base mid-tone
-    const SHAD = 0x4a5848;   // shadow face
-    const DEEP = 0x222e22;   // deep recess / outline
-
-    // Ground shadow
-    b.fillStyle(0x000000, 0.35);
-    b.fillEllipse(40, 94, 52, 10);
-
-    // ── Legs ──────────────────────────────────────────
-    // Left leg — front face lit
-    b.fillGradientStyle(MID, SHAD, SHAD, DEEP, 1);     b.fillRect(14, 62, 18, 34);
-    b.fillGradientStyle(HI,  MID,  MID,  SHAD, 1);     b.fillRect(14, 62,  7, 34); // convex highlight
-    b.fillStyle(DEEP, 0.75);                             b.fillRect(14, 60, 18,  3); // leg-body join shadow
-    // Right leg — more shadowed (behind body in 3/4)
-    b.fillGradientStyle(SHAD, DEEP, DEEP, 0x121812, 1); b.fillRect(48, 62, 18, 34);
-    b.fillGradientStyle(MID,  SHAD, SHAD, DEEP,    1);  b.fillRect(48, 62,  5, 20); // faint lit strip
-    b.fillStyle(DEEP, 0.75);                             b.fillRect(48, 60, 18,  3);
-
-    // ── Body ──────────────────────────────────────────
-    b.fillGradientStyle(MID, SHAD, SHAD, DEEP, 1);      b.fillRect(12, 28, 56, 36); // base
-    b.fillGradientStyle(HI,  HI,   MID,  SHAD, 1);      b.fillRect(18, 30, 30, 32); // front face lit panel
-    b.fillGradientStyle(SHAD, DEEP, DEEP, 0x121812, 1);  b.fillRect(48, 28, 20, 36); // right-side dark face
-    b.fillStyle(DEEP, 0.85);                              b.fillRect(12, 58, 56,  6); // underside shadow
-
-    // Chest plate (raised detail — top lit, bottom cut-shadow)
-    b.fillGradientStyle(HI, MID, MID, SHAD, 1);         b.fillRect(20, 32, 28, 18);
-    b.fillStyle(DEEP, 0.65);                             b.fillRect(46, 32,  4, 18); // plate right shadow
-    b.fillStyle(DEEP, 0.9);                              b.fillRect(20, 49, 28,  3); // plate bottom cutline
-
-    // Stone cracks
-    b.fillStyle(DEEP, 1);   b.fillRect(36, 30, 2, 18); b.fillRect(24, 44, 12, 2);
-    b.fillStyle(HI,   0.3); b.fillRect(35, 30, 1, 18); b.fillRect(24, 43, 12, 1); // crack edge light
-
-    // ── Shoulders ─────────────────────────────────────
-    b.fillGradientStyle(HI,   MID,  MID,  SHAD, 1);    b.fillRect( 2, 22, 16, 16); // left lit
-    b.fillStyle(HI, 0.75);                              b.fillRect( 2, 22, 14,  5); // top face
-    b.fillStyle(HI, 0.9);                               b.fillRect( 2, 22,  5,  3); // corner specular
-    b.fillGradientStyle(SHAD, DEEP, DEEP, 0x121812, 1); b.fillRect(62, 22, 16, 16); // right shadowed
-    b.fillStyle(MID, 0.35);                             b.fillRect(62, 22,  4, 10); // faint rim light
-
-    // ── Arms ──────────────────────────────────────────
-    b.fillGradientStyle(MID, SHAD, SHAD, DEEP, 1);     b.fillRect( 0, 30, 14, 30); // left arm base
-    b.fillGradientStyle(HI,  MID,  MID,  SHAD, 1);     b.fillRect( 0, 30,  6, 30); // convex highlight
-    b.fillGradientStyle(SHAD, DEEP, DEEP, 0x121812, 1); b.fillRect(66, 30, 14, 30); // right arm
-    b.fillStyle(MID, 0.28);                             b.fillRect(66, 30,  3, 20); // rim light
-
-    // Fists
-    b.fillGradientStyle(MID, SHAD, SHAD, DEEP, 1);     b.fillRect( 0, 58, 14, 10);
-    b.fillStyle(HI, 0.55);                              b.fillRect( 0, 58,  6,  4);
-    b.fillGradientStyle(SHAD, DEEP, DEEP, 0x121812, 1); b.fillRect(66, 58, 14, 10);
-
-    // ── Neck ──────────────────────────────────────────
-    b.fillGradientStyle(MID, SHAD, SHAD, DEEP, 1);     b.fillRect(28, 18, 24, 12);
-    b.fillStyle(HI,   0.4);                             b.fillRect(28, 18, 10, 12); // front lit strip
-    b.fillStyle(DEEP, 0.65);                            b.fillRect(28, 26, 24,  4); // head overhang shadow
-
-    // ── Head ──────────────────────────────────────────
-    b.fillGradientStyle(HI, MID, MID, SHAD, 1);        b.fillRect(16,  0, 48, 24); // base
-    b.fillStyle(HI,   0.72);                            b.fillRect(16,  0, 48,  4); // crown (sunlit)
-    b.fillGradientStyle(SHAD, DEEP, SHAD, DEEP, 1);    b.fillRect(56,  0,  8, 24); // right-side shadow
-    b.fillStyle(DEEP, 0.78);                            b.fillRect(16, 20, 48,  4); // chin underside
-
-    // Brow ridge (protruding — top lit, harsh bottom shadow)
-    b.fillGradientStyle(HI, MID, MID, MID, 1);         b.fillRect(16, 13, 48,  7);
-    b.fillStyle(DEEP, 0.9);                             b.fillRect(16, 19, 48,  2); // brow undercut
-
-    // Forehead band (recessed stone ornament)
-    b.fillStyle(SHAD, 0.95);                            b.fillRect(16,  6, 48,  5);
-    b.fillStyle(HI,   0.5);                             b.fillRect(16,  5, 48,  1); // band top light
-
-    // Head crack
-    b.fillStyle(DEEP, 1);   b.fillRect(40, 0, 2, 10);
-    b.fillStyle(HI,   0.35); b.fillRect(39, 0, 1, 10);
-
-    // ── Eye Sockets — multi-layer for deep recession ───
-    // Dark socket rim
-    b.fillStyle(DEEP, 1);       b.fillRect(19, 13, 17, 9);  b.fillRect(44, 13, 17, 9);
-    // AO inner wall (near-black)
-    b.fillStyle(0x0d140d, 1);   b.fillRect(20, 14, 15, 7);  b.fillRect(45, 14, 15, 7);
-    // Ambient base (deep red)
-    b.fillStyle(0x881a00, 1);   b.fillRect(21, 14, 13, 6);  b.fillRect(46, 14, 13, 6);
-    // Main eye glow (orange)
-    b.fillStyle(0xff7700, 1);   b.fillRect(22, 14, 11, 5);  b.fillRect(47, 14, 11, 5);
-    // Bright core (yellow-orange)
-    b.fillStyle(0xffcc33, 1);   b.fillRect(23, 14,  8, 4);  b.fillRect(48, 14,  8, 4);
-    // Vertical slit pupil
-    b.fillStyle(0x110800, 1);   b.fillRect(25, 14,  4, 5);  b.fillRect(50, 14,  4, 5);
-    // Specular glint (top-left of eye)
-    b.fillStyle(0xffffff, 1);
-    b.fillRect(23, 14, 3, 1); b.fillRect(23, 15, 1, 1);
-    b.fillRect(48, 14, 3, 1); b.fillRect(48, 15, 1, 1);
-    // Under-glow leak
-    b.fillStyle(0xff4400, 0.4); b.fillRect(21, 19, 13, 3);  b.fillRect(46, 19, 13, 3);
-
-    // ── Silhouette edge darkening (depth outline) ──────
-    b.fillStyle(DEEP, 0.55); b.fillRect( 0, 0,  2, 96); // left edge
-    b.fillStyle(DEEP, 0.55); b.fillRect(78, 0,  2, 96); // right edge
-    b.fillStyle(DEEP, 0.45); b.fillRect( 0,94, 80,  2); // bottom edge
-
-    b.generateTexture('boss', 80, 96);
-    b.destroy();
 
     // Pixel particle textures — white squares tinted at emit time
     if (!this.textures.exists('pxl')) {

@@ -16,7 +16,6 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
   private bossState = BossState.IDLE;
   private stateTimer?: Phaser.Time.TimerEvent;
   private pulseTween?: Phaser.Tweens.Tween;
-  private breathTween?: Phaser.Tweens.Tween;
   private dashTrailTimer?: Phaser.Time.TimerEvent;
   private dashTrailEmitter?: Phaser.GameObjects.Particles.ParticleEmitter;
   private warnParticles?: Phaser.GameObjects.Particles.ParticleEmitter;
@@ -24,6 +23,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
 
   private atkX = 0;
   private atkY = 0;
+  private dashAngle = 0;
 
   static readonly AOE_RADIUS = 90;
   static readonly DASH_SPEED = 460;
@@ -36,13 +36,17 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
   onAoeExplode?: (x: number, y: number) => void;
 
   constructor(scene: Phaser.Scene, x: number, y: number, totalHp = 500) {
-    super(scene, x, y, 'boss');
+    super(scene, x, y, 'slime_idle', 0);
     this.hp = totalHp;
     this.maxHp = totalHp;
     scene.add.existing(this);
     scene.physics.add.existing(this);
-    (this.body as Phaser.Physics.Arcade.Body).setCollideWorldBounds(true);
+    const body = this.body as Phaser.Physics.Arcade.Body;
+    body.setCollideWorldBounds(true);
     this.setDepth(12);
+    this.setScale(2);
+    // Body in unscaled coords — slime occupies lower-center of 64×64 frame
+    body.setSize(30, 24).setOffset(17, 36);
     this.warningGfx = scene.add.graphics().setDepth(8);
   }
 
@@ -55,12 +59,22 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     this.hp = Math.max(0, this.hp - amount);
     this.onHpChanged?.(this.hp, this.maxHp);
 
-    this.setTint(0xff2200);
-    this.scene.time.delayedCall(110, () => {
-      if (this.bossState !== BossState.DEAD) this.clearTint();
+    this.play('slime_hurt', true);
+    this.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => {
+      if (this.bossState !== BossState.DEAD) this.resumeStateAnim();
     });
 
     if (this.hp <= 0) this.die();
+  }
+
+  private resumeStateAnim(): void {
+    switch (this.bossState) {
+      case BossState.IDLE:      this.play('slime_idle',   true); break;
+      case BossState.AOE_WARN:  this.play('slime_attack', true); break;
+      case BossState.DASH_WARN: this.play('slime_walk',   true); break;
+      case BossState.DASHING:   this.play('slime_walk',   true); break;
+      default: break;
+    }
   }
 
   get currentState(): BossState { return this.bossState; }
@@ -75,28 +89,17 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     this.clearWarning();
     this.stopDashTrail();
     this.clearTint();
-    this.setScale(1);
+    this.setScale(2);
     this.stateTimer?.destroy();
-    this.startBreathing();
+    this.play('slime_idle', true);
     this.stateTimer = this.scene.time.delayedCall(2000, () => this.enterAoeWarn());
   }
 
   private enterAoeWarn(): void {
     this.bossState = BossState.AOE_WARN;
-    this.stopBreathing();
     this.stateTimer?.destroy();
     [this.atkX, this.atkY] = this.getTargetPos();
-
-    // Wind-up: boss squishes toward player before casting
-    this.scene.tweens.add({
-      targets: this,
-      scaleX: 1.15,
-      scaleY: 0.88,
-      duration: 300,
-      yoyo: true,
-      ease: 'Sine.easeIn',
-    });
-
+    this.play('slime_attack', true);
     this.drawAoeWarning();
 
     // Embers rising from the target zone during warning
@@ -133,16 +136,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     this.stateTimer?.destroy();
     [this.atkX, this.atkY] = this.getTargetPos();
     this.setFlipX(this.atkX < this.x);
-
-    // Wind-up: boss leans back before dashing
-    this.scene.tweens.add({
-      targets: this,
-      scaleX: 0.82,
-      scaleY: 1.14,
-      duration: 400,
-      ease: 'Back.easeOut',
-    });
-
+    this.play('slime_walk', true);
     this.drawDashWarning();
 
     // Directional sparks pointing at dash target
@@ -167,12 +161,13 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     this.bossState = BossState.DASHING;
     this.clearWarning();
     this.stateTimer?.destroy();
-    this.setScale(1);
-
-    // Glow orange while dashing
+    this.setScale(2);
+    this.play('slime_walk', true);
+    this.anims.timeScale = 2.2;  // faster run animation during dash
     this.setTint(0xff8800);
 
     const angle = Phaser.Math.Angle.Between(this.x, this.y, this.atkX, this.atkY);
+    this.dashAngle = angle;
     this.scene.physics.velocityFromAngle(
       Phaser.Math.RadToDeg(angle),
       Boss.DASH_SPEED,
@@ -183,8 +178,8 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
 
     this.stateTimer = this.scene.time.delayedCall(Boss.DASH_MS, () => {
       (this.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
+      this.anims.timeScale = 1;
       this.stopDashTrail();
-      // Impact burst at landing position
       this.spawnDashImpact(this.x, this.y);
       this.enterIdle();
     });
@@ -194,43 +189,24 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     this.bossState = BossState.DEAD;
     this.stateTimer?.destroy();
     this.clearWarning();
-    this.stopBreathing();
     this.stopDashTrail();
+    this.anims.timeScale = 1;
     (this.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
-    this.scene.tweens.add({
-      targets: this,
-      alpha: 0,
-      scaleX: 1.4,
-      scaleY: 1.4,
-      duration: 900,
-      ease: 'Sine.easeOut',
-      onComplete: () => {
-        this.setActive(false).setVisible(false);
-        this.onDead?.();
-      },
+    this.play('slime_death', true);
+    this.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => {
+      this.scene.tweens.add({
+        targets: this,
+        alpha: 0,
+        scaleX: this.scaleX * 1.4,
+        scaleY: this.scaleY * 1.4,
+        duration: 700,
+        ease: 'Sine.easeOut',
+        onComplete: () => {
+          this.setActive(false).setVisible(false);
+          this.onDead?.();
+        },
+      });
     });
-  }
-
-  // ── Breathing Animation ───────────────────────────────
-
-  private startBreathing(): void {
-    this.breathTween?.stop();
-    this.setScale(1);
-    this.breathTween = this.scene.tweens.add({
-      targets: this,
-      scaleY: { from: 1.0, to: 1.07 },
-      scaleX: { from: 1.0, to: 0.94 },
-      duration: 950,
-      yoyo: true,
-      repeat: -1,
-      ease: 'Sine.easeInOut',
-    });
-  }
-
-  private stopBreathing(): void {
-    this.breathTween?.stop();
-    this.breathTween = undefined;
-    this.setScale(1);
   }
 
   // ── Dash Trail ────────────────────────────────────────
@@ -251,12 +227,13 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
       delay: 38,
       repeat: 18,
       callback: () => {
-        // Afterimage ghost
-        const ghost = this.scene.add.image(this.x, this.y, 'boss')
+        // Afterimage ghost — captures current animated frame
+        const ghost = this.scene.add.image(this.x, this.y, this.texture.key, this.frame.name)
           .setDepth(11)
           .setAlpha(0.50)
           .setTint(0xff6600)
-          .setFlipX(this.flipX);
+          .setFlipX(this.flipX)
+          .setScale(this.scaleX, this.scaleY);
         this.scene.tweens.add({
           targets: ghost,
           alpha: 0,
@@ -284,199 +261,275 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
 
   private spawnAoeExplosion(cx: number, cy: number): void {
     const r = Boss.AOE_RADIUS;
+    this.scene.cameras.main.shake(260, 0.02);
 
-    // Camera shake
-    this.scene.cameras.main.shake(220, 0.014);
-
-    // Central flash
-    const flash = this.scene.add.graphics().setDepth(19).setPosition(cx, cy);
-    flash.fillStyle(0xffffff, 0.92);
-    flash.fillCircle(0, 0, r * 0.45);
+    // Instant blinding flash — very short, very bright
+    const flash = this.scene.add.graphics().setDepth(22).setPosition(cx, cy);
+    flash.fillStyle(0xffffff, 1);
+    flash.fillCircle(0, 0, r * 0.65);
     this.scene.tweens.add({
       targets: flash,
-      alpha: 0,
-      scaleX: 2.0,
-      scaleY: 2.0,
-      duration: 300,
+      alpha: 0, scaleX: 1.7, scaleY: 1.7,
+      duration: 120,
       onComplete: () => flash.destroy(),
     });
 
-    // Two expanding rings
-    [1.0, 0.55].forEach((scale, i) => {
-      const ring = this.scene.add.graphics().setDepth(18).setPosition(cx, cy);
-      ring.lineStyle(4 - i * 2, i === 0 ? 0xff8800 : 0xffdd00, 1);
-      ring.strokeCircle(0, 0, r * scale);
-      this.scene.tweens.add({
-        targets: ring,
-        alpha: 0,
-        scaleX: 1.7,
-        scaleY: 1.7,
-        duration: 440 + i * 80,
-        ease: 'Sine.easeOut',
-        onComplete: () => ring.destroy(),
-      });
-    });
-
-    // Radial spark lines (keep for pixel structure)
-    const sparkGfx = this.scene.add.graphics().setDepth(19).setPosition(cx, cy);
-    sparkGfx.lineStyle(2, 0xffff88, 1);
-    for (let i = 0; i < 10; i++) {
-      const a  = (i / 10) * Math.PI * 2;
-      const r1 = r * 0.35;
-      const r2 = r * 1.1;
-      sparkGfx.beginPath();
-      sparkGfx.moveTo(Math.cos(a) * r1, Math.sin(a) * r1);
-      sparkGfx.lineTo(Math.cos(a) * r2, Math.sin(a) * r2);
-      sparkGfx.strokePath();
-    }
+    // Shockwave ring — thin, fast expand, disappears quickly
+    const shock = this.scene.add.graphics().setDepth(20).setPosition(cx, cy);
+    shock.lineStyle(3, 0xffee88, 0.9);
+    shock.strokeCircle(0, 0, r * 0.45);
     this.scene.tweens.add({
-      targets: sparkGfx,
-      alpha: 0,
-      duration: 320,
-      onComplete: () => sparkGfx.destroy(),
+      targets: shock,
+      alpha: 0, scaleX: 2.4, scaleY: 2.4,
+      duration: 260, ease: 'Sine.easeOut',
+      onComplete: () => shock.destroy(),
     });
 
-    // Rock debris — chunky grey/stone 4×4 pixels with gravity
-    const debris = this.scene.add.particles(cx, cy, 'pxl', {
-      speed: { min: 90, max: 280 },
+    // ── Layer 1: white core burst — fastest, brightest ─
+    const core = this.scene.add.particles(0, 0, 'pxl2', {
+      speed: { min: 280, max: 520 },
       angle: { min: 0, max: 360 },
-      scale: { start: 2.0, end: 0.2 },
+      scale: { start: 2.4, end: 0 },
       alpha: { start: 1, end: 0 },
-      tint: [0x8a9e86, 0x4a5848, 0xaa9977, 0x556655, 0x7a8c78],
-      lifespan: { min: 380, max: 820 },
-      gravityY: 220,
-      quantity: 30,
+      tint: [0xffffff, 0xffff88, 0xffee44],
+      lifespan: { min: 100, max: 260 },
       emitting: false,
-    }).setDepth(20);
-    debris.explode(30, cx, cy);
-    this.scene.time.delayedCall(950, () => { if (debris.active) debris.destroy(); });
+    }).setDepth(22);
+    core.emitParticleAt(cx, cy, 60);
+    this.scene.time.delayedCall(320, () => { if (core.active) core.destroy(); });
 
-    // Fire sparks — fast orange/yellow 2×2 pixels
-    const sparks = this.scene.add.particles(cx, cy, 'pxl2', {
-      speed: { min: 160, max: 400 },
+    // ── Layer 2: fire burst — medium speed, spreads from zone
+    const fire = this.scene.add.particles(0, 0, 'pxl2', {
+      speed: { min: 70, max: 240 },
       angle: { min: 0, max: 360 },
-      scale: { start: 1.8, end: 0 },
-      alpha: { start: 1, end: 0 },
-      tint: [0xff8800, 0xffcc00, 0xff4400, 0xffff44, 0xff6600],
-      lifespan: { min: 180, max: 480 },
-      quantity: 44,
-      emitting: false,
-    }).setDepth(21);
-    sparks.explode(44, cx, cy);
-    this.scene.time.delayedCall(580, () => { if (sparks.active) sparks.destroy(); });
-
-    // Embers floating upward — linger after explosion
-    const embers = this.scene.add.particles(cx, cy, 'pxl2', {
-      speed: { min: 15, max: 60 },
-      angle: { min: 255, max: 285 },
-      scale: { start: 1.4, end: 0 },
-      alpha: { start: 0.85, end: 0 },
-      tint: [0xff6600, 0xff8800, 0xffaa00],
-      lifespan: { min: 700, max: 1400 },
-      gravityY: -18,
-      quantity: 20,
+      scale: { start: 2.6, end: 0 },
+      alpha: { start: 0.95, end: 0 },
+      tint: [0xff8800, 0xff4400, 0xffcc00, 0xff6600, 0xffaa00],
+      lifespan: { min: 350, max: 750 },
+      gravityY: -35,
       emitting: false,
       emitZone: {
         type: 'random',
-        source: new Phaser.Geom.Circle(0, 0, r * 0.65),
+        source: new Phaser.Geom.Circle(cx, cy, r * 0.5),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+} as any,
+    }).setDepth(21);
+    fire.emitParticleAt(cx, cy, 55);
+    this.scene.time.delayedCall(900, () => { if (fire.active) fire.destroy(); });
+
+    // ── Layer 3: rock debris — heavy gravity ──────────
+    const debris = this.scene.add.particles(0, 0, 'pxl', {
+      speed: { min: 100, max: 300 },
+      angle: { min: 0, max: 360 },
+      scale: { start: 2.2, end: 0.3 },
+      alpha: { start: 1, end: 0 },
+      tint: [0x8a9e86, 0x4a5848, 0xaa9977, 0x556655, 0x7a8c78],
+      lifespan: { min: 500, max: 1000 },
+      gravityY: 300,
+      emitting: false,
+    }).setDepth(20);
+    debris.emitParticleAt(cx, cy, 30);
+    this.scene.time.delayedCall(1100, () => { if (debris.active) debris.destroy(); });
+
+    // ── Layer 4: smoke — grey, large, rises slowly ────
+    const smoke = this.scene.add.particles(0, 0, 'pxl', {
+      speed: { min: 18, max: 65 },
+      angle: { min: 240, max: 300 },
+      scale: { start: 3.2, end: 0 },
+      alpha: { start: 0.45, end: 0 },
+      tint: [0x888888, 0xaaaaaa, 0x666666, 0x999999],
+      lifespan: { min: 900, max: 1900 },
+      gravityY: -14,
+      emitting: false,
+      emitZone: {
+        type: 'random',
+        source: new Phaser.Geom.Circle(cx, cy, r * 0.6),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+} as any,
+    }).setDepth(18);
+    smoke.emitParticleAt(cx, cy, 24);
+    this.scene.time.delayedCall(2100, () => { if (smoke.active) smoke.destroy(); });
+
+    // ── Layer 5: embers drift up long after ───────────
+    const embers = this.scene.add.particles(0, 0, 'pxl2', {
+      speed: { min: 20, max: 70 },
+      angle: { min: 258, max: 282 },
+      scale: { start: 1.5, end: 0 },
+      alpha: { start: 0.9, end: 0 },
+      tint: [0xff6600, 0xff8800, 0xffaa00],
+      lifespan: { min: 800, max: 1700 },
+      gravityY: -20,
+      emitting: false,
+      emitZone: {
+        type: 'random',
+        source: new Phaser.Geom.Circle(cx, cy, r * 0.7),
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
 } as any,
     }).setDepth(20);
-    embers.explode(20, cx, cy);
-    this.scene.time.delayedCall(1500, () => { if (embers.active) embers.destroy(); });
+    embers.emitParticleAt(cx, cy, 28);
+    this.scene.time.delayedCall(1900, () => { if (embers.active) embers.destroy(); });
   }
 
   private spawnDashImpact(cx: number, cy: number): void {
-    // Camera shake (smaller than AOE)
     this.scene.cameras.main.shake(130, 0.009);
 
-    // Star burst graphic (keep for pixel structure)
-    const impact = this.scene.add.graphics().setDepth(18).setPosition(cx, cy);
-    impact.lineStyle(3, 0xff8800, 1);
-    for (let i = 0; i < 8; i++) {
-      const a = (i / 8) * Math.PI * 2;
-      impact.beginPath();
-      impact.moveTo(0, 0);
-      impact.lineTo(Math.cos(a) * 52, Math.sin(a) * 52);
-      impact.strokePath();
-    }
-    impact.fillStyle(0xffcc44, 0.5);
-    impact.fillCircle(0, 0, 20);
+    const cos = Math.cos(this.dashAngle);
+    const sin = Math.sin(this.dashAngle);
+    const pc  = Math.cos(this.dashAngle + Math.PI / 2);
+    const ps  = Math.sin(this.dashAngle + Math.PI / 2);
+
+    // Instant flash — brief, bright
+    const flash = this.scene.add.graphics().setDepth(22).setPosition(cx, cy);
+    flash.fillStyle(0xffffff, 0.9);
+    flash.fillCircle(0, 0, 30);
     this.scene.tweens.add({
-      targets: impact,
-      alpha: 0,
-      scaleX: 1.6,
-      scaleY: 1.6,
-      duration: 360,
-      ease: 'Sine.easeOut',
-      onComplete: () => impact.destroy(),
+      targets: flash,
+      alpha: 0, scaleX: 2.0, scaleY: 1.4,
+      duration: 150,
+      onComplete: () => flash.destroy(),
     });
 
-    // Dust cloud — light grey 4×4 pixels exploding outward low to ground
-    const dust = this.scene.add.particles(cx, cy, 'pxl', {
-      speed: { min: 50, max: 160 },
-      angle: { min: 150, max: 390 },
-      scale: { start: 2.2, end: 0 },
-      alpha: { start: 0.75, end: 0 },
-      tint: [0xaabbaa, 0x889988, 0xccddcc, 0x99aa99],
-      lifespan: { min: 300, max: 700 },
-      gravityY: 120,
-      quantity: 22,
-      emitting: false,
-    }).setDepth(11);
-    dust.explode(22, cx, cy);
-    this.scene.time.delayedCall(800, () => { if (dust.active) dust.destroy(); });
+    // Shockwave ring
+    const shock = this.scene.add.graphics().setDepth(20).setPosition(cx, cy);
+    shock.lineStyle(2, 0xff8800, 0.85);
+    shock.strokeCircle(0, 0, 22);
+    this.scene.tweens.add({
+      targets: shock,
+      alpha: 0, scaleX: 3.0, scaleY: 3.0,
+      duration: 300, ease: 'Sine.easeOut',
+      onComplete: () => shock.destroy(),
+    });
 
-    // Rock chunks — heavier stone pixels with more gravity
-    const chunks = this.scene.add.particles(cx, cy, 'pxl', {
-      speed: { min: 120, max: 260 },
-      angle: { min: 200, max: 340 },
+    // ── Layer 1: core impact sparks — white/yellow, fast
+    const core = this.scene.add.particles(0, 0, 'pxl2', {
+      speed: { min: 180, max: 380 },
+      angle: { min: 0, max: 360 },
+      scale: { start: 2.0, end: 0 },
+      alpha: { start: 1, end: 0 },
+      tint: [0xffffff, 0xffff88, 0xffcc44, 0xff8800],
+      lifespan: { min: 100, max: 300 },
+      emitting: false,
+    }).setDepth(22);
+    core.emitParticleAt(cx, cy, 45);
+    this.scene.time.delayedCall(380, () => { if (core.active) core.destroy(); });
+
+    // ── Layer 2: rock chunks — directional sideways/back
+    const impactDeg = Phaser.Math.RadToDeg(this.dashAngle);
+    const chunks = this.scene.add.particles(0, 0, 'pxl', {
+      speed: { min: 130, max: 290 },
+      angle: { min: impactDeg + 100, max: impactDeg + 260 },
       scale: { start: 2.8, end: 0.3 },
       alpha: { start: 1, end: 0 },
       tint: [0x4a5848, 0x8a9e86, 0x222e22, 0x667766],
-      lifespan: { min: 350, max: 650 },
-      gravityY: 350,
-      quantity: 16,
+      lifespan: { min: 400, max: 780 },
+      gravityY: 340,
       emitting: false,
     }).setDepth(20);
-    chunks.explode(16, cx, cy);
-    this.scene.time.delayedCall(750, () => { if (chunks.active) chunks.destroy(); });
+    chunks.emitParticleAt(cx, cy, 22);
+    this.scene.time.delayedCall(900, () => { if (chunks.active) chunks.destroy(); });
 
-    // Orange sparks at point of impact
-    const impactSparks = this.scene.add.particles(cx, cy, 'pxl2', {
-      speed: { min: 100, max: 300 },
+    // ── Layer 3: dust cloud — wide, sandy tones ────────
+    const dust = this.scene.add.particles(0, 0, 'pxl', {
+      speed: { min: 55, max: 190 },
       angle: { min: 0, max: 360 },
-      scale: { start: 1.6, end: 0 },
-      alpha: { start: 1, end: 0 },
-      tint: [0xff8800, 0xffcc44, 0xff4400],
-      lifespan: { min: 120, max: 320 },
-      quantity: 24,
+      scale: { start: 3.0, end: 0 },
+      alpha: { start: 0.6, end: 0 },
+      tint: [0xccbbaa, 0xaa9988, 0xddccbb, 0x998877],
+      lifespan: { min: 450, max: 950 },
+      gravityY: 90,
       emitting: false,
-    }).setDepth(21);
-    impactSparks.explode(24, cx, cy);
-    this.scene.time.delayedCall(400, () => { if (impactSparks.active) impactSparks.destroy(); });
+    }).setDepth(17);
+    dust.emitParticleAt(cx, cy, 32);
+    this.scene.time.delayedCall(1050, () => { if (dust.active) dust.destroy(); });
+
+    // ── Speed lines pixel dashes behind impact ─────────
+    const trailGfx = this.scene.add.graphics().setDepth(17).setPosition(cx, cy);
+    for (let lane = -2; lane <= 2; lane++) {
+      const ox = pc * (lane * 9);
+      const oy = ps * (lane * 9);
+      const laneAlpha = 1 - Math.abs(lane) * 0.22;
+      for (let d = 14; d < 76; d += 14) {
+        trailGfx.fillStyle(0xffaa44, laneAlpha * (1 - d / 76));
+        trailGfx.fillRect(ox - cos * d - 5, oy - sin * d - 2, 10, 4);
+      }
+    }
+    this.scene.tweens.add({
+      targets: trailGfx,
+      alpha: 0,
+      duration: 360,
+      onComplete: () => trailGfx.destroy(),
+    });
   }
 
   // ── Warning Graphics ──────────────────────────────────
 
   private drawAoeWarning(): void {
     this.clearWarning();
-    const r = Boss.AOE_RADIUS;
+    const r  = Boss.AOE_RADIUS;
+    const cx = this.atkX;
+    const cy = this.atkY;
 
-    // Solid red block fill — outer zone
-    this.warningGfx.fillStyle(0xff0000, 0.40);
-    this.warningGfx.fillCircle(this.atkX, this.atkY, r);
-    // Hotter inner zone
-    this.warningGfx.fillStyle(0xff3300, 0.28);
-    this.warningGfx.fillCircle(this.atkX, this.atkY, r * 0.5);
-    // Border
-    this.warningGfx.lineStyle(3, 0xff0000, 1);
-    this.warningGfx.strokeCircle(this.atkX, this.atkY, r);
+    // ── Interior: sparse 2×2 dot grid ─────────────────────
+    this.warningGfx.fillStyle(0xff0000, 0.14);
+    for (let dx = -(r - 4); dx <= r - 4; dx += 8) {
+      for (let dy = -(r - 4); dy <= r - 4; dy += 8) {
+        if (dx * dx + dy * dy <= (r - 8) * (r - 8)) {
+          this.warningGfx.fillRect(cx + dx - 1, cy + dy - 1, 2, 2);
+        }
+      }
+    }
+
+    // ── Inner dashed ring (55 % radius) ───────────────────
+    const r2 = r * 0.55;
+    for (let i = 0; i < 28; i++) {
+      if (i % 4 === 3) continue;                  // gap every 4th
+      const a = (i / 28) * Math.PI * 2;
+      this.warningGfx.fillStyle(0xff3300, 0.50);
+      this.warningGfx.fillRect(
+        cx + Math.cos(a) * r2 - 2, cy + Math.sin(a) * r2 - 2, 4, 4,
+      );
+    }
+
+    // ── Outer pixel ring — 4×4 blocks, 8×8 at cardinals ──
+    const steps = 48;
+    for (let i = 0; i < steps; i++) {
+      const isCardinal = i % 12 === 0;            // every 12 steps = 4 cardinals
+      const sz  = isCardinal ? 8 : 4;
+      const alp = isCardinal ? 1.0 : 0.88;
+      const a   = (i / steps) * Math.PI * 2;
+      this.warningGfx.fillStyle(0xff1100, alp);
+      this.warningGfx.fillRect(
+        cx + Math.cos(a) * r - sz / 2,
+        cy + Math.sin(a) * r - sz / 2,
+        sz, sz,
+      );
+    }
+
+    // ── Cardinal notch markers ─────────────────────────────
+    this.warningGfx.fillStyle(0xff4400, 1);
+    for (let i = 0; i < 4; i++) {
+      const a = (i / 4) * Math.PI * 2;
+      // Outer square
+      this.warningGfx.fillRect(cx + Math.cos(a) * r - 5,      cy + Math.sin(a) * r - 5,      10, 10);
+      // Inward tick
+      this.warningGfx.fillRect(cx + Math.cos(a) * (r - 14) - 2, cy + Math.sin(a) * (r - 14) - 2, 4, 4);
+    }
+
+    // ── Center target reticle ─────────────────────────────
+    this.warningGfx.fillStyle(0xff2200, 0.65);
+    this.warningGfx.fillRect(cx - 12, cy - 2, 24, 4);   // horizontal bar
+    this.warningGfx.fillRect(cx - 2, cy - 12, 4, 24);   // vertical bar
+    // Corner brackets
+    this.warningGfx.fillStyle(0xff5500, 0.9);
+    for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+      this.warningGfx.fillRect(cx + sx * 6,        cy + sy * 6 - 1, sx < 0 ? -6 : 6, 2);
+      this.warningGfx.fillRect(cx + sx * 6 - 1,    cy + sy * 6,     2, sy < 0 ? -6 : 6);
+    }
 
     this.pulseTween = this.scene.tweens.add({
       targets: this.warningGfx,
-      alpha: { from: 1, to: 0.25 },
-      duration: 260,
+      alpha: { from: 1, to: 0.28 },
+      duration: 240,
       yoyo: true,
       repeat: -1,
     });
@@ -484,35 +537,76 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
 
   private drawDashWarning(): void {
     this.clearWarning();
-    const angle = Phaser.Math.Angle.Between(this.x, this.y, this.atkX, this.atkY);
-    const len   = 350;
-    const perp  = angle + Math.PI / 2;
-    const hw    = 38; // half-width of triangle base at boss
+    const angle   = Phaser.Math.Angle.Between(this.x, this.y, this.atkX, this.atkY);
+    const cos     = Math.cos(angle);
+    const sin     = Math.sin(angle);
+    const pc      = Math.cos(angle + Math.PI / 2);
+    const ps      = Math.sin(angle + Math.PI / 2);
+    const rawLen  = Phaser.Math.Distance.Between(this.x, this.y, this.atkX, this.atkY);
+    const len     = Math.min(rawLen + 40, 340);
 
-    const tipX = this.x + Math.cos(angle) * len;
-    const tipY = this.y + Math.sin(angle) * len;
+    // ── Center dotted dashes ──────────────────────────────
+    this.warningGfx.fillStyle(0xff3300, 0.45);
+    for (let d = 22; d < len; d += 11) {
+      this.warningGfx.fillRect(this.x + cos * d - 2, this.y + sin * d - 2, 4, 4);
+    }
 
-    // Solid red triangle block pointing in dash direction
-    this.warningGfx.fillStyle(0xff1100, 0.45);
-    this.warningGfx.fillTriangle(
-      this.x + Math.cos(perp) * hw,  this.y + Math.sin(perp) * hw,  // base left
-      this.x - Math.cos(perp) * hw,  this.y - Math.sin(perp) * hw,  // base right
-      tipX, tipY,                                                      // tip
-    );
+    // ── 3 pixel chevron arrows ────────────────────────────
+    const numChev  = 3;
+    const chevHW   = 20;   // chevron half-width (px)
+    const chevD    = 16;   // forward depth of chevron tip
 
-    // Bright outline
-    this.warningGfx.lineStyle(2, 0xff4400, 1);
-    this.warningGfx.beginPath();
-    this.warningGfx.moveTo(this.x + Math.cos(perp) * hw,  this.y + Math.sin(perp) * hw);
-    this.warningGfx.lineTo(this.x - Math.cos(perp) * hw,  this.y - Math.sin(perp) * hw);
-    this.warningGfx.lineTo(tipX, tipY);
-    this.warningGfx.closePath();
-    this.warningGfx.strokePath();
+    for (let c = 0; c < numChev; c++) {
+      const dist = 44 + c * 68;
+      if (dist > len) break;
+      const alpha = 1.0 - c * 0.20;
+      const bx    = this.x + cos * dist;
+      const by    = this.y + sin * dist;
+
+      // Draw each arm as 6 pixel blocks from wide base → pointed tip
+      const segs = 6;
+      for (let s = 0; s <= segs; s++) {
+        const t  = s / segs;
+        const hw = chevHW * (1 - t);
+        const fd = chevD  * t;
+        // Left arm
+        this.warningGfx.fillStyle(0xff1100, alpha * 0.9);
+        this.warningGfx.fillRect(bx + cos * fd + pc * hw - 3, by + sin * fd + ps * hw - 3, 6, 6);
+        // Right arm (skip centre overlap at tip)
+        if (s < segs) {
+          this.warningGfx.fillRect(bx + cos * fd - pc * hw - 3, by + sin * fd - ps * hw - 3, 6, 6);
+        }
+      }
+      // Bright tip pixel
+      this.warningGfx.fillStyle(0xff6600, alpha);
+      this.warningGfx.fillRect(bx + cos * chevD - 4, by + sin * chevD - 4, 8, 8);
+    }
+
+    // ── Start ring at boss feet ───────────────────────────
+    this.warningGfx.fillStyle(0xff3300, 0.75);
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2;
+      this.warningGfx.fillRect(
+        this.x + Math.cos(a) * 18 - 3,
+        this.y + Math.sin(a) * 18 - 3,
+        6, 6,
+      );
+    }
+
+    // ── Target cross at destination ───────────────────────
+    const tx = this.x + cos * len;
+    const ty = this.y + sin * len;
+    this.warningGfx.fillStyle(0xff4400, 0.85);
+    for (const [ox, oy] of [[-8, 0], [8, 0], [0, -8], [0, 8]]) {
+      this.warningGfx.fillRect(tx + ox - 2, ty + oy - 2, 4, 4);
+    }
+    this.warningGfx.fillStyle(0xff2200, 1);
+    this.warningGfx.fillRect(tx - 4, ty - 4, 8, 8);
 
     this.pulseTween = this.scene.tweens.add({
       targets: this.warningGfx,
-      alpha: { from: 1, to: 0.2 },
-      duration: 220,
+      alpha: { from: 1, to: 0.22 },
+      duration: 200,
       yoyo: true,
       repeat: -1,
     });

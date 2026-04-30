@@ -5,9 +5,6 @@ import { VirtualJoystick } from '../ui/joystick';
 import { WeaponSystem } from '../systems/weapon-system';
 import { WeaponHUD } from '../ui/weapon-hud';
 
-const WORLD_W = 1600;
-const WORLD_H = 1200;
-
 export class GameScene extends Phaser.Scene {
   private player!: Player;
   private enemies!: Phaser.Physics.Arcade.Group;
@@ -15,6 +12,8 @@ export class GameScene extends Phaser.Scene {
   private weaponSystem!: WeaponSystem;
   private weaponHud!: WeaponHUD;
   private rangeCircle!: Phaser.GameObjects.Graphics;
+  private worldW = 0;
+  private worldH = 0;
   private keys!: Phaser.Types.Input.Keyboard.CursorKeys & {
     w: Phaser.Input.Keyboard.Key;
     a: Phaser.Input.Keyboard.Key;
@@ -28,33 +27,44 @@ export class GameScene extends Phaser.Scene {
   }
 
   preload(): void {
+    const pBase = 'sprite/player/PNG/Unarmed/Without_shadow/';
+    const cfg = { frameWidth: 64, frameHeight: 64 };
+    this.load.spritesheet('player_idle', pBase + 'Unarmed_Idle_without_shadow.png', cfg);
+    this.load.spritesheet('player_walk', pBase + 'Unarmed_Walk_without_shadow.png', cfg);
+    this.load.spritesheet('player_hurt', pBase + 'Unarmed_Hurt_without_shadow.png', cfg);
     this.generateTextures();
   }
 
   create(): void {
-    this.physics.world.setBounds(0, 0, WORLD_W, WORLD_H);
-    this.cameras.main.setBounds(0, 0, WORLD_W, WORLD_H);
+    this.worldW = Math.round(this.scale.width  * 1.5);
+    this.worldH = Math.round(this.scale.height * 1.5);
 
-    this.drawTileFloor();
+    // Camera shows full world; physics bounds inset so sprite visuals stay inside the border
+    this.physics.world.setBounds(32, 40, this.worldW - 64, this.worldH - 80);
+    this.cameras.main.setBounds(0, 0, this.worldW, this.worldH);
+
+    this.createPlayerAnims();
+    this.drawGrassFloor();
 
     this.enemies = this.physics.add.group({ classType: Dummy, runChildUpdate: false });
 
-    const dummyPositions = [
-      [400, 300], [800, 250], [1200, 400],
-      [300, 700], [700, 600], [1100, 700],
-      [500, 1000], [1000, 950],
-    ];
-    for (const [x, y] of dummyPositions) {
-      this.enemies.add(new Dummy(this, x, y), true);
+    // Spread dummies proportionally across the world
+    const cols = 4, rows = 3;
+    const padX = this.worldW / (cols + 1);
+    const padY = this.worldH / (rows + 1);
+    for (let r = 1; r <= rows; r++) {
+      for (let c = 1; c <= cols; c++) {
+        const x = padX * c + Phaser.Math.Between(-30, 30);
+        const y = padY * r + Phaser.Math.Between(-30, 30);
+        this.enemies.add(new Dummy(this, x, y), true);
+      }
     }
 
-    this.player = new Player(this, WORLD_W / 2, WORLD_H / 2);
+    this.player = new Player(this, this.worldW / 2, this.worldH / 2);
     this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
 
-    // Weapon system owns all bullet pools and collision setup
     this.weaponSystem = new WeaponSystem(this, this.player, this.enemies);
 
-    // HUD
     this.weaponHud = new WeaponHUD(this);
     this.weaponHud.refresh(this.weaponSystem.slots, this.weaponSystem.activeSlot);
     this.weaponHud.flashName(this.weaponSystem.activeWeapon);
@@ -64,10 +74,8 @@ export class GameScene extends Phaser.Scene {
       this.weaponHud.flashName(weapon);
     };
 
-    // Attack range indicator
     this.rangeCircle = this.add.graphics().setDepth(5);
 
-    // Keyboard
     const kb = this.input.keyboard!;
     this.keys = {
       ...kb.createCursorKeys(),
@@ -78,7 +86,6 @@ export class GameScene extends Phaser.Scene {
       q: kb.addKey(Phaser.Input.Keyboard.KeyCodes.Q),
     };
 
-    // Mobile: tap inactive weapon slot to switch
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
       if (pointer.x <= this.scale.width * 0.5) return;
       const tapped = this.weaponHud.hitTestSlot(pointer.x, pointer.y);
@@ -88,7 +95,6 @@ export class GameScene extends Phaser.Scene {
     });
 
     this.joystick = new VirtualJoystick(this);
-
     this.addHUD();
   }
 
@@ -121,39 +127,50 @@ export class GameScene extends Phaser.Scene {
   private drawRangeCircle(): void {
     this.rangeCircle.clear();
     if (!this.player.moving) {
-      this.rangeCircle.lineStyle(1, 0xffffff, 0.12);
+      this.rangeCircle.lineStyle(1, 0xffffff, 0.18);
       this.rangeCircle.strokeCircle(
         this.player.x, this.player.y,
-        this.weaponSystem.activeWeapon.range,
+        this.weaponSystem.effectiveRange,
       );
     }
   }
 
-  private drawTileFloor(): void {
-    const g = this.add.graphics().setDepth(0);
-    const tileSize = 64;
-    for (let x = 0; x < WORLD_W; x += tileSize) {
-      for (let y = 0; y < WORLD_H; y += tileSize) {
-        const shade = ((x / tileSize + y / tileSize) % 2 === 0) ? 0x16213e : 0x1a1a2e;
-        g.fillStyle(shade);
-        g.fillRect(x, y, tileSize, tileSize);
-      }
-    }
-    g.lineStyle(3, 0x4444aa, 0.8);
-    g.strokeRect(0, 0, WORLD_W, WORLD_H);
+  private drawGrassFloor(): void {
+    // TileSprite fills the entire world with the grass tile
+    this.add.tileSprite(
+      this.worldW / 2, this.worldH / 2,
+      this.worldW, this.worldH,
+      'grass',
+    ).setDepth(0);
+
+    // Subtle world boundary
+    const border = this.add.graphics().setDepth(1);
+    border.lineStyle(4, 0x2e7018, 0.7);
+    border.strokeRect(2, 2, this.worldW - 4, this.worldH - 4);
   }
 
   private generateTextures(): void {
-    // Player (16x24)
+    // Grass tile — 64×64, base #A8DADC, 2×2 pixel grass tufts
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const pg = (this.make.graphics as any)({ x: 0, y: 0, add: false }) as Phaser.GameObjects.Graphics;
-    pg.fillStyle(0x4a9eff); pg.fillRect(4, 8, 8, 10);
-    pg.fillStyle(0xffcc99); pg.fillRect(5, 1, 6, 7);
-    pg.fillStyle(0x222222); pg.fillRect(6, 3, 1, 2); pg.fillRect(9, 3, 1, 2);
-    pg.fillStyle(0x2244aa); pg.fillRect(4, 18, 3, 6); pg.fillRect(9, 18, 3, 6);
-    pg.fillStyle(0x3388dd); pg.fillRect(1, 9, 3, 7); pg.fillRect(12, 9, 3, 7);
-    pg.generateTexture('player', 16, 24);
-    pg.destroy();
+    const gg = (this.make.graphics as any)({ x: 0, y: 0, add: false }) as Phaser.GameObjects.Graphics;
+    gg.fillStyle(0x5aa838, 1);
+    gg.fillRect(0, 0, 64, 64);
+    // Subtle lighter/darker patches for organic feel
+    gg.fillStyle(0x70bc4c, 0.30); gg.fillRect(4, 6, 18, 10); gg.fillRect(38, 36, 16, 12); gg.fillRect(22, 50, 20, 14);
+    gg.fillStyle(0x429228, 0.25); gg.fillRect(18, 28, 14, 10); gg.fillRect(46, 8, 14, 10); gg.fillRect(6, 44, 14, 14);
+    // 2×2 grass dot tufts — darker accent
+    gg.fillStyle(0x2e7018, 0.75);
+    for (const [dx, dy] of [
+      [4,4],[16,10],[28,4],[44,16],[56,28],[6,36],[20,44],[36,50],
+      [52,42],[10,54],[40,24],[60,48],[30,32],[8,20],[50,58],[24,18],
+    ]) { gg.fillRect(dx, dy, 2, 2); }
+    // Single-pixel light glints
+    gg.fillStyle(0x88d060, 0.50);
+    for (const [gx, gy] of [[10,2],[26,18],[48,2],[2,48],[58,54],[34,40],[18,60]]) {
+      gg.fillRect(gx, gy, 1, 1);
+    }
+    gg.generateTexture('grass', 64, 64);
+    gg.destroy();
 
     // Dummy (20x32)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -166,7 +183,7 @@ export class GameScene extends Phaser.Scene {
     dg.generateTexture('dummy', 20, 32);
     dg.destroy();
 
-    // Bullet — white base; tint applied per weapon via configure()
+    // Bullet — white base; tint applied per weapon
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const bg = (this.make.graphics as any)({ x: 0, y: 0, add: false }) as Phaser.GameObjects.Graphics;
     bg.fillStyle(0xffffff, 1); bg.fillCircle(4, 4, 4);
@@ -175,17 +192,22 @@ export class GameScene extends Phaser.Scene {
     bg.destroy();
   }
 
+  private createPlayerAnims(): void {
+    if (this.anims.exists('player_idle')) return;
+    this.anims.create({ key: 'player_idle', frames: this.anims.generateFrameNumbers('player_idle', { start: 0, end: 11 }), frameRate: 8,  repeat: -1 });
+    this.anims.create({ key: 'player_walk', frames: this.anims.generateFrameNumbers('player_walk', { start: 0, end: 5  }), frameRate: 10, repeat: -1 });
+    this.anims.create({ key: 'player_hurt', frames: this.anims.generateFrameNumbers('player_hurt', { start: 0, end: 4  }), frameRate: 14, repeat: 0  });
+  }
+
   private addHUD(): void {
     const style = { fontSize: '13px', color: '#ffffff', stroke: '#000', strokeThickness: 3 };
-    this.add.text(12, 12, 'WASD / Joystick: Move\nStop to Auto-Attack\nQ / Tap Slot: Switch Weapon', style)
-      .setScrollFactor(0)
-      .setDepth(200);
+    this.add.text(12, 12, 'WASD / Joystick: 移動\n停下自動攻擊\nQ: 換武器', style)
+      .setScrollFactor(0).setDepth(200);
 
     this.add.text(this.scale.width - 12, 12, 'AUTO RPG', {
-      fontSize: '18px', color: '#88aaff', stroke: '#000', strokeThickness: 4,
+      fontSize: '18px', color: '#4a9e9e', stroke: '#000', strokeThickness: 4,
     }).setOrigin(1, 0).setScrollFactor(0).setDepth(200);
 
-    // Boss challenge button (bottom-right, above weapon HUD)
     const btn = this.add.text(this.scale.width - 12, this.scale.height - 90, '⚔ 挑戰 Boss', {
       fontSize: '16px', color: '#ffdd88',
       backgroundColor: '#442200',

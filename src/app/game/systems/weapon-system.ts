@@ -72,6 +72,12 @@ export class WeaponSystem {
   get activeWeapon(): WeaponDef { return this.slots[this._activeSlot]; }
   get activeSlot(): 0 | 1 { return this._activeSlot; }
 
+  /** Range capped so the indicator circle stays within the visible viewport */
+  get effectiveRange(): number {
+    const { width, height } = this.scene.scale;
+    return Math.min(this.activeWeapon.range, Math.min(width, height) * 0.44);
+  }
+
   switch(): void {
     this._activeSlot = this._activeSlot === 0 ? 1 : 0;
     if (this.attackTimer) {
@@ -109,7 +115,7 @@ export class WeaponSystem {
   }
 
   getNearestEnemy(): Phaser.Physics.Arcade.Sprite | null {
-    const rangeSq = this.activeWeapon.range ** 2;
+    const rangeSq = this.effectiveRange ** 2;
     let nearest: Phaser.Physics.Arcade.Sprite | null = null;
     let minDistSq = rangeSq;
 
@@ -140,7 +146,8 @@ export class WeaponSystem {
       } else return;
     }
     b.configure(w.damage, ElementTint[w.element]);
-    b.fire(this.player.x, this.player.y, target.x, target.y);
+    const bc = (target.body as Phaser.Physics.Arcade.Body).center;
+    b.fire(this.player.x, this.player.y, bc.x, bc.y);
   }
 
   private firePiercing(target: Phaser.Physics.Arcade.Sprite): void {
@@ -153,7 +160,8 @@ export class WeaponSystem {
       } else return;
     }
     b.configure(w.damage, ElementTint[w.element]);
-    b.fire(this.player.x, this.player.y, target.x, target.y);
+    const bc = (target.body as Phaser.Physics.Arcade.Body).center;
+    b.fire(this.player.x, this.player.y, bc.x, bc.y);
   }
 
   private fireStrike(target: Phaser.Physics.Arcade.Sprite): void {
