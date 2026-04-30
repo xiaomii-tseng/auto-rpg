@@ -13,7 +13,7 @@ export class App implements OnInit {
   ngOnInit(): void {
     (screen.orientation as any)?.lock?.('landscape')?.catch(() => {});
 
-    new Phaser.Game({
+    const game = new Phaser.Game({
       type: Phaser.AUTO,
       parent: 'game-container',
       backgroundColor: '#0d0d1a',
@@ -28,5 +28,26 @@ export class App implements OnInit {
         arcade: { gravity: { x: 0, y: 0 }, debug: false },
       },
     });
+
+    game.events.once('ready', () => this.patchRotationInput(game));
+  }
+
+  private patchRotationInput(game: Phaser.Game): void {
+    const im = (game as any).input;
+    if (!im?.transformPointer) return;
+    const _orig = im.transformPointer.bind(im);
+    im.transformPointer = function (pointer: any, pageX: number, pageY: number, wasMove: boolean) {
+      if (window.matchMedia('(orientation: portrait)').matches) {
+        const b = im.scaleManager.canvasBounds;
+        // CSS rotate(90deg) CW: screen (px,py) → landscape game coords
+        // game_x = (pageY - b.top)  / b.height * gameW
+        // game_y = (1 - (pageX - b.left) / b.width) * gameH
+        // Convert back to "fake" page coords that the original transform expects
+        const newX = b.left + b.width  * (pageY - b.top)  / b.height;
+        const newY = b.top  + b.height * (1 - (pageX - b.left) / b.width);
+        return _orig(pointer, newX, newY, wasMove);
+      }
+      return _orig(pointer, pageX, pageY, wasMove);
+    };
   }
 }

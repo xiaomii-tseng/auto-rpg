@@ -257,8 +257,8 @@ export class GameScene extends Phaser.Scene {
   private addAttackButton(): void {
     const r = 40;
     const getBtnCenter = () => ({
-      x: this.scale.width  - 68,
-      y: this.scale.height - 80,
+      x: this.scale.width  - 100,
+      y: this.scale.height - 120,
     });
 
     const gfx = this.add.graphics().setScrollFactor(0).setDepth(100);
