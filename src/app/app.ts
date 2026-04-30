@@ -11,6 +11,8 @@ import { GameScene } from './game/scenes/game.scene';
 })
 export class App implements OnInit {
   ngOnInit(): void {
+    (screen.orientation as any)?.lock?.('landscape')?.catch(() => {});
+
     new Phaser.Game({
       type: Phaser.AUTO,
       parent: 'game-container',

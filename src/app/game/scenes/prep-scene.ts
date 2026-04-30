@@ -23,8 +23,8 @@ export class PrepScene extends Phaser.Scene {
       this.anims.create({
         key: 'player_idle_shadow',
         frames: this.anims.generateFrameNumbers('player_idle_shadow', { start: 0, end: 3 }),
-        frameRate: 8,
-        repeat: -1,
+        frameRate: 5,
+        repeat: 0,
       });
     }
 
@@ -199,7 +199,14 @@ export class PrepScene extends Phaser.Scene {
     const hero = this.add.sprite(cx, cy, 'player_idle_shadow', 0)
       .setScale(scale)
       .setDepth(10);
-    hero.play('player_idle_shadow');
+    const playIdle = () => {
+      hero.play('player_idle_shadow');
+      hero.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => {
+        hero.setFrame(0);
+        this.time.delayedCall(Phaser.Math.Between(2000, 3500), playIdle);
+      });
+    };
+    playIdle();
 
 
     // Name tag

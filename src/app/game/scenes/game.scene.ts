@@ -4,8 +4,7 @@ import { Boss } from '../objects/boss';
 import { SlashEffect } from '../objects/slash-effect';
 import { VirtualJoystick } from '../ui/joystick';
 
-const AIM_DRAG_THRESHOLD = 15;
-const MELEE_RANGE       = 95;
+const MELEE_RANGE = 95;
 
 export class GameScene extends Phaser.Scene {
   private player!: Player;
@@ -21,14 +20,9 @@ export class GameScene extends Phaser.Scene {
   };
   private bossHpGfx!: Phaser.GameObjects.Graphics;
   private bossHpLabel!: Phaser.GameObjects.Text;
-  private aimLine!: Phaser.GameObjects.Graphics;
   private gameOver = false;
   private worldW = 0;
   private worldH = 0;
-
-  private aimActive = false;
-  private aimStartX = 0;
-  private aimStartY = 0;
 
   constructor() {
     super({ key: 'GameScene' });
@@ -59,7 +53,6 @@ export class GameScene extends Phaser.Scene {
     this.worldW = Math.round(W * 1.5);
     this.worldH = Math.round(H * 1.5);
     this.gameOver = false;
-    this.aimActive = false;
 
     this.physics.world.setBounds(32, 40, this.worldW - 64, this.worldH - 80);
     this.cameras.main.setBounds(0, 0, this.worldW, this.worldH);
@@ -99,8 +92,6 @@ export class GameScene extends Phaser.Scene {
     }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(201);
     this.refreshBossBar();
 
-    this.aimLine = this.add.graphics().setDepth(20);
-
     const kb = this.input.keyboard!;
     this.keys = {
       ...kb.createCursorKeys(),
@@ -110,8 +101,6 @@ export class GameScene extends Phaser.Scene {
       d:     kb.addKey(Phaser.Input.Keyboard.KeyCodes.D),
       space: kb.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE),
     };
-
-    this.setupAimInput();
 
     const onResize = () => this.physics.world.setBounds(32, 40, this.worldW - 64, this.worldH - 80);
     this.scale.on('resize', onResize);
@@ -141,57 +130,6 @@ export class GameScene extends Phaser.Scene {
     else if (this.keys.down.isDown || this.keys.s.isDown) vy = 1;
 
     this.player.move(vx, vy);
-  }
-
-  // ── Aim input ─────────────────────────────────────────
-
-  private setupAimInput(): void {
-    const W = this.scale.width;
-
-    this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
-      if (this.gameOver || this.aimActive) return;
-      if (p.x <= W * 0.5) return;
-      this.aimActive = true;
-      this.aimStartX = p.x;
-      this.aimStartY = p.y;
-    });
-
-    this.input.on('pointermove', (p: Phaser.Input.Pointer) => {
-      if (!this.aimActive || !p.isDown) return;
-      const dx = p.x - this.aimStartX;
-      const dy = p.y - this.aimStartY;
-      if (Math.sqrt(dx * dx + dy * dy) > AIM_DRAG_THRESHOLD) this.drawAimLine(dx, dy);
-    });
-
-    this.input.on('pointerup', (p: Phaser.Input.Pointer) => {
-      if (!this.aimActive) return;
-      this.aimActive = false;
-      this.aimLine.clear();
-      if (this.gameOver) return;
-
-      const dx = p.x - this.aimStartX;
-      const dy = p.y - this.aimStartY;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      const tx = this.player.x + (dx / Math.max(dist, 1)) * MELEE_RANGE;
-      const ty = this.player.y + (dy / Math.max(dist, 1)) * MELEE_RANGE;
-      this.meleeAttack(dist > AIM_DRAG_THRESHOLD ? tx : (this.boss.active ? this.boss.x : this.player.x),
-                       dist > AIM_DRAG_THRESHOLD ? ty : (this.boss.active ? this.boss.y : this.player.y - 1));
-    });
-  }
-
-  private drawAimLine(dx: number, dy: number): void {
-    this.aimLine.clear();
-    const dist = Math.sqrt(dx * dx + dy * dy);
-    if (dist < 1) return;
-    const nx = dx / dist;
-    const ny = dy / dist;
-
-    this.aimLine.fillStyle(0xffffff, 0.5);
-    for (let d = 14; d < MELEE_RANGE; d += 10) {
-      this.aimLine.fillRect(this.player.x + nx * d - 2, this.player.y + ny * d - 2, 4, 4);
-    }
-    this.aimLine.fillStyle(0xffffff, 0.9);
-    this.aimLine.fillCircle(this.player.x + nx * MELEE_RANGE, this.player.y + ny * MELEE_RANGE, 5);
   }
 
   private meleeAttack(tx: number, ty: number): void {
@@ -234,15 +172,11 @@ export class GameScene extends Phaser.Scene {
 
   private handleBossDefeated(): void {
     this.gameOver = true;
-    this.aimLine.clear();
-    this.aimActive = false;
     this.showEndScreen(true);
   }
 
   private handlePlayerDead(): void {
     this.gameOver = true;
-    this.aimLine.clear();
-    this.aimActive = false;
     this.player.setActive(false).setVisible(false);
     this.showEndScreen(false);
   }
@@ -312,9 +246,113 @@ export class GameScene extends Phaser.Scene {
   // ── Scene helpers ─────────────────────────────────────
 
   private addHUD(): void {
-    this.add.text(12, 12, 'WASD / Joystick: 移動\n點擊右半邊: 近戰攻擊\n拖曳右半邊: 指定方向攻擊\nSpace: 攻擊Boss', {
+    this.add.text(12, 12, 'WASD / Joystick: 移動\nSpace / 攻擊鍵: 揮劍', {
       fontSize: '12px', color: '#aaaaaa', stroke: '#000', strokeThickness: 2,
     }).setScrollFactor(0).setDepth(200);
+
+    this.addAttackButton();
+  }
+
+  private addAttackButton(): void {
+    const W  = this.scale.width;
+    const H  = this.scale.height;
+    const sz = 72; // button size
+
+    const gfx = this.add.graphics().setScrollFactor(0).setDepth(100);
+    const drawBtn = (pressed: boolean) => {
+      gfx.clear();
+      const bx = this.scale.width  - 104;
+      const by = this.scale.height - 136;
+
+      // ── Drop shadow ──────────────────────────────────
+      gfx.fillStyle(0x000000, 0.55);
+      gfx.fillRect(bx + 4, by + 4, sz, sz);
+
+      // ── Outer border (dark) ──────────────────────────
+      gfx.fillStyle(0x1a0000, 1);
+      gfx.fillRect(bx, by, sz, sz);
+
+      // ── Main fill ────────────────────────────────────
+      const fill = pressed ? 0x5a1000 : 0x7a1800;
+      gfx.fillStyle(fill, 1);
+      gfx.fillRect(bx + 3, by + 3, sz - 6, sz - 6);
+
+      // ── Bevel highlight (top-left) ────────────────────
+      if (!pressed) {
+        gfx.fillStyle(0xcc3300, 1);
+        gfx.fillRect(bx + 3, by + 3,      sz - 6, 3); // top
+        gfx.fillRect(bx + 3, by + 3,      3, sz - 6); // left
+      }
+      // ── Bevel shadow (bottom-right) ──────────────────
+      gfx.fillStyle(0x2a0000, 1);
+      gfx.fillRect(bx + 3,      by + sz - 6, sz - 6, 3); // bottom
+      gfx.fillRect(bx + sz - 6, by + 3,      3, sz - 6); // right
+
+      // ── Inner glow strip (top) ────────────────────────
+      if (!pressed) {
+        gfx.fillStyle(0xff5522, 0.25);
+        gfx.fillRect(bx + 6, by + 6, sz - 12, 4);
+      }
+
+      // ── Pixel sword icon ─────────────────────────────
+      const ox = bx + sz / 2;
+      const oy = by + sz / 2 + (pressed ? 1 : 0);
+
+      // blade (silver)
+      gfx.fillStyle(0xdddddd, 1);
+      gfx.fillRect(ox - 2, oy - 20, 4, 26);
+      // blade shine
+      gfx.fillStyle(0xffffff, 1);
+      gfx.fillRect(ox - 1, oy - 19, 1, 20);
+      // blade tip
+      gfx.fillStyle(0xbbbbbb, 1);
+      gfx.fillRect(ox - 1, oy - 22, 2, 2);
+
+      // guard (gold)
+      gfx.fillStyle(0xddaa00, 1);
+      gfx.fillRect(ox - 10, oy + 5, 20, 4);
+      // guard corners (darker)
+      gfx.fillStyle(0x997700, 1);
+      gfx.fillRect(ox - 10, oy + 5, 3, 4);
+      gfx.fillRect(ox + 7,  oy + 5, 3, 4);
+
+      // grip (brown)
+      gfx.fillStyle(0x884422, 1);
+      gfx.fillRect(ox - 2, oy + 9, 4, 10);
+      // grip wrap
+      gfx.fillStyle(0xaa6633, 1);
+      gfx.fillRect(ox - 2, oy + 11, 4, 2);
+      gfx.fillRect(ox - 2, oy + 15, 4, 2);
+
+      // pommel (gold)
+      gfx.fillStyle(0xddaa00, 1);
+      gfx.fillRect(ox - 4, oy + 19, 8, 4);
+    };
+
+    drawBtn(false);
+
+    // Invisible hit area
+    const hit = this.add.rectangle(W - 104 + sz / 2, H - 136 + sz / 2, sz, sz, 0x000000, 0)
+      .setScrollFactor(0).setDepth(101)
+      .setInteractive({ useHandCursor: true });
+
+    hit.on('pointerdown', () => {
+      if (this.gameOver) return;
+      drawBtn(true);
+      const tx = this.boss.active ? this.boss.x : this.player.x;
+      const ty = this.boss.active ? this.boss.y : this.player.y - 1;
+      this.meleeAttack(tx, ty);
+    });
+    hit.on('pointerup',  () => drawBtn(false));
+    hit.on('pointerout', () => drawBtn(false));
+
+    const onResize = () => {
+      drawBtn(false);
+      const nW = this.scale.width, nH = this.scale.height;
+      hit.setPosition(nW - 104 + sz / 2, nH - 136 + sz / 2);
+    };
+    this.scale.on('resize', onResize);
+    this.events.once('shutdown', () => this.scale.off('resize', onResize));
   }
 
   private createPlayerAnims(): void {
