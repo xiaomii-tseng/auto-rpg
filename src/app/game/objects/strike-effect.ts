@@ -1,5 +1,4 @@
 import Phaser from 'phaser';
-import { Dummy } from './dummy';
 
 export class StrikeEffect {
   static readonly RADIUS = 60;

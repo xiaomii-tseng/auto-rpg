@@ -1,7 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import Phaser from 'phaser';
+import { PrepScene } from './game/scenes/prep-scene';
 import { GameScene } from './game/scenes/game.scene';
-import { BossScene } from './game/scenes/boss-scene';
 
 @Component({
   selector: 'app-root',
@@ -14,12 +14,12 @@ export class App implements OnInit {
     new Phaser.Game({
       type: Phaser.AUTO,
       parent: 'game-container',
-      width: window.innerWidth,
-      height: window.innerHeight,
-      backgroundColor: '#1a1a2e',
-      scene: [GameScene, BossScene],
+      width: 960,
+      height: 540,
+      backgroundColor: '#0d0d1a',
+      scene: [PrepScene, GameScene],
       scale: {
-        mode: Phaser.Scale.RESIZE,
+        mode: Phaser.Scale.FIT,
         autoCenter: Phaser.Scale.CENTER_BOTH,
       },
       physics: {

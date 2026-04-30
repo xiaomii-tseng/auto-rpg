@@ -5,6 +5,9 @@ import { StrikeEffect } from '../objects/strike-effect';
 import { VirtualJoystick } from '../ui/joystick';
 import { WeaponSystem } from '../systems/weapon-system';
 import { WeaponHUD } from '../ui/weapon-hud';
+import { ElementTint } from '../data/weapons';
+
+const AIM_DRAG_THRESHOLD = 15;
 
 export class BossScene extends Phaser.Scene {
   private player!: Player;
@@ -18,25 +21,32 @@ export class BossScene extends Phaser.Scene {
     s: Phaser.Input.Keyboard.Key;
     d: Phaser.Input.Keyboard.Key;
     q: Phaser.Input.Keyboard.Key;
+    space: Phaser.Input.Keyboard.Key;
   };
 
   private bossHpGfx!: Phaser.GameObjects.Graphics;
   private bossHpLabel!: Phaser.GameObjects.Text;
-  private playerHpGfx!: Phaser.GameObjects.Graphics;
-  private rangeCircle!: Phaser.GameObjects.Graphics;
+  private aimLine!: Phaser.GameObjects.Graphics;
   private gameOver = false;
+  private worldW = 0;
+  private worldH = 0;
+
+  // Aim-drag state
+  private aimActive = false;
+  private aimStartX = 0;
+  private aimStartY = 0;
 
   constructor() {
     super({ key: 'BossScene' });
   }
 
   preload(): void {
-    const pBase = 'sprite/player/PNG/Unarmed/Without_shadow/';
+    const pBase = 'sprite/hero/PNG/Swordsman_lvl1/Without_shadow/';
     const sBase = 'sprite/slime/PNG/Slime1/Without_shadow/';
     const cfg = { frameWidth: 64, frameHeight: 64 };
-    if (!this.textures.exists('player_idle')) this.load.spritesheet('player_idle', pBase + 'Unarmed_Idle_without_shadow.png', cfg);
-    if (!this.textures.exists('player_walk')) this.load.spritesheet('player_walk', pBase + 'Unarmed_Walk_without_shadow.png', cfg);
-    if (!this.textures.exists('player_hurt')) this.load.spritesheet('player_hurt', pBase + 'Unarmed_Hurt_without_shadow.png', cfg);
+    if (!this.textures.exists('player_idle')) this.load.spritesheet('player_idle', pBase + 'Swordsman_lvl1_Idle_without_shadow.png', cfg);
+    if (!this.textures.exists('player_walk')) this.load.spritesheet('player_walk', pBase + 'Swordsman_lvl1_Walk_without_shadow.png', cfg);
+    if (!this.textures.exists('player_hurt')) this.load.spritesheet('player_hurt', pBase + 'Swordsman_lvl1_Hurt_without_shadow.png', cfg);
     if (!this.textures.exists('slime_idle'))   this.load.spritesheet('slime_idle',   sBase + 'Slime1_Idle_without_shadow.png',   cfg);
     if (!this.textures.exists('slime_walk'))   this.load.spritesheet('slime_walk',   sBase + 'Slime1_Walk_without_shadow.png',   cfg);
     if (!this.textures.exists('slime_attack')) this.load.spritesheet('slime_attack', sBase + 'Slime1_Attack_without_shadow.png', cfg);
@@ -49,38 +59,44 @@ export class BossScene extends Phaser.Scene {
     const W = this.scale.width;
     const H = this.scale.height;
     this.gameOver = false;
+    this.aimActive = false;
 
-    const WW = Math.round(W * 1.5);
-    const WH = Math.round(H * 1.5);
-    // Camera shows full world; physics bounds inset so boss/player sprites stay inside the border
-    this.physics.world.setBounds(36, 72, WW - 72, WH - 144);
+    this.worldW = Math.round(W * 1.5);
+    this.worldH = Math.round(H * 1.5);
+    const WW = this.worldW;
+    const WH = this.worldH;
+    this.physics.world.setBounds(32, 40, WW - 64, WH - 80);
     this.cameras.main.setBounds(0, 0, WW, WH);
     this.createAllAnims();
     this.drawArenaFloor(WW, WH);
 
-    // Player — spawn at world center-bottom area
-    this.player = new Player(this, W * 0.75, H * 1.1);
+    this.player = new Player(this, WW * 0.5, WH * 0.75);
     this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
-    this.player.onHpChanged = () => this.refreshPlayerBar();
     this.player.onDead = () => this.handlePlayerDead();
 
-    // Boss group — passed to WeaponSystem so getNearestEnemy() can target the boss
     const bossGroup = this.physics.add.group();
 
-    // WeaponSystem uses bossGroup as its enemies group:
-    // - getNearestEnemy() will find the boss and trigger auto-attack
-    // - internal collision callbacks call e.takeDamage() via duck typing (Boss has it)
     this.weaponSystem = new WeaponSystem(this, this.player, bossGroup);
     this.weaponHud = new WeaponHUD(this);
     this.weaponHud.refresh(this.weaponSystem.slots, this.weaponSystem.activeSlot);
     this.weaponHud.flashName(this.weaponSystem.activeWeapon);
+
+    // Sync ammo display whenever ammo or weapon changes
+    const syncAmmo = () => this.player.showAmmo(
+      this.weaponSystem.currentAmmo,
+      this.weaponSystem.activeWeapon.maxAmmo,
+      ElementTint[this.weaponSystem.activeWeapon.element],
+    );
+    syncAmmo();
+
+    this.weaponSystem.onAmmoChanged = () => syncAmmo();
     this.weaponSystem.onWeaponChanged = (w, slot) => {
       this.weaponHud.refresh(this.weaponSystem.slots, slot);
       this.weaponHud.flashName(w);
+      syncAmmo();
     };
 
-    // Boss — spawn at world center-upper area
-    this.boss = new Boss(this, W * 0.75, H * 0.4);
+    this.boss = new Boss(this, WW * 0.5, WH * 0.25);
     this.boss.getTargetPos = () => [this.player.x, this.player.y];
     this.boss.onHpChanged = () => this.refreshBossBar();
     this.boss.onDead = () => this.handleBossDefeated();
@@ -89,17 +105,13 @@ export class BossScene extends Phaser.Scene {
       if (dSq <= Boss.AOE_RADIUS ** 2) this.player.takeDamage(30);
     };
 
-    // Thunder Hammer: WeaponSystem fires against bossGroup normally,
-    // but StrikeEffect also needs a direct callback to reach the boss
     this.weaponSystem.onStrikeFired = (x, y, dmg) => {
       const dSq = Phaser.Math.Distance.BetweenPointsSquared({ x, y }, this.boss);
       if (dSq <= StrikeEffect.RADIUS ** 2 && this.boss.active) this.boss.takeDamage(dmg);
     };
 
-    // Add boss to group AFTER WeaponSystem is set up (group is dynamic)
     bossGroup.add(this.boss, false);
 
-    // Boss dash overlaps player
     const playerGroup = this.physics.add.group();
     playerGroup.add(this.player, false);
     this.physics.add.overlap(bossGroup, playerGroup, () => {
@@ -114,44 +126,33 @@ export class BossScene extends Phaser.Scene {
       fontSize: '12px', color: '#ffcccc', stroke: '#000', strokeThickness: 2,
     }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(201);
 
-    // HUD — Player HP bar (bottom-left)
-    this.playerHpGfx = this.add.graphics().setScrollFactor(0).setDepth(200);
-    this.add.text(16, H - 52, '玩家 HP', {
-      fontSize: '11px', color: '#aaffaa', stroke: '#000', strokeThickness: 2,
-    }).setScrollFactor(0).setDepth(201);
-
     this.refreshBossBar();
-    this.refreshPlayerBar();
 
-    this.rangeCircle = this.add.graphics().setDepth(5);
+    this.aimLine = this.add.graphics().setDepth(20);
 
-    // Keyboard
     const kb = this.input.keyboard!;
     this.keys = {
       ...kb.createCursorKeys(),
-      w: kb.addKey(Phaser.Input.Keyboard.KeyCodes.W),
-      a: kb.addKey(Phaser.Input.Keyboard.KeyCodes.A),
-      s: kb.addKey(Phaser.Input.Keyboard.KeyCodes.S),
-      d: kb.addKey(Phaser.Input.Keyboard.KeyCodes.D),
-      q: kb.addKey(Phaser.Input.Keyboard.KeyCodes.Q),
+      w:     kb.addKey(Phaser.Input.Keyboard.KeyCodes.W),
+      a:     kb.addKey(Phaser.Input.Keyboard.KeyCodes.A),
+      s:     kb.addKey(Phaser.Input.Keyboard.KeyCodes.S),
+      d:     kb.addKey(Phaser.Input.Keyboard.KeyCodes.D),
+      q:     kb.addKey(Phaser.Input.Keyboard.KeyCodes.Q),
+      space: kb.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE),
     };
 
-    // Mobile: tap inactive slot to switch
-    this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
-      if (pointer.x <= W * 0.5) return;
-      const tapped = this.weaponHud.hitTestSlot(pointer.x, pointer.y);
-      if (tapped !== null && tapped !== this.weaponSystem.activeSlot) {
-        this.weaponSystem.switch();
-      }
+    this.setupAimInput();
+
+    this.scale.on('resize', () => {
+      this.physics.world.setBounds(32, 40, this.worldW - 64, this.worldH - 80);
     });
 
     this.joystick = new VirtualJoystick(this);
 
-    this.add.text(12, 12, 'WASD / Joystick: 移動\n停下自動攻擊\nQ: 換武器', {
+    this.add.text(12, 12, 'WASD / Joystick: 移動\n點擊右半邊: 鎖定攻擊\n拖曳右半邊: 瞄準射擊\nQ / Space: 快速攻擊', {
       fontSize: '12px', color: '#aaaaaa', stroke: '#000', strokeThickness: 2,
     }).setScrollFactor(0).setDepth(200);
 
-    // Short delay before boss starts attacking
     this.time.delayedCall(1000, () => this.boss.start());
   }
 
@@ -159,6 +160,9 @@ export class BossScene extends Phaser.Scene {
     if (this.gameOver) return;
 
     if (Phaser.Input.Keyboard.JustDown(this.keys.q)) this.weaponSystem.switch();
+    if (Phaser.Input.Keyboard.JustDown(this.keys.space)) {
+      if (!this.weaponSystem.fireAtNearest()) this.player.noAmmoFlash();
+    }
 
     const joy = this.joystick.value;
     let vx = joy.x;
@@ -170,14 +174,81 @@ export class BossScene extends Phaser.Scene {
     else if (this.keys.down.isDown || this.keys.s.isDown) vy = 1;
 
     this.player.move(vx, vy);
+  }
 
-    if (!this.player.moving) {
-      this.weaponSystem.startAttacking();
-    } else {
-      this.weaponSystem.stopAttacking();
+  // ── Aim input ─────────────────────────────────────────
+
+  private setupAimInput(): void {
+    const W = this.scale.width;
+
+    this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
+      if (this.gameOver || this.aimActive) return;
+      if (p.x <= W * 0.5) return;
+
+      const tapped = this.weaponHud.hitTestSlot(p.x, p.y);
+      if (tapped !== null) {
+        if (tapped !== this.weaponSystem.activeSlot) this.weaponSystem.switch();
+        return;
+      }
+
+      this.aimActive = true;
+      this.aimStartX = p.x;
+      this.aimStartY = p.y;
+    });
+
+    this.input.on('pointermove', (p: Phaser.Input.Pointer) => {
+      if (!this.aimActive || !p.isDown) return;
+      const dx = p.x - this.aimStartX;
+      const dy = p.y - this.aimStartY;
+      if (Math.sqrt(dx * dx + dy * dy) > AIM_DRAG_THRESHOLD) {
+        this.drawAimLine(dx, dy);
+      }
+    });
+
+    this.input.on('pointerup', (p: Phaser.Input.Pointer) => {
+      if (!this.aimActive) return;
+      this.aimActive = false;
+      this.aimLine.clear();
+      if (this.gameOver) return;
+
+      const dx = p.x - this.aimStartX;
+      const dy = p.y - this.aimStartY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+
+      if (dist > AIM_DRAG_THRESHOLD) {
+        const range = this.weaponSystem.effectiveRange;
+        const tx = this.player.x + (dx / dist) * range;
+        const ty = this.player.y + (dy / dist) * range;
+        if (!this.weaponSystem.fire(tx, ty)) this.player.noAmmoFlash();
+      } else {
+        if (!this.weaponSystem.fireAtNearest()) this.player.noAmmoFlash();
+      }
+    });
+  }
+
+  private drawAimLine(dx: number, dy: number): void {
+    this.aimLine.clear();
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < 1) return;
+    const nx = dx / dist;
+    const ny = dy / dist;
+    const range = this.weaponSystem.effectiveRange;
+    const color = ElementTint[this.weaponSystem.activeWeapon.element];
+
+    this.aimLine.fillStyle(color, 0.75);
+    for (let d = 14; d < range; d += 12) {
+      this.aimLine.fillRect(
+        this.player.x + nx * d - 2,
+        this.player.y + ny * d - 2,
+        4, 4,
+      );
     }
-
-    this.drawRangeCircle();
+    this.aimLine.fillStyle(color, 1);
+    this.aimLine.fillRect(
+      this.player.x + nx * range - 5,
+      this.player.y + ny * range - 5,
+      10, 10,
+    );
   }
 
   // ── HUD refresh ───────────────────────────────────────
@@ -204,36 +275,19 @@ export class BossScene extends Phaser.Scene {
     this.bossHpLabel.setPosition(W / 2, by - 14);
   }
 
-  private refreshPlayerBar(): void {
-    const H  = this.scale.height;
-    const bw = 180;
-    const bx = 16;
-    const by = H - 38;
-    const bh = 14;
-
-    this.playerHpGfx.clear();
-    this.playerHpGfx.fillStyle(0x002200, 0.8);
-    this.playerHpGfx.fillRect(bx - 4, by - 4, bw + 8, bh + 8);
-
-    const pct   = this.player.currentHp / this.player.maxHpValue;
-    const color = pct > 0.5 ? 0x00cc44 : pct > 0.25 ? 0xffaa00 : 0xff2222;
-    this.playerHpGfx.fillStyle(color);
-    this.playerHpGfx.fillRect(bx, by, bw * pct, bh);
-    this.playerHpGfx.lineStyle(2, 0x44ff88, 0.6);
-    this.playerHpGfx.strokeRect(bx, by, bw, bh);
-  }
-
   // ── Game-end handlers ─────────────────────────────────
 
   private handleBossDefeated(): void {
     this.gameOver = true;
-    this.weaponSystem.stopAttacking();
+    this.aimLine.clear();
+    this.aimActive = false;
     this.showEndScreen(true);
   }
 
   private handlePlayerDead(): void {
     this.gameOver = true;
-    this.weaponSystem.stopAttacking();
+    this.aimLine.clear();
+    this.aimActive = false;
     this.player.setActive(false).setVisible(false);
     this.showEndScreen(false);
   }
@@ -243,7 +297,6 @@ export class BossScene extends Phaser.Scene {
     const H = this.scale.height;
 
     if (victory) {
-      // Burst particles
       for (let i = 0; i < 14; i++) {
         const angle = (i / 14) * Math.PI * 2;
         const p = this.add.graphics().setDepth(250).setPosition(W / 2, H / 2);
@@ -261,19 +314,16 @@ export class BossScene extends Phaser.Scene {
       }
     }
 
-    // Dark overlay
     const overlay = this.add.graphics().setScrollFactor(0).setDepth(248);
     overlay.fillStyle(0x000000, 0.65);
     overlay.fillRect(0, 0, W, H);
 
-    // Title text
     const titleText = victory ? '挑戰成功！' : '挑戰失敗';
     const titleColor = victory ? '#ffdd00' : '#ff4444';
     this.add.text(W / 2, H / 2 - 64, titleText, {
       fontSize: '44px', color: titleColor, stroke: '#000', strokeThickness: 6,
     }).setOrigin(0.5).setScrollFactor(0).setDepth(250);
 
-    // Button
     const btnLabel = victory ? '返回主選單' : '再次挑戰';
     const btnBg    = victory ? '#223322' : '#332222';
     const btn = this.add.text(W / 2, H / 2 + 24, btnLabel, {
@@ -294,18 +344,7 @@ export class BossScene extends Phaser.Scene {
     });
   }
 
-  // ── Helpers ───────────────────────────────────────────
-
-  private drawRangeCircle(): void {
-    this.rangeCircle.clear();
-    if (!this.player.moving) {
-      this.rangeCircle.lineStyle(1, 0xffffff, 0.18);
-      this.rangeCircle.strokeCircle(
-        this.player.x, this.player.y,
-        this.weaponSystem.effectiveRange,
-      );
-    }
-  }
+  // ── Scene helpers ─────────────────────────────────────
 
   private createAllAnims(): void {
     if (!this.anims.exists('player_idle')) {
@@ -323,10 +362,8 @@ export class BossScene extends Phaser.Scene {
   }
 
   private drawArenaFloor(W: number, H: number): void {
-    // Grass tile base
     this.add.tileSprite(W / 2, H / 2, W, H, 'grass').setDepth(0);
 
-    // Pixel-art arena boundary — stone border (4-pixel thick, 2 shades for depth)
     const border = this.add.graphics().setDepth(1);
     border.fillStyle(0x2e7018, 0.65);
     border.fillRect(0, 0, W, 6);
@@ -367,7 +404,6 @@ export class BossScene extends Phaser.Scene {
       bg.destroy();
     }
 
-    // Pixel particle textures — white squares tinted at emit time
     if (!this.textures.exists('pxl')) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const ppg = (this.make.graphics as any)({ x: 0, y: 0, add: false }) as Phaser.GameObjects.Graphics;

@@ -4,7 +4,12 @@
       "Bash(node -e ' *)",
       "Bash(python3 -c ' *)",
       "Read(//c/Users/guede/AppData/Local/Temp/ng-32SdZh/**)",
-      "Bash(curl -s http://localhost:4200)"
+      "Bash(curl -s http://localhost:4200)",
+      "Bash(python -c \"import sys,json; lines=sys.stdin.read\\(\\).strip\\(\\).split\\('\\\\n'\\); [print\\(json.loads\\(l\\).get\\('content',''\\)[:500] if isinstance\\(json.loads\\(l\\).get\\('content',''\\),str\\) else ''\\) for l in lines[-10:]]\")",
+      "Bash(python -c ' *)",
+      "Bash(powershell -Command 'Add-Type -AssemblyName System.Drawing; $imgs = @\\('\\\\''public/sprite/flower/PNG/Plant1/Without_shadow/Plant1_Idle_without_shadow.png'\\\\'','\\\\''public/sprite/flower/PNG/Plant1/Without_shadow/Plant1_Walk_without_shadow.png'\\\\'','\\\\''public/sprite/flower/PNG/Plant1/Without_shadow/Plant1_Attack_without_shadow.png'\\\\'','\\\\''public/sprite/flower/PNG/Plant1/Without_shadow/Plant1_Hurt_without_shadow.png'\\\\'','\\\\''public/sprite/flower/PNG/Plant1/Without_shadow/Plant1_Death_without_shadow.png'\\\\''\\); foreach \\($i in $imgs\\) { $img = [System.Drawing.Image]::FromFile\\(\\(Resolve-Path $i\\)\\); Write-Host \"$\\([System.IO.Path]::GetFileName\\($i\\)\\) $\\($img.Width\\)x$\\($img.Height\\)\"; $img.Dispose\\(\\) }')",
+      "Bash(powershell -Command ' *)",
+      "Bash(node -e \"const p = require\\('c:/MyCode/auto-rpg/node_modules/gh-pages/package.json'\\); console.log\\(p.version\\)\")"
     ]
   }
 }
