@@ -35,7 +35,7 @@ export class PrepScene extends Phaser.Scene {
     this.drawCenterHero(W, H);
     this.drawBottomBar(W, H);
 
-    this.add.text(W / 2, H / 2, VERSION, {
+    this.add.text(W / 2, H / 3, VERSION, {
       fontSize: '20px', color: '#ffffff', stroke: '#000', strokeThickness: 3,
     }).setOrigin(0.5).setDepth(999);
   }

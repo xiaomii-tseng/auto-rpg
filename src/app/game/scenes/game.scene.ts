@@ -152,7 +152,7 @@ export class GameScene extends Phaser.Scene {
     const bw = W * 0.65;
     const bx = (W - bw) / 2;
     const by = 28;
-    const bh = 18;
+    const bh = 7;
 
     this.bossHpGfx.clear();
     this.bossHpGfx.fillStyle(0x330000, 0.85);
@@ -261,7 +261,7 @@ export class GameScene extends Phaser.Scene {
       y: this.scale.height - 120,
     });
 
-    const gfx = this.add.graphics().setScrollFactor(0).setDepth(100);
+    const gfx = this.add.graphics().setScrollFactor(0).setDepth(100).setAlpha(0.25);
 
     const drawBtn = (pressed: boolean) => {
       gfx.clear();

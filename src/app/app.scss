@@ -4,50 +4,11 @@
   box-sizing: border-box;
 }
 
-/* Portrait: show overlay, hide game */
-#rotate-overlay {
-  display: none;
-  position: fixed;
-  inset: 0;
-  z-index: 9999;
-  background: #05080f;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 20px;
-  color: #aabbcc;
-  font-family: sans-serif;
-  text-align: center;
-
-  .rotate-icon {
-    font-size: 80px;
-    animation: spin 2s ease-in-out infinite;
-  }
-
-  p { font-size: 20px; }
-
-  .rotate-sub {
-    font-size: 14px;
-    color: #556677;
-  }
-}
-
-@keyframes spin {
-  0%   { transform: rotate(0deg); }
-  40%  { transform: rotate(90deg); }
-  60%  { transform: rotate(90deg); }
-  100% { transform: rotate(90deg); }
-}
-
-@media (orientation: portrait) {
-  #rotate-overlay { display: flex; }
-  #game-wrapper   { display: none; }
-}
-
-/* Landscape: game fills viewport */
 #game-wrapper {
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 0;
+  overflow: hidden;
 }
 
 #game-container {
