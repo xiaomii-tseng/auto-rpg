@@ -106,6 +106,7 @@ export class GameScene extends Phaser.Scene {
     this.scale.on('resize', onResize);
     this.events.once('shutdown', () => this.scale.off('resize', onResize));
 
+    this.input.addPointer(3);
     this.joystick = new VirtualJoystick(this);
     this.addHUD();
     this.time.delayedCall(1000, () => this.boss.start());
@@ -254,105 +255,107 @@ export class GameScene extends Phaser.Scene {
   }
 
   private addAttackButton(): void {
-    const W  = this.scale.width;
-    const H  = this.scale.height;
-    const sz = 72; // button size
+    const r = 40;
+    const getBtnCenter = () => ({
+      x: this.scale.width  - 68,
+      y: this.scale.height - 80,
+    });
 
     const gfx = this.add.graphics().setScrollFactor(0).setDepth(100);
+
     const drawBtn = (pressed: boolean) => {
       gfx.clear();
-      const bx = this.scale.width  - 104;
-      const by = this.scale.height - 136;
+      const { x: cx, y: cy } = getBtnCenter();
+      const oy = pressed ? 1 : 0;
 
-      // ── Drop shadow ──────────────────────────────────
-      gfx.fillStyle(0x000000, 0.55);
-      gfx.fillRect(bx + 4, by + 4, sz, sz);
+      // Drop shadow
+      gfx.fillStyle(0x000000, 0.5);
+      gfx.fillCircle(cx + 3, cy + 3, r);
 
-      // ── Outer border (dark) ──────────────────────────
-      gfx.fillStyle(0x1a0000, 1);
-      gfx.fillRect(bx, by, sz, sz);
+      // Outer ring (dark border)
+      gfx.fillStyle(0x150000, 1);
+      gfx.fillCircle(cx, cy, r);
 
-      // ── Main fill ────────────────────────────────────
-      const fill = pressed ? 0x5a1000 : 0x7a1800;
-      gfx.fillStyle(fill, 1);
-      gfx.fillRect(bx + 3, by + 3, sz - 6, sz - 6);
-
-      // ── Bevel highlight (top-left) ────────────────────
+      // Bevel highlight ring (top-left offset)
       if (!pressed) {
-        gfx.fillStyle(0xcc3300, 1);
-        gfx.fillRect(bx + 3, by + 3,      sz - 6, 3); // top
-        gfx.fillRect(bx + 3, by + 3,      3, sz - 6); // left
-      }
-      // ── Bevel shadow (bottom-right) ──────────────────
-      gfx.fillStyle(0x2a0000, 1);
-      gfx.fillRect(bx + 3,      by + sz - 6, sz - 6, 3); // bottom
-      gfx.fillRect(bx + sz - 6, by + 3,      3, sz - 6); // right
-
-      // ── Inner glow strip (top) ────────────────────────
-      if (!pressed) {
-        gfx.fillStyle(0xff5522, 0.25);
-        gfx.fillRect(bx + 6, by + 6, sz - 12, 4);
+        gfx.fillStyle(0xb82800, 1);
+        gfx.fillCircle(cx - 1, cy - 1, r - 2);
       }
 
-      // ── Pixel sword icon ─────────────────────────────
-      const ox = bx + sz / 2;
-      const oy = by + sz / 2 + (pressed ? 1 : 0);
+      // Main fill
+      gfx.fillStyle(pressed ? 0x4a0e00 : 0x6a1500, 1);
+      gfx.fillCircle(cx + (pressed ? 1 : 0), cy + (pressed ? 1 : 0), r - (pressed ? 2 : 4));
+
+      // Inner glow highlight (top area)
+      if (!pressed) {
+        gfx.fillStyle(0xff6633, 0.28);
+        gfx.fillCircle(cx - 5, cy - 10, 13);
+      }
+
+      // ── Pixel sword icon ──────────────────────────────
+      const ox = cx;
 
       // blade (silver)
       gfx.fillStyle(0xdddddd, 1);
-      gfx.fillRect(ox - 2, oy - 20, 4, 26);
+      gfx.fillRect(ox - 2, cy - 18 + oy, 4, 24);
       // blade shine
       gfx.fillStyle(0xffffff, 1);
-      gfx.fillRect(ox - 1, oy - 19, 1, 20);
+      gfx.fillRect(ox - 1, cy - 17 + oy, 1, 18);
       // blade tip
       gfx.fillStyle(0xbbbbbb, 1);
-      gfx.fillRect(ox - 1, oy - 22, 2, 2);
+      gfx.fillRect(ox - 1, cy - 20 + oy, 2, 2);
 
       // guard (gold)
       gfx.fillStyle(0xddaa00, 1);
-      gfx.fillRect(ox - 10, oy + 5, 20, 4);
-      // guard corners (darker)
+      gfx.fillRect(ox - 9, cy + 5 + oy, 18, 4);
       gfx.fillStyle(0x997700, 1);
-      gfx.fillRect(ox - 10, oy + 5, 3, 4);
-      gfx.fillRect(ox + 7,  oy + 5, 3, 4);
+      gfx.fillRect(ox - 9, cy + 5 + oy, 3, 4);
+      gfx.fillRect(ox + 6,  cy + 5 + oy, 3, 4);
 
       // grip (brown)
       gfx.fillStyle(0x884422, 1);
-      gfx.fillRect(ox - 2, oy + 9, 4, 10);
-      // grip wrap
+      gfx.fillRect(ox - 2, cy + 9 + oy, 4, 9);
       gfx.fillStyle(0xaa6633, 1);
-      gfx.fillRect(ox - 2, oy + 11, 4, 2);
-      gfx.fillRect(ox - 2, oy + 15, 4, 2);
+      gfx.fillRect(ox - 2, cy + 11 + oy, 4, 2);
+      gfx.fillRect(ox - 2, cy + 14 + oy, 4, 2);
 
       // pommel (gold)
       gfx.fillStyle(0xddaa00, 1);
-      gfx.fillRect(ox - 4, oy + 19, 8, 4);
+      gfx.fillRect(ox - 4, cy + 18 + oy, 8, 4);
     };
 
     drawBtn(false);
 
-    // Invisible hit area
-    const hit = this.add.rectangle(W - 104 + sz / 2, H - 136 + sz / 2, sz, sz, 0x000000, 0)
-      .setScrollFactor(0).setDepth(101)
-      .setInteractive({ useHandCursor: true });
+    // Use scene-level pointer events so multi-touch works on iOS
+    const activeIds = new Set<number>();
 
-    hit.on('pointerdown', () => {
-      if (this.gameOver) return;
+    const onDown = (ptr: Phaser.Input.Pointer) => {
+      const { x: cx, y: cy } = getBtnCenter();
+      if (Phaser.Math.Distance.Between(ptr.x, ptr.y, cx, cy) > r) return;
+      activeIds.add(ptr.id);
       drawBtn(true);
+      if (this.gameOver) return;
       const tx = this.boss.active ? this.boss.x : this.player.x;
       const ty = this.boss.active ? this.boss.y : this.player.y - 1;
       this.meleeAttack(tx, ty);
-    });
-    hit.on('pointerup',  () => drawBtn(false));
-    hit.on('pointerout', () => drawBtn(false));
-
-    const onResize = () => {
-      drawBtn(false);
-      const nW = this.scale.width, nH = this.scale.height;
-      hit.setPosition(nW - 104 + sz / 2, nH - 136 + sz / 2);
     };
+
+    const onUp = (ptr: Phaser.Input.Pointer) => {
+      if (!activeIds.has(ptr.id)) return;
+      activeIds.delete(ptr.id);
+      if (activeIds.size === 0) drawBtn(false);
+    };
+
+    this.input.on('pointerdown', onDown);
+    this.input.on('pointerup',   onUp);
+
+    const onResize = () => drawBtn(false);
     this.scale.on('resize', onResize);
-    this.events.once('shutdown', () => this.scale.off('resize', onResize));
+    this.events.once('shutdown', () => {
+      this.input.off('pointerdown', onDown);
+      this.input.off('pointerup',   onUp);
+      this.scale.off('resize', onResize);
+    });
   }
 
   private createPlayerAnims(): void {
