@@ -45,7 +45,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     if (!this.active) return;
     const bw = 44, bh = 5;
     const bx = this.x - bw / 2;
-    const by = this.y - 68;
+    const by = this.y - 40;
     this.headGfx.fillStyle(0x220000);
     this.headGfx.fillRect(bx - 1, by - 1, bw + 2, bh + 2);
     const pct   = this.hp / this.maxHp;

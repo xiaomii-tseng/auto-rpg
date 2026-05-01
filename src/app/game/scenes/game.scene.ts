@@ -1,13 +1,17 @@
 import Phaser from 'phaser';
 import { Player } from '../objects/player';
 import { Boss } from '../objects/boss';
+import { MinionSlime } from '../objects/minion-slime';
 import { SlashEffect } from '../objects/slash-effect';
 import { VirtualJoystick } from '../ui/joystick';
 import { PlayerStore } from '../data/player-store';
 import { InventoryStore } from '../data/inventory-store';
 import { SaveStore } from '../data/save-store';
+import { CardStore } from '../data/card-store';
+import { getMonsterDef } from '../data/monster-data';
+import { getElementMultiplier, ELEMENT_NAMES, ELEMENT_COLORS } from '../data/equipment-data';
 
-const MELEE_RANGE = 95;
+const MELEE_RANGE = 60;
 
 export class GameScene extends Phaser.Scene {
   private player!: Player;
@@ -21,11 +25,20 @@ export class GameScene extends Phaser.Scene {
     d: Phaser.Input.Keyboard.Key;
     space: Phaser.Input.Keyboard.Key;
   };
-  private bossHpGfx!: Phaser.GameObjects.Graphics;
+  private bossHpGfx!:   Phaser.GameObjects.Graphics;
   private bossHpLabel!: Phaser.GameObjects.Text;
   private gameOver = false;
   private worldW = 0;
   private worldH = 0;
+
+  private stage        = 1;
+  private minions: MinionSlime[] = [];
+  private portalGfx?:   Phaser.GameObjects.Graphics;
+  private portalHint?:  Phaser.GameObjects.Text;
+  private portalTimer?: Phaser.Time.TimerEvent;
+  private portalZone?:  Phaser.GameObjects.Zone;
+  private playerStartX = 0;
+  private playerStartY = 0;
 
   constructor() {
     super({ key: 'GameScene' });
@@ -64,7 +77,9 @@ export class GameScene extends Phaser.Scene {
     this.createSlimeAnims();
     this.drawArenaFloor();
 
-    this.player = new Player(this, this.worldW * 0.5, this.worldH * 0.75);
+    this.playerStartX = this.worldW * 0.5;
+    this.playerStartY = this.worldH * 0.75;
+    this.player = new Player(this, this.playerStartX, this.playerStartY);
     this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
     this.player.onDead = () => this.handlePlayerDead();
 
@@ -72,7 +87,7 @@ export class GameScene extends Phaser.Scene {
 
     this.boss = new Boss(this, this.worldW * 0.5, this.worldH * 0.25);
     this.boss.getTargetPos = () => [this.player.x, this.player.y];
-    this.boss.onHpChanged = () => this.refreshBossBar();
+    this.boss.onHpChanged  = () => this.refreshBossBar();
     this.boss.onDead = () => this.handleBossDefeated();
     this.boss.onAoeExplode = (x, y) => {
       const dSq = Phaser.Math.Distance.BetweenPointsSquared({ x, y }, this.player);
@@ -85,19 +100,14 @@ export class GameScene extends Phaser.Scene {
     this.player.setCollideWorldBounds(true);
     (this.boss.body as Phaser.Physics.Arcade.Body).setCollideWorldBounds(true);
 
-    (this.boss.body as Phaser.Physics.Arcade.Body).immovable = true;
-    this.physics.add.collider(this.player, bossGroup, undefined, () => {
-      return this.boss.currentState !== 'DASHING';
-    }, this);
     this.physics.add.overlap(bossGroup, this.player, () => {
       if (this.boss.currentState === 'DASHING') this.player.takeDamage(25);
     });
 
-    this.bossHpGfx = this.add.graphics().setScrollFactor(0).setDepth(200);
-    this.bossHpLabel = this.add.text(W / 2, 8, '', {
-      fontSize: '12px', color: '#ffcccc', stroke: '#000', strokeThickness: 2,
-    }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(201);
-    this.refreshBossBar();
+    this.bossHpGfx = this.add.graphics().setScrollFactor(0).setDepth(5).setVisible(false);
+    this.bossHpLabel = this.add.text(W / 2, 6, '', {
+      fontSize: '11px', color: '#ffcccc', stroke: '#000', strokeThickness: 2,
+    }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(6).setVisible(false);
 
     const kb = this.input.keyboard!;
     this.keys = {
@@ -116,15 +126,30 @@ export class GameScene extends Phaser.Scene {
     this.input.addPointer(3);
     this.joystick = new VirtualJoystick(this);
     this.addHUD();
-    this.time.delayedCall(1000, () => this.boss.start());
+    this.time.delayedCall(800, () => this.startStage1());
+  }
+
+  private getAttackTarget(): { x: number; y: number } {
+    if (this.stage === 1) {
+      let nearest: MinionSlime | null = null;
+      let minDist = Infinity;
+      for (const m of this.minions) {
+        if (m.isDead) continue;
+        const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, m.x, m.y);
+        if (d < minDist) { minDist = d; nearest = m; }
+      }
+      return nearest ? { x: nearest.x, y: nearest.y } : { x: this.player.x, y: this.player.y - 1 };
+    }
+    return this.boss.active
+      ? { x: this.boss.x, y: this.boss.y }
+      : { x: this.player.x, y: this.player.y - 1 };
   }
 
   override update(): void {
     if (this.gameOver) return;
 
     if (Phaser.Input.Keyboard.JustDown(this.keys.space)) {
-      const tx = this.boss.active ? this.boss.x : this.player.x;
-      const ty = this.boss.active ? this.boss.y : this.player.y - 1;
+      const { x: tx, y: ty } = this.getAttackTarget();
       this.meleeAttack(tx, ty);
     }
 
@@ -145,48 +170,397 @@ export class GameScene extends Phaser.Scene {
   }
 
   private meleeAttack(tx: number, ty: number): void {
+    // 在攻擊發動當下就算好方向，避免被後續每幀的 move() 覆蓋 lastDir
+    const dx = tx - this.player.x;
+    const dy = ty - this.player.y;
+    const attackDir: 'down' | 'left' | 'right' | 'up' =
+      Math.abs(dx) >= Math.abs(dy) ? (dx < 0 ? 'left' : 'right') : (dy < 0 ? 'up' : 'down');
+
     this.player.playAttack(tx, ty, () => {
+      const dir   = attackDir;
+      const stats = CardStore.getTotalStats();
+
+      const dirAngle: Record<typeof dir, number> = {
+        right:  0,
+        down:   90,
+        left:   180,
+        up:     270,
+      };
+      const facing   = dirAngle[dir];
+      const halfArc  = stats.attackArc / 2;
+      const inArc    = (ex: number, ey: number) => {
+        const toEnemy = Phaser.Math.RadToDeg(Math.atan2(ey - this.player.y, ex - this.player.x));
+        return Math.abs(Phaser.Math.Angle.ShortestBetween(facing, toEnemy)) <= halfArc;
+      };
+
+      if (this.stage === 1) {
+        for (const m of this.minions) {
+          if (m.isDead) continue;
+          const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, m.x, m.y);
+          if (dist > MELEE_RANGE) continue;
+          if (!inArc(m.x, m.y)) continue;
+          const isCrit   = Math.random() < stats.crit;
+          const variance = Phaser.Math.FloatBetween(0.85, 1.15);
+          const dmg      = Math.round(stats.atk * variance * (isCrit ? 2 : 1));
+          m.takeDamage(dmg);
+          m.knockback(this.player.x, this.player.y);
+          this.spawnDamageNumber(m.x, m.y, dmg, isCrit, 1);
+          this.slashEffect.play(m.x, m.y, dir);
+        }
+        return;
+      }
+
       if (!this.boss.active) return;
       const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, this.boss.x, this.boss.y);
       if (dist > MELEE_RANGE) return;
-      const dir    = this.player.attackDir;
-      const stats  = PlayerStore.getStats();
-      const isCrit = Math.random() < stats.crit;
-      const dmg    = stats.atk * (isCrit ? 2 : 1);
+      if (!inArc(this.boss.x, this.boss.y)) return;
+      const isCrit   = Math.random() < stats.crit;
+      const elemMult = getElementMultiplier(PlayerStore.getWeaponElement(), this.boss.element);
+      const variance = Phaser.Math.FloatBetween(0.85, 1.15);
+      const dmg      = Math.round(stats.atk * variance * (isCrit ? 2 : 1) * elemMult);
       this.boss.takeDamage(dmg);
+      this.spawnDamageNumber(this.boss.x, this.boss.y, dmg, isCrit, elemMult);
       this.slashEffect.play(this.boss.x, this.boss.y, dir);
       this.boss.knockback(this.player.x, this.player.y);
     });
   }
 
-  // ── HUD refresh ───────────────────────────────────────
+  // ── Stage Management ──────────────────────────────────
+
+  private startStage1(): void {
+    this.stage = 1;
+    this.minions = [];   // clear destroyed refs from any previous run
+    const count  = Phaser.Math.Between(3, 5);
+    // Physics bounds: x=32, y=40, w=worldW-64, h=worldH-80 — keep minions 80px inside
+    const bx = 32 + 80, by = 40 + 80;
+    const bw = this.worldW - 64 - 160, bh = this.worldH - 80 - 160;
+
+    for (let i = 0; i < count; i++) {
+      const mx = Phaser.Math.Between(bx, bx + bw);
+      const my = Phaser.Math.Between(by, by + bh);
+      const m = new MinionSlime(this, mx, my, 150);
+      m.getTargetPos = () => [this.player.x, this.player.y];
+      m.onDead = () => {
+        this.tryCardDrop('slime_grass');
+        this.onMinionDead();
+      };
+      this.minions.push(m);
+      this.physics.add.overlap(m, this.player, () => {
+        if (!m.isDead && m.isDashing) this.player.takeDamage(15);
+      });
+    }
+
+    this.time.delayedCall(400, () => {
+      for (const m of this.minions) m.start();
+    });
+  }
+
+  private onMinionDead(): void {
+    if (this.minions.every(m => m.isDead)) this.showPortal();
+  }
+
+  private tryCardDrop(monsterId: string): void {
+    const def = getMonsterDef(monsterId);
+    if (!def) return;
+    if (Math.random() < def.cardDropRate) {
+      CardStore.addCard(def.cardId);
+    }
+  }
+
+  private showPortal(): void {
+    // 防止重複建立（保險）
+    this.destroyPortal();
+
+    const cx = this.worldW / 2;
+    const cy = this.worldH / 2;
+    const rw = 54, rh = 28;
+
+    const gfx = this.add.graphics().setDepth(2);
+    gfx.fillStyle(0x003322, 0.60);
+    gfx.fillEllipse(cx, cy, rw * 2, rh * 2);
+    gfx.lineStyle(3, 0x00ffcc, 0.9);
+    gfx.strokeEllipse(cx, cy, rw * 2, rh * 2);
+    gfx.lineStyle(1.5, 0x00ffcc, 0.35);
+    gfx.strokeEllipse(cx, cy, rw * 1.1, rh * 1.1);
+    for (let i = 0; i < 10; i++) {
+      const a = (i / 10) * Math.PI * 2;
+      gfx.fillStyle(0x00ffcc, 0.85);
+      gfx.fillCircle(cx + Math.cos(a) * rw, cy + Math.sin(a) * rh, 3);
+    }
+
+    const hint = this.add.text(cx, cy + rh + 14, '進入下一關', {
+      fontSize: '11px', color: '#aaffee', stroke: '#003322', strokeThickness: 3,
+    }).setOrigin(0.5).setDepth(3);
+
+    this.portalGfx  = gfx;
+    this.portalHint = hint;
+
+    // 用 physics zone 做每幀即時偵測，取代 100ms 輪詢
+    const zone = this.add.zone(cx, cy, (rw + 12) * 2, (rh + 12) * 2);
+    this.physics.world.enable(zone, Phaser.Physics.Arcade.STATIC_BODY);
+    this.physics.add.overlap(this.player, zone, () => {
+      if (this.stage !== 1) return;
+      this.startStage2();
+    });
+    this.portalZone = zone;
+  }
+
+  private destroyPortal(): void {
+    this.portalTimer?.destroy();
+    this.portalTimer = undefined;
+    if (this.portalZone)  { this.portalZone.destroy();  this.portalZone  = undefined; }
+    if (this.portalGfx)   { this.portalGfx.setVisible(false);  this.portalGfx.destroy();  this.portalGfx  = undefined; }
+    if (this.portalHint)  { this.portalHint.setVisible(false); this.portalHint.destroy(); this.portalHint = undefined; }
+  }
+
+  private startStage2(): void {
+    this.stage = 2;
+    this.destroyPortal();
+
+    this.playTeleportOut(() => {
+      this.cameras.main.fade(380, 0, 0, 0);
+      this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => {
+        this.player.setPosition(this.playerStartX, this.playerStartY);
+        (this.player.body as Phaser.Physics.Arcade.Body).reset(this.playerStartX, this.playerStartY);
+        this.bossHpGfx.setVisible(true);
+        this.bossHpLabel.setVisible(true);
+        this.refreshBossBar();
+        this.cameras.main.fadeIn(420, 0, 0, 0);
+        this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_IN_COMPLETE, () => {
+          this.playTeleportIn(() => {
+            this.time.delayedCall(200, () => this.boss.start());
+          });
+        });
+      });
+    });
+  }
+
+  private playTeleportOut(onComplete: () => void): void {
+    const cx = this.player.x;
+    const cy = this.player.y;
+    const gfx = this.add.graphics().setDepth(55);
+
+    const draw = (t: number) => {
+      gfx.clear();
+      const expandT = Math.min(t / 0.45, 1);
+      const fadeT   = Math.max((t - 0.5) / 0.5, 0);
+      const alpha   = expandT * (1 - fadeT);
+      if (alpha <= 0) return;
+
+      const r1  = 14 + expandT * 52;
+      const r2  = r1 * 0.62;
+      const r3  = r1 * 1.28;
+      const rot = t * Math.PI * 4;
+
+      // soft glow disc
+      gfx.fillStyle(0x44ccff, alpha * 0.07);
+      gfx.fillCircle(cx, cy, r3 + 14);
+
+      // outer ring
+      gfx.lineStyle(1.2, 0x2288dd, alpha * 0.35);
+      gfx.strokeCircle(cx, cy, r3);
+
+      // main ring + bright highlight
+      gfx.lineStyle(3, 0x66ddff, alpha * 0.95);
+      gfx.strokeCircle(cx, cy, r1);
+      gfx.lineStyle(1, 0xffffff, alpha * 0.55);
+      gfx.strokeCircle(cx, cy, r1 - 2);
+
+      // inner ring
+      gfx.lineStyle(1.5, 0x44aaff, alpha * 0.65);
+      gfx.strokeCircle(cx, cy, r2);
+
+      // 8 orbiting sparks on main ring
+      for (let i = 0; i < 8; i++) {
+        const a  = (i / 8) * Math.PI * 2 + rot;
+        const px = cx + Math.cos(a) * r1;
+        const py = cy + Math.sin(a) * r1;
+        const sa = alpha * (0.5 + 0.5 * Math.sin(t * Math.PI * 8 + i * 1.3));
+        gfx.fillStyle(0xffffff, sa);
+        gfx.fillCircle(px, py, 2.2);
+      }
+      // 4 larger accent sparks on outer ring (opposite rotation)
+      for (let i = 0; i < 4; i++) {
+        const a  = (i / 4) * Math.PI * 2 - rot * 0.6;
+        const px = cx + Math.cos(a) * r3;
+        const py = cy + Math.sin(a) * r3;
+        gfx.fillStyle(0x88eeff, alpha * 0.5);
+        gfx.fillCircle(px, py, 1.8);
+      }
+
+      // centre flash burst (early phase only)
+      const flashA = Math.max(0, 0.28 - t) / 0.28;
+      if (flashA > 0) {
+        gfx.fillStyle(0xffffff, flashA * 0.45);
+        gfx.fillCircle(cx, cy, 22);
+        gfx.fillStyle(0xaaeeff, flashA * 0.3);
+        gfx.fillCircle(cx, cy, 36);
+      }
+    };
+
+    const c = { t: 0 };
+    this.tweens.add({
+      targets: c, t: 1, duration: 680, ease: 'Linear',
+      onUpdate: () => draw(c.t),
+      onComplete: () => { gfx.destroy(); onComplete(); },
+    });
+
+    this.tweens.add({
+      targets: this.player,
+      scaleX: 0, scaleY: 0, alpha: 0,
+      delay: 140, duration: 360, ease: 'Back.In',
+    });
+  }
+
+  private playTeleportIn(onComplete: () => void): void {
+    const cx = this.player.x;
+    const cy = this.player.y;
+    const gfx = this.add.graphics().setDepth(55);
+
+    this.player.setScale(0);
+    this.player.setAlpha(0);
+
+    const draw = (t: number) => {
+      gfx.clear();
+      const convergeT = Math.min(t / 0.4, 1);
+      const fadeT     = Math.max((t - 0.55) / 0.45, 0);
+      const alpha     = convergeT * (1 - fadeT);
+      if (alpha <= 0) return;
+
+      // rings converge inward then slightly rebound
+      const r1  = 68 - convergeT * 48 + fadeT * 8;
+      const r2  = r1 * 0.62;
+      const r3  = r1 * 1.28;
+      const rot = -t * Math.PI * 4;
+
+      gfx.fillStyle(0x44ccff, alpha * 0.07);
+      gfx.fillCircle(cx, cy, r3 + 14);
+
+      gfx.lineStyle(1.2, 0x2288dd, alpha * 0.35);
+      gfx.strokeCircle(cx, cy, r3);
+
+      gfx.lineStyle(3, 0x66ddff, alpha * 0.95);
+      gfx.strokeCircle(cx, cy, r1);
+      gfx.lineStyle(1, 0xffffff, alpha * 0.55);
+      gfx.strokeCircle(cx, cy, r1 - 2);
+
+      gfx.lineStyle(1.5, 0x44aaff, alpha * 0.65);
+      gfx.strokeCircle(cx, cy, r2);
+
+      for (let i = 0; i < 8; i++) {
+        const a  = (i / 8) * Math.PI * 2 + rot;
+        const px = cx + Math.cos(a) * r1;
+        const py = cy + Math.sin(a) * r1;
+        const sa = alpha * (0.5 + 0.5 * Math.sin(t * Math.PI * 8 + i * 1.3));
+        gfx.fillStyle(0xffffff, sa);
+        gfx.fillCircle(px, py, 2.2);
+      }
+      for (let i = 0; i < 4; i++) {
+        const a  = (i / 4) * Math.PI * 2 - rot * 0.6;
+        const px = cx + Math.cos(a) * r3;
+        const py = cy + Math.sin(a) * r3;
+        gfx.fillStyle(0x88eeff, alpha * 0.5);
+        gfx.fillCircle(px, py, 1.8);
+      }
+
+      // centre flash when player materialises
+      const flashA = Math.max(0, t - 0.28) > 0
+        ? Math.max(0, 0.42 - (t - 0.28)) / 0.42
+        : 0;
+      if (flashA > 0) {
+        gfx.fillStyle(0xffffff, flashA * 0.4);
+        gfx.fillCircle(cx, cy, 22);
+        gfx.fillStyle(0xaaeeff, flashA * 0.25);
+        gfx.fillCircle(cx, cy, 36);
+      }
+    };
+
+    const c = { t: 0 };
+    this.tweens.add({
+      targets: c, t: 1, duration: 720, ease: 'Linear',
+      onUpdate: () => draw(c.t),
+      onComplete: () => gfx.destroy(),
+    });
+
+    this.tweens.add({
+      targets: this.player,
+      scaleX: 1.5, scaleY: 1.5, alpha: 1,
+      delay: 190, duration: 430, ease: 'Back.Out',
+      onComplete: () => onComplete(),
+    });
+  }
 
   private refreshBossBar(): void {
     const W  = this.scale.width;
-    const bw = W * 0.65;
+    const bw = W * 0.60;
     const bx = (W - bw) / 2;
-    const by = 28;
-    const bh = 7;
+    const by = 20;
+    const bh = 6;
 
     this.bossHpGfx.clear();
-    this.bossHpGfx.fillStyle(0x330000, 0.85);
-    this.bossHpGfx.fillRect(bx - 4, by - 18, bw + 8, bh + 22);
+    // 底板（名稱 + 血條同一排）
+    this.bossHpGfx.fillStyle(0x220000, 0.80);
+    this.bossHpGfx.fillRect(bx - 4, by - 2, bw + 8, bh + 4);
 
     const pct   = this.boss.currentHp / this.boss.maxHpValue;
     const color = pct > 0.5 ? 0xcc2200 : pct > 0.25 ? 0xff4400 : 0xff0000;
     this.bossHpGfx.fillStyle(color);
     this.bossHpGfx.fillRect(bx, by, bw * pct, bh);
-    this.bossHpGfx.lineStyle(2, 0xff4400, 0.8);
+    this.bossHpGfx.lineStyle(1.5, 0xff4400, 0.7);
     this.bossHpGfx.strokeRect(bx, by, bw, bh);
 
-    this.bossHpLabel.setText(`綠史萊姆   ${this.boss.currentHp} / ${this.boss.maxHpValue}`);
+    const elemName = ELEMENT_NAMES[this.boss.element];
+    const elemColor = ELEMENT_COLORS[this.boss.element];
+    const elemTag  = this.boss.element !== 'none' ? ` 【${elemName}】` : '';
+    if (this.boss.element !== 'none') {
+      this.bossHpGfx.fillStyle(elemColor, 0.9);
+      this.bossHpGfx.fillRect(bx - 4, by - 2, 4, bh + 4);
+    }
+    this.bossHpLabel.setText(`綠史萊姆${elemTag}  ${this.boss.currentHp}/${this.boss.maxHpValue}`);
     this.bossHpLabel.setPosition(W / 2, by - 14);
   }
+
+  private spawnDamageNumber(x: number, y: number, dmg: number, isCrit: boolean, elemMult: number): void {
+    const ox  = Phaser.Math.Between(-14, 14);
+    const fontSize = isCrit ? '20px' : '14px';
+    const color    = isCrit ? '#ff8800' : (elemMult > 1 ? '#ff4444' : '#ffffff');
+    const stroke   = isCrit ? '#4a1800' : '#000000';
+
+    const label = this.add.text(x + ox, y - 24, `${dmg}`, {
+      fontSize, fontStyle: isCrit ? 'bold' : 'normal',
+      color, stroke, strokeThickness: isCrit ? 4 : 3,
+    }).setOrigin(0.5, 1).setDepth(300);
+
+    if (isCrit) {
+      const crit = this.add.text(x + ox + 2, y - 38, '暴擊！', {
+        fontSize: '9px', color: '#ffcc44', stroke: '#4a1800', strokeThickness: 2,
+      }).setOrigin(0.5, 1).setDepth(300);
+      this.tweens.add({
+        targets: crit,
+        y: crit.y - 28, alpha: 0,
+        duration: 700, ease: 'Cubic.easeOut',
+        onComplete: () => crit.destroy(),
+      });
+    }
+
+    this.tweens.add({
+      targets: label,
+      y: label.y - (isCrit ? 52 : 38),
+      alpha: 0,
+      duration: isCrit ? 900 : 700,
+      ease: 'Cubic.easeOut',
+      onComplete: () => label.destroy(),
+    });
+  }
+
 
   // ── Game-end handlers ─────────────────────────────────
 
   private handleBossDefeated(): void {
     this.gameOver = true;
+    this.player.move(0, 0);
+    (this.player.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
+    this.player.setDepth(1);
 
     const chunks  = Phaser.Math.Between(1, 3);
     const essence = Phaser.Math.Between(0, 1);
@@ -577,8 +951,7 @@ export class GameScene extends Phaser.Scene {
       activeIds.add(ptr.id);
       drawBtn(true);
       if (this.gameOver) return;
-      const tx = this.boss.active ? this.boss.x : this.player.x;
-      const ty = this.boss.active ? this.boss.y : this.player.y - 1;
+      const { x: tx, y: ty } = this.getAttackTarget();
       this.meleeAttack(tx, ty);
     };
 

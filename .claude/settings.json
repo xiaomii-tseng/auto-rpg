@@ -11,7 +11,10 @@
       "Bash(powershell -Command ' *)",
       "Bash(node -e \"const p = require\\('c:/MyCode/auto-rpg/node_modules/gh-pages/package.json'\\); console.log\\(p.version\\)\")",
       "Bash(git add *)",
-      "Bash(git commit -m ' *)"
+      "Bash(git commit -m ' *)",
+      "Bash(sed -i 's/\\(this\\\\.body as Phaser\\\\.Physics\\\\.Arcade\\\\.Body\\)/this.pb/g' src/app/game/objects/minion-slime.ts)",
+      "Bash(sed -i 's/const body  = this\\\\.body as Phaser\\\\.Physics\\\\.Arcade\\\\.Body;/const body = this.pb;/g' src/app/game/objects/minion-slime.ts)",
+      "Bash(sed -i 's/const body     = this\\\\.body as Phaser\\\\.Physics\\\\.Arcade\\\\.Body;/const body = this.pb;/g' src/app/game/objects/minion-slime.ts)"
     ]
   }
 }

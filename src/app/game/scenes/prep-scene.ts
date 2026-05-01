@@ -1,8 +1,10 @@
 import Phaser from 'phaser';
 import { InventoryStore } from '../data/inventory-store';
 import { PlayerStore } from '../data/player-store';
-import { EQUIPMENT_ITEMS } from '../data/equipment-data';
+import { EQUIPMENT_ITEMS, ELEMENT_NAMES, ELEMENT_COLORS, EquipSlot } from '../data/equipment-data';
 import { SaveStore } from '../data/save-store';
+import { CardStore, CARD_SLOT_COUNT } from '../data/card-store';
+import { getCardDef } from '../data/monster-data';
 
 
 const TOP_H  = 52;
@@ -54,7 +56,12 @@ export class PrepScene extends Phaser.Scene {
     const W = this.scale.width;
     const H = this.scale.height;
 
-    SaveStore.load();
+    const hasSave = SaveStore.load();
+    if (!hasSave) {
+      const sword = EQUIPMENT_ITEMS.find(e => e.id === 'sword_1');
+      if (sword) PlayerStore.equipDirect('sword', sword);
+    }
+    this.generateItemIcons();
 
     if (!this.anims.exists('player_idle_shadow')) {
       this.anims.create({
@@ -84,6 +91,39 @@ export class PrepScene extends Phaser.Scene {
       PlayerStore.offChange(autoSave);
       InventoryStore.offChange(autoSave);
     });
+  }
+
+  // ── Item icon textures (shared with GameScene) ──────────
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private generateItemIcons(): void {
+    const mk = (fn: (g: Phaser.GameObjects.Graphics) => void, key: string, sz = 32) => {
+      if (this.textures.exists(key)) return;
+      const g = (this.make.graphics as any)({ x: 0, y: 0, add: false }) as Phaser.GameObjects.Graphics;
+      fn(g);
+      g.generateTexture(key, sz, sz);
+      g.destroy();
+    };
+
+    mk(g => {
+      g.fillStyle(0x44cc44, 1); g.fillCircle(16, 18, 13);
+      g.fillStyle(0x22aa22, 1); g.fillCircle(10, 22, 8); g.fillCircle(22, 22, 8);
+      g.fillStyle(0x88ff88, 0.5); g.fillCircle(12, 12, 5);
+    }, 'icon_slime_chunk');
+
+    mk(g => {
+      g.fillStyle(0x44ddaa, 1); g.fillCircle(16, 20, 10);
+      g.fillStyle(0x22bbaa, 1); g.fillTriangle(16, 4, 8, 20, 24, 20);
+      g.fillStyle(0xaaffee, 0.6); g.fillCircle(13, 14, 4);
+    }, 'icon_slime_essence');
+
+    mk(g => {
+      g.fillStyle(0xcc8800, 1); g.fillCircle(16, 16, 14);
+      g.fillStyle(0xffcc00, 1); g.fillCircle(16, 16, 12);
+      g.fillStyle(0xffee88, 0.7); g.fillCircle(12, 11, 5);
+      g.fillStyle(0xcc8800, 1);
+      g.fillRect(13, 9, 6, 14); g.fillRect(10, 12, 12, 3); g.fillRect(10, 19, 12, 3);
+    }, 'icon_gold');
   }
 
   // ── Background ──────────────────────────────────────────
@@ -156,7 +196,6 @@ export class PrepScene extends Phaser.Scene {
     const GAP    = 5;
     const GOLD_W = 180;
     const EXP_W  = 180;
-    // right-to-left placement
     const SET_X  = W - SET_W - 6;
     const GOLD_X = SET_X - GAP - GOLD_W;
     const EXPB_X = GOLD_X - GAP - EXP_W;
@@ -170,33 +209,41 @@ export class PrepScene extends Phaser.Scene {
       fontSize: '14px', color: '#d4a870', stroke: '#1a0800', strokeThickness: 2,
     }).setOrigin(0.5);
 
-    // ── Name + Lv (left info area) ────────────────────────
-    this.add.text(INFO_X, CY - 8, '玩家一號', {
-      fontSize: '11px', color: '#e8c890', stroke: '#1a0800', strokeThickness: 2,
+    // ── Name (left info area, centred & larger) ───────────
+    this.add.text(INFO_X, CY, '玩家一號', {
+      fontSize: '14px', color: '#ffe8b0', stroke: '#1a0800', strokeThickness: 3,
     }).setOrigin(0, 0.5);
 
-    const lvLabel = this.add.text(INFO_X, CY + 8, `Lv.${PlayerStore.getLevel()}`, {
-      fontSize: '10px', color: '#5cc8a0', stroke: '#1a0800', strokeThickness: 1,
-    }).setOrigin(0, 0.5);
-
-    // ── EXP badge ─────────────────────────────────────────
+    // ── EXP badge (Lv section + icon + bar) ───────────────
+    const LV_W  = 40;  // left "Lv.N" column width
+    const ICON_W = 20; // teal cross icon column width
     const expBg = this.add.graphics();
-    const drawExpBadge = (gfx: Phaser.GameObjects.Graphics) => {
-      gfx.clear();
-      gfx.fillStyle(WD, 0.95); gfx.fillRect(EXPB_X, CY - BH / 2, EXP_W, BH);
-      gfx.lineStyle(1, 0x3a6a8a, 0.6); gfx.strokeRect(EXPB_X, CY - BH / 2, EXP_W, BH);
-      gfx.fillStyle(WH, 0.12);  gfx.fillRect(EXPB_X, CY - BH / 2, EXP_W, 2);
-      // EXP icon (small teal star shape)
-      gfx.fillStyle(0x3a8aaa, 1); gfx.fillRect(EXPB_X + 5, CY - 7, 14, 14);
-      gfx.fillStyle(0x5cc8e0, 1);
-      gfx.fillRect(EXPB_X + 10, CY - 7, 4, 14);
-      gfx.fillRect(EXPB_X + 5,  CY - 2, 14, 4);
-      gfx.fillStyle(0xaaf0ff, 0.7); gfx.fillRect(EXPB_X + 8, CY - 5, 3, 3);
-    };
-    drawExpBadge(expBg);
+    // Badge background
+    expBg.fillStyle(WD, 0.95); expBg.fillRect(EXPB_X, CY - BH / 2, EXP_W, BH);
+    expBg.lineStyle(1, 0x3a6a8a, 0.6); expBg.strokeRect(EXPB_X, CY - BH / 2, EXP_W, BH);
+    expBg.fillStyle(WH, 0.12); expBg.fillRect(EXPB_X, CY - BH / 2, EXP_W, 2);
+    // Lv section tinted bg
+    expBg.fillStyle(WM, 0.5); expBg.fillRect(EXPB_X, CY - BH / 2, LV_W, BH);
+    // Separator
+    expBg.lineStyle(1, 0x3a6a8a, 0.4);
+    expBg.lineBetween(EXPB_X + LV_W, CY - BH / 2 + 2, EXPB_X + LV_W, CY + BH / 2 - 2);
+    // EXP icon (teal cross) after separator
+    const ix = EXPB_X + LV_W + 3;
+    expBg.fillStyle(0x3a8aaa, 1); expBg.fillRect(ix, CY - 6, 12, 12);
+    expBg.fillStyle(0x5cc8e0, 1);
+    expBg.fillRect(ix + 4, CY - 6, 4, 12);
+    expBg.fillRect(ix,     CY - 1, 12, 4);
+    expBg.fillStyle(0xaaf0ff, 0.7); expBg.fillRect(ix + 2, CY - 4, 3, 3);
 
-    const expValText = this.add.text(EXPB_X + 24, CY, '', {
-      fontSize: '10px', color: '#7adfc0', stroke: '#1a0800', strokeThickness: 1,
+    // Lv text (reactive, inside Lv section)
+    const lvLabel = this.add.text(EXPB_X + LV_W / 2, CY, '', {
+      fontSize: '11px', color: '#5cc8a0', stroke: '#1a0800', strokeThickness: 2,
+    }).setOrigin(0.5);
+
+    // Progress bar + cur/need text (reactive)
+    const expBarGfx = this.add.graphics();
+    const expValText = this.add.text(EXPB_X + LV_W + ICON_W + 4, CY - 4, '', {
+      fontSize: '9px', color: '#7adfc0', stroke: '#1a0800', strokeThickness: 1,
     }).setOrigin(0, 0.5);
 
     // ── Gold badge ────────────────────────────────────────
@@ -224,12 +271,31 @@ export class PrepScene extends Phaser.Scene {
     const drawExpBar = () => {
       const cur  = PlayerStore.getExp();
       const need = PlayerStore.expToNext();
-      expValText.setText(`${cur}/${need}`);
+      const pct  = Phaser.Math.Clamp(cur / need, 0, 1);
+
+      const barX = EXPB_X + LV_W + ICON_W + 4;
+      const barW = EXP_W - LV_W - ICON_W - 8;
+      const barY = CY + 3;
+      const barH = 5;
+
+      expBarGfx.clear();
+      expBarGfx.fillStyle(0x081420, 1);
+      expBarGfx.fillRect(barX, barY, barW, barH);
+      if (pct > 0) {
+        expBarGfx.fillStyle(0x1a88cc, 1);
+        expBarGfx.fillRect(barX, barY, Math.max(2, barW * pct), barH);
+        expBarGfx.fillStyle(0x66ccff, 0.45);
+        expBarGfx.fillRect(barX, barY, Math.max(2, barW * pct), 2);
+      }
+      expBarGfx.lineStyle(0.5, 0x3a6a8a, 0.5);
+      expBarGfx.strokeRect(barX, barY, barW, barH);
+
+      lvLabel.setText(`Lv.${PlayerStore.getLevel()}`);
+      expValText.setText(`${cur} / ${need}`);
     };
     drawExpBar();
 
     const onPlayerChange = () => {
-      lvLabel.setText(`Lv.${PlayerStore.getLevel()}`);
       drawExpBar();
     };
     PlayerStore.onChange(onPlayerChange);
@@ -256,11 +322,11 @@ export class PrepScene extends Phaser.Scene {
       this.addSideBtn(SIDE_W / 2, by, btnSz, b.label, b.accent, b.badge, b.onClick);
     });
 
-    // Right: 商店 / 拍賣 / 好友
+    // Right: 製作 / 卡片 / 商店
     const rightDefs: { label: string; accent: number; badge: number; onClick?: () => void }[] = [
       { label: '製作', accent: 0x5cc8a0, badge: 0, onClick: () => this.openForgeWindow(W, H) },
+      { label: '卡片', accent: 0xcc6688, badge: 0, onClick: () => this.openCardWindow(W, H) },
       { label: '商店', accent: 0xd47820, badge: 0 },
-      { label: '拍賣', accent: 0xcc6688, badge: 0 },
     ];
     const rightTotalH = rightDefs.length * btnSz + (rightDefs.length - 1) * gap;
     const rightY0     = TOP_H + (midH - rightTotalH) / 2;
@@ -686,11 +752,11 @@ export class PrepScene extends Phaser.Scene {
     const CARD_RED = 0xaa1a1a;
 
     const bossDefs = [
-      { name: '綠史萊姆', unlocked: true,  tex: 'slime_idle',    animKey: 'q_slime1', reward: '碎塊・精華・金幣', bossKey: 'slime' },
-      { name: '藍史萊姆', unlocked: false, tex: 'slime2_idle',   animKey: 'q_slime2', reward: '???',            bossKey: 'slime2' },
-      { name: '食人花',   unlocked: false, tex: 'plant1_idle',   animKey: 'q_plant1', reward: '???',            bossKey: 'plant1' },
-      { name: '綠獸人',   unlocked: false, tex: 'orc1_idle',     animKey: 'q_orc1',   reward: '???',            bossKey: 'orc1' },
-      { name: '吸血鬼',   unlocked: false, tex: 'vampire1_idle', animKey: 'q_vamp1',  reward: '???',            bossKey: 'vampire1' },
+      { name: '綠史萊姆王',   unlocked: true,  tex: 'slime_idle',    animKey: 'q_slime1', bossKey: 'slime',    frameEnd: 5  },
+      { name: '殭屍史萊姆王', unlocked: false, tex: 'slime2_idle',   animKey: 'q_slime2', bossKey: 'slime2',   frameEnd: -1 },
+      { name: '食人花王',     unlocked: false, tex: 'plant1_idle',   animKey: 'q_plant1', bossKey: 'plant1',   frameEnd: -1 },
+      { name: '綠獸人王',     unlocked: false, tex: 'orc1_idle',     animKey: 'q_orc1',   bossKey: 'orc1',     frameEnd: -1 },
+      { name: '吸血鬼王',     unlocked: false, tex: 'vampire1_idle', animKey: 'q_vamp1',  bossKey: 'vampire1', frameEnd: -1 },
     ];
 
     // Create idle animations for quest cards
@@ -698,7 +764,7 @@ export class PrepScene extends Phaser.Scene {
       if (!this.anims.exists(b.animKey) && this.textures.exists(b.tex)) {
         this.anims.create({
           key: b.animKey,
-          frames: this.anims.generateFrameNumbers(b.tex, { start: 0, end: -1 }),
+          frames: this.anims.generateFrameNumbers(b.tex, { start: 0, end: b.frameEnd }),
           frameRate: 8,
           repeat: -1,
         });
@@ -768,10 +834,6 @@ export class PrepScene extends Phaser.Scene {
         stroke: boss.unlocked ? '#e8c070' : '#000000', strokeThickness: 1,
       }).setOrigin(0.5));
 
-      // Reward line
-      cardsContainer.add(this.add.text(cx + CARD_W / 2, CARD_H - 16, boss.reward, {
-        fontSize: '9px', color: boss.unlocked ? '#7a3808' : '#442222',
-      }).setOrigin(0.5));
     });
 
     // ── Confirm challenge overlay ─────────────────────────
@@ -870,8 +932,8 @@ export class PrepScene extends Phaser.Scene {
   // ── Equipment panel (wooden cabinet) ───────────────────
 
   private showEquipmentPanel(W: number, H: number): void {
-    const PW = Math.min(540, W - 20);
-    const PH = Math.min(330, H - 40);
+    const PW = Math.min(340, W - 20);
+    const PH = Math.min(480, H - 40);
     const D  = 500;
 
     const container = this.add.container(W / 2, H / 2).setDepth(D);
@@ -923,57 +985,210 @@ export class PrepScene extends Phaser.Scene {
     container.add(closeBtn);
 
     // ── Slot definitions ──────────────────────────────────
-    const slotDefs: { label: string; color: number; slotKey: import('../data/equipment-data').EquipSlot }[] = [
+    const slotDefs: { label: string; color: number; slotKey: EquipSlot }[] = [
+      { label: '武器', color: 0xdd8844, slotKey: 'sword'  },
       { label: '頭盔', color: 0xddcc88, slotKey: 'hat'    },
       { label: '衣服', color: 0x88aadd, slotKey: 'outfit' },
       { label: '鞋子', color: 0xaa8866, slotKey: 'shoes'  },
-      { label: '武器', color: 0xdd8844, slotKey: 'sword'  },
-      { label: '飾品', color: 0xff88cc, slotKey: 'ring'   },
+      { label: '飾品1', color: 0xff88cc, slotKey: 'ring1'  },
+      { label: '飾品2', color: 0xff66aa, slotKey: 'ring2'  },
+    ];
+    const tabDefs: { label: string; color: number; slotKeys: EquipSlot[] }[] = [
+      { label: '武器', color: 0xdd8844, slotKeys: ['sword']         },
+      { label: '頭盔', color: 0xddcc88, slotKeys: ['hat']           },
+      { label: '衣服', color: 0x88aadd, slotKeys: ['outfit']        },
+      { label: '鞋子', color: 0xaa8866, slotKeys: ['shoes']         },
+      { label: '飾品', color: 0xff88cc, slotKeys: ['ring1', 'ring2'] },
     ];
 
-    const slotSz    = 52;
-    const slotGap   = 6;
-    const slotsRowY = py + 36 + 8;
-    const slotsTotW = slotDefs.length * slotSz + (slotDefs.length - 1) * slotGap;
-    const slotsX0   = -slotsTotW / 2;
+    // ── 裝備格子：2 欄 × 3 列 ────────────────────────────
+    const slotSz  = 52;
+    const slotGap = 6;
+    const ECOLS   = 2;
+    const EROWS   = 3;
+    const eGridX  = px + 12;
+    const eGridY  = py + 44;
+    const eGridW  = ECOLS * slotSz + (ECOLS - 1) * slotGap;   // 110
+    const eGridH  = EROWS * slotSz + (EROWS - 1) * slotGap;   // 168
+
+    // ── 人物屬性區（裝備格右側）─────────────────────────
+    const statsX = eGridX + eGridW + 14;
+    const statsW = px + PW - 12 - statsX;
+    const statsY = eGridY;
+    const statsH = eGridH;
 
     // ── Top equipped slots (reactive) ─────────────────────
     const topSlotsLayer = this.add.container(0, 0);
     container.add(topSlotsLayer);
 
+    // ── Stats layer (reactive) ────────────────────────────
+    const statsLayer = this.add.container(0, 0);
+    container.add(statsLayer);
+
+    // ── Equipped slot detail overlay ──────────────────────
+    const showEquippedDetail = (item: import('../data/equipment-data').EquipmentItem, equipSlot: EquipSlot) => {
+      const det = this.add.container(0, 0);
+      container.add(det);
+
+      const areaTop = dividerY + 4;
+      const areaH   = py + PH - areaTop - 4;
+
+      const detBg = this.add.graphics();
+      detBg.fillStyle(WD, 0.98); detBg.fillRect(px + 4, areaTop, PW - 8, areaH);
+      det.add(detBg);
+
+      const backBtn = this.add.text(px + 16, areaTop + 14, '← 返回', {
+        fontSize: '13px', color: '#c49050', stroke: '#1a0800', strokeThickness: 1,
+      }).setOrigin(0, 0.5).setInteractive({ useHandCursor: true });
+      backBtn.on('pointerdown', () => det.destroy());
+      det.add(backBtn);
+
+      if (this.textures.exists(item.texture))
+        det.add(this.add.image(-80, areaTop + 46, item.texture).setDisplaySize(48, 48));
+
+      det.add(this.add.text(-48, areaTop + 28, item.name, {
+        fontSize: '15px', color: '#e8c070', stroke: '#1a0800', strokeThickness: 2,
+      }).setOrigin(0, 0.5));
+
+      const statParts: string[] = [];
+      if (item.stats.atk)   statParts.push(`ATK +${item.stats.atk}`);
+      if (item.stats.hp)    statParts.push(`HP +${item.stats.hp}`);
+      if (item.stats.speed) statParts.push(`SPD +${item.stats.speed}`);
+      if (item.stats.def)   statParts.push(`DEF +${item.stats.def}`);
+      if (item.stats.crit)  statParts.push(`CRIT +${(item.stats.crit * 100).toFixed(0)}%`);
+      det.add(this.add.text(-48, areaTop + 46, statParts.join('  '), {
+        fontSize: '11px', color: '#88cc88', stroke: '#1a0800', strokeThickness: 1,
+      }).setOrigin(0, 0.5));
+
+      if (item.slot === 'sword') {
+        const el    = item.element ?? 'none';
+        const elClr = '#' + ELEMENT_COLORS[el].toString(16).padStart(6, '0');
+        const eg    = this.add.graphics();
+        eg.fillStyle(ELEMENT_COLORS[el], 0.25); eg.fillRect(-48, areaTop + 54, 52, 14);
+        eg.lineStyle(1, ELEMENT_COLORS[el], 0.6); eg.strokeRect(-48, areaTop + 54, 52, 14);
+        det.add(eg);
+        det.add(this.add.text(-22, areaTop + 61, `屬性：${ELEMENT_NAMES[el]}`, {
+          fontSize: '11px', color: elClr, stroke: '#1a0800', strokeThickness: 1,
+        }).setOrigin(0.5));
+      }
+
+      const dg = this.add.graphics();
+      dg.fillStyle(WB, 1);  dg.fillRect(px + 12, areaTop + 72, PW - 24, 1);
+      dg.fillStyle(WH, 0.3); dg.fillRect(px + 12, areaTop + 73, PW - 24, 1);
+      det.add(dg);
+
+      // Unequip button
+      const btnW = 130; const btnH = 34;
+      const btnY = areaTop + areaH - 24;
+
+      const btnGfx = this.add.graphics();
+      btnGfx.fillStyle(0x3a1a1a, 1); btnGfx.fillRect(-btnW / 2, btnY - btnH / 2, btnW, btnH);
+      btnGfx.fillStyle(0xcc4444, 0.1); btnGfx.fillRect(-btnW / 2, btnY - btnH / 2, btnW, btnH);
+      btnGfx.lineStyle(2, 0xcc4444, 0.75); btnGfx.strokeRect(-btnW / 2, btnY - btnH / 2, btnW, btnH);
+      btnGfx.fillStyle(0xcc4444, 0.3); btnGfx.fillRect(-btnW / 2, btnY - btnH / 2, btnW, 2);
+      det.add(btnGfx);
+
+      det.add(this.add.text(0, btnY, '脫  下', {
+        fontSize: '14px', color: '#ee8888', stroke: '#1a0800', strokeThickness: 2,
+      }).setOrigin(0.5));
+
+      const hitArea = this.add.rectangle(0, btnY, btnW, btnH).setInteractive({ useHandCursor: true });
+      hitArea.on('pointerdown', () => {
+        PlayerStore.unequip(equipSlot);
+        det.destroy();
+      });
+      det.add(hitArea);
+    };
+
+    // ── buildTopSlots：3欄×2列六宮格 ─────────────────────
     const buildTopSlots = () => {
       topSlotsLayer.removeAll(true);
       const eq = PlayerStore.getEquipped();
       slotDefs.forEach((s, i) => {
-        const sx   = slotsX0 + i * (slotSz + slotGap);
+        const col  = i % ECOLS;
+        const row  = Math.floor(i / ECOLS);
+        const sx   = eGridX + col * (slotSz + slotGap);
+        const sy   = eGridY + row * (slotSz + slotGap);
         const item = eq[s.slotKey];
 
         const sg = this.add.graphics();
-        sg.fillStyle(WB, 1); sg.fillRect(sx, slotsRowY, slotSz, slotSz);
-        sg.fillStyle(WM, 1); sg.fillRect(sx + 2, slotsRowY + 2, slotSz - 4, slotSz - 4);
-        sg.lineStyle(1.5, WL, 0.4); sg.strokeRect(sx, slotsRowY, slotSz, slotSz);
-        sg.fillStyle(s.color, 0.55); sg.fillRect(sx, slotsRowY, slotSz, 3);
+        sg.fillStyle(WB, 1); sg.fillRect(sx, sy, slotSz, slotSz);
+        sg.fillStyle(item ? WMI : WM, 1); sg.fillRect(sx + 2, sy + 2, slotSz - 4, slotSz - 4);
+        sg.lineStyle(1.5, item ? GOLD : WL, item ? 0.5 : 0.4);
+        sg.strokeRect(sx, sy, slotSz, slotSz);
+        sg.fillStyle(s.color, 0.55); sg.fillRect(sx, sy, slotSz, 3);
         topSlotsLayer.add(sg);
 
         if (item && this.textures.exists(item.texture)) {
           topSlotsLayer.add(
-            this.add.image(sx + slotSz / 2, slotsRowY + slotSz / 2 - 6, item.texture)
-              .setDisplaySize(38, 38),
+            this.add.image(sx + slotSz / 2, sy + slotSz / 2 - 6, item.texture)
+              .setDisplaySize(36, 36),
           );
-          topSlotsLayer.add(this.add.text(sx + slotSz / 2, slotsRowY + slotSz - 9, item.name, {
-            fontSize: '8px', color: '#e8c070', stroke: '#1a0800', strokeThickness: 1,
+          sg.fillStyle(0x000000, 0.5); sg.fillRect(sx, sy + slotSz - 16, slotSz, 16);
+          topSlotsLayer.add(this.add.text(sx + slotSz / 2, sy + slotSz - 9, item.name, {
+            fontSize: '10px', color: '#ffe8a0', stroke: '#000000', strokeThickness: 2,
           }).setOrigin(0.5));
+
+          const tap = this.add.rectangle(sx + slotSz / 2, sy + slotSz / 2, slotSz, slotSz)
+            .setInteractive({ useHandCursor: true });
+          tap.on('pointerup', () => showEquippedDetail(item, s.slotKey));
+          topSlotsLayer.add(tap);
         } else {
-          topSlotsLayer.add(this.add.text(sx + slotSz / 2, slotsRowY + slotSz / 2 - 4, s.label, {
-            fontSize: '10px', color: '#5a4020', stroke: '#1a0800', strokeThickness: 1,
+          topSlotsLayer.add(this.add.text(sx + slotSz / 2, sy + slotSz / 2 - 4, s.label, {
+            fontSize: '12px', color: '#b08040', stroke: '#000000', strokeThickness: 2,
           }).setOrigin(0.5));
         }
       });
     };
     buildTopSlots();
 
+    // ── buildStats：人物屬性 ───────────────────────────────
+    const buildStats = () => {
+      statsLayer.removeAll(true);
+      const s  = PlayerStore.getStats();
+      const lv = PlayerStore.getLevel();
+
+      const sg = this.add.graphics();
+      sg.fillStyle(WD, 0.55); sg.fillRect(statsX, statsY, statsW, statsH);
+      sg.lineStyle(1, WL, 0.25); sg.strokeRect(statsX, statsY, statsW, statsH);
+      sg.fillStyle(WB, 0.6); sg.fillRect(statsX, statsY, statsW, 22);
+      statsLayer.add(sg);
+
+      statsLayer.add(this.add.text(statsX + statsW / 2, statsY + 11, '人 物 屬 性', {
+        fontSize: '11px', color: '#d4a044', stroke: '#1a0800', strokeThickness: 1,
+      }).setOrigin(0.5));
+
+      // 左欄 / 右欄各三項
+      const leftRows  = [
+        { label: 'Lv',   value: `${lv}`,                         color: '#ffee88' },
+        { label: '攻擊', value: `${s.atk}`,                      color: '#ff8855' },
+        { label: '防禦', value: `${s.def}`,                      color: '#88aaff' },
+      ];
+      const rightRows = [
+        { label: 'HP',   value: `${s.maxHp}`,                    color: '#88ee88' },
+        { label: '速度', value: `${s.speed}`,                    color: '#ffff88' },
+        { label: '暴擊', value: `${(s.crit*100).toFixed(0)}%`,   color: '#ffaa44' },
+      ];
+
+      const colW  = statsW / 2;
+      const rowH  = (statsH - 22) / leftRows.length;
+      const labelColor = '#888888';
+
+      leftRows.forEach((r, i) => {
+        const ry = statsY + 22 + i * rowH + rowH / 2;
+        statsLayer.add(this.add.text(statsX + 8,            ry, r.label, { fontSize: '11px', color: labelColor, stroke: '#000', strokeThickness: 1 }).setOrigin(0, 0.5));
+        statsLayer.add(this.add.text(statsX + colW - 8,     ry, r.value, { fontSize: '13px', fontStyle: 'bold', color: r.color, stroke: '#000', strokeThickness: 1 }).setOrigin(1, 0.5));
+      });
+      rightRows.forEach((r, i) => {
+        const ry = statsY + 22 + i * rowH + rowH / 2;
+        statsLayer.add(this.add.text(statsX + colW + 8,     ry, r.label, { fontSize: '11px', color: labelColor, stroke: '#000', strokeThickness: 1 }).setOrigin(0, 0.5));
+        statsLayer.add(this.add.text(statsX + statsW - 8,   ry, r.value, { fontSize: '13px', fontStyle: 'bold', color: r.color, stroke: '#000', strokeThickness: 1 }).setOrigin(1, 0.5));
+      });
+    };
+    buildStats();
+
     // ── Divider ───────────────────────────────────────────
-    const dividerY = slotsRowY + slotSz + 8;
+    const dividerY = eGridY + eGridH + 10;
     const divGfx   = this.add.graphics();
     divGfx.fillStyle(WB, 1);  divGfx.fillRect(px + 8, dividerY, PW - 16, 2);
     divGfx.fillStyle(WH, 0.3); divGfx.fillRect(px + 8, dividerY + 2, PW - 16, 1);
@@ -982,7 +1197,7 @@ export class PrepScene extends Phaser.Scene {
     // ── Tabs ─────────────────────────────────────────────
     const tabH    = 26;
     const tabY    = dividerY + 5;
-    const tabW    = PW / slotDefs.length;
+    const tabW    = PW / tabDefs.length;
     let activeTab = 0;
 
     const tabGfx = this.add.graphics();
@@ -990,7 +1205,7 @@ export class PrepScene extends Phaser.Scene {
 
     const redrawTabs = (active: number) => {
       tabGfx.clear();
-      slotDefs.forEach((t, i) => {
+      tabDefs.forEach((t, i) => {
         const tx = px + i * tabW;
         tabGfx.fillStyle(i === active ? WMI : WD, 1); tabGfx.fillRect(tx, tabY, tabW, tabH);
         tabGfx.lineStyle(1, WB, 0.25); tabGfx.lineBetween(tx + 2, tabY + tabH / 2, tx + tabW - 2, tabY + tabH / 2);
@@ -1025,7 +1240,7 @@ export class PrepScene extends Phaser.Scene {
       det.add(detBg);
 
       const backBtn = this.add.text(px + 16, areaTop + 14, '← 返回', {
-        fontSize: '11px', color: '#c49050', stroke: '#1a0800', strokeThickness: 1,
+        fontSize: '13px', color: '#c49050', stroke: '#1a0800', strokeThickness: 1,
       }).setOrigin(0, 0.5).setInteractive({ useHandCursor: true });
       backBtn.on('pointerdown', () => det.destroy());
       det.add(backBtn);
@@ -1034,7 +1249,7 @@ export class PrepScene extends Phaser.Scene {
         det.add(this.add.image(-80, areaTop + 46, item.texture).setDisplaySize(48, 48));
 
       det.add(this.add.text(-48, areaTop + 28, item.name, {
-        fontSize: '13px', color: '#e8c070', stroke: '#1a0800', strokeThickness: 2,
+        fontSize: '15px', color: '#e8c070', stroke: '#1a0800', strokeThickness: 2,
       }).setOrigin(0, 0.5));
 
       const statParts: string[] = [];
@@ -1044,16 +1259,27 @@ export class PrepScene extends Phaser.Scene {
       if (item.stats.def)   statParts.push(`DEF +${item.stats.def}`);
       if (item.stats.crit)  statParts.push(`CRIT +${(item.stats.crit * 100).toFixed(0)}%`);
       det.add(this.add.text(-48, areaTop + 46, statParts.join('  '), {
-        fontSize: '9px', color: '#88cc88', stroke: '#1a0800', strokeThickness: 1,
+        fontSize: '11px', color: '#88cc88', stroke: '#1a0800', strokeThickness: 1,
       }).setOrigin(0, 0.5));
 
+      if (item.slot === 'sword') {
+        const el    = item.element ?? 'none';
+        const elClr = '#' + ELEMENT_COLORS[el].toString(16).padStart(6, '0');
+        const eg    = this.add.graphics();
+        eg.fillStyle(ELEMENT_COLORS[el], 0.25); eg.fillRect(-48, areaTop + 54, 52, 14);
+        eg.lineStyle(1, ELEMENT_COLORS[el], 0.6); eg.strokeRect(-48, areaTop + 54, 52, 14);
+        det.add(eg);
+        det.add(this.add.text(-22, areaTop + 61, `屬性：${ELEMENT_NAMES[el]}`, {
+          fontSize: '11px', color: elClr, stroke: '#1a0800', strokeThickness: 1,
+        }).setOrigin(0.5));
+      }
+
       const dg = this.add.graphics();
-      dg.fillStyle(WB, 1); dg.fillRect(px + 12, areaTop + 62, PW - 24, 1);
-      dg.fillStyle(WH, 0.3); dg.fillRect(px + 12, areaTop + 63, PW - 24, 1);
+      dg.fillStyle(WB, 1); dg.fillRect(px + 12, areaTop + 72, PW - 24, 1);
+      dg.fillStyle(WH, 0.3); dg.fillRect(px + 12, areaTop + 73, PW - 24, 1);
       det.add(dg);
 
-      const isEquipped = PlayerStore.isEquipped(item.id) &&
-        PlayerStore.getEquipped()[item.slot] === item;
+      const isEquipped = PlayerStore.isEquipped(item.id);
       const btnW = 130; const btnH = 34;
       const btnY = areaTop + areaH - 24;
 
@@ -1068,32 +1294,27 @@ export class PrepScene extends Phaser.Scene {
         btnGfx.fillStyle(GOLD, 0.35); btnGfx.fillRect(-btnW / 2, btnY - btnH / 2, btnW, 2);
       }
       det.add(btnGfx);
-
       det.add(this.add.text(0, btnY, isEquipped ? '已  裝  備' : '裝  備', {
         fontSize: '14px', color: isEquipped ? '#44cc88' : '#e8c070',
         stroke: '#1a0800', strokeThickness: 2,
       }).setOrigin(0.5));
-
       if (!isEquipped) {
         const hitArea = this.add.rectangle(0, btnY, btnW, btnH).setInteractive({ useHandCursor: true });
-        hitArea.on('pointerdown', () => {
-          PlayerStore.equip(item);
-          det.destroy();
-        });
+        hitArea.on('pointerdown', () => { PlayerStore.equip(item); det.destroy(); });
         det.add(hitArea);
       }
     };
 
     const buildGrid = () => {
       gridLayer.removeAll(true);
-      const slotKey  = slotDefs[activeTab].slotKey;
-      const items    = PlayerStore.getOwned().filter(it => it.slot === slotKey);
+      const slotKeys = tabDefs[activeTab].slotKeys;
+      const items    = PlayerStore.getOwned().filter(it => slotKeys.includes(it.slot));
       const gg       = this.add.graphics();
       gridLayer.add(gg);
 
       if (items.length === 0) {
         gridLayer.add(this.add.text(0, gridY + 32, '尚無裝備', {
-          fontSize: '12px', color: '#5a3820', stroke: '#1a0800', strokeThickness: 1,
+          fontSize: '14px', color: '#5a3820', stroke: '#1a0800', strokeThickness: 1,
         }).setOrigin(0.5));
         return;
       }
@@ -1115,8 +1336,9 @@ export class PrepScene extends Phaser.Scene {
             this.add.image(cx2 + cellSz / 2, cy2 + cellSz / 2 - 7, item.texture).setDisplaySize(36, 36),
           );
 
+        gg.fillStyle(0x000000, 0.5); gg.fillRect(cx2, cy2 + cellSz - 16, cellSz, 16);
         gridLayer.add(this.add.text(cx2 + cellSz / 2, cy2 + cellSz - 9, item.name, {
-          fontSize: '8px', color: '#e8c070', stroke: '#1a0800', strokeThickness: 1,
+          fontSize: '10px', color: '#ffe8a0', stroke: '#000000', strokeThickness: 2,
         }).setOrigin(0.5));
 
         const tap = this.add.rectangle(cx2 + cellSz / 2, cy2 + cellSz / 2, cellSz, cellSz)
@@ -1128,9 +1350,9 @@ export class PrepScene extends Phaser.Scene {
     buildGrid();
 
     // ── Tab bar ───────────────────────────────────────────
-    slotDefs.forEach((t, i) => {
+    tabDefs.forEach((t, i) => {
       const lbl = this.add.text(px + i * tabW + tabW / 2, tabY + tabH / 2, t.label, {
-        fontSize: '11px', color: i === 0 ? '#e8c070' : '#7a5830',
+        fontSize: '13px', color: i === 0 ? '#e8c070' : '#7a5830',
         stroke: '#1a0800', strokeThickness: 1,
       }).setOrigin(0.5);
       tabLabels.push(lbl);
@@ -1152,6 +1374,7 @@ export class PrepScene extends Phaser.Scene {
     const onStoreChange = () => {
       if (!container.active) return;
       buildTopSlots();
+      buildStats();
       buildGrid();
     };
     PlayerStore.onChange(onStoreChange);
@@ -1224,13 +1447,59 @@ export class PrepScene extends Phaser.Scene {
 
     // ── Item grid ─────────────────────────────────────────
     const gridY    = py + 44;
-    const cellSz   = 56;
+    const cellSz   = 60;
     const cellGap  = 6;
-    const gridLeft = px + 12;
-    const cols     = Math.floor((PW - 24 + cellGap) / (cellSz + cellGap));
+    const gridLeft = px + 10;
+    const cols     = Math.floor((PW - 20 + cellGap) / (cellSz + cellGap));
 
-    let gridContainer = this.add.container(0, 0);
+    const gridContainer = this.add.container(0, 0);
     container.add(gridContainer);
+
+    // ── Item detail overlay ───────────────────────────────
+    const showItemDetail = (item: import('../data/inventory-store').InventoryItem) => {
+      const det = this.add.container(0, 0);
+      container.add(det);
+
+      const detBg = this.add.graphics();
+      detBg.fillStyle(WD, 0.97); detBg.fillRect(px + 4, py + 37, PW - 8, PH - 41);
+      det.add(detBg);
+
+      const backBtn = this.add.text(px + 16, py + 51, '← 返回', {
+        fontSize: '11px', color: '#c49050', stroke: '#1a0800', strokeThickness: 1,
+      }).setOrigin(0, 0.5).setInteractive({ useHandCursor: true });
+      backBtn.on('pointerdown', () => det.destroy());
+      det.add(backBtn);
+
+      const iconKey = `icon_${item.id}`;
+      if (this.textures.exists(iconKey)) {
+        const iconBg = this.add.graphics();
+        iconBg.fillStyle(WM, 1); iconBg.fillRect(-36, py + 76, 72, 72);
+        iconBg.lineStyle(2, WL, 0.6); iconBg.strokeRect(-36, py + 76, 72, 72);
+        det.add(iconBg);
+        det.add(this.add.image(0, py + 112, iconKey).setDisplaySize(56, 56));
+      }
+
+      det.add(this.add.text(0, py + 160, item.name, {
+        fontSize: '16px', fontStyle: 'bold', color: '#ffe090', stroke: '#1a0800', strokeThickness: 3,
+      }).setOrigin(0.5));
+
+      const qtyBg = this.add.graphics();
+      qtyBg.fillStyle(WM, 1); qtyBg.fillRect(-40, py + 182, 80, 26);
+      qtyBg.lineStyle(1, WL, 0.4); qtyBg.strokeRect(-40, py + 182, 80, 26);
+      det.add(qtyBg);
+      det.add(this.add.text(0, py + 195, `數量：${item.qty}`, {
+        fontSize: '12px', color: '#e8e070', stroke: '#1a0800', strokeThickness: 2,
+      }).setOrigin(0.5));
+
+      const dg = this.add.graphics();
+      dg.fillStyle(WB, 1);  dg.fillRect(px + 16, py + 218, PW - 32, 1);
+      dg.fillStyle(WH, 0.3); dg.fillRect(px + 16, py + 219, PW - 32, 1);
+      det.add(dg);
+
+      det.add(this.add.text(0, py + 232, '消耗材料・可用於製作裝備', {
+        fontSize: '10px', color: '#8aaa88', stroke: '#1a0800', strokeThickness: 1,
+      }).setOrigin(0.5));
+    };
 
     const buildGrid = () => {
       gridContainer.removeAll(true);
@@ -1238,7 +1507,7 @@ export class PrepScene extends Phaser.Scene {
 
       if (allItems.length === 0) {
         gridContainer.add(this.add.text(0, gridY + 40, '背包是空的', {
-          fontSize: '13px', color: '#5a3820', stroke: '#1a0800', strokeThickness: 1,
+          fontSize: '13px', color: '#7a5830', stroke: '#1a0800', strokeThickness: 1,
         }).setOrigin(0.5));
         return;
       }
@@ -1251,34 +1520,31 @@ export class PrepScene extends Phaser.Scene {
         const cx2 = gridLeft + col * (cellSz + cellGap);
         const cy2 = gridY    + row * (cellSz + cellGap);
 
-        // Cell background
-        gg.fillStyle(WB, 1);
-        gg.fillRect(cx2, cy2, cellSz, cellSz);
-        gg.fillStyle(WM, 0.65);
-        gg.fillRect(cx2 + 2, cy2 + 2, cellSz - 4, cellSz - 4);
-        gg.fillStyle(0x70b858, 0.5);
-        gg.fillRect(cx2, cy2, cellSz, 3);
-        gg.lineStyle(1, WL, 0.3);
-        gg.strokeRect(cx2, cy2, cellSz, cellSz);
+        gg.fillStyle(WB, 1); gg.fillRect(cx2, cy2, cellSz, cellSz);
+        gg.fillStyle(WM, 0.8); gg.fillRect(cx2 + 2, cy2 + 2, cellSz - 4, cellSz - 4);
+        gg.fillStyle(0x70b858, 0.6); gg.fillRect(cx2, cy2, cellSz, 3);
+        gg.lineStyle(1.5, WL, 0.4); gg.strokeRect(cx2, cy2, cellSz, cellSz);
 
-        // Icon
         const iconKey = `icon_${item.id}`;
         if (this.textures.exists(iconKey)) {
           gridContainer.add(
-            this.add.image(cx2 + cellSz / 2, cy2 + cellSz / 2 - 8, iconKey).setDisplaySize(32, 32),
+            this.add.image(cx2 + cellSz / 2, cy2 + cellSz / 2 - 9, iconKey).setDisplaySize(36, 36),
           );
         }
 
-        // Item name (bottom)
-        gridContainer.add(this.add.text(cx2 + cellSz / 2, cy2 + cellSz - 11, item.name, {
-          fontSize: '8px', color: '#d4a870', stroke: '#1a0800', strokeThickness: 1,
+        gridContainer.add(this.add.text(cx2 + cellSz / 2, cy2 + cellSz - 12, item.name, {
+          fontSize: '9px', color: '#ffe090', stroke: '#1a0800', strokeThickness: 2,
           wordWrap: { width: cellSz - 4 }, align: 'center',
         }).setOrigin(0.5, 1));
 
-        // Qty badge (bottom-right)
         gridContainer.add(this.add.text(cx2 + cellSz - 3, cy2 + cellSz - 3, `×${item.qty}`, {
-          fontSize: '9px', color: '#e8e870', stroke: '#1a0800', strokeThickness: 1,
+          fontSize: '10px', fontStyle: 'bold', color: '#ffe866', stroke: '#1a0800', strokeThickness: 2,
         }).setOrigin(1, 1));
+
+        const tap = this.add.rectangle(cx2 + cellSz / 2, cy2 + cellSz / 2, cellSz, cellSz)
+          .setInteractive({ useHandCursor: true });
+        tap.on('pointerup', () => showItemDetail(item));
+        gridContainer.add(tap);
       });
     };
 
@@ -1293,6 +1559,260 @@ export class PrepScene extends Phaser.Scene {
   }
 
   // ── Center hero ─────────────────────────────────────────
+
+  // ── Card Window ─────────────────────────────────────────
+
+  private openCardWindow(W: number, H: number): void {
+    const PW = Math.min(340, W - 20);
+    const PH = Math.min(460, H - 40);
+    const D  = 500;
+
+    const container = this.add.container(W / 2, H / 2).setDepth(D);
+
+    // Backdrop
+    const backdrop = this.add.rectangle(0, 0, W, H, 0x000000, 0.78).setInteractive();
+    backdrop.on('pointerdown', (ptr: Phaser.Input.Pointer) => {
+      if (ptr.x < W / 2 - PW / 2 || ptr.x > W / 2 + PW / 2 ||
+          ptr.y < H / 2 - PH / 2 || ptr.y > H / 2 + PH / 2) {
+        cleanup();
+        container.destroy();
+      }
+    });
+    container.add(backdrop);
+
+    const px = -PW / 2;
+    const py = -PH / 2;
+
+    // Panel shell (same wood style)
+    const bg = this.add.graphics();
+    bg.fillStyle(IRON, 1);
+    bg.fillRect(px - 3, py - 3, PW + 6, PH + 6);
+    bg.fillStyle(WL, 1);
+    bg.fillRect(px - 2, py - 2, PW + 4, PH + 4);
+    bg.fillStyle(WD, 1);
+    bg.fillRect(px, py, PW, PH);
+    for (let row = 1; row < Math.ceil(PH / 24); row++) {
+      const ry = py + row * 24;
+      bg.lineStyle(1, WB, 0.5);
+      bg.lineBetween(px + 2, ry, px + PW - 2, ry);
+      bg.lineStyle(1, WH, 0.08);
+      bg.lineBetween(px + 2, ry + 1, px + PW - 2, ry + 1);
+    }
+    [[px, py], [px + PW - 8, py], [px, py + PH - 8], [px + PW - 8, py + PH - 8]]
+      .forEach(([rx, ry]) => {
+        bg.fillStyle(IRON, 1); bg.fillRect(rx, ry, 8, 8);
+        bg.fillStyle(0x6a7580, 1); bg.fillRect(rx + 2, ry + 2, 4, 4);
+      });
+    bg.fillStyle(WB, 0.9); bg.fillRect(px, py, PW, 36);
+    bg.fillStyle(WH, 0.4); bg.fillRect(px, py + 34, PW, 2);
+    bg.fillStyle(WB, 1);   bg.fillRect(px, py + 36, PW, 1);
+    container.add(bg);
+
+    container.add(this.add.text(0, py + 18, '卡  片', {
+      fontSize: '15px', color: '#e8c070', stroke: '#1a0800', strokeThickness: 2,
+    }).setOrigin(0.5));
+
+    const closeBtn = this.add.text(px + PW - 20, py + 18, '✕', {
+      fontSize: '15px', color: '#cc4444', stroke: '#1a0800', strokeThickness: 2,
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+    closeBtn.on('pointerdown', () => { cleanup(); container.destroy(); });
+    container.add(closeBtn);
+
+    // Layout constants
+    const CARD_W   = 52;
+    const CARD_H   = 68;
+    const SLOT_GAP = 6;
+    const slotsTotW = CARD_SLOT_COUNT * CARD_W + (CARD_SLOT_COUNT - 1) * SLOT_GAP;
+    const slotsX0   = -slotsTotW / 2;
+    const slotsY    = py + 56;   // top of equipped row
+    const INV_TOP   = slotsY + CARD_H + 20;
+    const INV_H     = py + PH - INV_TOP - 8;
+    const INV_COLS  = 4;
+    const INV_GAP   = 6;
+    const invTotW   = INV_COLS * CARD_W + (INV_COLS - 1) * INV_GAP;
+    const invX0     = -invTotW / 2;
+
+    // ── Equipped slots label ──────────────────────────────
+    container.add(this.add.text(0, slotsY - 12, '裝備中', {
+      fontSize: '10px', color: '#b07030', stroke: '#1a0800', strokeThickness: 1,
+    }).setOrigin(0.5));
+
+    // ── Content sub-container (rebuilt on change) ──────────
+    let contentCnt = this.add.container(0, 0);
+    container.add(contentCnt);
+
+    // ── Helper: draw one card ──────────────────────────────
+    const drawCardShape = (
+      g: Phaser.GameObjects.Graphics,
+      cx: number, cy: number, w: number, h: number,
+      tint: number, alpha = 1,
+    ) => {
+      g.fillStyle(0x1a0a00, alpha);
+      g.fillRect(cx - w / 2, cy - h / 2, w, h);
+      g.lineStyle(2, tint, 0.9);
+      g.strokeRect(cx - w / 2, cy - h / 2, w, h);
+      g.fillStyle(tint, 0.25);
+      g.fillRect(cx - w / 2, cy - h / 2, w, 6);
+    };
+
+    // ── Rebuild function ───────────────────────────────────
+    const rebuild = () => {
+      contentCnt.destroy();
+      contentCnt = this.add.container(0, 0);
+      container.add(contentCnt);
+
+      const eq   = CardStore.getEquipped();
+      const invItems = CardStore.getInventory();
+
+      // ── Equipped row ──────────────────────────────────
+      for (let i = 0; i < CARD_SLOT_COUNT; i++) {
+        const cx = slotsX0 + i * (CARD_W + SLOT_GAP) + CARD_W / 2;
+        const cy = slotsY + CARD_H / 2;
+        const cardId = eq[i];
+        const def    = cardId ? getCardDef(cardId) : null;
+
+        const slotGfx = this.add.graphics();
+        if (def) {
+          drawCardShape(slotGfx, cx, cy, CARD_W, CARD_H, def.tint);
+        } else {
+          slotGfx.lineStyle(1, WM, 0.6);
+          slotGfx.strokeRect(cx - CARD_W / 2, cy - CARD_H / 2, CARD_W, CARD_H);
+          slotGfx.fillStyle(WD, 0.3);
+          slotGfx.fillRect(cx - CARD_W / 2, cy - CARD_H / 2, CARD_W, CARD_H);
+        }
+        contentCnt.add(slotGfx);
+
+        if (def) {
+          // Element symbol
+          const elemSym = { none: '無', water: '水', fire: '火', grass: '草' }[def.element];
+          contentCnt.add(this.add.text(cx, cy - 8, elemSym, {
+            fontSize: '20px', color: `#${def.tint.toString(16).padStart(6, '0')}`,
+            stroke: '#000000', strokeThickness: 3,
+          }).setOrigin(0.5));
+          // Short name (trim 卡 suffix)
+          const shortName = def.name.replace('卡', '');
+          contentCnt.add(this.add.text(cx, cy + CARD_H / 2 - 10, shortName, {
+            fontSize: '8px', color: '#e8d090', stroke: '#1a0800', strokeThickness: 1,
+            wordWrap: { width: CARD_W - 4 },
+          }).setOrigin(0.5, 1));
+        } else {
+          contentCnt.add(this.add.text(cx, cy, '空', {
+            fontSize: '11px', color: '#5a3818', stroke: '#1a0800', strokeThickness: 1,
+          }).setOrigin(0.5));
+        }
+
+        // Slot index label
+        contentCnt.add(this.add.text(cx - CARD_W / 2 + 3, cy - CARD_H / 2 + 3, `${i + 1}`, {
+          fontSize: '8px', color: '#7a5030', stroke: '#1a0800', strokeThickness: 1,
+        }).setOrigin(0, 0));
+
+        if (def) {
+          const hit = this.add.rectangle(cx, cy, CARD_W, CARD_H)
+            .setInteractive({ useHandCursor: true });
+          hit.on('pointerdown', () => { CardStore.unequip(i); SaveStore.save(); });
+          contentCnt.add(hit);
+        }
+      }
+
+      // Separator
+      const sepGfx = this.add.graphics();
+      sepGfx.fillStyle(WB, 1);
+      sepGfx.fillRect(px + 8, INV_TOP - 10, PW - 16, 1);
+      sepGfx.fillStyle(WH, 0.2);
+      sepGfx.fillRect(px + 8, INV_TOP - 9, PW - 16, 1);
+      contentCnt.add(sepGfx);
+
+      contentCnt.add(this.add.text(0, INV_TOP - 5, '持有卡片', {
+        fontSize: '10px', color: '#b07030', stroke: '#1a0800', strokeThickness: 1,
+      }).setOrigin(0.5, 1));
+
+      // ── Inventory scroll area ──────────────────────────
+      if (invItems.length === 0) {
+        contentCnt.add(this.add.text(0, INV_TOP + INV_H / 2, '尚未獲得任何卡片', {
+          fontSize: '11px', color: '#5a3818', stroke: '#1a0800', strokeThickness: 1,
+        }).setOrigin(0.5));
+        return;
+      }
+
+      const ROWS     = Math.ceil(invItems.length / INV_COLS);
+      const ROW_H    = CARD_H + INV_GAP;
+      const contentH = ROWS * ROW_H;
+      let   scrollY  = 0;
+      const maxScroll = Math.max(0, contentH - INV_H);
+
+      const scrollCnt = this.add.container(0, INV_TOP);
+      contentCnt.add(scrollCnt);
+
+      // Mask
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const maskShape = (this.make.graphics as any)({ x: 0, y: 0, add: false }) as Phaser.GameObjects.Graphics;
+      maskShape.fillStyle(0xffffff);
+      maskShape.fillRect(W / 2 + px + 4, H / 2 + INV_TOP, PW - 8, INV_H);
+      const mask = maskShape.createGeometryMask();
+      scrollCnt.setMask(mask);
+
+      const buildInv = (oy: number) => {
+        scrollCnt.removeAll(true);
+        invItems.forEach(({ cardId, qty }, idx) => {
+          const def = getCardDef(cardId);
+          if (!def) return;
+          const col = idx % INV_COLS;
+          const row = Math.floor(idx / INV_COLS);
+          const cx  = invX0 + col * (CARD_W + INV_GAP) + CARD_W / 2;
+          const cy  = row * ROW_H + CARD_H / 2 + oy;
+
+          const cg = this.add.graphics();
+          drawCardShape(cg, cx, cy, CARD_W, CARD_H, def.tint);
+          scrollCnt.add(cg);
+
+          const elemSym = { none: '無', water: '水', fire: '火', grass: '草' }[def.element];
+          scrollCnt.add(this.add.text(cx, cy - 8, elemSym, {
+            fontSize: '18px', color: `#${def.tint.toString(16).padStart(6, '0')}`,
+            stroke: '#000000', strokeThickness: 3,
+          }).setOrigin(0.5));
+
+          const shortName = def.name.replace('卡', '');
+          scrollCnt.add(this.add.text(cx, cy + CARD_H / 2 - 10, shortName, {
+            fontSize: '8px', color: '#e8d090', stroke: '#1a0800', strokeThickness: 1,
+            wordWrap: { width: CARD_W - 4 },
+          }).setOrigin(0.5, 1));
+
+          // Quantity badge
+          if (qty > 1) {
+            scrollCnt.add(this.add.text(cx + CARD_W / 2 - 2, cy - CARD_H / 2 + 2, `×${qty}`, {
+              fontSize: '8px', color: '#ffee88', stroke: '#1a0800', strokeThickness: 1,
+            }).setOrigin(1, 0));
+          }
+
+          const hit = this.add.rectangle(cx, cy, CARD_W, CARD_H)
+            .setInteractive({ useHandCursor: true });
+          hit.on('pointerdown', () => { CardStore.equipAuto(cardId); SaveStore.save(); });
+          scrollCnt.add(hit);
+        });
+      };
+
+      buildInv(0);
+
+      // Drag to scroll
+      this.input.on('pointermove', (ptr: Phaser.Input.Pointer) => {
+        if (!ptr.isDown) return;
+        scrollY = Phaser.Math.Clamp(scrollY - ptr.velocity.y * 0.016, 0, maxScroll);
+        buildInv(-scrollY);
+      });
+    };
+
+    rebuild();
+
+    // Auto-update on card change
+    const onCardChange = () => rebuild();
+    CardStore.onChange(onCardChange);
+
+    const cleanup = () => {
+      CardStore.offChange(onCardChange);
+      this.input.off('pointermove');
+    };
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, cleanup);
+  }
 
   private drawCenterHero(W: number, H: number): void {
     const cx    = W / 2;

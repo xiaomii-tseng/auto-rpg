@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { Element } from '../data/equipment-data';
 
 export enum BossState {
   IDLE        = 'IDLE',
@@ -14,8 +15,10 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
   private readonly maxHp: number;
   // Renamed from 'state' — Phaser.GameObject already has a public 'state' property
   private bossState = BossState.IDLE;
+  private started   = false;
   private bossDir: 'down' | 'left' | 'right' | 'up' = 'down';
   private stateTimer?: Phaser.Time.TimerEvent;
+  private aoeTrackTimer?: Phaser.Time.TimerEvent;
   private pulseTween?: Phaser.Tweens.Tween;
   private dashTrailTimer?: Phaser.Time.TimerEvent;
   private dashTrailEmitter?: Phaser.GameObjects.Particles.ParticleEmitter;
@@ -26,9 +29,13 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
   private atkY = 0;
   private dashAngle = 0;
 
-  static readonly AOE_RADIUS = 90;
+  static readonly AOE_RADIUS = 135;
   static readonly DASH_SPEED = 460;
-  private static readonly DASH_MS = 620;
+  static readonly DASH_MS    = 620;
+
+  protected idleChaseSpeed = 80;
+
+  readonly element: Element;
 
   getTargetPos: () => [number, number] = () => [0, 0];
 
@@ -36,23 +43,50 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
   onDead?: () => void;
   onAoeExplode?: (x: number, y: number) => void;
 
-  constructor(scene: Phaser.Scene, x: number, y: number, totalHp = 50) {
-    super(scene, x, y, 'slime_idle_down', 0);
+  constructor(scene: Phaser.Scene, x: number, y: number, totalHp = 500, element: Element = 'none') {
+    super(scene, x, y, 'slime_idle', 0);
     this.hp = totalHp;
     this.maxHp = totalHp;
+    this.element = element;
     scene.add.existing(this);
     scene.physics.add.existing(this);
     const body = this.body as Phaser.Physics.Arcade.Body;
     body.setCollideWorldBounds(true);
     this.setDepth(12);
     this.setScale(2);
+    this.setVisible(false);
     // Body in unscaled coords — slime occupies lower-center of 64×64 frame
     body.setSize(19, 12).setOffset(23, 29);
     this.warningGfx = scene.add.graphics().setDepth(8);
   }
 
   start(): void {
+    this.started = true;
+    this.setVisible(true);
     this.enterIdle();
+  }
+
+  protected idleStopRange = 72;
+
+  override preUpdate(time: number, delta: number): void {
+    super.preUpdate(time, delta);
+    if (!this.started || this.bossState !== BossState.IDLE) return;
+    const [tx, ty] = this.getTargetPos();
+    const dist = Phaser.Math.Distance.Between(this.x, this.y, tx, ty);
+    const body = this.body as Phaser.Physics.Arcade.Body;
+    const prevDir = this.bossDir;
+    this.updateDirToTarget();
+
+    if (dist <= this.idleStopRange) {
+      body.setVelocity(0, 0);
+      if (this.bossDir !== prevDir) this.playDir('slime_idle');
+    } else {
+      const angle = Phaser.Math.Angle.Between(this.x, this.y, tx, ty);
+      (this.scene.physics as Phaser.Physics.Arcade.ArcadePhysics).velocityFromAngle(
+        Phaser.Math.RadToDeg(angle), this.idleChaseSpeed, body.velocity,
+      );
+      if (this.bossDir !== prevDir) this.playDir('slime_walk');
+    }
   }
 
   knockback(fromX: number, fromY: number, power = 110): void {
@@ -80,7 +114,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
 
   private resumeStateAnim(): void {
     switch (this.bossState) {
-      case BossState.IDLE:      this.playDir('slime_idle');   break;
+      case BossState.IDLE:      this.playDir('slime_walk');   break;
       case BossState.AOE_WARN:  this.playDir('slime_attack'); break;
       case BossState.DASH_WARN: this.playDir('slime_walk');   break;
       case BossState.DASHING:   this.playDir('slime_run');    break;
@@ -123,19 +157,22 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     this.setScale(2);
     this.stateTimer?.destroy();
     this.updateDirToTarget();
-    this.playDir('slime_idle');
-    this.stateTimer = this.scene.time.delayedCall(2000, () => this.enterAoeWarn());
+    this.playDir('slime_walk');
+    const next = Math.random() < 0.5 ? () => this.enterAoeWarn() : () => this.enterDashWarn();
+    this.stateTimer = this.scene.time.delayedCall(2000, next);
   }
 
   private enterAoeWarn(): void {
     this.bossState = BossState.AOE_WARN;
     this.stateTimer?.destroy();
-    [this.atkX, this.atkY] = this.getTargetPos();
+    (this.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
+    this.atkX = this.x;
+    this.atkY = this.y;
     this.updateDirToTarget();
     this.playDir('slime_attack');
     this.drawAoeWarning();
 
-    // Embers rising from the target zone during warning
+    // Embers rising from the boss's feet during warning
     this.warnParticles = this.scene.add.particles(this.atkX, this.atkY, 'pxl2', {
       speed: { min: 20, max: 65 },
       angle: { min: 255, max: 285 },
@@ -153,6 +190,21 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
 } as any,
     }).setDepth(9);
 
+    // Track boss position so warning circle sticks to it
+    this.aoeTrackTimer = this.scene.time.addEvent({
+      delay: 16,
+      repeat: -1,
+      callback: () => {
+        this.atkX = this.x;
+        this.atkY = this.y;
+        this.warningGfx.setPosition(this.atkX, this.atkY);
+        if (this.warnParticles) {
+          this.warnParticles.x = this.atkX;
+          this.warnParticles.y = this.atkY;
+        }
+      },
+    });
+
     this.stateTimer = this.scene.time.delayedCall(1500, () => this.enterAoeExplode());
   }
 
@@ -161,12 +213,13 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     this.clearWarning();
     this.spawnAoeExplosion(this.atkX, this.atkY);
     this.onAoeExplode?.(this.atkX, this.atkY);
-    this.stateTimer = this.scene.time.delayedCall(500, () => this.enterDashWarn());
+    this.stateTimer = this.scene.time.delayedCall(500, () => this.enterIdle());
   }
 
   private enterDashWarn(): void {
     this.bossState = BossState.DASH_WARN;
     this.stateTimer?.destroy();
+    (this.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
     [this.atkX, this.atkY] = this.getTargetPos();
     this.updateDirToTarget();
     this.playDir('slime_walk');
@@ -229,18 +282,8 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     (this.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
     this.playDir('slime_death');
     this.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => {
-      this.scene.tweens.add({
-        targets: this,
-        alpha: 0,
-        scaleX: this.scaleX * 1.4,
-        scaleY: this.scaleY * 1.4,
-        duration: 700,
-        ease: 'Sine.easeOut',
-        onComplete: () => {
-          this.setActive(false).setVisible(false);
-          this.onDead?.();
-        },
-      });
+      this.setActive(false).setVisible(false);
+      this.onDead?.();
     });
   }
 
@@ -321,7 +364,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     });
 
     // ── Layer 1: white core burst — fastest, brightest ─
-    const core = this.scene.add.particles(0, 0, 'pxl2', {
+    const core = this.scene.add.particles(cx, cy, 'pxl2', {
       speed: { min: 280, max: 520 },
       angle: { min: 0, max: 360 },
       scale: { start: 2.4, end: 0 },
@@ -330,11 +373,11 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
       lifespan: { min: 100, max: 260 },
       emitting: false,
     }).setDepth(22);
-    core.emitParticleAt(cx, cy, 60);
+    core.emitParticleAt(0, 0, 60);
     this.scene.time.delayedCall(320, () => { if (core.active) core.destroy(); });
 
     // ── Layer 2: fire burst — medium speed, spreads from zone
-    const fire = this.scene.add.particles(0, 0, 'pxl2', {
+    const fire = this.scene.add.particles(cx, cy, 'pxl2', {
       speed: { min: 70, max: 240 },
       angle: { min: 0, max: 360 },
       scale: { start: 2.6, end: 0 },
@@ -345,15 +388,15 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
       emitting: false,
       emitZone: {
         type: 'random',
-        source: new Phaser.Geom.Circle(cx, cy, r * 0.5),
+        source: new Phaser.Geom.Circle(0, 0, r * 0.5),
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
 } as any,
     }).setDepth(21);
-    fire.emitParticleAt(cx, cy, 55);
+    fire.emitParticleAt(0, 0, 55);
     this.scene.time.delayedCall(900, () => { if (fire.active) fire.destroy(); });
 
     // ── Layer 3: rock debris — heavy gravity ──────────
-    const debris = this.scene.add.particles(0, 0, 'pxl', {
+    const debris = this.scene.add.particles(cx, cy, 'pxl', {
       speed: { min: 100, max: 300 },
       angle: { min: 0, max: 360 },
       scale: { start: 2.2, end: 0.3 },
@@ -363,11 +406,11 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
       gravityY: 300,
       emitting: false,
     }).setDepth(20);
-    debris.emitParticleAt(cx, cy, 30);
+    debris.emitParticleAt(0, 0, 30);
     this.scene.time.delayedCall(1100, () => { if (debris.active) debris.destroy(); });
 
     // ── Layer 4: smoke — grey, large, rises slowly ────
-    const smoke = this.scene.add.particles(0, 0, 'pxl', {
+    const smoke = this.scene.add.particles(cx, cy, 'pxl', {
       speed: { min: 18, max: 65 },
       angle: { min: 240, max: 300 },
       scale: { start: 3.2, end: 0 },
@@ -378,15 +421,15 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
       emitting: false,
       emitZone: {
         type: 'random',
-        source: new Phaser.Geom.Circle(cx, cy, r * 0.6),
+        source: new Phaser.Geom.Circle(0, 0, r * 0.6),
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
 } as any,
     }).setDepth(18);
-    smoke.emitParticleAt(cx, cy, 24);
+    smoke.emitParticleAt(0, 0, 24);
     this.scene.time.delayedCall(2100, () => { if (smoke.active) smoke.destroy(); });
 
     // ── Layer 5: embers drift up long after ───────────
-    const embers = this.scene.add.particles(0, 0, 'pxl2', {
+    const embers = this.scene.add.particles(cx, cy, 'pxl2', {
       speed: { min: 20, max: 70 },
       angle: { min: 258, max: 282 },
       scale: { start: 1.5, end: 0 },
@@ -397,11 +440,11 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
       emitting: false,
       emitZone: {
         type: 'random',
-        source: new Phaser.Geom.Circle(cx, cy, r * 0.7),
+        source: new Phaser.Geom.Circle(0, 0, r * 0.7),
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
 } as any,
     }).setDepth(20);
-    embers.emitParticleAt(cx, cy, 28);
+    embers.emitParticleAt(0, 0, 28);
     this.scene.time.delayedCall(1900, () => { if (embers.active) embers.destroy(); });
   }
 
@@ -500,16 +543,16 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
 
   private drawAoeWarning(): void {
     this.clearWarning();
-    const r  = Boss.AOE_RADIUS;
-    const cx = this.atkX;
-    const cy = this.atkY;
+    const r = Boss.AOE_RADIUS;
+    // Draw at local (0,0) — position is controlled via setPosition
+    this.warningGfx.setPosition(this.atkX, this.atkY);
 
     // ── Interior: sparse 2×2 dot grid ─────────────────────
     this.warningGfx.fillStyle(0xff0000, 0.14);
     for (let dx = -(r - 4); dx <= r - 4; dx += 8) {
       for (let dy = -(r - 4); dy <= r - 4; dy += 8) {
         if (dx * dx + dy * dy <= (r - 8) * (r - 8)) {
-          this.warningGfx.fillRect(cx + dx - 1, cy + dy - 1, 2, 2);
+          this.warningGfx.fillRect(dx - 1, dy - 1, 2, 2);
         }
       }
     }
@@ -517,48 +560,39 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     // ── Inner dashed ring (55 % radius) ───────────────────
     const r2 = r * 0.55;
     for (let i = 0; i < 28; i++) {
-      if (i % 4 === 3) continue;                  // gap every 4th
+      if (i % 4 === 3) continue;
       const a = (i / 28) * Math.PI * 2;
       this.warningGfx.fillStyle(0xff3300, 0.50);
-      this.warningGfx.fillRect(
-        cx + Math.cos(a) * r2 - 2, cy + Math.sin(a) * r2 - 2, 4, 4,
-      );
+      this.warningGfx.fillRect(Math.cos(a) * r2 - 2, Math.sin(a) * r2 - 2, 4, 4);
     }
 
     // ── Outer pixel ring — 4×4 blocks, 8×8 at cardinals ──
     const steps = 48;
     for (let i = 0; i < steps; i++) {
-      const isCardinal = i % 12 === 0;            // every 12 steps = 4 cardinals
+      const isCardinal = i % 12 === 0;
       const sz  = isCardinal ? 8 : 4;
       const alp = isCardinal ? 1.0 : 0.88;
       const a   = (i / steps) * Math.PI * 2;
       this.warningGfx.fillStyle(0xff1100, alp);
-      this.warningGfx.fillRect(
-        cx + Math.cos(a) * r - sz / 2,
-        cy + Math.sin(a) * r - sz / 2,
-        sz, sz,
-      );
+      this.warningGfx.fillRect(Math.cos(a) * r - sz / 2, Math.sin(a) * r - sz / 2, sz, sz);
     }
 
     // ── Cardinal notch markers ─────────────────────────────
     this.warningGfx.fillStyle(0xff4400, 1);
     for (let i = 0; i < 4; i++) {
       const a = (i / 4) * Math.PI * 2;
-      // Outer square
-      this.warningGfx.fillRect(cx + Math.cos(a) * r - 5,      cy + Math.sin(a) * r - 5,      10, 10);
-      // Inward tick
-      this.warningGfx.fillRect(cx + Math.cos(a) * (r - 14) - 2, cy + Math.sin(a) * (r - 14) - 2, 4, 4);
+      this.warningGfx.fillRect(Math.cos(a) * r - 5,        Math.sin(a) * r - 5,        10, 10);
+      this.warningGfx.fillRect(Math.cos(a) * (r - 14) - 2, Math.sin(a) * (r - 14) - 2, 4,  4);
     }
 
     // ── Center target reticle ─────────────────────────────
     this.warningGfx.fillStyle(0xff2200, 0.65);
-    this.warningGfx.fillRect(cx - 12, cy - 2, 24, 4);   // horizontal bar
-    this.warningGfx.fillRect(cx - 2, cy - 12, 4, 24);   // vertical bar
-    // Corner brackets
+    this.warningGfx.fillRect(-12, -2, 24, 4);
+    this.warningGfx.fillRect(-2, -12, 4, 24);
     this.warningGfx.fillStyle(0xff5500, 0.9);
     for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
-      this.warningGfx.fillRect(cx + sx * 6,        cy + sy * 6 - 1, sx < 0 ? -6 : 6, 2);
-      this.warningGfx.fillRect(cx + sx * 6 - 1,    cy + sy * 6,     2, sy < 0 ? -6 : 6);
+      this.warningGfx.fillRect(sx * 6,      sy * 6 - 1, sx < 0 ? -6 : 6, 2);
+      this.warningGfx.fillRect(sx * 6 - 1,  sy * 6,     2, sy < 0 ? -6 : 6);
     }
 
     this.pulseTween = this.scene.tweens.add({
@@ -577,8 +611,14 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     const sin     = Math.sin(angle);
     const pc      = Math.cos(angle + Math.PI / 2);
     const ps      = Math.sin(angle + Math.PI / 2);
-    const rawLen  = Phaser.Math.Distance.Between(this.x, this.y, this.atkX, this.atkY);
-    const len     = Math.min(rawLen + 40, 340);
+    // Actual dash distance = speed × time, clipped to world bounds
+    const wb  = this.scene.physics.world.bounds;
+    let   len = Boss.DASH_SPEED * (Boss.DASH_MS / 1000);
+    if (cos > 0) len = Math.min(len, (wb.right  - this.x) / cos);
+    if (cos < 0) len = Math.min(len, (wb.left   - this.x) / cos);
+    if (sin > 0) len = Math.min(len, (wb.bottom - this.y) / sin);
+    if (sin < 0) len = Math.min(len, (wb.top    - this.y) / sin);
+    len = Math.max(0, len);
 
     // ── Center dotted dashes ──────────────────────────────
     this.warningGfx.fillStyle(0xff3300, 0.45);
@@ -648,9 +688,12 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
   }
 
   private clearWarning(): void {
+    this.aoeTrackTimer?.destroy();
+    this.aoeTrackTimer = undefined;
     this.pulseTween?.stop();
     this.pulseTween = undefined;
     this.warningGfx.clear();
+    this.warningGfx.setPosition(0, 0);
     this.warningGfx.setAlpha(1);
     this.warnParticles?.destroy();
     this.warnParticles = undefined;

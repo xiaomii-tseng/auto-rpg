@@ -1,17 +1,19 @@
-import { EquipmentItem, EquipSlot } from './equipment-data';
+import { EquipmentItem, EquipSlot, Element } from './equipment-data';
 
-export const BASE_ATK   = 30;
-export const BASE_HP    = 100;
-export const BASE_SPEED = 150;
-export const BASE_DEF   = 0;
-export const BASE_CRIT  = 0;
+export const BASE_ATK        = 30;
+export const BASE_HP         = 100;
+export const BASE_SPEED      = 150;
+export const BASE_DEF        = 0;
+export const BASE_CRIT       = 0;
+export const BASE_ATTACK_ARC = 180;  // degrees, half = ±90°
 
 export interface EffectiveStats {
-  atk:   number;
-  maxHp: number;
-  speed: number;
-  def:   number;
-  crit:  number;  // 0~1
+  atk:       number;
+  maxHp:     number;
+  speed:     number;
+  def:       number;
+  crit:      number;  // 0~1
+  attackArc: number;  // degrees (total cone width)
 }
 
 type EquippedMap = { [K in EquipSlot]: EquipmentItem | null };
@@ -20,7 +22,8 @@ const equipped: EquippedMap = {
   hat:    null,
   outfit: null,
   shoes:  null,
-  ring:   null,
+  ring1:  null,
+  ring2:  null,
   sword:  null,
 };
 
@@ -83,9 +86,12 @@ export const PlayerStore = {
   equip(item: EquipmentItem): void {
     const idx = owned.indexOf(item);
     if (idx !== -1) owned.splice(idx, 1);
-    const prev = equipped[item.slot];
+    // Auto-fill ring2 when ring1 is occupied
+    let targetSlot = item.slot;
+    if (targetSlot === 'ring1' && equipped['ring1'] && !equipped['ring2']) targetSlot = 'ring2';
+    const prev = equipped[targetSlot];
     if (prev) owned.push(prev);
-    equipped[item.slot] = item;
+    equipped[targetSlot] = item;
     this.notify();
   },
 
@@ -104,23 +110,29 @@ export const PlayerStore = {
     return Object.values(equipped).some(e => e?.id === itemId);
   },
 
-  getStats(): EffectiveStats {
-    let atk   = BASE_ATK;
-    let maxHp = BASE_HP;
-    let speed = BASE_SPEED;
-    let def   = BASE_DEF;
-    let crit  = BASE_CRIT;
+  getWeaponElement(): Element {
+    return equipped['sword']?.element ?? 'none';
+  },
 
-    for (const item of Object.values(equipped)) {
+  getStats(): EffectiveStats {
+    let atk       = BASE_ATK;
+    let maxHp     = BASE_HP;
+    let speed     = BASE_SPEED;
+    let def       = BASE_DEF;
+    let crit      = BASE_CRIT;
+    let attackArc = BASE_ATTACK_ARC;
+
+    for (const [, item] of Object.entries(equipped) as [EquipSlot, EquipmentItem | null][]) {
       if (!item) continue;
-      atk   += item.stats.atk   ?? 0;
-      maxHp += item.stats.hp    ?? 0;
-      speed += item.stats.speed ?? 0;
-      def   += item.stats.def   ?? 0;
-      crit  += item.stats.crit  ?? 0;
+      atk       += item.stats.atk       ?? 0;
+      maxHp     += item.stats.hp        ?? 0;
+      speed     += item.stats.speed     ?? 0;
+      def       += item.stats.def       ?? 0;
+      crit      += item.stats.crit      ?? 0;
+      attackArc += item.stats.attackArc ?? 0;
     }
 
-    return { atk, maxHp, speed, def, crit: Math.min(crit, 1) };
+    return { atk, maxHp, speed, def, crit: Math.min(crit, 1), attackArc: Math.min(attackArc, 360) };
   },
 
   // ── Listeners ──────────────────────────────────────────

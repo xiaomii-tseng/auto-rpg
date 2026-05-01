@@ -1,9 +1,10 @@
 import { EQUIPMENT_ITEMS, EquipSlot } from './equipment-data';
 import { PlayerStore } from './player-store';
 import { InventoryStore } from './inventory-store';
+import { CardStore } from './card-store';
 
 const SAVE_KEY   = 'auto_rpg_save';
-const VERSION    = 1;
+const VERSION    = 5;
 let   _loaded    = false;
 
 interface SaveData {
@@ -17,6 +18,10 @@ interface SaveData {
   inventory: {
     gold:  number;
     items: { id: string; name: string; qty: number }[];
+  };
+  cards: {
+    equipped:  (string | null)[];
+    inventory: { cardId: string; qty: number }[];
   };
 }
 
@@ -32,7 +37,8 @@ export const SaveStore = {
           hat:    eq.hat?.id    ?? null,
           outfit: eq.outfit?.id ?? null,
           shoes:  eq.shoes?.id  ?? null,
-          ring:   eq.ring?.id   ?? null,
+          ring1:  eq.ring1?.id  ?? null,
+          ring2:  eq.ring2?.id  ?? null,
           sword:  eq.sword?.id  ?? null,
         },
         ownedIds: PlayerStore.getOwned().map(i => i.id),
@@ -41,6 +47,10 @@ export const SaveStore = {
         gold:  InventoryStore.getGold(),
         items: InventoryStore.getAllItems().map(i => ({ id: i.id, name: i.name, qty: i.qty })),
       },
+      cards: {
+        equipped:  Array.from(CardStore.getEquipped()),
+        inventory: CardStore.getInventory(),
+      },
     };
     try {
       localStorage.setItem(SAVE_KEY, JSON.stringify(data));
@@ -48,34 +58,35 @@ export const SaveStore = {
   },
 
   load(): boolean {
-    if (_loaded) return true;   // 只在第一次執行，避免回到大廳時覆蓋最新資料
+    if (_loaded) return true;
     try {
       const raw = localStorage.getItem(SAVE_KEY);
       if (!raw) return false;
       const data: SaveData = JSON.parse(raw);
       if (data.version !== VERSION) return false;
 
-      // Player level / exp
       const p = data.player;
       PlayerStore.setLevelExp(p.level, p.exp);
 
-      // Equipped items
       for (const [slot, id] of Object.entries(p.equippedIds) as [EquipSlot, string | null][]) {
         if (!id) continue;
         const item = EQUIPMENT_ITEMS.find(e => e.id === id);
         if (item) PlayerStore.equipDirect(slot, item);
       }
 
-      // Owned items
       for (const id of p.ownedIds) {
         const item = EQUIPMENT_ITEMS.find(e => e.id === id);
         if (item) PlayerStore.addOwned(item);
       }
 
-      // Inventory
       InventoryStore.setGold(data.inventory.gold);
       for (const it of data.inventory.items) {
         InventoryStore.addItem(it.id, it.name, it.qty);
+      }
+
+      if (data.cards) {
+        CardStore.setEquippedDirect(data.cards.equipped);
+        CardStore.setInventoryDirect(data.cards.inventory);
       }
 
       _loaded = true;
