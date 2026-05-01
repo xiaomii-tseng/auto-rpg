@@ -1,6 +1,6 @@
 {
   "configVersion": 1,
-  "timestamp": 1777614789003,
+  "timestamp": 1777627769233,
   "index": "/auto-rpg/index.html",
   "assetGroups": [
     {
@@ -13,7 +13,7 @@
       "urls": [
         "/auto-rpg/favicon.ico",
         "/auto-rpg/index.html",
-        "/auto-rpg/main-YWTH6EQO.js",
+        "/auto-rpg/main-VJA5MPK7.js",
         "/auto-rpg/manifest.webmanifest",
         "/auto-rpg/styles-5FO5G3CS.css"
       ],
@@ -2937,8 +2937,8 @@
     "/auto-rpg/icons/icon-512x512.png": "1de182f76f7329dfa8f9fcdd1fdcdd695bea6a99",
     "/auto-rpg/icons/icon-72x72.png": "aa88a6096bd973be7f6d7a5489bfa6bc2463f8c4",
     "/auto-rpg/icons/icon-96x96.png": "7fb8f59c30ce2ff12c700321a0b39e14b3dc8f95",
-    "/auto-rpg/index.html": "866a661f568a9e5455c30707f45bf85bae415441",
-    "/auto-rpg/main-YWTH6EQO.js": "19ccb8874efc878b0091bd54af6aa57861d12c33",
+    "/auto-rpg/index.html": "afb2e6873f6cd8e72435723d186ff2d41956b5a6",
+    "/auto-rpg/main-VJA5MPK7.js": "f1414b776e56efc25cbba9632509da79c4c45948",
     "/auto-rpg/manifest.webmanifest": "f04d22a221939a5219406cd035205863da56e7ea",
     "/auto-rpg/other/leader.webp": "2e4d140b5a67bdb8dd9f07e9ec9595dbe9b9c2ff",
     "/auto-rpg/sprite/flower/COUPON.png": "cd62c14c9f44c9738f31f56ab6c54ece7457fbb6",
