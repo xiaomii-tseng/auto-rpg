@@ -802,26 +802,30 @@ export class PrepScene extends Phaser.Scene {
       yesGfx.fillStyle(0x2a4a1a, 1); yesGfx.fillRect(cX + 20, cY + 72, 88, 28);
       yesGfx.lineStyle(2, 0x44aa22, 0.8); yesGfx.strokeRect(cX + 20, cY + 72, 88, 28);
       confirmObjs.push(yesGfx);
-      const yesBtn = this.add.text(cX + 64, cY + 86, '出  發', {
+      confirmObjs.push(this.add.text(cX + 64, cY + 86, '出  發', {
         fontSize: '12px', color: '#88dd44', stroke: '#1a0800', strokeThickness: 1,
-      }).setOrigin(0.5).setDepth(D + 10).setInteractive({ useHandCursor: true });
-      yesBtn.on('pointerdown', () => {
+      }).setOrigin(0.5).setDepth(D + 10));
+      const yesHit = this.add.rectangle(cX + 64, cY + 86, 88, 28)
+        .setDepth(D + 11).setInteractive({ useHandCursor: true });
+      yesHit.on('pointerdown', () => {
         closeConfirm();
         closeAll();
         this.scene.start('GameScene', { boss: boss.bossKey });
       });
-      confirmObjs.push(yesBtn);
+      confirmObjs.push(yesHit);
 
       // No button
       const noGfx = this.add.graphics().setDepth(D + 10);
       noGfx.fillStyle(0x4a1a1a, 1); noGfx.fillRect(cX + 132, cY + 72, 88, 28);
       noGfx.lineStyle(2, 0xaa2222, 0.8); noGfx.strokeRect(cX + 132, cY + 72, 88, 28);
       confirmObjs.push(noGfx);
-      const noBtn = this.add.text(cX + 176, cY + 86, '取  消', {
+      confirmObjs.push(this.add.text(cX + 176, cY + 86, '取  消', {
         fontSize: '12px', color: '#dd4444', stroke: '#1a0800', strokeThickness: 1,
-      }).setOrigin(0.5).setDepth(D + 10).setInteractive({ useHandCursor: true });
-      noBtn.on('pointerdown', closeConfirm);
-      confirmObjs.push(noBtn);
+      }).setOrigin(0.5).setDepth(D + 10));
+      const noHit = this.add.rectangle(cX + 176, cY + 86, 88, 28)
+        .setDepth(D + 11).setInteractive({ useHandCursor: true });
+      noHit.on('pointerdown', closeConfirm);
+      confirmObjs.push(noHit);
     };
 
     // ── Scroll drag + tap detection ───────────────────────

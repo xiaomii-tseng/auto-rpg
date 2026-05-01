@@ -5,6 +5,7 @@ import { SlashEffect } from '../objects/slash-effect';
 import { VirtualJoystick } from '../ui/joystick';
 import { PlayerStore } from '../data/player-store';
 import { InventoryStore } from '../data/inventory-store';
+import { SaveStore } from '../data/save-store';
 
 const MELEE_RANGE = 95;
 
@@ -197,6 +198,7 @@ export class GameScene extends Phaser.Scene {
       InventoryStore.addItem('slime_essence', '綠史萊姆精華', essence);
     InventoryStore.addGold(coins);
     PlayerStore.addExp(expGain);
+    SaveStore.save();
 
     const drops: { icon: string; name: string; qty: number }[] = [
       { icon: 'icon_slime_chunk', name: '綠史萊姆碎塊', qty: chunks },

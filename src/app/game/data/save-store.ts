@@ -2,8 +2,9 @@ import { EQUIPMENT_ITEMS, EquipSlot } from './equipment-data';
 import { PlayerStore } from './player-store';
 import { InventoryStore } from './inventory-store';
 
-const SAVE_KEY = 'auto_rpg_save';
-const VERSION  = 1;
+const SAVE_KEY   = 'auto_rpg_save';
+const VERSION    = 1;
+let   _loaded    = false;
 
 interface SaveData {
   version: number;
@@ -47,6 +48,7 @@ export const SaveStore = {
   },
 
   load(): boolean {
+    if (_loaded) return true;   // 只在第一次執行，避免回到大廳時覆蓋最新資料
     try {
       const raw = localStorage.getItem(SAVE_KEY);
       if (!raw) return false;
@@ -76,6 +78,7 @@ export const SaveStore = {
         InventoryStore.addItem(it.id, it.name, it.qty);
       }
 
+      _loaded = true;
       return true;
     } catch (_) {
       return false;
