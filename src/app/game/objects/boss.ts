@@ -29,7 +29,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
   private atkY = 0;
   private dashAngle = 0;
 
-  static readonly AOE_RADIUS = 135;
+  static readonly AOE_RADIUS = 95;
   static readonly DASH_SPEED = 460;
   static readonly DASH_MS    = 620;
 

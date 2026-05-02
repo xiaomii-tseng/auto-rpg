@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 
 enum MinionState {
+  PATROL    = 'PATROL',
   IDLE      = 'IDLE',
   DASH_WARN = 'DASH_WARN',
   DASHING   = 'DASHING',
@@ -13,16 +14,23 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
   private hp:        number;
   private readonly maxHp: number;
   private stateTimer?: Phaser.Time.TimerEvent;
-  private hpBarGfx:  Phaser.GameObjects.Graphics;
+  private hpBarGfx: Phaser.GameObjects.Graphics;
   private dir: 'down' | 'left' | 'right' | 'up' = 'down';
   private atkX = 0;
   private atkY = 0;
   private pb!: Phaser.Physics.Arcade.Body;   // stable body reference
 
+  private patrolCenter   = new Phaser.Math.Vector2(0, 0);
+  private patrolTargetX  = 0;
+  private patrolTargetY  = 0;
+  private readonly patrolRadius  = 75;
+  private readonly aggroRange    = 230;
+  private readonly deaggroRange  = 400;
+
   static readonly CHASE_SPEED = 90;
   static readonly STOP_RANGE  = 55;
   static readonly DASH_SPEED  = 310;
-  static readonly DASH_MS     = 520;
+  static readonly DASH_MS     = 260;
 
   getTargetPos: () => [number, number] = () => [0, 0];
   onDead?: () => void;
@@ -35,8 +43,11 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
     scene.physics.add.existing(this);
     this.pb = this.body as Phaser.Physics.Arcade.Body;
     this.pb.setCollideWorldBounds(true);
+    this.patrolCenter.set(x, y);
+    this.patrolTargetX = x;
+    this.patrolTargetY = y;
     this.pb.setSize(19, 12).setOffset(23, 29);
-    this.setScale(1.3);
+    this.setScale(0.78);
     this.setDepth(12);
     this.play('slime_idle_down', true);
     this.setVisible(false);
@@ -46,7 +57,13 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
   start(): void {
     this.started = true;
     this.setVisible(true);
-    this.enterIdle();
+    this.enterPatrol();
+  }
+
+  setPatrolCenter(x: number, y: number): void {
+    this.patrolCenter.set(x, y);
+    this.patrolTargetX = x;
+    this.patrolTargetY = y;
   }
 
   takeDamage(amount: number): void {
@@ -75,6 +92,39 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
   get currentHp(): number  { return this.hp; }
 
   // ── State Machine ───────────────────────────────────
+
+  private enterPatrol(): void {
+    this.mState = MinionState.PATROL;
+    this.stateTimer?.destroy();
+    this.pb.setVelocity(0, 0);
+    this.clearTint();
+    this.updateDir();
+    this.playDir('slime_idle');
+    const delay = Phaser.Math.Between(400, 1400);
+    this.stateTimer = this.scene.time.delayedCall(delay, () => {
+      if (this.mState === MinionState.PATROL) this.pickPatrolTarget();
+    });
+  }
+
+  private pickPatrolTarget(): void {
+    const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
+    const dist  = Phaser.Math.FloatBetween(40, this.patrolRadius);
+    this.patrolTargetX = this.patrolCenter.x + Math.cos(angle) * dist;
+    this.patrolTargetY = this.patrolCenter.y + Math.sin(angle) * dist;
+    this.updateDirTo(this.patrolTargetX, this.patrolTargetY);
+    this.playDir('slime_walk');
+    this.stateTimer?.destroy();
+    const travelMs = Phaser.Math.Between(2000, 3500);
+    this.stateTimer = this.scene.time.delayedCall(travelMs, () => {
+      if (this.mState !== MinionState.PATROL) return;
+      this.pb.setVelocity(0, 0);
+      this.updateDir();
+      this.playDir('slime_idle');
+      this.stateTimer = this.scene.time.delayedCall(Phaser.Math.Between(600, 1800), () => {
+        if (this.mState === MinionState.PATROL) this.pickPatrolTarget();
+      });
+    });
+  }
 
   private enterIdle(): void {
     this.mState = MinionState.IDLE;
@@ -139,6 +189,10 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
 
   private updateDir(): void {
     const [tx, ty] = this.getTargetPos();
+    this.updateDirTo(tx, ty);
+  }
+
+  private updateDirTo(tx: number, ty: number): void {
     const dx = tx - this.x, dy = ty - this.y;
     this.dir = Math.abs(dx) >= Math.abs(dy)
       ? (dx < 0 ? 'left' : 'right')
@@ -155,9 +209,34 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
     super.preUpdate(time, delta);
     if (!this.started || this.mState === MinionState.DEAD) return;
 
+    if (this.mState === MinionState.PATROL) {
+      const [tx, ty] = this.getTargetPos();
+      if (Phaser.Math.Distance.Between(this.x, this.y, tx, ty) <= this.aggroRange) {
+        this.stateTimer?.destroy();
+        this.enterIdle();
+        return;
+      }
+      const dtx = this.patrolTargetX, dty = this.patrolTargetY;
+      const distToTarget = Phaser.Math.Distance.Between(this.x, this.y, dtx, dty);
+      if (distToTarget > 14) {
+        const angle = Phaser.Math.Angle.Between(this.x, this.y, dtx, dty);
+        (this.scene.physics as Phaser.Physics.Arcade.ArcadePhysics).velocityFromAngle(
+          Phaser.Math.RadToDeg(angle), 50, this.pb.velocity,
+        );
+        const prevDir = this.dir;
+        this.updateDirTo(dtx, dty);
+        if (this.dir !== prevDir) this.playDir('slime_walk');
+      } else {
+        this.pb.setVelocity(0, 0);
+      }
+    }
+
     if (this.mState === MinionState.IDLE) {
       const [tx, ty] = this.getTargetPos();
       const dist     = Phaser.Math.Distance.Between(this.x, this.y, tx, ty);
+
+      if (dist > this.deaggroRange) { this.enterPatrol(); return; }
+
       const body = this.pb;
       const prevDir  = this.dir;
       this.updateDir();

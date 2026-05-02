@@ -82,8 +82,8 @@ export const EQUIPMENT_ITEMS: EquipmentItem[] = [
   },
   {
     id: 'shoes_1', name: '皮靴', slot: 'shoes', tier: 1, texture: 'equip_shoes1',
-    stats: { speed: 30 },
-    desc: '移動速度 +30',
+    stats: { speed: 15 },
+    desc: '移動速度 +15',
     gold: 120, levelReq: 2,
     materials: [
       { id: 'slime_chunk',   name: '綠史萊姆碎塊', qty: 4 },

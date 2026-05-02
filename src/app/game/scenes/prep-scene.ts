@@ -56,6 +56,15 @@ export class PrepScene extends Phaser.Scene {
     const W = this.scale.width;
     const H = this.scale.height;
 
+    // 瀏覽器執行時嘗試觸控觸發全螢幕；PWA 已由 manifest 處理，失敗時靜默忽略
+    if (!this.scale.isFullscreen) {
+      this.input.once('pointerdown', () => {
+        try {
+          if (!this.scale.isFullscreen) this.scale.startFullscreen();
+        } catch { /* PWA manifest fullscreen 已接管，忽略 */ }
+      });
+    }
+
     const hasSave = SaveStore.load();
     if (!hasSave) {
       const sword = EQUIPMENT_ITEMS.find(e => e.id === 'sword_1');
@@ -1279,26 +1288,60 @@ export class PrepScene extends Phaser.Scene {
       dg.fillStyle(WH, 0.3); dg.fillRect(px + 12, areaTop + 73, PW - 24, 1);
       det.add(dg);
 
-      const isEquipped = PlayerStore.isEquipped(item.id);
       const btnW = 130; const btnH = 34;
       const btnY = areaTop + areaH - 24;
 
-      const btnGfx = this.add.graphics();
-      if (isEquipped) {
-        btnGfx.fillStyle(0x1a3a28, 1); btnGfx.fillRect(-btnW / 2, btnY - btnH / 2, btnW, btnH);
-        btnGfx.lineStyle(1.5, 0x44aa66, 0.6); btnGfx.strokeRect(-btnW / 2, btnY - btnH / 2, btnW, btnH);
+      if (item.slot === 'ring1') {
+        // ── 飾品：兩個槽位按鈕 ──────────────────────────────
+        const hW  = (btnW - 4) / 2;   // 每顆按鈕寬度
+        const cx1 = -btnW / 2 + hW / 2;
+        const cx2 =  btnW / 2 - hW / 2;
+        const eq1 = PlayerStore.getEquipped()['ring1'];
+        const eq2 = PlayerStore.getEquipped()['ring2'];
+
+        const drawSlotBtn = (g: Phaser.GameObjects.Graphics, cx: number, occupied: boolean) => {
+          g.fillStyle(0x5a3800, 1); g.fillRect(cx - hW / 2, btnY - btnH / 2, hW, btnH);
+          g.fillStyle(GOLD, occupied ? 0.06 : 0.14); g.fillRect(cx - hW / 2, btnY - btnH / 2, hW, btnH);
+          g.lineStyle(occupied ? 1.5 : 2, GOLD, occupied ? 0.5 : 0.85);
+          g.strokeRect(cx - hW / 2, btnY - btnH / 2, hW, btnH);
+          if (!occupied) { g.fillStyle(GOLD, 0.35); g.fillRect(cx - hW / 2, btnY - btnH / 2, hW, 2); }
+        };
+        const slotBtnGfx = this.add.graphics();
+        drawSlotBtn(slotBtnGfx, cx1, !!eq1);
+        drawSlotBtn(slotBtnGfx, cx2, !!eq2);
+        det.add(slotBtnGfx);
+
+        det.add(this.add.text(cx1, btnY - 6, '飾品 1', {
+          fontSize: '12px', color: '#e8c070', stroke: '#1a0800', strokeThickness: 2,
+        }).setOrigin(0.5));
+        det.add(this.add.text(cx1, btnY + 8, eq1 ? eq1.name.slice(0, 5) : '空', {
+          fontSize: '9px', color: eq1 ? '#cc8888' : '#558855',
+        }).setOrigin(0.5));
+
+        det.add(this.add.text(cx2, btnY - 6, '飾品 2', {
+          fontSize: '12px', color: '#e8c070', stroke: '#1a0800', strokeThickness: 2,
+        }).setOrigin(0.5));
+        det.add(this.add.text(cx2, btnY + 8, eq2 ? eq2.name.slice(0, 5) : '空', {
+          fontSize: '9px', color: eq2 ? '#cc8888' : '#558855',
+        }).setOrigin(0.5));
+
+        const hit1 = this.add.rectangle(cx1, btnY, hW, btnH).setInteractive({ useHandCursor: true });
+        hit1.on('pointerdown', () => { PlayerStore.equipToSlot(item, 'ring1'); det.destroy(); });
+        det.add(hit1);
+        const hit2 = this.add.rectangle(cx2, btnY, hW, btnH).setInteractive({ useHandCursor: true });
+        hit2.on('pointerdown', () => { PlayerStore.equipToSlot(item, 'ring2'); det.destroy(); });
+        det.add(hit2);
       } else {
+        // ── 一般裝備：單一裝備按鈕（永遠可點，允許換裝）──────
+        const btnGfx = this.add.graphics();
         btnGfx.fillStyle(0x5a3800, 1); btnGfx.fillRect(-btnW / 2, btnY - btnH / 2, btnW, btnH);
-        btnGfx.fillStyle(GOLD, 0.12); btnGfx.fillRect(-btnW / 2, btnY - btnH / 2, btnW, btnH);
+        btnGfx.fillStyle(GOLD, 0.12);  btnGfx.fillRect(-btnW / 2, btnY - btnH / 2, btnW, btnH);
         btnGfx.lineStyle(2, GOLD, 0.8); btnGfx.strokeRect(-btnW / 2, btnY - btnH / 2, btnW, btnH);
-        btnGfx.fillStyle(GOLD, 0.35); btnGfx.fillRect(-btnW / 2, btnY - btnH / 2, btnW, 2);
-      }
-      det.add(btnGfx);
-      det.add(this.add.text(0, btnY, isEquipped ? '已  裝  備' : '裝  備', {
-        fontSize: '14px', color: isEquipped ? '#44cc88' : '#e8c070',
-        stroke: '#1a0800', strokeThickness: 2,
-      }).setOrigin(0.5));
-      if (!isEquipped) {
+        btnGfx.fillStyle(GOLD, 0.35);  btnGfx.fillRect(-btnW / 2, btnY - btnH / 2, btnW, 2);
+        det.add(btnGfx);
+        det.add(this.add.text(0, btnY, '裝  備', {
+          fontSize: '14px', color: '#e8c070', stroke: '#1a0800', strokeThickness: 2,
+        }).setOrigin(0.5));
         const hitArea = this.add.rectangle(0, btnY, btnW, btnH).setInteractive({ useHandCursor: true });
         hitArea.on('pointerdown', () => { PlayerStore.equip(item); det.destroy(); });
         det.add(hitArea);

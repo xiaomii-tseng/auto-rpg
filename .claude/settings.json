@@ -14,7 +14,8 @@
       "Bash(git commit -m ' *)",
       "Bash(sed -i 's/\\(this\\\\.body as Phaser\\\\.Physics\\\\.Arcade\\\\.Body\\)/this.pb/g' src/app/game/objects/minion-slime.ts)",
       "Bash(sed -i 's/const body  = this\\\\.body as Phaser\\\\.Physics\\\\.Arcade\\\\.Body;/const body = this.pb;/g' src/app/game/objects/minion-slime.ts)",
-      "Bash(sed -i 's/const body     = this\\\\.body as Phaser\\\\.Physics\\\\.Arcade\\\\.Body;/const body = this.pb;/g' src/app/game/objects/minion-slime.ts)"
+      "Bash(sed -i 's/const body     = this\\\\.body as Phaser\\\\.Physics\\\\.Arcade\\\\.Body;/const body = this.pb;/g' src/app/game/objects/minion-slime.ts)",
+      "Bash(xargs grep *)"
     ]
   }
 }

@@ -27,12 +27,11 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.setBodySize(16, 11).setOffset(24, 37);
     this.play('player_idle_down');
 
-    // Initialise HP from current equipment stats
     const stats = PlayerStore.getStats();
     this.maxHp = stats.maxHp;
     this.hp    = stats.maxHp;
 
-    this.headGfx = scene.add.graphics().setDepth(15);
+    this.headGfx = scene.add.graphics().setDepth(1000);
   }
 
   override preUpdate(time: number, delta: number): void {
@@ -45,7 +44,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     if (!this.active) return;
     const bw = 44, bh = 5;
     const bx = this.x - bw / 2;
-    const by = this.y - 40;
+    const by = this.y - 52;
     this.headGfx.fillStyle(0x220000);
     this.headGfx.fillRect(bx - 1, by - 1, bw + 2, bh + 2);
     const pct   = this.hp / this.maxHp;
@@ -140,4 +139,9 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   get currentHp(): number  { return this.hp; }
   get maxHpValue(): number { return this.maxHp; }
   get attackDir(): 'down' | 'left' | 'right' | 'up' { return this.lastDir; }
+
+  override destroy(fromScene?: boolean): void {
+    this.headGfx?.destroy();
+    super.destroy(fromScene);
+  }
 }

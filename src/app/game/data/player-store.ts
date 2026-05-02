@@ -2,7 +2,7 @@ import { EquipmentItem, EquipSlot, Element } from './equipment-data';
 
 export const BASE_ATK        = 30;
 export const BASE_HP         = 100;
-export const BASE_SPEED      = 150;
+export const BASE_SPEED      = 100;
 export const BASE_DEF        = 0;
 export const BASE_CRIT       = 0;
 export const BASE_ATTACK_ARC = 180;  // degrees, half = ±90°
@@ -92,6 +92,16 @@ export const PlayerStore = {
     const prev = equipped[targetSlot];
     if (prev) owned.push(prev);
     equipped[targetSlot] = item;
+    this.notify();
+  },
+
+  // 飾品指定槽位裝備（ring1 / ring2）
+  equipToSlot(item: EquipmentItem, slot: 'ring1' | 'ring2'): void {
+    const idx = owned.indexOf(item);
+    if (idx !== -1) owned.splice(idx, 1);
+    const prev = equipped[slot];
+    if (prev) owned.push(prev);
+    equipped[slot] = item;
     this.notify();
   },
 
