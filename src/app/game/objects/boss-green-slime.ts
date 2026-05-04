@@ -19,7 +19,7 @@ export class BossGreenSlime extends Boss {
     else if (roll < 0.60) fn = () => this.enterDashWarn();
     else if (roll < 0.70) fn = () => this.enterSummonWarn();  // 10%
     else                  fn = () => this.enterPoisonWarn();   // 30%
-    this.stateTimer = this.scene.time.delayedCall(2000, fn);
+    this.stateTimer = this.scene.time.delayedCall(this.getNextAttackDelay(), fn);
   }
 
   // ── 召喚菁英史萊姆 ────────────────────────────────────

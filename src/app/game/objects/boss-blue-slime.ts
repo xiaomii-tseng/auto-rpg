@@ -24,7 +24,7 @@ export class BossBlueSlime extends Boss {
     else if (roll < 0.40) fn = () => this.enterDashWarn();
     else if (roll < 0.70) fn = () => this.enterIceSpikeWarn();
     else                  fn = () => this.enterIceMineWarn();
-    this.stateTimer = this.scene.time.delayedCall(2000, fn);
+    this.stateTimer = this.scene.time.delayedCall(this.getNextAttackDelay(), fn);
   }
 
   // ── 冰錐八方射擊 ──────────────────────────────────────

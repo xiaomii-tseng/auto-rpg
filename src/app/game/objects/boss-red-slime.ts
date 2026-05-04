@@ -128,7 +128,7 @@ export class BossRedSlime extends Boss {
       else if (roll < 0.60) fn = () => this.enterDashWarn();
       else                  fn = () => this.enterJumpWarn();
     }
-    this.stateTimer = this.scene.time.delayedCall(2000, fn);
+    this.stateTimer = this.scene.time.delayedCall(this.getNextAttackDelay(), fn);
   }
 
   // ── 跳躍衝擊 ──────────────────────────────────────────

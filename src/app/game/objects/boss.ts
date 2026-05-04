@@ -15,6 +15,8 @@ export enum BossState {
   ICE_MINE_WARN    = 'ICE_MINE_WARN',
   HOLY_CROSS_WARN  = 'HOLY_CROSS_WARN',
   HOLY_ORBS_WARN   = 'HOLY_ORBS_WARN',
+  ZOMBIE_SUMMON_WARN = 'ZOMBIE_SUMMON_WARN',
+  POISON_FAN_WARN    = 'POISON_FAN_WARN',
   DEAD             = 'DEAD',
 }
 
@@ -43,6 +45,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
 
   protected idleChaseSpeed = 80;
   protected readonly animPrefix: string;
+  protected baseTint = 0xffffff;
 
   readonly element: Element;
 
@@ -60,9 +63,10 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
   onDead?: () => void;
   onAoeExplode?: (x: number, y: number) => void;
 
-  constructor(scene: Phaser.Scene, x: number, y: number, totalHp = 500, element: Element = 'none', spriteKey = 'slime') {
+  constructor(scene: Phaser.Scene, x: number, y: number, totalHp = 500, element: Element = 'none', spriteKey = 'slime', tint = 0xffffff) {
     super(scene, x, y, `${spriteKey}_idle`, 0);
     this.animPrefix = spriteKey;
+    this.baseTint   = tint;
     this.hp = totalHp;
     this.maxHp = totalHp;
     this.element = element;
@@ -173,7 +177,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     (this.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
     this.clearWarning();
     this.stopDashTrail();
-    this.clearTint();
+    if (this.baseTint === 0xffffff) this.clearTint(); else this.setTint(this.baseTint);
     this.setScale(2);
     this.stateTimer?.destroy();
     this.updateDirToTarget();
@@ -181,9 +185,20 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     this.pickNextAttack();
   }
 
+  private comboCount = 0;
+
+  protected getNextAttackDelay(): number {
+    if (this.comboCount < 1 && Math.random() < 0.12) {
+      this.comboCount++;
+      return Phaser.Math.Between(200, 450);
+    }
+    this.comboCount = 0;
+    return Phaser.Math.Between(1200, 2800);
+  }
+
   protected pickNextAttack(): void {
     const next = Math.random() < 0.5 ? () => this.enterAoeWarn() : () => this.enterDashWarn();
-    this.stateTimer = this.scene.time.delayedCall(2000, next);
+    this.stateTimer = this.scene.time.delayedCall(this.getNextAttackDelay(), next);
   }
 
   protected enterAoeWarn(): void {

@@ -25,9 +25,11 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
   private patrolCenter   = new Phaser.Math.Vector2(0, 0);
   private patrolTargetX  = 0;
   private patrolTargetY  = 0;
+  private isReturning    = false;
   private readonly patrolRadius  = 75;
   private readonly aggroRange    = 230;
   private readonly deaggroRange  = 400;
+  private readonly leashRange    = 310;
 
   static readonly CHASE_SPEED = 90;
   static readonly STOP_RANGE  = 55;
@@ -120,14 +122,14 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
   private enterPatrol(): void {
     this.mState = MinionState.PATROL;
     this.stateTimer?.destroy();
-    this.pb.setVelocity(0, 0);
+    this.stateTimer  = undefined;
+    this.isReturning = true;
     this.applyBaseTint();
-    this.updateDir();
-    this.playDir(`${this.animPrefix}_idle`);
-    const delay = Phaser.Math.Between(400, 1400);
-    this.stateTimer = this.scene.time.delayedCall(delay, () => {
-      if (this.mState === MinionState.PATROL) this.pickPatrolTarget();
-    });
+    // 先走回巡邏中心，到了再開始正常巡邏
+    this.patrolTargetX = this.patrolCenter.x;
+    this.patrolTargetY = this.patrolCenter.y;
+    this.updateDirTo(this.patrolTargetX, this.patrolTargetY);
+    this.playDir(`${this.animPrefix}_walk`);
   }
 
   private pickPatrolTarget(): void {
@@ -138,6 +140,7 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
     this.updateDirTo(this.patrolTargetX, this.patrolTargetY);
     this.playDir(`${this.animPrefix}_walk`);
     this.stateTimer?.destroy();
+    this.stateTimer = undefined;
     const travelMs = Phaser.Math.Between(2000, 3500);
     this.stateTimer = this.scene.time.delayedCall(travelMs, () => {
       if (this.mState !== MinionState.PATROL) return;
@@ -155,6 +158,7 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
     this.pb.setVelocity(0, 0);
     this.applyBaseTint();
     this.stateTimer?.destroy();
+    this.stateTimer = undefined;
     this.updateDir();
     this.playDir(`${this.animPrefix}_walk`);
     const delay = Phaser.Math.Between(1500, 2500);
@@ -164,6 +168,7 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
   private enterDashWarn(): void {
     this.mState = MinionState.DASH_WARN;
     this.stateTimer?.destroy();
+    this.stateTimer = undefined;
     this.pb.setVelocity(0, 0);
     [this.atkX, this.atkY] = this.getTargetPos();
     this.updateDir();
@@ -175,6 +180,7 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
   private enterDashing(): void {
     this.mState = MinionState.DASHING;
     this.stateTimer?.destroy();
+    this.stateTimer = undefined;
     this.clearTint();
     this.setTint(0xff8800);
     const angle = Phaser.Math.Angle.Between(this.x, this.y, this.atkX, this.atkY);
@@ -199,6 +205,7 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
   private die(): void {
     this.mState = MinionState.DEAD;
     this.stateTimer?.destroy();
+    this.stateTimer = undefined;
     this.pb.setVelocity(0, 0);
     this.applyBaseTint();
     this.hpBarGfx.destroy();
@@ -238,8 +245,10 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
 
     if (this.mState === MinionState.PATROL) {
       const [tx, ty] = this.getTargetPos();
-      if (Phaser.Math.Distance.Between(this.x, this.y, tx, ty) <= this.aggroRange) {
+      // 只在走回家之後才允許重新 aggro，避免抖動
+      if (!this.isReturning && Phaser.Math.Distance.Between(this.x, this.y, tx, ty) <= this.aggroRange) {
         this.stateTimer?.destroy();
+        this.stateTimer = undefined;
         this.enterIdle();
         return;
       }
@@ -255,6 +264,13 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
         if (this.dir !== prevDir) this.playDir(`${this.animPrefix}_walk`);
       } else {
         this.pb.setVelocity(0, 0);
+        this.isReturning = false; // 已回到家，可以重新 aggro
+        // 到達目標點後若還沒開始計時，稍等後挑下一個巡邏點
+        if (!this.stateTimer) {
+          this.stateTimer = this.scene.time.delayedCall(Phaser.Math.Between(400, 1200), () => {
+            if (this.mState === MinionState.PATROL) this.pickPatrolTarget();
+          });
+        }
       }
     }
 
@@ -262,7 +278,9 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
       const [tx, ty] = this.getTargetPos();
       const dist     = Phaser.Math.Distance.Between(this.x, this.y, tx, ty);
 
-      if (dist > this.deaggroRange) { this.enterPatrol(); return; }
+      const [px, py] = [tx, ty];
+      const distFromHome = Phaser.Math.Distance.Between(this.patrolCenter.x, this.patrolCenter.y, px, py);
+      if (dist > this.deaggroRange || distFromHome > this.leashRange) { this.enterPatrol(); return; }
 
       const body = this.pb;
       const prevDir  = this.dir;

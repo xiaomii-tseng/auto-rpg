@@ -24,7 +24,7 @@ export class BossWhiteSlime extends Boss {
     let fn: () => void;
     if      (roll < 0.50) fn = () => this.enterHolyCrossWarn();
     else                  fn = () => this.enterHolyOrbsWarn();
-    this.stateTimer = this.scene.time.delayedCall(2000, fn);
+    this.stateTimer = this.scene.time.delayedCall(this.getNextAttackDelay(), fn);
   }
 
   // ── 聖光十字 ──────────────────────────────────────────

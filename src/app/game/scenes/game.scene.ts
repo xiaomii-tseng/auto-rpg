@@ -5,6 +5,7 @@ import { BossGreenSlime }  from '../objects/boss-green-slime';
 import { BossRedSlime }    from '../objects/boss-red-slime';
 import { BossBlueSlime }   from '../objects/boss-blue-slime';
 import { BossWhiteSlime }  from '../objects/boss-white-slime';
+import { BossZombieSlime } from '../objects/boss-zombie-slime';
 import { MinionSlime } from '../objects/minion-slime';
 import { SlashEffect } from '../objects/slash-effect';
 import { VirtualJoystick } from '../ui/joystick';
@@ -1670,9 +1671,9 @@ export class GameScene extends Phaser.Scene {
     let cx = 0, cy = 0;
     let dir = Phaser.Math.FloatBetween(0, Math.PI * 2);
     const raw: Phaser.Math.Vector2[] = [new Phaser.Math.Vector2(cx, cy)];
-    for (let i = 0; i < Phaser.Math.Between(4, 6); i++) {
+    for (let i = 0; i < Phaser.Math.Between(3, 5); i++) {
       dir += Phaser.Math.FloatBetween(-Math.PI * 0.5, Math.PI * 0.5);
-      const dist = Phaser.Math.Between(700, 1000);
+      const dist = Phaser.Math.Between(600, 800);
       cx += Math.cos(dir) * dist;
       cy += Math.sin(dir) * dist;
       raw.push(new Phaser.Math.Vector2(cx, cy));
@@ -1895,7 +1896,7 @@ export class GameScene extends Phaser.Scene {
   private createBoss(bossDef: MonsterDef, totalHp: number): Boss {
     const cx = this.bossArenaCenter.x, cy = this.bossArenaCenter.y;
     if (bossDef.id === 'boss_slime_green') {
-      const b = new BossGreenSlime(this, cx, cy, totalHp, bossDef.element, bossDef.spriteKey);
+      const b = new BossGreenSlime(this, cx, cy, totalHp, bossDef.element, bossDef.spriteKey, bossDef.tint);
       b.onSummonElite = (x, y) => {
         if (!this.bossActive) return;
         this.spawnMinionAt('elite_slime_green', x, y, true);
@@ -1908,7 +1909,7 @@ export class GameScene extends Phaser.Scene {
       return b;
     }
     if (bossDef.id === 'boss_slime_red') {
-      const b = new BossRedSlime(this, cx, cy, totalHp, bossDef.element, bossDef.spriteKey);
+      const b = new BossRedSlime(this, cx, cy, totalHp, bossDef.element, bossDef.spriteKey, bossDef.tint);
       b.onJumpHit = (x, y, r, dmg) => {
         if (!this.bossActive) return;
         const dSq = Phaser.Math.Distance.BetweenPointsSquared({ x, y }, this.player);
@@ -1927,7 +1928,7 @@ export class GameScene extends Phaser.Scene {
       return b;
     }
     if (bossDef.id === 'boss_slime_blue') {
-      const b = new BossBlueSlime(this, cx, cy, totalHp, bossDef.element, bossDef.spriteKey);
+      const b = new BossBlueSlime(this, cx, cy, totalHp, bossDef.element, bossDef.spriteKey, bossDef.tint);
       b.onSpikeHit = (x, y, dmg) => {
         if (!this.bossActive) return;
         const dSq = Phaser.Math.Distance.BetweenPointsSquared({ x, y }, this.player);
@@ -1948,7 +1949,7 @@ export class GameScene extends Phaser.Scene {
       return b;
     }
     if (bossDef.id === 'boss_slime_white') {
-      const b = new BossWhiteSlime(this, cx, cy, totalHp, bossDef.element, bossDef.spriteKey);
+      const b = new BossWhiteSlime(this, cx, cy, totalHp, bossDef.element, bossDef.spriteKey, bossDef.tint);
       b.onCrossHit = (dmg) => {
         if (!this.bossActive) return;
         this.player.takeDamage(dmg);
@@ -1960,7 +1961,19 @@ export class GameScene extends Phaser.Scene {
       };
       return b;
     }
-    return new Boss(this, cx, cy, totalHp, bossDef.element, bossDef.spriteKey);
+    if (bossDef.id === 'boss_zombie_slime') {
+      const b = new BossZombieSlime(this, cx, cy, totalHp, bossDef.element, bossDef.spriteKey, bossDef.tint);
+      b.onSummonZombie = (x, y) => {
+        if (!this.bossActive) return;
+        this.spawnMinionAt('elite_slime_zombie', x, y, true);
+      };
+      b.onPoisonFanHit = (dmg) => {
+        if (!this.bossActive) return;
+        this.player.takeDamage(dmg);
+      };
+      return b;
+    }
+    return new Boss(this, cx, cy, totalHp, bossDef.element, bossDef.spriteKey, bossDef.tint);
   }
 
   private spawnMinionAt(defId: string, wx: number, wy: number, isElite: boolean): void {
@@ -2013,7 +2026,7 @@ export class GameScene extends Phaser.Scene {
     const hpMult       = STAR_HP_MULT[this.questStar] ?? 1;
 
     // 每星級數量 × 1.3^(star-1)
-    const countMult = Math.pow(1.3, this.questStar - 1);
+    const countMult = Math.pow(1.15, this.questStar - 1);
 
     const spawnMinion = (defId: string, wx: number, wy: number, isElite: boolean) => {
       const def = getMonsterDef(defId);
@@ -2021,7 +2034,7 @@ export class GameScene extends Phaser.Scene {
       const hp  = Math.round(def.hp * hpMult * (isElite ? ELITE_HP_MULT : 1));
       const atk = Math.round(def.atk * hpMult * (isElite ? 1.5 : 1));
       const a   = Phaser.Math.FloatBetween(0, Math.PI * 2);
-      const r   = Phaser.Math.FloatBetween(20, 70);
+      const r   = Phaser.Math.FloatBetween(60, 160);
       const m   = new MinionSlime(this, wx + Math.cos(a) * r, wy + Math.sin(a) * r, hp, def.spriteKey, def.tint);
       m.atk = atk;
       if (isElite) {
@@ -2039,20 +2052,32 @@ export class GameScene extends Phaser.Scene {
       });
     };
 
-    for (let i = 1; i < this.waypoints.length - 1; i++) {
-      const wp        = this.waypoints[i];
-      const baseCount = Phaser.Math.Between(4, 7);
+    const spawnAt = (wx: number, wy: number) => {
+      const baseCount = Phaser.Math.Between(8, 15);
       const count     = Math.round(baseCount * countMult);
-
       for (let j = 0; j < count; j++) {
         const minionId = (mainMinionId && Math.random() < 0.7)
           ? mainMinionId
           : otherPool[Phaser.Math.Between(0, otherPool.length - 1)];
         const eliteId  = mainMinionId ? MINION_TO_ELITE[minionId] : undefined;
         const goElite  = !!eliteId && Math.random() < 0.12;
-        spawnMinion(goElite ? eliteId! : minionId, wp.x, wp.y, goElite);
+        spawnMinion(goElite ? eliteId! : minionId, wx, wy, goElite);
+      }
+    };
+
+    // waypoints：跳過第一個（出生點）和最後一個（Boss 傳送門）
+    for (let i = 1; i < this.waypoints.length - 1; i++) {
+      spawnAt(this.waypoints[i].x, this.waypoints[i].y);
+    }
+
+    // 轉角點：40% 機率生怪，製造偶爾的重疊感，跳過首尾
+    for (let i = 1; i < this.cornerPts.length - 1; i++) {
+      if (Math.random() < 0.4) {
+        const c = this.cornerPts[i];
+        spawnAt(c.x, c.y);
       }
     }
+
 
     this.time.delayedCall(400, () => { for (const m of this.allMinions) m.start(); });
   }
@@ -2701,169 +2726,69 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
-  private showEndScreen(victory: boolean): void {
+  private showEndScreen(_victory: boolean): void {
     const W = this.scale.width;
     const H = this.scale.height;
+    const D = 10000;
 
-    if (victory) this.launchFireworks(W, H);
-
-    // ── 半透明暗色底層 ──────────────────────────────────
-    const overlay = this.add.graphics().setScrollFactor(0).setDepth(1000);
-    overlay.fillStyle(0x000000, victory ? 0.55 : 0.72);
+    // ── 全螢幕暗色遮罩 ──────────────────────────────────
+    const overlay = this.add.graphics().setScrollFactor(0).setDepth(D);
+    overlay.fillStyle(0x000000, 0.80);
     overlay.fillRect(0, 0, W, H);
 
     // ── 面板 ────────────────────────────────────────────
-    const PW = 320, PH = victory ? 180 : 220;
+    const PW = 300, PH = 200;
     const px = W / 2 - PW / 2, py = H / 2 - PH / 2;
-    const D  = 1001;
 
-    const panel = this.add.graphics().setScrollFactor(0).setDepth(D);
-    // 外框陰影
-    panel.fillStyle(0x000000, 0.6); panel.fillRoundedRect(px + 4, py + 4, PW, PH, 10);
-    // 木色底
-    panel.fillStyle(0x3a1e0a, 1);   panel.fillRoundedRect(px, py, PW, PH, 10);
-    panel.fillStyle(0x5a3018, 1);   panel.fillRoundedRect(px + 2, py + 2, PW - 4, PH - 4, 9);
-    // 頂部色帶
-    const bandColor = victory ? 0x887700 : 0x880000;
-    panel.fillStyle(bandColor, 0.7); panel.fillRoundedRect(px + 2, py + 2, PW - 4, 46, { tl: 9, tr: 9, bl: 0, br: 0 });
-    // 金/紅框線
-    const frameColor = victory ? 0xf0c040 : 0xcc3333;
-    panel.lineStyle(2, frameColor, 0.85); panel.strokeRoundedRect(px, py, PW, PH, 10);
-    // 內框線
-    panel.lineStyle(1, victory ? 0xffee88 : 0xff6666, 0.25);
+    const panel = this.add.graphics().setScrollFactor(0).setDepth(D + 1);
+    panel.fillStyle(0x000000, 0.5);
+    panel.fillRoundedRect(px + 4, py + 4, PW, PH, 10);
+    panel.fillStyle(0x1a0a0a, 1);
+    panel.fillRoundedRect(px, py, PW, PH, 10);
+    panel.fillStyle(0x2a1010, 1);
+    panel.fillRoundedRect(px + 2, py + 2, PW - 4, PH - 4, 9);
+    panel.fillStyle(0x660000, 0.8);
+    panel.fillRoundedRect(px + 2, py + 2, PW - 4, 44, { tl: 9, tr: 9, bl: 0, br: 0 });
+    panel.lineStyle(2, 0xaa2222, 0.9);
+    panel.strokeRoundedRect(px, py, PW, PH, 10);
+    panel.lineStyle(1, 0xff4444, 0.2);
     panel.strokeRoundedRect(px + 4, py + 4, PW - 8, PH - 8, 8);
 
     // ── 標題 ────────────────────────────────────────────
-    const titleText  = victory ? '挑戰成功！' : '挑戰失敗';
-    const titleColor = victory ? '#ffdd00'    : '#ff5555';
-    this.add.text(W / 2, py + 26, titleText, {
-      fontSize: '26px', color: titleColor, stroke: '#000', strokeThickness: 5,
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(D + 1);
+    this.add.text(W / 2, py + 32, '冒險者倒下了', {
+      fontSize: '24px', color: '#ff4444',
+      stroke: '#000', strokeThickness: 6,
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(D + 2);
 
     // 分隔線
-    const sep = this.add.graphics().setScrollFactor(0).setDepth(D + 1);
-    sep.fillStyle(frameColor, 0.5); sep.fillRect(px + 16, py + 52, PW - 32, 1);
+    const sep = this.add.graphics().setScrollFactor(0).setDepth(D + 2);
+    sep.fillStyle(0xaa2222, 0.4);
+    sep.fillRect(px + 20, py + 58, PW - 40, 1);
 
-    // ── 按鈕輔助 ────────────────────────────────────────
-    const makeBtn = (
-      cx: number, cy: number, label: string,
-      bgColor: number, borderColor: number, labelColor: string, hoverColor: string,
-      onClick: () => void,
-    ) => {
-      const BW = 120, BH = 40;
-      const g = this.add.graphics().setScrollFactor(0).setDepth(D + 1);
-      g.fillStyle(bgColor, 1);       g.fillRoundedRect(cx - BW / 2, cy - BH / 2, BW, BH, 7);
-      g.fillStyle(0xffffff, 0.06);   g.fillRoundedRect(cx - BW / 2, cy - BH / 2, BW, BH / 2, { tl: 7, tr: 7, bl: 0, br: 0 });
-      g.lineStyle(2, borderColor, 0.85); g.strokeRoundedRect(cx - BW / 2, cy - BH / 2, BW, BH, 7);
-      g.fillStyle(borderColor, 0.4); g.fillRoundedRect(cx - BW / 2, cy - BH / 2, BW, 2, { tl: 7, tr: 7, bl: 0, br: 0 });
+    // ── 返回村莊按鈕 ────────────────────────────────────
+    const BW = 140, BH = 42;
+    const cx = W / 2, cy = py + PH - 48;
+    const g = this.add.graphics().setScrollFactor(0).setDepth(D + 2);
+    g.fillStyle(0x1a0808, 1);
+    g.fillRoundedRect(cx - BW / 2, cy - BH / 2, BW, BH, 7);
+    g.fillStyle(0xffffff, 0.05);
+    g.fillRoundedRect(cx - BW / 2, cy - BH / 2, BW, BH / 2, { tl: 7, tr: 7, bl: 0, br: 0 });
+    g.lineStyle(2, 0xaa2222, 0.9);
+    g.strokeRoundedRect(cx - BW / 2, cy - BH / 2, BW, BH, 7);
+    g.fillStyle(0xaa2222, 0.35);
+    g.fillRoundedRect(cx - BW / 2, cy - BH / 2, BW, 2, { tl: 7, tr: 7, bl: 0, br: 0 });
 
-      const txt = this.add.text(cx, cy, label, {
-        fontSize: '16px', color: labelColor, stroke: '#000', strokeThickness: 2,
-      }).setOrigin(0.5).setScrollFactor(0).setDepth(D + 2);
+    const txt = this.add.text(cx, cy, '返回村莊', {
+      fontSize: '16px', color: '#ff8888', stroke: '#000', strokeThickness: 3,
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(D + 3);
 
-      const hit = this.add.rectangle(cx, cy, BW, BH)
-        .setScrollFactor(0).setDepth(D + 3).setInteractive({ useHandCursor: true });
-      hit.on('pointerover',  () => txt.setStyle({ color: hoverColor }));
-      hit.on('pointerout',   () => txt.setStyle({ color: labelColor }));
-      hit.on('pointerdown',  onClick);
-    };
-
-    if (victory) {
-      makeBtn(W / 2, py + PH - 50, '返回大廳',
-        0x1a3320, 0x44bb66, '#88ffaa', '#ffffff',
-        () => this.scene.start('PrepScene'));
-    } else {
-      // 副標
-      this.add.text(W / 2, py + 82, '英勇的冒險者，再接再厲！', {
-        fontSize: '13px', color: '#bb9966', stroke: '#000', strokeThickness: 2,
-      }).setOrigin(0.5).setScrollFactor(0).setDepth(D + 1);
-
-      makeBtn(W / 2 - 72, py + PH - 52, '再次挑戰',
-        0x3a1010, 0xcc3333, '#ffaaaa', '#ffffff',
-        () => this.scene.restart());
-
-      makeBtn(W / 2 + 72, py + PH - 52, '返回大廳',
-        0x1a2a1a, 0x446644, '#88cc88', '#ffffff',
-        () => this.scene.start('PrepScene'));
-    }
+    const hit = this.add.rectangle(cx, cy, BW, BH)
+      .setScrollFactor(0).setDepth(D + 4).setInteractive({ useHandCursor: true });
+    hit.on('pointerover',  () => { g.setAlpha(0.8);  txt.setStyle({ color: '#ffffff' }); });
+    hit.on('pointerout',   () => { g.setAlpha(1.0);  txt.setStyle({ color: '#ff8888' }); });
+    hit.on('pointerdown',  () => this.scene.start('PrepScene'));
   }
 
-  private launchFireworks(W: number, H: number): void {
-    const colors = [0xffdd00, 0xff3355, 0x33aaff, 0x44ff88, 0xff66bb, 0xffffff, 0xff8833];
-
-    const burst = (cx: number, cy: number, color: number, delay: number) => {
-      this.time.delayedCall(delay, () => {
-        // White flash
-        const flash = this.add.graphics().setScrollFactor(0).setDepth(1005).setPosition(cx, cy);
-        flash.fillStyle(0xffffff, 1);
-        flash.fillCircle(0, 0, 16);
-        this.tweens.add({
-          targets: flash, alpha: 0, scaleX: 3, scaleY: 3,
-          duration: 250, ease: 'Cubic.easeOut',
-          onComplete: () => flash.destroy(),
-        });
-
-        // Main sparks
-        for (let i = 0; i < 24; i++) {
-          const angle = (i / 24) * Math.PI * 2 + Phaser.Math.FloatBetween(-0.15, 0.15);
-          const dist = Phaser.Math.Between(80, 170);
-          const sz = Phaser.Math.Between(3, 7);
-          const c = i % 5 === 0 ? 0xffffff : color;
-
-          const spark = this.add.graphics().setScrollFactor(0).setDepth(1006).setPosition(cx, cy);
-          spark.fillStyle(c, 1);
-          spark.fillCircle(0, 0, sz);
-          this.tweens.add({
-            targets: spark,
-            x: cx + Math.cos(angle) * dist,
-            y: cy + Math.sin(angle) * dist,
-            alpha: 0, scaleX: 0.1, scaleY: 0.1,
-            duration: Phaser.Math.Between(700, 1200),
-            ease: 'Cubic.easeOut',
-            onComplete: () => spark.destroy(),
-          });
-        }
-
-        // Inner sparkles
-        for (let i = 0; i < 12; i++) {
-          const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
-          const dist = Phaser.Math.Between(20, 55);
-          const s = this.add.graphics().setScrollFactor(0).setDepth(1006).setPosition(cx, cy);
-          s.fillStyle(0xffffcc, 1);
-          s.fillCircle(0, 0, 2);
-          this.tweens.add({
-            targets: s,
-            x: cx + Math.cos(angle) * dist,
-            y: cy + Math.sin(angle) * dist,
-            alpha: 0, duration: Phaser.Math.Between(300, 600),
-            delay: Phaser.Math.Between(50, 200),
-            ease: 'Sine.easeOut',
-            onComplete: () => s.destroy(),
-          });
-        }
-      });
-    };
-
-    const spots: [number, number][] = [
-      [W / 2, H / 2],
-      [W * 0.28, H * 0.30],
-      [W * 0.72, H * 0.30],
-      [W * 0.20, H * 0.65],
-      [W * 0.80, H * 0.65],
-      [W / 2, H * 0.18],
-      [W / 2, H * 0.78],
-    ];
-
-    spots.forEach(([x, y], i) =>
-      burst(x, y, colors[i % colors.length], i * 320));
-    spots.forEach(([x, y], i) =>
-      burst(
-        x + Phaser.Math.Between(-25, 25),
-        y + Phaser.Math.Between(-25, 25),
-        colors[(i + 3) % colors.length],
-        2400 + i * 280,
-      ));
-  }
 
   // ── Scene helpers ─────────────────────────────────────
 

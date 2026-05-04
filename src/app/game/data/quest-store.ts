@@ -56,7 +56,7 @@ const STAR_WEIGHT: Record<number, number> = {
 // ── Helpers ────────────────────────────────────────────────────────────────
 
 const BOSS_POOL = [
-  'boss_slime_white',
+  'boss_zombie_slime',
 ];
 
 const FLAVOR_TEMPLATES: Array<(name: string, star: number) => string> = [
