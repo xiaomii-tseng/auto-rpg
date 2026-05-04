@@ -7,7 +7,15 @@ export enum BossState {
   AOE_EXPLODE = 'AOE_EXPLODE',
   DASH_WARN   = 'DASH_WARN',
   DASHING     = 'DASHING',
-  DEAD        = 'DEAD',
+  SUMMON_WARN = 'SUMMON_WARN',
+  POISON_WARN = 'POISON_WARN',
+  JUMP_WARN      = 'JUMP_WARN',
+  FIRE_WARN      = 'FIRE_WARN',
+  ICE_SPIKE_WARN   = 'ICE_SPIKE_WARN',
+  ICE_MINE_WARN    = 'ICE_MINE_WARN',
+  HOLY_CROSS_WARN  = 'HOLY_CROSS_WARN',
+  HOLY_ORBS_WARN   = 'HOLY_ORBS_WARN',
+  DEAD             = 'DEAD',
 }
 
 export class Boss extends Phaser.Physics.Arcade.Sprite {
@@ -17,13 +25,13 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
   private bossState = BossState.IDLE;
   private started   = false;
   private bossDir: 'down' | 'left' | 'right' | 'up' = 'down';
-  private stateTimer?: Phaser.Time.TimerEvent;
+  protected stateTimer?: Phaser.Time.TimerEvent;
   private aoeTrackTimer?: Phaser.Time.TimerEvent;
-  private pulseTween?: Phaser.Tweens.Tween;
+  protected pulseTween?: Phaser.Tweens.Tween;
   private dashTrailTimer?: Phaser.Time.TimerEvent;
   private dashTrailEmitter?: Phaser.GameObjects.Particles.ParticleEmitter;
-  private warnParticles?: Phaser.GameObjects.Particles.ParticleEmitter;
-  private readonly warningGfx: Phaser.GameObjects.Graphics;
+  protected warnParticles?: Phaser.GameObjects.Particles.ParticleEmitter;
+  protected readonly warningGfx: Phaser.GameObjects.Graphics;
 
   private atkX = 0;
   private atkY = 0;
@@ -34,17 +42,27 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
   static readonly DASH_MS    = 620;
 
   protected idleChaseSpeed = 80;
+  protected readonly animPrefix: string;
 
   readonly element: Element;
 
   getTargetPos: () => [number, number] = () => [0, 0];
 
+  burnStacks    = 0;
+  burnExpiresAt = 0;
+
+  applyBurn(gameTime: number): void {
+    if (this.burnStacks < 15) this.burnStacks++;
+    this.burnExpiresAt = gameTime + 4000;
+  }
+
   onHpChanged?: (hp: number, maxHp: number) => void;
   onDead?: () => void;
   onAoeExplode?: (x: number, y: number) => void;
 
-  constructor(scene: Phaser.Scene, x: number, y: number, totalHp = 500, element: Element = 'none') {
-    super(scene, x, y, 'slime_idle', 0);
+  constructor(scene: Phaser.Scene, x: number, y: number, totalHp = 500, element: Element = 'none', spriteKey = 'slime') {
+    super(scene, x, y, `${spriteKey}_idle`, 0);
+    this.animPrefix = spriteKey;
     this.hp = totalHp;
     this.maxHp = totalHp;
     this.element = element;
@@ -79,13 +97,13 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
 
     if (dist <= this.idleStopRange) {
       body.setVelocity(0, 0);
-      if (this.bossDir !== prevDir) this.playDir('slime_idle');
+      if (this.bossDir !== prevDir) this.playDir(`${this.animPrefix}_idle`);
     } else {
       const angle = Phaser.Math.Angle.Between(this.x, this.y, tx, ty);
       (this.scene.physics as Phaser.Physics.Arcade.ArcadePhysics).velocityFromAngle(
         Phaser.Math.RadToDeg(angle), this.idleChaseSpeed, body.velocity,
       );
-      if (this.bossDir !== prevDir) this.playDir('slime_walk');
+      if (this.bossDir !== prevDir) this.playDir(`${this.animPrefix}_walk`);
     }
   }
 
@@ -104,7 +122,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     this.hp = Math.max(0, this.hp - amount);
     this.onHpChanged?.(this.hp, this.maxHp);
 
-    this.playDir('slime_hurt');
+    this.playDir(`${this.animPrefix}_hurt`);
     this.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => {
       if (this.bossState !== BossState.DEAD) this.resumeStateAnim();
     });
@@ -114,10 +132,10 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
 
   private resumeStateAnim(): void {
     switch (this.bossState) {
-      case BossState.IDLE:      this.playDir('slime_walk');   break;
-      case BossState.AOE_WARN:  this.playDir('slime_attack'); break;
-      case BossState.DASH_WARN: this.playDir('slime_walk');   break;
-      case BossState.DASHING:   this.playDir('slime_run');    break;
+      case BossState.IDLE:      this.playDir(`${this.animPrefix}_walk`);   break;
+      case BossState.AOE_WARN:  this.playDir(`${this.animPrefix}_attack`); break;
+      case BossState.DASH_WARN: this.playDir(`${this.animPrefix}_walk`);   break;
+      case BossState.DASHING:   this.playDir(`${this.animPrefix}_run`);    break;
       default: break;
     }
   }
@@ -125,6 +143,8 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
   get currentState(): BossState { return this.bossState; }
   get currentHp(): number { return this.hp; }
   get maxHpValue(): number { return this.maxHp; }
+
+  protected setBossState(state: BossState): void { this.bossState = state; }
 
   private updateDirToTarget(): void {
     const [tx, ty] = this.getTargetPos();
@@ -142,13 +162,13 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     else                               this.bossDir = 'up';
   }
 
-  private playDir(base: string): void {
+  protected playDir(base: string): void {
     this.play(`${base}_${this.bossDir}`, true);
   }
 
   // ── State Machine ─────────────────────────────────────
 
-  private enterIdle(): void {
+  protected enterIdle(): void {
     this.bossState = BossState.IDLE;
     (this.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
     this.clearWarning();
@@ -157,19 +177,23 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     this.setScale(2);
     this.stateTimer?.destroy();
     this.updateDirToTarget();
-    this.playDir('slime_walk');
+    this.playDir(`${this.animPrefix}_walk`);
+    this.pickNextAttack();
+  }
+
+  protected pickNextAttack(): void {
     const next = Math.random() < 0.5 ? () => this.enterAoeWarn() : () => this.enterDashWarn();
     this.stateTimer = this.scene.time.delayedCall(2000, next);
   }
 
-  private enterAoeWarn(): void {
+  protected enterAoeWarn(): void {
     this.bossState = BossState.AOE_WARN;
     this.stateTimer?.destroy();
     (this.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
     this.atkX = this.x;
     this.atkY = this.y;
     this.updateDirToTarget();
-    this.playDir('slime_attack');
+    this.playDir(`${this.animPrefix}_attack`);
     this.drawAoeWarning();
 
     // Embers rising from the boss's feet during warning
@@ -216,13 +240,13 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     this.stateTimer = this.scene.time.delayedCall(500, () => this.enterIdle());
   }
 
-  private enterDashWarn(): void {
+  protected enterDashWarn(): void {
     this.bossState = BossState.DASH_WARN;
     this.stateTimer?.destroy();
     (this.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
     [this.atkX, this.atkY] = this.getTargetPos();
     this.updateDirToTarget();
-    this.playDir('slime_walk');
+    this.playDir(`${this.animPrefix}_walk`);
     this.drawDashWarning();
 
     // Directional sparks pointing at dash target
@@ -248,28 +272,35 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     this.clearWarning();
     this.stateTimer?.destroy();
     this.setScale(2);
-    this.play('slime_walk', true);
-    this.anims.timeScale = 2.2;  // faster run animation during dash
+    this.play(`${this.animPrefix}_walk_down`, true);
+    this.anims.timeScale = 2.2;
     this.setTint(0xff8800);
 
     const angle = Phaser.Math.Angle.Between(this.x, this.y, this.atkX, this.atkY);
     this.dashAngle = angle;
     this.updateDirFromAngle(angle);
-    this.playDir('slime_run');
-    this.scene.physics.velocityFromAngle(
-      Phaser.Math.RadToDeg(angle),
-      Boss.DASH_SPEED,
-      (this.body as Phaser.Physics.Arcade.Body).velocity,
-    );
+    this.playDir(`${this.animPrefix}_run`);
+
+    // 計算並夾住終點，避免衝出地圖
+    const dist   = Boss.DASH_SPEED * (Boss.DASH_MS / 1000);
+    const bounds = this.scene.physics.world.bounds;
+    const PAD    = 40;
+    const endX   = Phaser.Math.Clamp(this.x + Math.cos(angle) * dist, bounds.left + PAD, bounds.right  - PAD);
+    const endY   = Phaser.Math.Clamp(this.y + Math.sin(angle) * dist, bounds.top  + PAD, bounds.bottom - PAD);
 
     this.startDashTrail();
 
-    this.stateTimer = this.scene.time.delayedCall(Boss.DASH_MS, () => {
-      (this.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
-      this.anims.timeScale = 1;
-      this.stopDashTrail();
-      this.spawnDashImpact(this.x, this.y);
-      this.enterIdle();
+    this.scene.tweens.add({
+      targets: this, x: endX, y: endY,
+      duration: Boss.DASH_MS, ease: 'Quad.Out',
+      onUpdate: () => (this.body as Phaser.Physics.Arcade.Body).reset(this.x, this.y),
+      onComplete: () => {
+        (this.body as Phaser.Physics.Arcade.Body).reset(endX, endY);
+        this.anims.timeScale = 1;
+        this.stopDashTrail();
+        this.spawnDashImpact(this.x, this.y);
+        this.enterIdle();
+      },
     });
   }
 
@@ -280,7 +311,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     this.stopDashTrail();
     this.anims.timeScale = 1;
     (this.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
-    this.playDir('slime_death');
+    this.playDir(`${this.animPrefix}_death`);
     this.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => {
       this.setActive(false).setVisible(false);
       this.onDead?.();
@@ -687,7 +718,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     });
   }
 
-  private clearWarning(): void {
+  protected clearWarning(): void {
     this.aoeTrackTimer?.destroy();
     this.aoeTrackTimer = undefined;
     this.pulseTween?.stop();

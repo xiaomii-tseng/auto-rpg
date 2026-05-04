@@ -14,7 +14,9 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
   private hp:        number;
   private readonly maxHp: number;
   private stateTimer?: Phaser.Time.TimerEvent;
-  private hpBarGfx: Phaser.GameObjects.Graphics;
+  private hpBarGfx:   Phaser.GameObjects.Graphics;
+  private debuffGfx:  Phaser.GameObjects.Graphics;
+  private debuffTexts: Map<string, Phaser.GameObjects.Text> = new Map();
   private dir: 'down' | 'left' | 'right' | 'up' = 'down';
   private atkX = 0;
   private atkY = 0;
@@ -35,8 +37,23 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
   getTargetPos: () => [number, number] = () => [0, 0];
   onDead?: () => void;
 
-  constructor(scene: Phaser.Scene, x: number, y: number, hp = 150) {
-    super(scene, x, y, 'slime_idle', 0);
+  isElite       = false;
+  atk           = 10;
+  burnStacks    = 0;
+  burnExpiresAt = 0;
+
+  applyBurn(gameTime: number): void {
+    if (this.burnStacks < 15) this.burnStacks++;
+    this.burnExpiresAt = gameTime + 4000;
+  }
+
+  private readonly animPrefix: string;
+  private readonly baseTint:   number;
+
+  constructor(scene: Phaser.Scene, x: number, y: number, hp = 150, spriteKey = 'slime', tint = 0xffffff) {
+    super(scene, x, y, `${spriteKey}_idle`, 0);
+    this.animPrefix = spriteKey;
+    this.baseTint   = tint;
     this.hp    = hp;
     this.maxHp = hp;
     scene.add.existing(this);
@@ -49,9 +66,16 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
     this.pb.setSize(19, 12).setOffset(23, 29);
     this.setScale(0.78);
     this.setDepth(12);
-    this.play('slime_idle_down', true);
+    this.applyBaseTint();
+    this.play(`${spriteKey}_idle_down`, true);
     this.setVisible(false);
-    this.hpBarGfx = scene.add.graphics().setDepth(50);
+    this.hpBarGfx  = scene.add.graphics().setDepth(50);
+    this.debuffGfx = scene.add.graphics().setDepth(51);
+  }
+
+  private applyBaseTint(): void {
+    if (this.baseTint === 0xffffff) this.clearTint();
+    else this.setTint(this.baseTint);
   }
 
   start(): void {
@@ -71,7 +95,7 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
     this.hp = Math.max(0, this.hp - amount);
     this.setTint(0xff8888);
     this.scene.time.delayedCall(120, () => {
-      if (this.mState !== MinionState.DEAD) this.clearTint();
+      if (this.mState !== MinionState.DEAD) this.applyBaseTint();
     });
     if (this.hp <= 0) this.die();
   }
@@ -97,9 +121,9 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
     this.mState = MinionState.PATROL;
     this.stateTimer?.destroy();
     this.pb.setVelocity(0, 0);
-    this.clearTint();
+    this.applyBaseTint();
     this.updateDir();
-    this.playDir('slime_idle');
+    this.playDir(`${this.animPrefix}_idle`);
     const delay = Phaser.Math.Between(400, 1400);
     this.stateTimer = this.scene.time.delayedCall(delay, () => {
       if (this.mState === MinionState.PATROL) this.pickPatrolTarget();
@@ -112,14 +136,14 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
     this.patrolTargetX = this.patrolCenter.x + Math.cos(angle) * dist;
     this.patrolTargetY = this.patrolCenter.y + Math.sin(angle) * dist;
     this.updateDirTo(this.patrolTargetX, this.patrolTargetY);
-    this.playDir('slime_walk');
+    this.playDir(`${this.animPrefix}_walk`);
     this.stateTimer?.destroy();
     const travelMs = Phaser.Math.Between(2000, 3500);
     this.stateTimer = this.scene.time.delayedCall(travelMs, () => {
       if (this.mState !== MinionState.PATROL) return;
       this.pb.setVelocity(0, 0);
       this.updateDir();
-      this.playDir('slime_idle');
+      this.playDir(`${this.animPrefix}_idle`);
       this.stateTimer = this.scene.time.delayedCall(Phaser.Math.Between(600, 1800), () => {
         if (this.mState === MinionState.PATROL) this.pickPatrolTarget();
       });
@@ -129,10 +153,10 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
   private enterIdle(): void {
     this.mState = MinionState.IDLE;
     this.pb.setVelocity(0, 0);
-    this.clearTint();
+    this.applyBaseTint();
     this.stateTimer?.destroy();
     this.updateDir();
-    this.playDir('slime_walk');
+    this.playDir(`${this.animPrefix}_walk`);
     const delay = Phaser.Math.Between(1500, 2500);
     this.stateTimer = this.scene.time.delayedCall(delay, () => this.enterDashWarn());
   }
@@ -143,7 +167,7 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
     this.pb.setVelocity(0, 0);
     [this.atkX, this.atkY] = this.getTargetPos();
     this.updateDir();
-    this.playDir('slime_attack');
+    this.playDir(`${this.animPrefix}_attack`);
     this.setTint(0xff4400);
     this.stateTimer = this.scene.time.delayedCall(650, () => this.enterDashing());
   }
@@ -159,7 +183,7 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
     else if (deg > 45   && deg <= 135)  this.dir = 'down';
     else if (deg > 135  || deg <= -135) this.dir = 'left';
     else                                 this.dir = 'up';
-    this.playDir('slime_run');
+    this.playDir(`${this.animPrefix}_run`);
     (this.scene.physics as Phaser.Physics.Arcade.ArcadePhysics).velocityFromAngle(
       deg, MinionSlime.DASH_SPEED,
       this.pb.velocity,
@@ -167,7 +191,7 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
     this.stateTimer = this.scene.time.delayedCall(MinionSlime.DASH_MS, () => {
       this.pb.setVelocity(0, 0);
       this.anims.timeScale = 1;
-      this.clearTint();
+      this.applyBaseTint();
       this.enterIdle();
     });
   }
@@ -176,9 +200,12 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
     this.mState = MinionState.DEAD;
     this.stateTimer?.destroy();
     this.pb.setVelocity(0, 0);
-    this.clearTint();
+    this.applyBaseTint();
     this.hpBarGfx.destroy();
-    this.playDir('slime_death');
+    this.debuffGfx.destroy();
+    this.debuffTexts.forEach(t => t.destroy());
+    this.debuffTexts.clear();
+    this.playDir(`${this.animPrefix}_death`);
     this.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => {
       this.setActive(false).setVisible(false);
       this.onDead?.();
@@ -225,7 +252,7 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
         );
         const prevDir = this.dir;
         this.updateDirTo(dtx, dty);
-        if (this.dir !== prevDir) this.playDir('slime_walk');
+        if (this.dir !== prevDir) this.playDir(`${this.animPrefix}_walk`);
       } else {
         this.pb.setVelocity(0, 0);
       }
@@ -243,13 +270,13 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
 
       if (dist <= MinionSlime.STOP_RANGE) {
         body.setVelocity(0, 0);
-        if (this.dir !== prevDir) this.playDir('slime_idle');
+        if (this.dir !== prevDir) this.playDir(`${this.animPrefix}_idle`);
       } else {
         const angle = Phaser.Math.Angle.Between(this.x, this.y, tx, ty);
         (this.scene.physics as Phaser.Physics.Arcade.ArcadePhysics).velocityFromAngle(
           Phaser.Math.RadToDeg(angle), MinionSlime.CHASE_SPEED, body.velocity,
         );
-        if (this.dir !== prevDir) this.playDir('slime_walk');
+        if (this.dir !== prevDir) this.playDir(`${this.animPrefix}_walk`);
       }
     }
 
@@ -258,21 +285,120 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
 
   private drawHpBar(): void {
     this.hpBarGfx.clear();
-    const bw = 30, bh = 4;
-    const bx = this.x - bw / 2;
-    const by = this.y - 32;
-    this.hpBarGfx.fillStyle(0x330000, 0.8);
-    this.hpBarGfx.fillRect(bx, by, bw, bh);
-    const pct   = this.hp / this.maxHp;
-    const color = pct > 0.5 ? 0x44cc44 : pct > 0.25 ? 0xffaa00 : 0xff2200;
-    this.hpBarGfx.fillStyle(color);
-    this.hpBarGfx.fillRect(bx, by, bw * pct, bh);
-    this.hpBarGfx.lineStyle(1, 0x000000, 0.5);
-    this.hpBarGfx.strokeRect(bx, by, bw, bh);
+    const pct = this.hp / this.maxHp;
+
+    if (this.isElite) {
+      const bw = 44, bh = 6;
+      const bx = this.x - bw / 2;
+      const by = this.y - 35;
+      // dark background
+      this.hpBarGfx.fillStyle(0x1a0000, 0.9);
+      this.hpBarGfx.fillRect(bx, by, bw, bh);
+      // fill — gold-to-orange gradient effect via single color by pct
+      const color = pct > 0.5 ? 0xffcc00 : pct > 0.25 ? 0xff8800 : 0xff2200;
+      this.hpBarGfx.fillStyle(color);
+      this.hpBarGfx.fillRect(bx, by, bw * pct, bh);
+      // gold border (2px)
+      this.hpBarGfx.lineStyle(2, 0xddaa00, 1);
+      this.hpBarGfx.strokeRect(bx, by, bw, bh);
+      // inner highlight line
+      this.hpBarGfx.lineStyle(1, 0xffffff, 0.25);
+      this.hpBarGfx.lineBetween(bx + 1, by + 1, bx + bw * pct - 1, by + 1);
+      this.drawDebuffIcons(this.x, by + bh + 9);
+    } else {
+      const bw = 30, bh = 4;
+      const bx = this.x - bw / 2;
+      const by = this.y - 32;
+      this.hpBarGfx.fillStyle(0x330000, 0.8);
+      this.hpBarGfx.fillRect(bx, by, bw, bh);
+      const color = pct > 0.5 ? 0x44cc44 : pct > 0.25 ? 0xffaa00 : 0xff2200;
+      this.hpBarGfx.fillStyle(color);
+      this.hpBarGfx.fillRect(bx, by, bw * pct, bh);
+      this.hpBarGfx.lineStyle(1, 0x000000, 0.5);
+      this.hpBarGfx.strokeRect(bx, by, bw, bh);
+      this.drawDebuffIcons(this.x, by + bh + 9);
+    }
+  }
+
+  // ── Debuff icon system ───────────────────────────────
+  // Each debuff occupies one icon slot (14px wide). Add new debuffs here.
+
+  private drawDebuffIcons(cx: number, cy: number): void {
+    this.debuffGfx.clear();
+    const now = this.scene.time.now;
+    let slot  = 0;
+
+    if (this.burnStacks > 0 && now < this.burnExpiresAt) {
+      this.drawDebuffIcon(cx + slot * 16 - 8, cy, 'burn', 0xff4400, 0x220800);
+      this.updateDebuffText('burn', cx + slot * 16 - 8, cy, `${this.burnStacks}`);
+      slot++;
+    } else {
+      this.hideDebuffText('burn');
+    }
+
+    // hide texts for any slots beyond what's active
+    if (slot === 0) this.debuffGfx.clear();
+  }
+
+  private drawDebuffIcon(cx: number, cy: number, key: string, rimColor: number, bgColor: number): void {
+    const r = 7;
+    // outer glow
+    this.debuffGfx.fillStyle(rimColor, 0.3);
+    this.debuffGfx.fillCircle(cx, cy, r + 2);
+    // background
+    this.debuffGfx.fillStyle(bgColor, 0.92);
+    this.debuffGfx.fillCircle(cx, cy, r);
+    // rim
+    this.debuffGfx.lineStyle(1.2, rimColor, 0.9);
+    this.debuffGfx.strokeCircle(cx, cy, r);
+    // flame shape
+    if (key === 'burn') this.drawFlameShape(cx, cy, r);
+  }
+
+  private drawFlameShape(cx: number, cy: number, r: number): void {
+    const s = r * 0.55;
+    const t = this.scene.time.now / 220;
+    const wobble = Math.sin(t) * 0.5;
+    // outer flame body (orange)
+    this.debuffGfx.fillStyle(0xff6600, 1);
+    this.debuffGfx.fillTriangle(
+      cx - s + wobble, cy + s,
+      cx + s + wobble, cy + s,
+      cx,              cy - s * 1.3,
+    );
+    // inner flame tip (yellow)
+    this.debuffGfx.fillStyle(0xffdd00, 1);
+    this.debuffGfx.fillTriangle(
+      cx - s * 0.45, cy + s * 0.4,
+      cx + s * 0.45, cy + s * 0.4,
+      cx,            cy - s * 1.1,
+    );
+  }
+
+  private updateDebuffText(key: string, cx: number, cy: number, label: string): void {
+    let txt = this.debuffTexts.get(key);
+    if (!txt) {
+      txt = this.scene.add.text(0, 0, '', {
+        fontSize:        '7px',
+        color:           '#ffffff',
+        stroke:          '#000000',
+        strokeThickness: 2,
+        fontStyle:       'bold',
+      }).setDepth(52).setOrigin(0.5, 0.5);
+      this.debuffTexts.set(key, txt);
+    }
+    txt.setPosition(cx, cy + 5).setText(label).setVisible(true);
+  }
+
+  private hideDebuffText(key: string): void {
+    this.debuffTexts.get(key)?.setVisible(false);
   }
 
   override destroy(fromScene?: boolean): void {
     this.hpBarGfx?.destroy();
+    this.debuffGfx?.destroy();
+    this.debuffTexts.forEach(t => t.destroy());
+    this.debuffTexts.clear();
     super.destroy(fromScene);
   }
 }

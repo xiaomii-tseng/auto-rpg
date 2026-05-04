@@ -96,6 +96,9 @@ export const CardStore = {
       def:       base.def       + (bonus.def        ?? 0),
       crit:      Math.min(base.crit + (bonus.crit   ?? 0), 1),
       attackArc: Math.min(base.attackArc + (bonus.attackArc ?? 0), 360),
+      atkSpeed:  base.atkSpeed,
+      lifesteal: base.lifesteal,
+      evasion:   base.evasion,
     };
   },
 

@@ -1,19 +1,20 @@
-import { EQUIPMENT_ITEMS, EquipSlot } from './equipment-data';
+import { EquipmentItem, EquipSlot } from './equipment-data';
 import { PlayerStore } from './player-store';
 import { InventoryStore } from './inventory-store';
 import { CardStore } from './card-store';
+import { QuestStore } from './quest-store';
 
-const SAVE_KEY   = 'auto_rpg_save';
-const VERSION    = 5;
-let   _loaded    = false;
+const SAVE_KEY = 'auto_rpg_save';
+const VERSION  = 7;
+let   _loaded  = false;
 
 interface SaveData {
   version: number;
   player: {
-    level:       number;
-    exp:         number;
-    equippedIds: Record<EquipSlot, string | null>;
-    ownedIds:    string[];
+    level:    number;
+    exp:      number;
+    equipped: Record<EquipSlot, EquipmentItem | null>;
+    owned:    EquipmentItem[];
   };
   inventory: {
     gold:  number;
@@ -23,25 +24,20 @@ interface SaveData {
     equipped:  (string | null)[];
     inventory: { cardId: string; qty: number }[];
   };
+  quests: {
+    quests: { id: string; bossId: string; reward: number; flavorText: string; status: string }[];
+  };
 }
 
 export const SaveStore = {
   save(): void {
-    const eq = PlayerStore.getEquipped();
     const data: SaveData = {
       version: VERSION,
       player: {
-        level: PlayerStore.getLevel(),
-        exp:   PlayerStore.getExp(),
-        equippedIds: {
-          hat:    eq.hat?.id    ?? null,
-          outfit: eq.outfit?.id ?? null,
-          shoes:  eq.shoes?.id  ?? null,
-          ring1:  eq.ring1?.id  ?? null,
-          ring2:  eq.ring2?.id  ?? null,
-          sword:  eq.sword?.id  ?? null,
-        },
-        ownedIds: PlayerStore.getOwned().map(i => i.id),
+        level:    PlayerStore.getLevel(),
+        exp:      PlayerStore.getExp(),
+        equipped: { ...PlayerStore.getEquipped() } as Record<EquipSlot, EquipmentItem | null>,
+        owned:    [...PlayerStore.getOwned()],
       },
       inventory: {
         gold:  InventoryStore.getGold(),
@@ -51,6 +47,7 @@ export const SaveStore = {
         equipped:  Array.from(CardStore.getEquipped()),
         inventory: CardStore.getInventory(),
       },
+      quests: QuestStore.getSaveData(),
     };
     try {
       localStorage.setItem(SAVE_KEY, JSON.stringify(data));
@@ -68,15 +65,14 @@ export const SaveStore = {
       const p = data.player;
       PlayerStore.setLevelExp(p.level, p.exp);
 
-      for (const [slot, id] of Object.entries(p.equippedIds) as [EquipSlot, string | null][]) {
-        if (!id) continue;
-        const item = EQUIPMENT_ITEMS.find(e => e.id === id);
-        if (item) PlayerStore.equipDirect(slot, item);
+      if (p.equipped) {
+        for (const [slot, item] of Object.entries(p.equipped) as [EquipSlot, EquipmentItem | null][]) {
+          if (item) PlayerStore.equipDirect(slot, item);
+        }
       }
 
-      for (const id of p.ownedIds) {
-        const item = EQUIPMENT_ITEMS.find(e => e.id === id);
-        if (item) PlayerStore.addOwned(item);
+      if (p.owned) {
+        for (const item of p.owned) PlayerStore.addOwned(item);
       }
 
       InventoryStore.setGold(data.inventory.gold);
@@ -88,6 +84,8 @@ export const SaveStore = {
         CardStore.setEquippedDirect(data.cards.equipped);
         CardStore.setInventoryDirect(data.cards.inventory);
       }
+
+      if (data.quests) QuestStore.loadSaveData(data.quests as any);
 
       _loaded = true;
       return true;

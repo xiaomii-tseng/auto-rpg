@@ -2,14 +2,23 @@ import { Element, StatBonus } from './equipment-data';
 
 // ── Interfaces ─────────────────────────────────────────────────────────────
 
+export interface DropEntry {
+  itemId:   string;
+  itemName: string;
+  rate:     number;   // 0~1
+  qtyMin:   number;
+  qtyMax:   number;
+}
+
 export interface MonsterDef {
   id:           string;
   name:         string;
-  spriteKey:    string;   // Phaser texture key
+  spriteKey:    string;   // Phaser texture key prefix (e.g. 'slime', 'slime2', 'slime3')
   frameEnd:     number;   // last frame index (0-based); -1 = no animation
   element:      Element;
   tint:         number;   // hex tint (0xffffff = no tint)
-  tier:         number;   // 1-5
+  fillTint?:    boolean;  // use setTintFill to override sprite colours entirely
+  tier:         number;
   hp:           number;
   atk:          number;
   speed:        number;
@@ -17,14 +26,15 @@ export interface MonsterDef {
   gold:         number;
   cardId:       string;
   cardDropRate: number;   // 0~1
+  drops:        DropEntry[];
 }
 
 export interface CardDef {
   id:        string;
-  name:      string;   // e.g. '綠史萊姆卡'
+  name:      string;
   monsterId: string;
   element:   Element;
-  tint:      number;   // accent color for UI
+  tint:      number;
   effect:    StatBonus;
   desc:      string;
 }
@@ -38,120 +48,166 @@ export const ELEMENT_TINTS: Record<Element, number> = {
   fire:  0xff9966,
 };
 
+// ── Enhancement stone item IDs (referenced by game.scene & inventory) ──────
+export const ITEM_STONE_BROKEN = 'stone_broken';  // 破損強化石
+export const ITEM_STONE_INTACT = 'stone_intact';  // 完整強化石
+
+// ── Elite monster multipliers ──────────────────────────────────────────────
+export const ELITE_HP_MULT    = 3.0;   // 菁英HP倍率（相對物種基礎值）
+export const ELITE_SCALE_MOD  = 1.6;   // 菁英體型縮放倍率
+
+// ── Shared drop tables ─────────────────────────────────────────────────────
+
+const smallDrops: DropEntry[] = [
+  { itemId: ITEM_STONE_BROKEN, itemName: '破損強化石', rate: 1.00, qtyMin: 1, qtyMax: 1 },
+];
+
+const bossDrops: DropEntry[] = [
+  { itemId: ITEM_STONE_BROKEN, itemName: '破損強化石', rate: 1.00, qtyMin: 2, qtyMax: 4 },
+  { itemId: ITEM_STONE_INTACT, itemName: '完整強化石', rate: 1.00, qtyMin: 1, qtyMax: 1 },
+];
+
 // ── Monster definitions ────────────────────────────────────────────────────
 
 export const MONSTER_DEFS: MonsterDef[] = [
 
-  // ── 史萊姆 (Tier 1) ────────────────────────────────────────
+  // ── 小史萊姆 (Tier 1) ──────────────────────────────────
   {
-    id: 'slime_grass', name: '綠史萊姆', spriteKey: 'slime_idle', frameEnd: 5,
-    element: 'grass', tint: 0xffffff, tier: 1,
+    id: 'slime_green_s', name: '綠史萊姆(小)', spriteKey: 'slime', frameEnd: 5,
+    element: 'grass', tint: 0x44ff44, tier: 1,
     hp: 60, atk: 8, speed: 90, exp: 15, gold: 5,
-    cardId: 'card_slime_grass', cardDropRate: 0.08,
+    cardId: 'card_slime_green_s', cardDropRate: 1.00,
+    drops: smallDrops,
   },
   {
-    id: 'slime_water', name: '藍史萊姆', spriteKey: 'slime_idle', frameEnd: 5,
-    element: 'water', tint: 0x88ccff, tier: 1,
-    hp: 55, atk: 8, speed: 100, exp: 15, gold: 5,
-    cardId: 'card_slime_water', cardDropRate: 0.08,
-  },
-  {
-    id: 'slime_fire', name: '紅史萊姆', spriteKey: 'slime_idle', frameEnd: 5,
-    element: 'fire', tint: 0xff9966, tier: 1,
+    id: 'slime_red_s', name: '紅史萊姆(小)', spriteKey: 'slime', frameEnd: 5,
+    element: 'fire', tint: 0xff2020, tier: 1,
     hp: 65, atk: 10, speed: 85, exp: 18, gold: 6,
-    cardId: 'card_slime_fire', cardDropRate: 0.08,
+    cardId: 'card_slime_red_s', cardDropRate: 1.00,
+    drops: smallDrops,
   },
   {
-    id: 'slime_none', name: '白史萊姆', spriteKey: 'slime_idle', frameEnd: 5,
-    element: 'none', tint: 0xdddddd, tier: 1,
+    id: 'slime_blue_s', name: '藍史萊姆(小)', spriteKey: 'slime', frameEnd: 5,
+    element: 'water', tint: 0x2299ff, tier: 1,
+    hp: 55, atk: 8, speed: 100, exp: 15, gold: 5,
+    cardId: 'card_slime_blue_s', cardDropRate: 1.00,
+    drops: smallDrops,
+  },
+  {
+    id: 'slime_white_s', name: '白史萊姆(小)', spriteKey: 'slime', frameEnd: 5,
+    element: 'none', tint: 0xccddee, tier: 1,
     hp: 60, atk: 8, speed: 90, exp: 12, gold: 4,
-    cardId: 'card_slime_none', cardDropRate: 0.10,
+    cardId: 'card_slime_white_s', cardDropRate: 1.00,
+    drops: smallDrops,
   },
 
-  // ── 大史萊姆 (Tier 1.5) ────────────────────────────────────
+  // ── 殭屍史萊姆(小) / 熔岩史萊姆(小) ───────────────────
   {
-    id: 'slime2_grass', name: '草泥史萊姆', spriteKey: 'slime2_idle', frameEnd: 5,
-    element: 'grass', tint: 0xffffff, tier: 2,
-    hp: 100, atk: 12, speed: 80, exp: 28, gold: 10,
-    cardId: 'card_slime2_grass', cardDropRate: 0.07,
+    id: 'slime_zombie_s', name: '殭屍史萊姆(小)', spriteKey: 'slime2', frameEnd: 5,
+    element: 'none', tint: 0x99dd44, tier: 1,
+    hp: 80, atk: 10, speed: 70, exp: 20, gold: 7,
+    cardId: 'card_slime_zombie_s', cardDropRate: 1.00,
+    drops: smallDrops,
   },
   {
-    id: 'slime2_water', name: '水泡史萊姆', spriteKey: 'slime2_idle', frameEnd: 5,
-    element: 'water', tint: 0x88ccff, tier: 2,
-    hp: 90, atk: 12, speed: 95, exp: 28, gold: 10,
-    cardId: 'card_slime2_water', cardDropRate: 0.07,
-  },
-  {
-    id: 'slime2_fire', name: '火焰史萊姆', spriteKey: 'slime2_idle', frameEnd: 5,
-    element: 'fire', tint: 0xff9966, tier: 2,
-    hp: 110, atk: 15, speed: 75, exp: 32, gold: 12,
-    cardId: 'card_slime2_fire', cardDropRate: 0.07,
+    id: 'slime_lava_s', name: '熔岩史萊姆(小)', spriteKey: 'slime3', frameEnd: 5,
+    element: 'none', tint: 0xffffff, tier: 1,
+    hp: 70, atk: 12, speed: 100, exp: 22, gold: 8,
+    cardId: 'card_slime_lava_s', cardDropRate: 1.00,
+    drops: smallDrops,
   },
 
-  // ── 食人花 (Tier 2) ────────────────────────────────────────
+  // ── 菁英史萊姆 Tier 3 ──────────────────────────────────
+  // HP/scale 由生成器套用 ELITE_HP_MULT / ELITE_SCALE_MOD，基礎值與小怪相同
   {
-    id: 'plant_grass', name: '食人花', spriteKey: 'plant1_idle', frameEnd: 5,
-    element: 'grass', tint: 0xffffff, tier: 2,
-    hp: 130, atk: 14, speed: 55, exp: 35, gold: 14,
-    cardId: 'card_plant_grass', cardDropRate: 0.07,
+    id: 'elite_slime_green', name: '綠史萊姆(菁英)', spriteKey: 'slime', frameEnd: 5,
+    element: 'grass', tint: 0x00ff88, tier: 3,
+    hp: 60, atk: 8, speed: 95, exp: 60, gold: 25,
+    cardId: 'card_elite_slime_green', cardDropRate: 1.00,
+    drops: smallDrops,
   },
   {
-    id: 'plant_water', name: '水生食人花', spriteKey: 'plant1_idle', frameEnd: 5,
-    element: 'water', tint: 0x88ccff, tier: 2,
-    hp: 120, atk: 13, speed: 60, exp: 35, gold: 14,
-    cardId: 'card_plant_water', cardDropRate: 0.07,
+    id: 'elite_slime_red', name: '紅史萊姆(菁英)', spriteKey: 'slime', frameEnd: 5,
+    element: 'fire', tint: 0xff6600, tier: 3,
+    hp: 65, atk: 10, speed: 90, exp: 65, gold: 28,
+    cardId: 'card_elite_slime_red', cardDropRate: 1.00,
+    drops: smallDrops,
   },
   {
-    id: 'plant_fire', name: '火焰食人花', spriteKey: 'plant1_idle', frameEnd: 5,
-    element: 'fire', tint: 0xff9966, tier: 2,
-    hp: 140, atk: 16, speed: 50, exp: 40, gold: 16,
-    cardId: 'card_plant_fire', cardDropRate: 0.07,
+    id: 'elite_slime_blue', name: '藍史萊姆(菁英)', spriteKey: 'slime', frameEnd: 5,
+    element: 'water', tint: 0x00ddff, tier: 3,
+    hp: 55, atk: 8, speed: 110, exp: 60, gold: 25,
+    cardId: 'card_elite_slime_blue', cardDropRate: 1.00,
+    drops: smallDrops,
+  },
+  {
+    id: 'elite_slime_white', name: '白史萊姆(菁英)', spriteKey: 'slime', frameEnd: 5,
+    element: 'none', tint: 0xeeffff, tier: 3,
+    hp: 60, atk: 8, speed: 95, exp: 55, gold: 22,
+    cardId: 'card_elite_slime_white', cardDropRate: 1.00,
+    drops: smallDrops,
+  },
+  {
+    id: 'elite_slime_zombie', name: '殭屍史萊姆(菁英)', spriteKey: 'slime2', frameEnd: 5,
+    element: 'none', tint: 0xccff44, tier: 3,
+    hp: 80, atk: 10, speed: 78, exp: 75, gold: 32,
+    cardId: 'card_elite_slime_zombie', cardDropRate: 1.00,
+    drops: smallDrops,
+  },
+  {
+    id: 'elite_slime_lava', name: '熔岩史萊姆(菁英)', spriteKey: 'slime3', frameEnd: 5,
+    element: 'none', tint: 0xff4400, tier: 3,
+    hp: 70, atk: 12, speed: 110, exp: 80, gold: 36,
+    cardId: 'card_elite_slime_lava', cardDropRate: 1.00,
+    drops: smallDrops,
   },
 
-  // ── 野蠻人 (Tier 3) ────────────────────────────────────────
+  // ── 史萊姆王 Tier 5 (Slime1 精靈) ──────────────────────
   {
-    id: 'orc_none', name: '野蠻人', spriteKey: 'orc1_idle', frameEnd: 5,
-    element: 'none', tint: 0xffffff, tier: 3,
-    hp: 200, atk: 22, speed: 70, exp: 60, gold: 25,
-    cardId: 'card_orc_none', cardDropRate: 0.06,
+    id: 'boss_slime_green', name: '綠史萊姆王', spriteKey: 'slime', frameEnd: 9,
+    element: 'grass', tint: 0x33ff33, tier: 5,
+    hp: 750, atk: 25, speed: 80, exp: 200, gold: 100,
+    cardId: 'card_boss_slime_green', cardDropRate: 1.00,
+    drops: bossDrops,
   },
   {
-    id: 'orc_fire', name: '火焰野蠻人', spriteKey: 'orc1_idle', frameEnd: 5,
-    element: 'fire', tint: 0xff9966, tier: 3,
-    hp: 210, atk: 26, speed: 65, exp: 70, gold: 28,
-    cardId: 'card_orc_fire', cardDropRate: 0.06,
+    id: 'boss_slime_red', name: '紅史萊姆王', spriteKey: 'slime', frameEnd: 9,
+    element: 'fire', tint: 0xff1111, tier: 5,
+    hp: 750, atk: 30, speed: 80, exp: 200, gold: 100,
+    cardId: 'card_boss_slime_red', cardDropRate: 1.00,
+    drops: bossDrops,
   },
   {
-    id: 'orc_water', name: '水族野蠻人', spriteKey: 'orc1_idle', frameEnd: 5,
-    element: 'water', tint: 0x88ccff, tier: 3,
-    hp: 190, atk: 20, speed: 80, exp: 65, gold: 26,
-    cardId: 'card_orc_water', cardDropRate: 0.06,
+    id: 'boss_slime_blue', name: '藍史萊姆王', spriteKey: 'slime', frameEnd: 9,
+    element: 'water', tint: 0x1188ff, tier: 5,
+    hp: 720, atk: 25, speed: 80, exp: 200, gold: 100,
+    cardId: 'card_boss_slime_blue', cardDropRate: 1.00,
+    drops: bossDrops,
   },
   {
-    id: 'orc_grass', name: '草原野蠻人', spriteKey: 'orc1_idle', frameEnd: 5,
-    element: 'grass', tint: 0x88ff88, tier: 3,
-    hp: 220, atk: 20, speed: 68, exp: 65, gold: 26,
-    cardId: 'card_orc_grass', cardDropRate: 0.06,
+    id: 'boss_slime_white', name: '白史萊姆王', spriteKey: 'slime', frameEnd: 9,
+    element: 'none', tint: 0xccddee, tier: 5,
+    hp: 750, atk: 25, speed: 80, exp: 200, gold: 100,
+    cardId: 'card_boss_slime_white', cardDropRate: 1.00,
+    drops: bossDrops,
   },
 
-  // ── 吸血鬼 (Tier 4) ────────────────────────────────────────
+  // ── 殭屍史萊姆王 (Slime2 精靈) ─────────────────────────
   {
-    id: 'vampire_none', name: '吸血鬼', spriteKey: 'vampire1_idle', frameEnd: 5,
-    element: 'none', tint: 0xffffff, tier: 4,
-    hp: 300, atk: 30, speed: 85, exp: 100, gold: 40,
-    cardId: 'card_vampire_none', cardDropRate: 0.05,
+    id: 'boss_zombie_slime', name: '殭屍史萊姆王', spriteKey: 'slime2', frameEnd: 9,
+    element: 'none', tint: 0x99dd44, tier: 5,
+    hp: 825, atk: 28, speed: 80, exp: 220, gold: 120,
+    cardId: 'card_boss_zombie_slime', cardDropRate: 1.00,
+    drops: bossDrops,
   },
+
+  // ── 熔岩史萊姆王 (Slime3 精靈) ─────────────────────────
   {
-    id: 'vampire_water', name: '藍血鬼', spriteKey: 'vampire1_idle', frameEnd: 5,
-    element: 'water', tint: 0x88ccff, tier: 4,
-    hp: 280, atk: 28, speed: 95, exp: 105, gold: 42,
-    cardId: 'card_vampire_water', cardDropRate: 0.05,
-  },
-  {
-    id: 'vampire_fire', name: '赤血鬼', spriteKey: 'vampire1_idle', frameEnd: 5,
-    element: 'fire', tint: 0xff9966, tier: 4,
-    hp: 320, atk: 34, speed: 78, exp: 110, gold: 45,
-    cardId: 'card_vampire_fire', cardDropRate: 0.05,
+    id: 'boss_lava_slime', name: '熔岩史萊姆王', spriteKey: 'slime3', frameEnd: 9,
+    element: 'none', tint: 0xffffff, tier: 5,
+    hp: 900, atk: 32, speed: 80, exp: 250, gold: 150,
+    cardId: 'card_boss_lava_slime', cardDropRate: 1.00,
+    drops: bossDrops,
   },
 ];
 
@@ -159,116 +215,82 @@ export const MONSTER_DEFS: MonsterDef[] = [
 
 export const CARD_DEFS: CardDef[] = [
 
-  // ── 史萊姆卡 ──
+  // ── 小史萊姆卡 ──
   {
-    id: 'card_slime_grass', name: '綠史萊姆卡', monsterId: 'slime_grass',
-    element: 'grass', tint: 0x44cc44,
-    effect: { hp: 30 },
-    desc: '最大 HP +30',
+    id: 'card_slime_green_s', name: '綠史萊姆(小)卡片', monsterId: 'slime_green_s',
+    element: 'grass', tint: 0x44cc44, effect: {}, desc: '(待設定)',
   },
   {
-    id: 'card_slime_water', name: '藍史萊姆卡', monsterId: 'slime_water',
-    element: 'water', tint: 0x44aaff,
-    effect: { speed: 25 },
-    desc: '移動速度 +25',
+    id: 'card_slime_red_s', name: '紅史萊姆(小)卡片', monsterId: 'slime_red_s',
+    element: 'fire', tint: 0xff5522, effect: {}, desc: '(待設定)',
   },
   {
-    id: 'card_slime_fire', name: '紅史萊姆卡', monsterId: 'slime_fire',
-    element: 'fire', tint: 0xff5522,
-    effect: { atk: 8 },
-    desc: '攻擊力 +8',
+    id: 'card_slime_blue_s', name: '藍史萊姆(小)卡片', monsterId: 'slime_blue_s',
+    element: 'water', tint: 0x44aaff, effect: {}, desc: '(待設定)',
   },
   {
-    id: 'card_slime_none', name: '白史萊姆卡', monsterId: 'slime_none',
-    element: 'none', tint: 0xaaaaaa,
-    effect: { def: 5 },
-    desc: '防禦力 +5',
-  },
-
-  // ── 大史萊姆卡 ──
-  {
-    id: 'card_slime2_grass', name: '草泥史萊姆卡', monsterId: 'slime2_grass',
-    element: 'grass', tint: 0x44cc44,
-    effect: { hp: 50 },
-    desc: '最大 HP +50',
+    id: 'card_slime_white_s', name: '白史萊姆(小)卡片', monsterId: 'slime_white_s',
+    element: 'none', tint: 0xaaaaaa, effect: {}, desc: '(待設定)',
   },
   {
-    id: 'card_slime2_water', name: '水泡史萊姆卡', monsterId: 'slime2_water',
-    element: 'water', tint: 0x44aaff,
-    effect: { speed: 40 },
-    desc: '移動速度 +40',
+    id: 'card_slime_zombie_s', name: '殭屍史萊姆(小)卡片', monsterId: 'slime_zombie_s',
+    element: 'none', tint: 0x88aa44, effect: {}, desc: '(待設定)',
   },
   {
-    id: 'card_slime2_fire', name: '火焰史萊姆卡', monsterId: 'slime2_fire',
-    element: 'fire', tint: 0xff5522,
-    effect: { atk: 14 },
-    desc: '攻擊力 +14',
+    id: 'card_slime_lava_s', name: '熔岩史萊姆(小)卡片', monsterId: 'slime_lava_s',
+    element: 'none', tint: 0xff6622, effect: {}, desc: '(待設定)',
   },
 
-  // ── 食人花卡 ──
+  // ── 菁英史萊姆卡（銀框，tier 3）──
   {
-    id: 'card_plant_grass', name: '食人花卡', monsterId: 'plant_grass',
-    element: 'grass', tint: 0x44cc44,
-    effect: { def: 8, hp: 20 },
-    desc: '防禦力 +8  最大 HP +20',
+    id: 'card_elite_slime_green', name: '綠史萊姆(菁英)卡片', monsterId: 'elite_slime_green',
+    element: 'grass', tint: 0x00ff88, effect: {}, desc: '(待設定)',
   },
   {
-    id: 'card_plant_water', name: '水生食人花卡', monsterId: 'plant_water',
-    element: 'water', tint: 0x44aaff,
-    effect: { speed: 30, hp: 20 },
-    desc: '移動速度 +30  最大 HP +20',
+    id: 'card_elite_slime_red', name: '紅史萊姆(菁英)卡片', monsterId: 'elite_slime_red',
+    element: 'fire', tint: 0xff6600, effect: {}, desc: '(待設定)',
   },
   {
-    id: 'card_plant_fire', name: '火焰食人花卡', monsterId: 'plant_fire',
-    element: 'fire', tint: 0xff5522,
-    effect: { atk: 10, crit: 0.03 },
-    desc: '攻擊力 +10  爆擊率 +3%',
-  },
-
-  // ── 野蠻人卡 ──
-  {
-    id: 'card_orc_none', name: '野蠻人卡', monsterId: 'orc_none',
-    element: 'none', tint: 0xaaaaaa,
-    effect: { atk: 15 },
-    desc: '攻擊力 +15',
+    id: 'card_elite_slime_blue', name: '藍史萊姆(菁英)卡片', monsterId: 'elite_slime_blue',
+    element: 'water', tint: 0x00ddff, effect: {}, desc: '(待設定)',
   },
   {
-    id: 'card_orc_fire', name: '火焰野蠻人卡', monsterId: 'orc_fire',
-    element: 'fire', tint: 0xff5522,
-    effect: { atk: 20, crit: 0.03 },
-    desc: '攻擊力 +20  爆擊率 +3%',
+    id: 'card_elite_slime_white', name: '白史萊姆(菁英)卡片', monsterId: 'elite_slime_white',
+    element: 'none', tint: 0xaaccdd, effect: {}, desc: '(待設定)',
   },
   {
-    id: 'card_orc_water', name: '水族野蠻人卡', monsterId: 'orc_water',
-    element: 'water', tint: 0x44aaff,
-    effect: { atk: 12, speed: 20 },
-    desc: '攻擊力 +12  移動速度 +20',
+    id: 'card_elite_slime_zombie', name: '殭屍史萊姆(菁英)卡片', monsterId: 'elite_slime_zombie',
+    element: 'none', tint: 0xccff44, effect: {}, desc: '(待設定)',
   },
   {
-    id: 'card_orc_grass', name: '草原野蠻人卡', monsterId: 'orc_grass',
-    element: 'grass', tint: 0x44cc44,
-    effect: { atk: 10, hp: 40 },
-    desc: '攻擊力 +10  最大 HP +40',
+    id: 'card_elite_slime_lava', name: '熔岩史萊姆(菁英)卡片', monsterId: 'elite_slime_lava',
+    element: 'none', tint: 0xff4400, effect: {}, desc: '(待設定)',
   },
 
-  // ── 吸血鬼卡 ──
+  // ── 史萊姆王卡 ──
   {
-    id: 'card_vampire_none', name: '吸血鬼卡', monsterId: 'vampire_none',
-    element: 'none', tint: 0xaaaaaa,
-    effect: { crit: 0.08 },
-    desc: '爆擊率 +8%',
+    id: 'card_boss_slime_green', name: '綠史萊姆王卡片', monsterId: 'boss_slime_green',
+    element: 'grass', tint: 0x44cc44, effect: {}, desc: '(待設定)',
   },
   {
-    id: 'card_vampire_water', name: '藍血鬼卡', monsterId: 'vampire_water',
-    element: 'water', tint: 0x44aaff,
-    effect: { crit: 0.05, speed: 30 },
-    desc: '爆擊率 +5%  移動速度 +30',
+    id: 'card_boss_slime_red', name: '紅史萊姆王卡片', monsterId: 'boss_slime_red',
+    element: 'fire', tint: 0xff5522, effect: {}, desc: '(待設定)',
   },
   {
-    id: 'card_vampire_fire', name: '赤血鬼卡', monsterId: 'vampire_fire',
-    element: 'fire', tint: 0xff5522,
-    effect: { crit: 0.05, atk: 15 },
-    desc: '爆擊率 +5%  攻擊力 +15',
+    id: 'card_boss_slime_blue', name: '藍史萊姆王卡片', monsterId: 'boss_slime_blue',
+    element: 'water', tint: 0x44aaff, effect: {}, desc: '(待設定)',
+  },
+  {
+    id: 'card_boss_slime_white', name: '白史萊姆王卡片', monsterId: 'boss_slime_white',
+    element: 'none', tint: 0xaaaaaa, effect: {}, desc: '(待設定)',
+  },
+  {
+    id: 'card_boss_zombie_slime', name: '殭屍史萊姆王卡片', monsterId: 'boss_zombie_slime',
+    element: 'none', tint: 0x88aa44, effect: {}, desc: '(待設定)',
+  },
+  {
+    id: 'card_boss_lava_slime', name: '熔岩史萊姆王卡片', monsterId: 'boss_lava_slime',
+    element: 'none', tint: 0xff6622, effect: {}, desc: '(待設定)',
   },
 ];
 

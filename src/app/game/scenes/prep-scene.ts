@@ -1,10 +1,11 @@
 import Phaser from 'phaser';
 import { InventoryStore } from '../data/inventory-store';
 import { PlayerStore } from '../data/player-store';
-import { EQUIPMENT_ITEMS, ELEMENT_NAMES, ELEMENT_COLORS, EquipSlot } from '../data/equipment-data';
+import { generateEquipment, randomQuality, QUALITY_NAMES, QUALITY_COLORS, SLOT_NAMES, STAT_NAMES, BEHAVIOR_NAMES, BEHAVIOR_INFO, EquipSlot, EquipmentItem } from '../data/equipment-data';
 import { SaveStore } from '../data/save-store';
 import { CardStore, CARD_SLOT_COUNT } from '../data/card-store';
-import { getCardDef } from '../data/monster-data';
+import { getCardDef, getMonsterDef } from '../data/monster-data';
+import { QuestStore, Quest, STAR_EQUIP_QUALITY } from '../data/quest-store';
 
 
 const TOP_H  = 52;
@@ -33,6 +34,8 @@ export class PrepScene extends Phaser.Scene {
       this.load.spritesheet('player_idle_shadow', 'sprite/hero/PNG/Swordsman_lvl1/With_shadow/Swordsman_lvl1_Idle_with_shadow.png', cfg);
     if (!this.textures.exists('bg_prep'))
       this.load.image('bg_prep', 'other/leader.webp');
+    if (!this.textures.exists('icon_coin'))
+      this.load.image('icon_coin', 'other/coin.webp');
     const equipKeys = ['hat1','outfit1','shoes1','ring1','sword1'] as const;
     equipKeys.forEach(k => {
       const key = `equip_${k}`;
@@ -41,15 +44,17 @@ export class PrepScene extends Phaser.Scene {
     });
     // Boss idle sprites for quest panel
     const bossSprites: [string, string][] = [
-      ['slime_idle',    'sprite/slime/PNG/Slime1/With_shadow/Slime1_Idle_with_shadow.png'],
-      ['slime2_idle',   'sprite/slime/PNG/Slime2/With_shadow/Slime2_Idle_with_shadow.png'],
-      ['plant1_idle',   'sprite/flower/PNG/Plant1/With_shadow/Plant1_Idle_with_shadow.png'],
-      ['orc1_idle',     'sprite/orc/PNG/Orc1/With_shadow/orc1_idle_with_shadow.png'],
-      ['vampire1_idle', 'sprite/vampire/PNG/Vampires1/With_shadow/Vampires1_Idle_with_shadow.png'],
+      ['slime_idle',  'sprite/slime/PNG/Slime1/With_shadow/Slime1_Idle_with_shadow.png'],
+      ['slime2_idle', 'sprite/slime/PNG/Slime2/With_shadow/Slime2_Idle_with_shadow.png'],
+      ['slime3_idle', 'sprite/slime/PNG/Slime3/With_shadow/Slime3_Idle_with_shadow.png'],
     ];
     bossSprites.forEach(([key, path]) => {
       if (!this.textures.exists(key)) this.load.spritesheet(key, path, cfg);
     });
+    if (!this.textures.exists('icon_stone_broken')) this.load.image('icon_stone_broken', 'other/ore2.webp');
+    if (!this.textures.exists('icon_stone_intact'))  this.load.image('icon_stone_intact',  'other/ore1.webp');
+    if (!this.textures.exists('icon_quest_reroll'))  this.load.image('icon_quest_reroll',  'other/ore4.webp');
+    if (!this.textures.exists('icon_gold'))          this.load.image('icon_gold',          'other/coin.webp');
   }
 
   create(): void {
@@ -67,8 +72,59 @@ export class PrepScene extends Phaser.Scene {
 
     const hasSave = SaveStore.load();
     if (!hasSave) {
-      const sword = EQUIPMENT_ITEMS.find(e => e.id === 'sword_1');
-      if (sword) PlayerStore.equipDirect('sword', sword);
+      // 測試用：每種攻擊模式各一把，slash180 直接裝備
+      const testBehaviors: import('../data/equipment-data').AttackBehavior[] =
+        ['whirlwind', 'dashPierce', 'projectile', 'aura', 'multiHit', 'chargeSlam', 'boomerang', 'magicFire'];
+      const behaviorLabels: Record<string, string> = {
+        slash180: '半月斬', whirlwind: '旋風斬', dashPierce: '瞬步斬',
+        projectile: '風刃', aura: '血環', multiHit: '五連斬', chargeSlam: '蓄力重擊',
+        boomerang: '迴旋飛刃', magicFire: '地獄火',
+      };
+      PlayerStore.equipDirect('sword', {
+        id: 'sword_test_slash180', name: '半月斬', slot: 'sword',
+        texture: 'equip_sword1', quality: 'perfect',
+        affixes: [{ stat: 'atk', value: 20 }, { stat: 'crit', value: 0.15 }],
+        behavior: 'slash180', enhancement: 0,
+      });
+      testBehaviors.forEach((bv) => {
+        const sword: EquipmentItem = {
+          id:          `sword_test_${bv}`,
+          name:        behaviorLabels[bv],
+          slot:        'sword',
+          texture:     'equip_sword1',
+          quality:     'perfect',
+          affixes:     [{ stat: 'atk', value: 20 }, { stat: 'crit', value: 0.15 }],
+          behavior:    bv,
+          enhancement: 0,
+        };
+        PlayerStore.addOwned(sword);
+      });
+    }
+
+    // 若存檔中尚未有新技能武器，補入背包（版本升級補丁）
+    {
+      const allIds = new Set([
+        ...PlayerStore.getOwned().map(e => e.id),
+        ...Object.values(PlayerStore.getEquipped()).filter(Boolean).map(e => e!.id),
+      ]);
+      const patch: { bv: import('../data/equipment-data').AttackBehavior; label: string }[] = [
+        { bv: 'boomerang', label: '迴旋飛刃' },
+        { bv: 'magicFire', label: '地獄火' },
+      ];
+      for (const { bv, label } of patch) {
+        if (!allIds.has(`sword_test_${bv}`)) {
+          PlayerStore.addOwned({
+            id:          `sword_test_${bv}`,
+            name:        label,
+            slot:        'sword',
+            texture:     'equip_sword1',
+            quality:     'perfect',
+            affixes:     [{ stat: 'atk', value: 20 }, { stat: 'crit', value: 0.15 }],
+            behavior:    bv,
+            enhancement: 0,
+          });
+        }
+      }
     }
     this.generateItemIcons();
 
@@ -126,13 +182,7 @@ export class PrepScene extends Phaser.Scene {
       g.fillStyle(0xaaffee, 0.6); g.fillCircle(13, 14, 4);
     }, 'icon_slime_essence');
 
-    mk(g => {
-      g.fillStyle(0xcc8800, 1); g.fillCircle(16, 16, 14);
-      g.fillStyle(0xffcc00, 1); g.fillCircle(16, 16, 12);
-      g.fillStyle(0xffee88, 0.7); g.fillCircle(12, 11, 5);
-      g.fillStyle(0xcc8800, 1);
-      g.fillRect(13, 9, 6, 14); g.fillRect(10, 12, 12, 3); g.fillRect(10, 19, 12, 3);
-    }, 'icon_gold');
+    // icon_gold 已在 preload 以真實圖片載入
   }
 
   // ── Background ──────────────────────────────────────────
@@ -223,9 +273,8 @@ export class PrepScene extends Phaser.Scene {
       fontSize: '14px', color: '#ffe8b0', stroke: '#1a0800', strokeThickness: 3,
     }).setOrigin(0, 0.5);
 
-    // ── EXP badge (Lv section + icon + bar) ───────────────
+    // ── EXP badge (Lv section + bar) ──────────────────────
     const LV_W  = 40;  // left "Lv.N" column width
-    const ICON_W = 20; // teal cross icon column width
     const expBg = this.add.graphics();
     // Badge background
     expBg.fillStyle(WD, 0.95); expBg.fillRect(EXPB_X, CY - BH / 2, EXP_W, BH);
@@ -236,34 +285,23 @@ export class PrepScene extends Phaser.Scene {
     // Separator
     expBg.lineStyle(1, 0x3a6a8a, 0.4);
     expBg.lineBetween(EXPB_X + LV_W, CY - BH / 2 + 2, EXPB_X + LV_W, CY + BH / 2 - 2);
-    // EXP icon (teal cross) after separator
-    const ix = EXPB_X + LV_W + 3;
-    expBg.fillStyle(0x3a8aaa, 1); expBg.fillRect(ix, CY - 6, 12, 12);
-    expBg.fillStyle(0x5cc8e0, 1);
-    expBg.fillRect(ix + 4, CY - 6, 4, 12);
-    expBg.fillRect(ix,     CY - 1, 12, 4);
-    expBg.fillStyle(0xaaf0ff, 0.7); expBg.fillRect(ix + 2, CY - 4, 3, 3);
 
     // Lv text (reactive, inside Lv section)
     const lvLabel = this.add.text(EXPB_X + LV_W / 2, CY, '', {
       fontSize: '11px', color: '#5cc8a0', stroke: '#1a0800', strokeThickness: 2,
     }).setOrigin(0.5);
 
-    // Progress bar + cur/need text (reactive)
+    // Progress bar (reactive)
     const expBarGfx = this.add.graphics();
-    const expValText = this.add.text(EXPB_X + LV_W + ICON_W + 4, CY - 4, '', {
-      fontSize: '9px', color: '#7adfc0', stroke: '#1a0800', strokeThickness: 1,
-    }).setOrigin(0, 0.5);
+    const expValText = this.add.text(0, 0, '', { fontSize: '1px' }); // unused, kept for drawExpBar ref
 
     // ── Gold badge ────────────────────────────────────────
     const goldBg = this.add.graphics();
     goldBg.fillStyle(WD, 0.95); goldBg.fillRect(GOLD_X, CY - BH / 2, GOLD_W, BH);
     goldBg.lineStyle(1, WL, 0.3); goldBg.strokeRect(GOLD_X, CY - BH / 2, GOLD_W, BH);
     goldBg.fillStyle(WH, 0.15);  goldBg.fillRect(GOLD_X, CY - BH / 2, GOLD_W, 2);
-    const ig = this.add.graphics();
-    ig.fillStyle(GOLD, 1); ig.fillRect(GOLD_X + 5, CY - 7, 14, 14);
-    ig.lineStyle(1, 0x000000, 0.3); ig.strokeRect(GOLD_X + 5, CY - 7, 14, 14);
-    this.goldText = this.add.text(GOLD_X + 23, CY, InventoryStore.getGold().toLocaleString(), {
+    this.add.image(GOLD_X + 13, CY, 'icon_coin').setDisplaySize(22, 22);
+    this.goldText = this.add.text(GOLD_X + 26, CY, InventoryStore.getGold().toLocaleString(), {
       fontSize: '11px', color: '#e8c890', stroke: '#1a0800', strokeThickness: 2,
     }).setOrigin(0, 0.5);
 
@@ -282,10 +320,11 @@ export class PrepScene extends Phaser.Scene {
       const need = PlayerStore.expToNext();
       const pct  = Phaser.Math.Clamp(cur / need, 0, 1);
 
-      const barX = EXPB_X + LV_W + ICON_W + 4;
-      const barW = EXP_W - LV_W - ICON_W - 8;
-      const barY = CY + 3;
-      const barH = 5;
+      const barPad = 5;
+      const barX = EXPB_X + LV_W + barPad;
+      const barW = EXP_W - LV_W - barPad * 2;
+      const barH = BH - 8;
+      const barY = CY - barH / 2;
 
       expBarGfx.clear();
       expBarGfx.fillStyle(0x081420, 1);
@@ -294,13 +333,13 @@ export class PrepScene extends Phaser.Scene {
         expBarGfx.fillStyle(0x1a88cc, 1);
         expBarGfx.fillRect(barX, barY, Math.max(2, barW * pct), barH);
         expBarGfx.fillStyle(0x66ccff, 0.45);
-        expBarGfx.fillRect(barX, barY, Math.max(2, barW * pct), 2);
+        expBarGfx.fillRect(barX, barY, Math.max(2, barW * pct), 3);
       }
       expBarGfx.lineStyle(0.5, 0x3a6a8a, 0.5);
       expBarGfx.strokeRect(barX, barY, barW, barH);
 
       lvLabel.setText(`Lv.${PlayerStore.getLevel()}`);
-      expValText.setText(`${cur} / ${need}`);
+      expValText.setText('');
     };
     drawExpBar();
 
@@ -335,7 +374,7 @@ export class PrepScene extends Phaser.Scene {
     const rightDefs: { label: string; accent: number; badge: number; onClick?: () => void }[] = [
       { label: '製作', accent: 0x5cc8a0, badge: 0, onClick: () => this.openForgeWindow(W, H) },
       { label: '卡片', accent: 0xcc6688, badge: 0, onClick: () => this.openCardWindow(W, H) },
-      { label: '商店', accent: 0xd47820, badge: 0 },
+      { label: '商店', accent: 0xd47820, badge: 0, onClick: () => this.showShopPanel(W, H) },
     ];
     const rightTotalH = rightDefs.length * btnSz + (rightDefs.length - 1) * gap;
     const rightY0     = TOP_H + (midH - rightTotalH) / 2;
@@ -396,304 +435,16 @@ export class PrepScene extends Phaser.Scene {
 
   // ── Craft panel ─────────────────────────────────────────
 
-  private openForgeWindow(W: number, H: number): void {
-    const PW = Math.min(540, W - 20);
-    const PH = Math.min(330, H - 40);
-    const D  = 500;
-
-    const container = this.add.container(W / 2, H / 2).setDepth(D);
-
-    // Backdrop
-    const backdrop = this.add.rectangle(0, 0, W, H, 0x000000, 0.78).setInteractive();
-    backdrop.on('pointerdown', (ptr: Phaser.Input.Pointer) => {
-      if (ptr.x < W / 2 - PW / 2 || ptr.x > W / 2 + PW / 2 ||
-          ptr.y < H / 2 - PH / 2 || ptr.y > H / 2 + PH / 2) {
-        container.destroy();
-      }
-    });
-    container.add(backdrop);
-
-    const px = -PW / 2;
-    const py = -PH / 2;
-
-    // Panel shell — dark wood planks
-    const bg = this.add.graphics();
-    bg.fillStyle(IRON, 1);
-    bg.fillRect(px - 3, py - 3, PW + 6, PH + 6);
-    bg.fillStyle(WL, 1);
-    bg.fillRect(px - 2, py - 2, PW + 4, PH + 4);
-    bg.fillStyle(WD, 1);
-    bg.fillRect(px, py, PW, PH);
-
-    for (let row = 1; row < Math.ceil(PH / 24); row++) {
-      const ry = py + row * 24;
-      bg.lineStyle(1, WB, 0.5);
-      bg.lineBetween(px + 2, ry, px + PW - 2, ry);
-      bg.lineStyle(1, WH, 0.08);
-      bg.lineBetween(px + 2, ry + 1, px + PW - 2, ry + 1);
-    }
-
-    [[px, py], [px + PW - 8, py], [px, py + PH - 8], [px + PW - 8, py + PH - 8]]
-      .forEach(([rx, ry]) => {
-        bg.fillStyle(IRON, 1);
-        bg.fillRect(rx, ry, 8, 8);
-        bg.fillStyle(0x6a7580, 1);
-        bg.fillRect(rx + 2, ry + 2, 4, 4);
-      });
-
-    bg.fillStyle(WB, 0.9);
-    bg.fillRect(px, py, PW, 36);
-    bg.fillStyle(WH, 0.4);
-    bg.fillRect(px, py + 34, PW, 2);
-    bg.fillStyle(WB, 1);
-    bg.fillRect(px, py + 36, PW, 1);
-    container.add(bg);
-
-    container.add(this.add.text(0, py + 18, '製  作', {
-      fontSize: '15px', color: '#e8c070', stroke: '#1a0800', strokeThickness: 2,
-    }).setOrigin(0.5));
-
-    const closeBtn = this.add.text(px + PW - 20, py + 18, '✕', {
-      fontSize: '15px', color: '#cc4444', stroke: '#1a0800', strokeThickness: 2,
-    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
-    closeBtn.on('pointerdown', () => container.destroy());
-    container.add(closeBtn);
-
-    // ── Equipment sets (scrollable) ───────────────────────
-    const SETS = [
-      {
-        levelReq: 1,
-        slots: [
-          { id: 'hat_1',    tex: 'equip_hat1',    name: '草帽',   color: 0xddcc88 },
-          { id: 'outfit_1', tex: 'equip_outfit1', name: '長袖外套', color: 0x88aadd },
-          { id: 'shoes_1',  tex: 'equip_shoes1',  name: '皮靴',   color: 0xaa8866 },
-          { id: 'sword_1',  tex: 'equip_sword1',  name: '木劍',   color: 0xdd8844 },
-          { id: 'ring_1',   tex: 'equip_ring1',   name: '蟲餌',   color: 0xff88cc },
-        ],
-      },
-      { levelReq: 5,  slots: null },
-      { levelReq: 10, slots: null },
-      { levelReq: 15, slots: null },
-      { levelReq: 20, slots: null },
-    ];
-
-    const playerLv  = PlayerStore.getLevel();
-    const slotSz    = 64;
-    const slotGap   = 6;
-    const rowGap    = 8;
-    const slotsTotW = 5 * slotSz + 4 * slotGap;
-    const slotsX0   = -slotsTotW / 2;
-    const areaTop   = py + 44;
-    const areaH     = PH - 44 - 8;
-    const contentH  = SETS.length * slotSz + (SETS.length - 1) * rowGap;
-    const maxScroll = Math.max(0, contentH - areaH);
-
-    // ── Detail overlay ────────────────────────────────────
-    const showDetail = (itemId: string) => {
-      const eq = EQUIPMENT_ITEMS.find(e => e.id === itemId);
-      if (!eq) return;
-
-      const det = this.add.container(0, 0);
-      container.add(det);
-
-      const detBg = this.add.graphics();
-      detBg.fillStyle(WD, 0.98);
-      detBg.fillRect(px + 4, areaTop, PW - 8, areaH);
-      det.add(detBg);
-
-      // Back button
-      const backBtn = this.add.text(px + 16, areaTop + 14, '← 返回', {
-        fontSize: '11px', color: '#c49050', stroke: '#1a0800', strokeThickness: 1,
-      }).setOrigin(0, 0.5).setInteractive({ useHandCursor: true });
-      backBtn.on('pointerdown', () => det.destroy());
-      det.add(backBtn);
-
-      // Item image + name
-      if (this.textures.exists(eq.texture)) {
-        det.add(this.add.image(0, areaTop + 44, eq.texture).setDisplaySize(56, 56));
-      }
-      det.add(this.add.text(0, areaTop + 80, eq.name, {
-        fontSize: '14px', color: '#e8c070', stroke: '#1a0800', strokeThickness: 2,
-      }).setOrigin(0.5));
-
-      // Stats
-      const statParts: string[] = [];
-      if (eq.stats.atk)   statParts.push(`攻擊 +${eq.stats.atk}`);
-      if (eq.stats.hp)    statParts.push(`HP +${eq.stats.hp}`);
-      if (eq.stats.speed) statParts.push(`速度 +${eq.stats.speed}`);
-      if (eq.stats.def)   statParts.push(`防禦 +${eq.stats.def}`);
-      if (eq.stats.crit)  statParts.push(`爆擊 +${(eq.stats.crit * 100).toFixed(0)}%`);
-      det.add(this.add.text(0, areaTop + 98, statParts.join('   '), {
-        fontSize: '10px', color: '#88cc88', stroke: '#1a0800', strokeThickness: 1,
-      }).setOrigin(0.5));
-
-      // Divider
-      const dg = this.add.graphics();
-      dg.fillStyle(WB, 1); dg.fillRect(px + 12, areaTop + 112, PW - 24, 2);
-      dg.fillStyle(WH, 0.3); dg.fillRect(px + 12, areaTop + 114, PW - 24, 1);
-      det.add(dg);
-
-      // Materials
-      det.add(this.add.text(px + 16, areaTop + 126, '所需材料', {
-        fontSize: '10px', color: '#c49050', stroke: '#1a0800', strokeThickness: 1,
-      }).setOrigin(0, 0.5));
-
-      let matY = areaTop + 144;
-      eq.materials.forEach(mat => {
-        const have   = InventoryStore.getItemQty(mat.id);
-        const enough = have >= mat.qty;
-        det.add(this.add.text(px + 24, matY, `${mat.name}`, {
-          fontSize: '10px', color: '#d4a870', stroke: '#1a0800', strokeThickness: 1,
-        }).setOrigin(0, 0.5));
-        det.add(this.add.text(px + PW - 28, matY, `${have} / ${mat.qty}`, {
-          fontSize: '10px', color: enough ? '#88cc44' : '#cc4444', stroke: '#1a0800', strokeThickness: 1,
-        }).setOrigin(1, 0.5));
-        matY += 18;
-      });
-
-      // Gold
-      const goldHave  = InventoryStore.getGold();
-      const goldOk    = goldHave >= eq.gold;
-      det.add(this.add.text(px + 24, matY + 4, '金幣', {
-        fontSize: '10px', color: '#d4a870', stroke: '#1a0800', strokeThickness: 1,
-      }).setOrigin(0, 0.5));
-      det.add(this.add.text(px + PW - 28, matY + 4, `${goldHave} / ${eq.gold}`, {
-        fontSize: '10px', color: goldOk ? '#88cc44' : '#cc4444', stroke: '#1a0800', strokeThickness: 1,
-      }).setOrigin(1, 0.5));
-
-      // Craft button
-      const canCraft = goldOk && eq.materials.every(m => InventoryStore.getItemQty(m.id) >= m.qty);
-
-      const btnW = 140;
-      const btnH = 36;
-      const btnY = areaTop + areaH - 28;
-
-      const btnGfx = this.add.graphics();
-      if (canCraft) {
-        btnGfx.fillStyle(0x5a3800, 1);
-        btnGfx.fillRect(-btnW / 2, btnY - btnH / 2, btnW, btnH);
-        btnGfx.fillStyle(GOLD, 0.15);
-        btnGfx.fillRect(-btnW / 2, btnY - btnH / 2, btnW, btnH);
-        btnGfx.lineStyle(2, GOLD, 0.8);
-        btnGfx.strokeRect(-btnW / 2, btnY - btnH / 2, btnW, btnH);
-        btnGfx.fillStyle(GOLD, 0.4);
-        btnGfx.fillRect(-btnW / 2, btnY - btnH / 2, btnW, 2);
-      } else {
-        btnGfx.fillStyle(WD, 1);
-        btnGfx.fillRect(-btnW / 2, btnY - btnH / 2, btnW, btnH);
-        btnGfx.lineStyle(1.5, WM, 0.4);
-        btnGfx.strokeRect(-btnW / 2, btnY - btnH / 2, btnW, btnH);
-      }
-      det.add(btnGfx);
-
-      det.add(this.add.text(0, btnY, '製  作', {
-        fontSize: '15px', color: canCraft ? '#e8c070' : '#4a3010',
-        stroke: '#1a0800', strokeThickness: 2,
-      }).setOrigin(0.5));
-
-      if (canCraft) {
-        const hitArea = this.add.rectangle(0, btnY, btnW, btnH)
-          .setInteractive({ useHandCursor: true });
-        hitArea.on('pointerdown', () => {
-          eq.materials.forEach(m => InventoryStore.spendItem(m.id, m.qty));
-          InventoryStore.spendGold(eq.gold);
-          PlayerStore.addOwned(eq);
-          det.destroy();
-        });
-        det.add(hitArea);
-      }
-    };
-
-    // Geometry mask — world coords
-    const maskGfx = this.make.graphics({});
-    maskGfx.fillStyle(0xffffff);
-    maskGfx.fillRect(W / 2 + px + 4, H / 2 + areaTop, PW - 8, areaH);
-    const scrollMask = maskGfx.createGeometryMask();
-
-    // ── Vertical drag scroll (zone added BEFORE inner so inner is on top) ───
-    let dragStartY   = 0;
-    let dragStartOff = 0;
-    let scrollOffset = 0;
-
-    const zone = this.add.zone(0, areaTop + areaH / 2, PW, areaH).setInteractive();
-    container.add(zone);
-    zone.on('pointerdown', (ptr: Phaser.Input.Pointer) => {
-      dragStartY   = ptr.y;
-      dragStartOff = scrollOffset;
-    });
-    zone.on('pointermove', (ptr: Phaser.Input.Pointer) => {
-      if (!ptr.isDown) return;
-      const dy = ptr.y - dragStartY;
-      scrollOffset = Phaser.Math.Clamp(dragStartOff - dy, 0, maxScroll);
-      inner.y = -scrollOffset;
-    });
-
-    // Inner scrollable container (added after zone → rendered on top → tap works)
-    const inner = this.add.container(0, 0);
-    inner.setMask(scrollMask);
-    container.add(inner);
-
-    let rowY = areaTop;
-    SETS.forEach(set => {
-      const locked = set.levelReq > playerLv;
-
-      inner.add(this.add.text(px + 12, rowY + slotSz / 2, `LV.${set.levelReq}`, {
-        fontSize: '11px', color: locked ? '#5a3820' : '#5cc8a0',
-        stroke: '#1a0800', strokeThickness: 1,
-      }).setOrigin(0, 0.5));
-
-      for (let i = 0; i < 5; i++) {
-        const sx     = slotsX0 + i * (slotSz + slotGap);
-        const item   = set.slots?.[i];
-        const eq     = item ? EQUIPMENT_ITEMS.find(e => e.id === item.id) : null;
-        const isLock = locked || !eq;
-        const col    = item?.color ?? [0xddcc88, 0x88aadd, 0xaa8866, 0xdd8844, 0xff88cc][i];
-
-        const sg = this.add.graphics();
-        sg.fillStyle(WB, 1); sg.fillRect(sx, rowY, slotSz, slotSz);
-        sg.fillStyle(isLock ? WD : WM, 1); sg.fillRect(sx + 2, rowY + 2, slotSz - 4, slotSz - 4);
-        sg.lineStyle(1.5, isLock ? WD : WL, isLock ? 0.3 : 0.4);
-        sg.strokeRect(sx, rowY, slotSz, slotSz);
-        if (!isLock) { sg.fillStyle(col, 0.55); sg.fillRect(sx, rowY, slotSz, 3); }
-        inner.add(sg);
-
-        if (!isLock && this.textures.exists(item!.tex)) {
-          inner.add(
-            this.add.image(sx + slotSz / 2, rowY + slotSz / 2 - 8, item!.tex).setDisplaySize(50, 50),
-          );
-        } else {
-          inner.add(
-            this.add.text(sx + slotSz / 2, rowY + slotSz / 2 - 8, '?', {
-              fontSize: '22px', color: '#3a2010', stroke: '#1a0800', strokeThickness: 2,
-            }).setOrigin(0.5),
-          );
-        }
-
-        inner.add(
-          this.add.text(sx + slotSz / 2, rowY + slotSz - 10, isLock ? '???' : item!.name, {
-            fontSize: '9px', color: isLock ? '#5a3820' : '#e8c070',
-            stroke: '#1a0800', strokeThickness: 1,
-          }).setOrigin(0.5),
-        );
-
-        if (!isLock) {
-          const tap = this.add.rectangle(sx + slotSz / 2, rowY + slotSz / 2, slotSz, slotSz)
-            .setInteractive({ useHandCursor: true });
-          tap.on('pointerup', () => showDetail(item!.id));
-          inner.add(tap);
-        }
-      }
-
-      rowY += slotSz + rowGap;
-    });
-
+  private openForgeWindow(_W: number, _H: number): void {
+    // 製作系統已移除，裝備改由懸賞任務獲得
   }
+
 
   // ── Quest panel (wanted posters, horizontal scroll) ────
 
   private showQuestPanel(W: number, H: number): void {
-    const PW = Math.min(W - 16, 560);
-    const PH = Math.min(H - 40, 280);
+    const PW = Math.min(W - 16, 500);
+    const PH = Math.min(H - 20, 370);
     const D  = 500;
 
     const panelX = (W - PW) / 2;
@@ -702,8 +453,8 @@ export class PrepScene extends Phaser.Scene {
     const objs: Phaser.GameObjects.GameObject[] = [];
     const closeAll = () => objs.forEach(o => o.destroy());
 
-    // Backdrop
-    const backdrop = this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.78)
+    // ── Backdrop ──────────────────────────────────────────
+    const backdrop = this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.88)
       .setInteractive().setDepth(D);
     objs.push(backdrop);
     backdrop.on('pointerdown', (ptr: Phaser.Input.Pointer) => {
@@ -711,229 +462,534 @@ export class PrepScene extends Phaser.Scene {
           ptr.y < panelY || ptr.y > panelY + PH) closeAll();
     });
 
-    // Panel shell
-    const bgGfx = this.add.graphics().setDepth(D);
-    objs.push(bgGfx);
-    bgGfx.fillStyle(IRON, 1);
-    bgGfx.fillRect(panelX - 3, panelY - 3, PW + 6, PH + 6);
-    bgGfx.fillStyle(WL, 1);
-    bgGfx.fillRect(panelX - 2, panelY - 2, PW + 4, PH + 4);
-    bgGfx.fillStyle(WD, 1);
-    bgGfx.fillRect(panelX, panelY, PW, PH);
-    for (let row = 1; row < Math.ceil(PH / 24); row++) {
-      const ry = panelY + row * 24;
-      bgGfx.lineStyle(1, WB, 0.5);
-      bgGfx.lineBetween(panelX + 2, ry, panelX + PW - 2, ry);
-      bgGfx.lineStyle(1, WH, 0.08);
-      bgGfx.lineBetween(panelX + 2, ry + 1, panelX + PW - 2, ry + 1);
+    // ── Panel shell ───────────────────────────────────────
+    const bg = this.add.graphics().setDepth(D + 1);
+    objs.push(bg);
+
+    // Drop shadow
+    bg.fillStyle(0x000000, 0.55);
+    bg.fillRect(panelX + 5, panelY + 5, PW, PH);
+
+    // Outer gold border
+    bg.fillStyle(0xa06810, 1);
+    bg.fillRect(panelX - 3, panelY - 3, PW + 6, PH + 6);
+    bg.fillStyle(0xffd060, 0.7);
+    bg.fillRect(panelX - 3, panelY - 3, PW + 6, 2);
+    bg.fillStyle(0xffd060, 0.3);
+    bg.fillRect(panelX - 3, panelY - 1, 2, PH + 4);
+
+    // Panel body
+    bg.fillStyle(0x160e04, 1);
+    bg.fillRect(panelX, panelY, PW, PH);
+
+    // Subtle wood grain
+    for (let i = 0; i < 14; i++) {
+      const gy = panelY + 8 + i * (PH / 14);
+      bg.fillStyle(0xffffff, i % 4 === 0 ? 0.025 : 0.01);
+      bg.fillRect(panelX + 4, gy, PW - 8, 1);
     }
-    [[panelX, panelY], [panelX + PW - 8, panelY], [panelX, panelY + PH - 8], [panelX + PW - 8, panelY + PH - 8]]
-      .forEach(([rx, ry]) => {
-        bgGfx.fillStyle(IRON, 1); bgGfx.fillRect(rx, ry, 8, 8);
-        bgGfx.fillStyle(0x6a7580, 1); bgGfx.fillRect(rx + 2, ry + 2, 4, 4);
-      });
-    bgGfx.fillStyle(WB, 0.9);
-    bgGfx.fillRect(panelX, panelY, PW, 36);
-    bgGfx.fillStyle(WH, 0.4);
-    bgGfx.fillRect(panelX, panelY + 34, PW, 2);
 
-    const titleTxt = this.add.text(W / 2, panelY + 18, '任  務', {
-      fontSize: '15px', color: '#e8c070', stroke: '#1a0800', strokeThickness: 2,
-    }).setOrigin(0.5).setDepth(D);
-    objs.push(titleTxt);
+    // Header bar
+    bg.fillStyle(0x241408, 1);
+    bg.fillRect(panelX, panelY, PW, 44);
+    bg.fillStyle(0x3a2010, 1);
+    bg.fillRect(panelX, panelY, PW, 18);
 
-    const closeBtn = this.add.text(panelX + PW - 20, panelY + 18, '✕', {
-      fontSize: '15px', color: '#cc4444', stroke: '#1a0800', strokeThickness: 2,
-    }).setOrigin(0.5).setInteractive({ useHandCursor: true }).setDepth(D);
+    // Gold divider under header
+    bg.fillStyle(0xc88020, 1);
+    bg.fillRect(panelX, panelY + 44, PW, 2);
+    bg.fillStyle(0xffe080, 0.35);
+    bg.fillRect(panelX, panelY + 44, PW, 1);
+
+    // Corner rivets
+    ([
+      [panelX - 3, panelY - 3], [panelX + PW - 7, panelY - 3],
+      [panelX - 3, panelY + PH - 7], [panelX + PW - 7, panelY + PH - 7],
+    ] as [number, number][]).forEach(([rx, ry]) => {
+      bg.fillStyle(0xffe080, 1); bg.fillRect(rx, ry, 10, 10);
+      bg.fillStyle(0x7a4a08, 1); bg.fillRect(rx + 2, ry + 2, 6, 6);
+      bg.fillStyle(0xffe080, 0.5); bg.fillRect(rx + 3, ry + 3, 2, 2);
+    });
+
+    // Panel title
+    objs.push(this.add.text(W / 2, panelY + 22, '✦  懸 賞 告 示  ✦', {
+      fontSize: '16px', fontStyle: 'bold',
+      color: '#ffe080', stroke: '#2a1000', strokeThickness: 3,
+    }).setOrigin(0.5).setDepth(D + 2));
+
+    const closeBtn = this.add.text(panelX + PW - 18, panelY + 22, '✕', {
+      fontSize: '16px', color: '#ff6644', stroke: '#1a0800', strokeThickness: 2,
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true }).setDepth(D + 2);
     objs.push(closeBtn);
     closeBtn.on('pointerdown', closeAll);
 
-    // ── Cards ─────────────────────────────────────────────
-    const CARD_W   = 120;
-    const CARD_H   = PH - 54;
-    const CARD_GAP = 14;
+    // Reroll stone count — 左側 header，不壓到右邊叉叉
+    const ticketQty = InventoryStore.getItemQty('quest_reroll');
+    const rerollY   = panelY + 22;
+    const rerollX   = panelX + 12;
+    if (this.textures.exists('icon_quest_reroll')) {
+      objs.push(this.add.image(rerollX + 14, rerollY, 'icon_quest_reroll')
+        .setDisplaySize(28, 28).setDepth(D + 2));
+    }
+    objs.push(this.add.text(rerollX + 30, rerollY, `×${ticketQty}`, {
+      fontSize: '14px', color: ticketQty > 0 ? '#ffdd44' : '#665533',
+      stroke: '#1a0800', strokeThickness: 2,
+    }).setOrigin(0, 0.5).setDepth(D + 2));
+
+    // ── 3 Bounty cards ───────────────────────────────────
+    const quests    = QuestStore.getQuests();
+    const GAP       = 12;
     const cardAreaX = panelX + 12;
-    const cardAreaY = panelY + 44;
+    const cardAreaY = panelY + 52;
     const cardAreaW = PW - 24;
+    const CARD_W    = Math.floor((cardAreaW - GAP * 2) / 3);
+    const CARD_H    = PH - 64;
 
-    const PAPER    = 0xe8d09a;
-    const PAPER_DK = 0xc4a458;
-    const CARD_RED = 0xaa1a1a;
+    const renderCard = (quest: Quest, idx: number) => {
+      const cx     = cardAreaX + idx * (CARD_W + GAP);
+      const def    = getMonsterDef(quest.bossId);
+      const status = quest.status;
+      const dimmed = status === 'claimed';
+      const canDismiss = status !== 'completed';
 
-    const bossDefs = [
-      { name: '綠史萊姆王',   unlocked: true,  tex: 'slime_idle',    animKey: 'q_slime1', bossKey: 'slime',    frameEnd: 5  },
-      { name: '殭屍史萊姆王', unlocked: false, tex: 'slime2_idle',   animKey: 'q_slime2', bossKey: 'slime2',   frameEnd: -1 },
-      { name: '食人花王',     unlocked: false, tex: 'plant1_idle',   animKey: 'q_plant1', bossKey: 'plant1',   frameEnd: -1 },
-      { name: '綠獸人王',     unlocked: false, tex: 'orc1_idle',     animKey: 'q_orc1',   bossKey: 'orc1',     frameEnd: -1 },
-      { name: '吸血鬼王',     unlocked: false, tex: 'vampire1_idle', animKey: 'q_vamp1',  bossKey: 'vampire1', frameEnd: -1 },
-    ];
+      // Layout
+      const BANNER_H   = 32;
+      const CIRCLE_Y   = cardAreaY + BANNER_H + 50;
+      const CIRCLE_R   = 38;
+      const NAME_Y     = CIRCLE_Y + CIRCLE_R + 14;
+      const DIV_Y      = NAME_Y + 17;
+      const FLAVOR_TOP = DIV_Y + 7;
+      const FLAVOR_H   = CARD_H - (FLAVOR_TOP - cardAreaY) - 76;
+      const GOLD_Y     = cardAreaY + CARD_H - 52;
+      const BTN_Y      = cardAreaY + CARD_H - 22;
+      const BTN_H      = 24;
 
-    // Create idle animations for quest cards
-    bossDefs.forEach(b => {
-      if (!this.anims.exists(b.animKey) && this.textures.exists(b.tex)) {
+      const cg = this.add.graphics().setDepth(D + 2);
+      objs.push(cg);
+
+      // Card shadow
+      cg.fillStyle(0x000000, 0.4);
+      cg.fillRect(cx + 3, cardAreaY + 3, CARD_W, CARD_H);
+
+      // Parchment body
+      cg.fillStyle(dimmed ? 0xb0946a : 0xf0dcac, 1);
+      cg.fillRect(cx, cardAreaY, CARD_W, CARD_H);
+      // Edge darkening
+      cg.fillStyle(0x000000, 0.08);
+      cg.fillRect(cx, cardAreaY, CARD_W, 4);
+      cg.fillRect(cx, cardAreaY + CARD_H - 4, CARD_W, 4);
+      cg.fillRect(cx, cardAreaY, 4, CARD_H);
+      cg.fillRect(cx + CARD_W - 4, cardAreaY, 4, CARD_H);
+
+      // Card outer border (double-line)
+      cg.lineStyle(2.5, dimmed ? 0x664422 : 0x7a3200, 1);
+      cg.strokeRect(cx + 1, cardAreaY + 1, CARD_W - 2, CARD_H - 2);
+      cg.lineStyle(1, dimmed ? 0x997744 : 0xdd8844, 0.4);
+      cg.strokeRect(cx + 4, cardAreaY + 4, CARD_W - 8, CARD_H - 8);
+
+      // ── Red banner ──
+      cg.fillStyle(dimmed ? 0x3a1212 : 0x780606, 1);
+      cg.fillRect(cx, cardAreaY, CARD_W, BANNER_H);
+      cg.fillStyle(dimmed ? 0x552222 : 0xaa1010, 1);
+      cg.fillRect(cx, cardAreaY, CARD_W, 5);
+      cg.fillStyle(0x000000, 0.25);
+      cg.fillRect(cx, cardAreaY + BANNER_H - 4, CARD_W, 4);
+      cg.lineStyle(1, dimmed ? 0x886644 : 0xffcc44, 0.65);
+      cg.lineBetween(cx + 5, cardAreaY + 1.5, cx + CARD_W - 5, cardAreaY + 1.5);
+      cg.lineBetween(cx + 5, cardAreaY + BANNER_H - 2, cx + CARD_W - 5, cardAreaY + BANNER_H - 2);
+
+      objs.push(this.add.text(cx + CARD_W / 2, cardAreaY + 10, '懸  賞', {
+        fontSize: '13px', fontStyle: 'bold',
+        color: dimmed ? '#aa8866' : '#ffe090',
+        stroke: dimmed ? '#1a0800' : '#3a0000', strokeThickness: 2,
+        padding: { top: 2, bottom: 1 },
+      }).setOrigin(0.5).setDepth(D + 3));
+
+      // Star rating row
+      const starStr = '★'.repeat(quest.star) + '☆'.repeat(5 - quest.star);
+      const starColors: Record<number, string> = { 1: '#aabbcc', 2: '#88ccff', 3: '#88ff88', 4: '#ffdd44', 5: '#ff8844' };
+      objs.push(this.add.text(cx + CARD_W / 2, cardAreaY + BANNER_H - 10, starStr, {
+        fontSize: '11px',
+        color: dimmed ? '#776655' : (starColors[quest.star] ?? '#ffffff'),
+        stroke: '#1a0800', strokeThickness: 1,
+      }).setOrigin(0.5).setDepth(D + 3));
+
+      // ── Dismiss X (top-right of card) ──
+      if (canDismiss) {
+        const hasTicket = InventoryStore.getItemQty('quest_reroll') > 0;
+        const xColor    = hasTicket ? '#ff6666' : '#554433';
+        const xTxt = this.add.text(cx + CARD_W - 6, cardAreaY + 6, '✕', {
+          fontSize: '13px', color: xColor, stroke: '#000000', strokeThickness: 2,
+        }).setOrigin(1, 0).setDepth(D + 5);
+        objs.push(xTxt);
+        if (hasTicket) {
+          xTxt.setInteractive({ useHandCursor: true });
+          xTxt.on('pointerover', () => xTxt.setColor('#ffffff'));
+          xTxt.on('pointerout',  () => xTxt.setColor(xColor));
+          xTxt.on('pointerdown', () => {
+            InventoryStore.spendItem('quest_reroll', 1);
+            if (status === 'accepted') QuestStore.abandonQuest(quest.id);
+            QuestStore.dismissQuest(quest.id);
+            SaveStore.save();
+            closeAll();
+            this.showQuestPanel(W, H);
+          });
+        }
+      }
+
+      // ── Portrait circle ──
+      cg.fillStyle(0x000000, 0.2);
+      cg.fillCircle(cx + CARD_W / 2 + 2, CIRCLE_Y + 2, CIRCLE_R);
+      cg.fillStyle(dimmed ? 0x8a6030 : 0xb87820, 1);
+      cg.fillCircle(cx + CARD_W / 2, CIRCLE_Y, CIRCLE_R);
+      cg.fillStyle(dimmed ? 0xa07840 : 0xf0d898, 0.5);
+      cg.fillCircle(cx + CARD_W / 2, CIRCLE_Y, CIRCLE_R - 4);
+      cg.lineStyle(2.5, dimmed ? 0xb09060 : 0xffe080, 0.9);
+      cg.strokeCircle(cx + CARD_W / 2, CIRCLE_Y, CIRCLE_R);
+      cg.lineStyle(1, dimmed ? 0x886644 : 0xc89030, 0.4);
+      cg.strokeCircle(cx + CARD_W / 2, CIRCLE_Y, CIRCLE_R - 5);
+
+      // Boss sprite
+      const spriteKey = def ? `${def.spriteKey}_idle` : 'slime_idle';
+      const animKey   = `q_${quest.bossId}`;
+      if (!this.anims.exists(animKey) && this.textures.exists(spriteKey)) {
         this.anims.create({
-          key: b.animKey,
-          frames: this.anims.generateFrameNumbers(b.tex, { start: 0, end: b.frameEnd }),
-          frameRate: 8,
-          repeat: -1,
+          key: animKey,
+          frames: this.anims.generateFrameNumbers(spriteKey, { start: 0, end: 5 }),
+          frameRate: 8, repeat: -1,
         });
       }
-    });
-
-    const totalW = bossDefs.length * CARD_W + (bossDefs.length - 1) * CARD_GAP;
-
-    // Geometry mask (world-space)
-    const maskGfx = this.make.graphics({});
-    maskGfx.fillStyle(0xffffff);
-    maskGfx.fillRect(cardAreaX, cardAreaY, cardAreaW, CARD_H);
-    const mask = maskGfx.createGeometryMask();
-    objs.push(maskGfx);
-
-    // Scrollable container
-    const cardsContainer = this.add.container(cardAreaX, cardAreaY).setDepth(D + 1);
-    cardsContainer.setMask(mask);
-    objs.push(cardsContainer);
-
-    bossDefs.forEach((boss, i) => {
-      const cx = i * (CARD_W + CARD_GAP);
-      const cg = this.add.graphics();
-
-      // Parchment fill
-      cg.fillStyle(PAPER, 1);
-      cg.fillRect(cx, 0, CARD_W, CARD_H);
-      // Aged texture bands
-      cg.fillStyle(PAPER_DK, 0.25);
-      cg.fillRect(cx + 4, 4, CARD_W - 8, 24);
-      cg.fillRect(cx + 4, CARD_H - 48, CARD_W - 8, 44);
-      // Red wanted border
-      cg.lineStyle(3, CARD_RED, 1);
-      cg.strokeRect(cx + 2, 2, CARD_W - 4, CARD_H - 4);
-      cg.lineStyle(1, CARD_RED, 0.35);
-      cg.strokeRect(cx + 6, 6, CARD_W - 12, CARD_H - 12);
-
-      if (!boss.unlocked) {
-        cg.fillStyle(0x000000, 0.52);
-        cg.fillRect(cx + 3, 3, CARD_W - 6, CARD_H - 6);
+      if (this.textures.exists(spriteKey)) {
+        const sp = this.add.sprite(cx + CARD_W / 2, CIRCLE_Y, spriteKey, 0)
+          .setScale(3.0).setDepth(D + 3);
+        if (def?.tint) def.fillTint ? sp.setTintFill(def.tint) : sp.setTint(def.tint);
+        if (this.anims.exists(animKey)) sp.play(animKey);
+        if (dimmed) sp.setAlpha(0.4);
+        objs.push(sp);
       }
-      cardsContainer.add(cg);
 
-      // "懸賞" header
-      cardsContainer.add(this.add.text(cx + CARD_W / 2, 16, '懸  賞', {
-        fontSize: '11px', fontStyle: 'bold',
-        color: boss.unlocked ? '#aa1a1a' : '#553333',
-        stroke: boss.unlocked ? '#f0d080' : '#1a0800', strokeThickness: 1,
-      }).setOrigin(0.5));
+      // ── Boss name ──
+      objs.push(this.add.text(cx + CARD_W / 2, NAME_Y, def?.name ?? '???', {
+        fontSize: '13px', fontStyle: 'bold',
+        color: dimmed ? '#7a5030' : '#1e0c00',
+        stroke: dimmed ? '#00000000' : '#e8c070', strokeThickness: 1,
+        padding: { top: 4, bottom: 2 },
+      }).setOrigin(0.5).setDepth(D + 3));
 
-      // Boss sprite or "？"
-      const spriteY = CARD_H / 2 - 12;
-      if (boss.unlocked && this.textures.exists(boss.tex)) {
-        const sp = this.add.sprite(cx + CARD_W / 2, spriteY, boss.tex, 0).setScale(2);
-        if (this.anims.exists(boss.animKey)) sp.play(boss.animKey);
-        cardsContainer.add(sp);
+      // Name underline
+      cg.lineStyle(1.5, dimmed ? 0xaa7744 : 0xcc7722, 0.7);
+      cg.lineBetween(cx + 10, DIV_Y, cx + CARD_W - 10, DIV_Y);
+
+      // ── Flavor text box ──
+      const flavorClipX = cx + 7;
+      const flavorClipW = CARD_W - 14;
+
+      cg.fillStyle(0x000000, 0.06);
+      cg.fillRect(flavorClipX + 1, FLAVOR_TOP + 1, flavorClipW, FLAVOR_H);
+      cg.fillStyle(dimmed ? 0x7a5a28 : 0xcc9840, 0.22);
+      cg.fillRect(flavorClipX, FLAVOR_TOP, flavorClipW, FLAVOR_H);
+      cg.fillStyle(0xffffff, 0.1);
+      cg.fillRect(flavorClipX, FLAVOR_TOP, flavorClipW, 2);
+      cg.lineStyle(1.5, dimmed ? 0x664422 : 0x7a3400, 0.85);
+      cg.strokeRect(flavorClipX, FLAVOR_TOP, flavorClipW, FLAVOR_H);
+      cg.lineStyle(1, dimmed ? 0x886644 : 0xdd7722, 0.35);
+      cg.strokeRect(flavorClipX + 2, FLAVOR_TOP + 2, flavorClipW - 4, FLAVOR_H - 4);
+
+      const flavorTxt = this.add.text(
+        cx + CARD_W / 2, FLAVOR_TOP + 5, quest.flavorText, {
+        fontSize: '13px', lineSpacing: 3,
+        color: dimmed ? '#6a5030' : '#3a1c04',
+        wordWrap: { width: flavorClipW - 12, useAdvancedWrap: true }, align: 'center',
+        padding: { top: 4, bottom: 4 },
+      }).setOrigin(0.5, 0).setDepth(D + 3);
+      objs.push(flavorTxt);
+
+      const maskGfx = this.make.graphics({ add: false } as any);
+      maskGfx.fillStyle(0xffffff);
+      maskGfx.fillRect(flavorClipX + 1, FLAVOR_TOP - 3, flavorClipW - 2, FLAVOR_H + 3);
+      flavorTxt.setMask(maskGfx.createGeometryMask());
+      objs.push(maskGfx);
+
+      if (flavorTxt.height > FLAVOR_H - 8) {
+        const arrow = this.add.text(cx + CARD_W / 2, FLAVOR_TOP + FLAVOR_H - 8, '▼', {
+          fontSize: '8px', color: '#aa6622',
+        }).setOrigin(0.5).setDepth(D + 4);
+        objs.push(arrow);
+        const dz = this.add.zone(
+          cx + CARD_W / 2, FLAVOR_TOP + FLAVOR_H / 2, flavorClipW, FLAVOR_H,
+        ).setInteractive().setDepth(D + 5);
+        objs.push(dz);
+        const minY = FLAVOR_TOP + 5 - (flavorTxt.height - (FLAVOR_H - 10));
+        const maxY = FLAVOR_TOP + 5;
+        let ds = 0, ts = 0;
+        dz.on('pointerdown', (p: Phaser.Input.Pointer) => { ds = p.y; ts = flavorTxt.y; });
+        dz.on('pointermove', (p: Phaser.Input.Pointer) => {
+          if (!p.isDown) return;
+          flavorTxt.y = Phaser.Math.Clamp(ts + (p.y - ds), minY, maxY);
+          arrow.setVisible(flavorTxt.y > minY + 2);
+        });
+      }
+
+      // ── Gold row ──
+      cg.fillStyle(dimmed ? 0x442200 : 0x6a3800, 0.25);
+      cg.fillRect(cx + 6, GOLD_Y - 12, CARD_W - 12, 23);
+      cg.lineStyle(1, dimmed ? 0x886644 : 0xcc8822, 0.6);
+      cg.strokeRect(cx + 6, GOLD_Y - 12, CARD_W - 12, 23);
+
+      if (quest.isEquipReward) {
+        objs.push(this.add.text(cx + CARD_W / 2, GOLD_Y, '★ 裝備獎勵', {
+          fontSize: '16px', fontStyle: 'bold',
+          color: dimmed ? '#665544' : '#44ccff',
+          strokeThickness: 0,
+          padding: { top: 4, bottom: 2 },
+        }).setOrigin(0.5).setDepth(D + 3));
       } else {
-        cardsContainer.add(this.add.text(cx + CARD_W / 2, spriteY, '？', {
-          fontSize: '40px', color: '#553333', stroke: '#1a0800', strokeThickness: 2,
-        }).setOrigin(0.5));
+        const coinImg = this.add.image(cx + CARD_W / 2 - 18, GOLD_Y, 'icon_coin')
+          .setDisplaySize(18, 18).setDepth(D + 3);
+        if (dimmed) coinImg.setAlpha(0.5);
+        objs.push(coinImg);
+        objs.push(this.add.text(cx + CARD_W / 2 - 7, GOLD_Y, `${quest.reward}`, {
+          fontSize: '16px', fontStyle: 'bold',
+          color: dimmed ? '#776644' : '#e8c060',
+          stroke: '#1a0800', strokeThickness: 2,
+        }).setOrigin(0, 0.5).setDepth(D + 3));
       }
 
-      // Boss name
-      cardsContainer.add(this.add.text(cx + CARD_W / 2, CARD_H - 34, boss.unlocked ? boss.name : '???', {
-        fontSize: '12px', fontStyle: 'bold',
-        color: boss.unlocked ? '#4a2810' : '#443333',
-        stroke: boss.unlocked ? '#e8c070' : '#000000', strokeThickness: 1,
-      }).setOrigin(0.5));
+      // ── Action button ──
+      const btnW = CARD_W - 28;
+      const btnX = cx + CARD_W / 2;
 
-    });
+      if (status === 'accepted') {
+        // 繼續出征 button (centred at BTN_Y)
+        const resumeBtnH = 24;
+        const bg2 = this.add.graphics().setDepth(D + 3);
+        objs.push(bg2);
+        bg2.fillStyle(0x000000, 0.35);
+        bg2.fillRect(btnX - btnW / 2 + 2, BTN_Y - resumeBtnH / 2 + 2, btnW, resumeBtnH);
+        bg2.fillStyle(0x0e1638, 1);
+        bg2.fillRect(btnX - btnW / 2, BTN_Y - resumeBtnH / 2, btnW, resumeBtnH);
+        bg2.fillStyle(0xffffff, 0.12);
+        bg2.fillRect(btnX - btnW / 2, BTN_Y - resumeBtnH / 2, btnW, 3);
+        bg2.lineStyle(1.5, 0x3355cc, 0.9);
+        bg2.strokeRect(btnX - btnW / 2, BTN_Y - resumeBtnH / 2, btnW, resumeBtnH);
+        objs.push(this.add.text(btnX, BTN_Y, '繼續出征', {
+          fontSize: '12px', fontStyle: 'bold',
+          color: '#6699ff', stroke: '#000000', strokeThickness: 2,
+        }).setOrigin(0.5).setDepth(D + 4));
+        const resumeHit = this.add.rectangle(btnX, BTN_Y, btnW, resumeBtnH)
+          .setInteractive({ useHandCursor: true }).setDepth(D + 5);
+        objs.push(resumeHit);
+        resumeHit.on('pointerdown', () => { closeAll(); this.scene.start('GameScene'); });
+      } else {
+        let bgC  = 0x1a3a0c, ltC  = 0x44cc22, txtC = '#88ee44', label = '接  受';
+        if (status === 'completed') { bgC = 0x382000; ltC = 0xddaa00; txtC = '#ffdd44'; label = '領  取'; }
+        if (status === 'claimed')   { bgC = 0x1c1810; ltC = 0x554433; txtC = '#665544'; label = '已領取'; }
 
-    // ── Confirm challenge overlay ─────────────────────────
-    const showConfirm = (boss: typeof bossDefs[0]) => {
-      const cW = 240, cH = 110;
-      const cX = W / 2 - cW / 2, cY = H / 2 - cH / 2;
-      const confirmObjs: Phaser.GameObjects.GameObject[] = [];
-      const closeConfirm = () => confirmObjs.forEach(o => o.destroy());
+        const bg2 = this.add.graphics().setDepth(D + 3);
+        objs.push(bg2);
+        bg2.fillStyle(0x000000, 0.35);
+        bg2.fillRect(btnX - btnW / 2 + 2, BTN_Y - BTN_H / 2 + 2, btnW, BTN_H);
+        bg2.fillStyle(bgC, 1);
+        bg2.fillRect(btnX - btnW / 2, BTN_Y - BTN_H / 2, btnW, BTN_H);
+        bg2.fillStyle(0xffffff, 0.12);
+        bg2.fillRect(btnX - btnW / 2, BTN_Y - BTN_H / 2, btnW, 3);
+        bg2.lineStyle(1.5, ltC, 0.9);
+        bg2.strokeRect(btnX - btnW / 2, BTN_Y - BTN_H / 2, btnW, BTN_H);
 
-      const cbg = this.add.graphics().setDepth(D + 10);
-      cbg.fillStyle(IRON, 1);    cbg.fillRect(cX - 3, cY - 3, cW + 6, cH + 6);
-      cbg.fillStyle(WL, 1);     cbg.fillRect(cX - 2, cY - 2, cW + 4, cH + 4);
-      cbg.fillStyle(WD, 1);     cbg.fillRect(cX, cY, cW, cH);
-      cbg.fillStyle(WB, 0.9);   cbg.fillRect(cX, cY, cW, 32);
-      cbg.fillStyle(GOLD, 0.5); cbg.fillRect(cX, cY, cW, 2);
-      confirmObjs.push(cbg);
+        objs.push(this.add.text(btnX, BTN_Y, label, {
+          fontSize: '13px', fontStyle: 'bold',
+          color: txtC, stroke: '#000000', strokeThickness: 2,
+          padding: { top: 4, bottom: 2 },
+        }).setOrigin(0.5).setDepth(D + 4));
 
-      confirmObjs.push(this.add.text(W / 2, cY + 16, '確認挑戰', {
-        fontSize: '13px', color: '#e8c070', stroke: '#1a0800', strokeThickness: 2,
-      }).setOrigin(0.5).setDepth(D + 10));
-
-      confirmObjs.push(this.add.text(W / 2, cY + 52, `挑戰  ${boss.name}？`, {
-        fontSize: '12px', color: '#d4a870', stroke: '#1a0800', strokeThickness: 1,
-      }).setOrigin(0.5).setDepth(D + 10));
-
-      // Yes button
-      const yesGfx = this.add.graphics().setDepth(D + 10);
-      yesGfx.fillStyle(0x2a4a1a, 1); yesGfx.fillRect(cX + 20, cY + 72, 88, 28);
-      yesGfx.lineStyle(2, 0x44aa22, 0.8); yesGfx.strokeRect(cX + 20, cY + 72, 88, 28);
-      confirmObjs.push(yesGfx);
-      confirmObjs.push(this.add.text(cX + 64, cY + 86, '出  發', {
-        fontSize: '12px', color: '#88dd44', stroke: '#1a0800', strokeThickness: 1,
-      }).setOrigin(0.5).setDepth(D + 10));
-      const yesHit = this.add.rectangle(cX + 64, cY + 86, 88, 28)
-        .setDepth(D + 11).setInteractive({ useHandCursor: true });
-      yesHit.on('pointerdown', () => {
-        closeConfirm();
-        closeAll();
-        this.scene.start('GameScene', { boss: boss.bossKey });
-      });
-      confirmObjs.push(yesHit);
-
-      // No button
-      const noGfx = this.add.graphics().setDepth(D + 10);
-      noGfx.fillStyle(0x4a1a1a, 1); noGfx.fillRect(cX + 132, cY + 72, 88, 28);
-      noGfx.lineStyle(2, 0xaa2222, 0.8); noGfx.strokeRect(cX + 132, cY + 72, 88, 28);
-      confirmObjs.push(noGfx);
-      confirmObjs.push(this.add.text(cX + 176, cY + 86, '取  消', {
-        fontSize: '12px', color: '#dd4444', stroke: '#1a0800', strokeThickness: 1,
-      }).setOrigin(0.5).setDepth(D + 10));
-      const noHit = this.add.rectangle(cX + 176, cY + 86, 88, 28)
-        .setDepth(D + 11).setInteractive({ useHandCursor: true });
-      noHit.on('pointerdown', closeConfirm);
-      confirmObjs.push(noHit);
+        if (status === 'available' || status === 'completed') {
+          const hit = this.add.rectangle(btnX, BTN_Y, btnW, BTN_H)
+            .setInteractive({ useHandCursor: true }).setDepth(D + 5);
+          objs.push(hit);
+          hit.on('pointerdown', () => {
+            if (status === 'available') showConfirm(quest);
+            else if (quest.isEquipReward) showEquipRewardModal(quest, closeAll);
+            else claimQuest(quest, closeAll);
+          });
+        }
+      }
     };
 
-    // ── Scroll drag + tap detection ───────────────────────
-    const maxScroll = Math.max(0, totalW - cardAreaW);
-    let dragStartX    = 0;
-    let dragStartOffset = 0;
-    let scrollOffset  = 0;
-    let didDrag       = false;
+    quests.forEach((q, i) => renderCard(q, i));
 
-    const inputZone = this.add.zone(
-      cardAreaX + cardAreaW / 2, cardAreaY + CARD_H / 2,
-      cardAreaW, CARD_H
-    ).setInteractive().setDepth(D + 2);
-    objs.push(inputZone);
+    // ── Confirm dialog ────────────────────────────────────
+    const showConfirm = (quest: Quest) => {
+      const cW = 240, cH = 96;
+      const cX = W / 2 - cW / 2, cY = H / 2 - cH / 2;
+      const co: Phaser.GameObjects.GameObject[] = [];
+      const closeCo = () => co.forEach(o => o.destroy());
 
-    inputZone.on('pointerdown', (ptr: Phaser.Input.Pointer) => {
-      dragStartX      = ptr.x;
-      dragStartOffset = scrollOffset;
-      didDrag         = false;
-    });
-    inputZone.on('pointermove', (ptr: Phaser.Input.Pointer) => {
-      if (!ptr.isDown) return;
-      const dx = ptr.x - dragStartX;
-      if (Math.abs(dx) > 4) didDrag = true;
-      scrollOffset = Phaser.Math.Clamp(dragStartOffset - dx, 0, maxScroll);
-      cardsContainer.x = cardAreaX - scrollOffset;
-    });
-    inputZone.on('pointerup', (ptr: Phaser.Input.Pointer) => {
-      if (didDrag) return;
-      const localX = ptr.x - cardAreaX + scrollOffset;
-      const idx    = Math.floor(localX / (CARD_W + CARD_GAP));
-      if (idx < 0 || idx >= bossDefs.length) return;
-      const slotRight = idx * (CARD_W + CARD_GAP) + CARD_W;
-      if (localX > slotRight) return;
-      const boss = bossDefs[idx];
-      if (boss.unlocked) showConfirm(boss);
-    });
+      const cbg = this.add.graphics().setDepth(D + 10);
+      co.push(cbg);
+      cbg.fillStyle(0x000000, 0.5);
+      cbg.fillRect(cX + 4, cY + 4, cW, cH);
+      cbg.fillStyle(0xa06810, 1);
+      cbg.fillRect(cX - 3, cY - 3, cW + 6, cH + 6);
+      cbg.fillStyle(0xffe080, 0.6);
+      cbg.fillRect(cX - 3, cY - 3, cW + 6, 2);
+      cbg.fillStyle(0x160e04, 1);
+      cbg.fillRect(cX, cY, cW, cH);
+      ([
+        [cX - 3, cY - 3], [cX + cW - 7, cY - 3],
+        [cX - 3, cY + cH - 7], [cX + cW - 7, cY + cH - 7],
+      ] as [number, number][]).forEach(([rx, ry]) => {
+        cbg.fillStyle(0xffe080, 1); cbg.fillRect(rx, ry, 10, 10);
+        cbg.fillStyle(0x7a4a08, 1); cbg.fillRect(rx + 2, ry + 2, 6, 6);
+      });
+
+      co.push(this.add.text(W / 2, cY + 28, '確定接受這份懸賞？', {
+        fontSize: '14px', fontStyle: 'bold',
+        color: '#ffe080', stroke: '#2a1000', strokeThickness: 2,
+        padding: { top: 4, bottom: 2 },
+      }).setOrigin(0.5).setDepth(D + 11));
+
+      const drawBtn = (
+        gfx: Phaser.GameObjects.Graphics,
+        bx: number, by: number, bw: number, bh: number,
+        bgCol: number, ltCol: number,
+      ) => {
+        gfx.fillStyle(0x000000, 0.35); gfx.fillRect(bx + 2, by + 2, bw, bh);
+        gfx.fillStyle(bgCol, 1);       gfx.fillRect(bx, by, bw, bh);
+        gfx.fillStyle(0xffffff, 0.14); gfx.fillRect(bx, by, bw, 3);
+        gfx.lineStyle(1.5, ltCol, 0.9); gfx.strokeRect(bx, by, bw, bh);
+      };
+
+      const yg = this.add.graphics().setDepth(D + 11);
+      co.push(yg);
+      drawBtn(yg, cX + 14, cY + 58, 96, 26, 0x1a3a0c, 0x44cc22);
+      co.push(this.add.text(cX + 62, cY + 71, '出  發', {
+        fontSize: '13px', fontStyle: 'bold',
+        color: '#88ee44', stroke: '#000', strokeThickness: 2,
+        padding: { top: 4, bottom: 2 },
+      }).setOrigin(0.5).setDepth(D + 11));
+      const yHit = this.add.rectangle(cX + 62, cY + 71, 96, 26)
+        .setDepth(D + 12).setInteractive({ useHandCursor: true });
+      co.push(yHit);
+      yHit.on('pointerdown', () => {
+        QuestStore.acceptQuest(quest.id);
+        closeCo(); closeAll();
+        this.scene.start('GameScene');
+      });
+
+      const ng = this.add.graphics().setDepth(D + 11);
+      co.push(ng);
+      drawBtn(ng, cX + 130, cY + 58, 96, 26, 0x3a0808, 0xcc2222);
+      co.push(this.add.text(cX + 178, cY + 71, '取  消', {
+        fontSize: '13px', fontStyle: 'bold',
+        color: '#ff6644', stroke: '#000', strokeThickness: 2,
+        padding: { top: 4, bottom: 2 },
+      }).setOrigin(0.5).setDepth(D + 11));
+      const nHit = this.add.rectangle(cX + 178, cY + 71, 96, 26)
+        .setDepth(D + 12).setInteractive({ useHandCursor: true });
+      co.push(nHit);
+      nHit.on('pointerdown', closeCo);
+    };
+
+    // ── Equip reward modal ────────────────────────────────
+    const showEquipRewardModal = (quest: Quest, afterClose: () => void) => {
+      const SLOTS: EquipSlot[] = ['hat', 'outfit', 'shoes', 'ring1', 'ring2', 'sword'];
+      const pickedSlots = [...SLOTS].sort(() => Math.random() - 0.5).slice(0, 3);
+      const weights = STAR_EQUIP_QUALITY[quest.star] ?? {};
+      const items: EquipmentItem[] = pickedSlots.map(s =>
+        generateEquipment(s, randomQuality(weights as any))
+      );
+
+      const MW = Math.min(W - 24, 340);
+      const ITEM_H = 80;
+      const MH = ITEM_H * 3 + 56 + 16;
+      const mx = W / 2 - MW / 2;
+      const my = H / 2 - MH / 2;
+      const MD = D + 10;
+      const mo: Phaser.GameObjects.GameObject[] = [];
+      const closeMo = () => mo.forEach(o => o.destroy());
+
+      // Backdrop
+      const mbk = this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.7)
+        .setDepth(MD).setInteractive();
+      mo.push(mbk);
+
+      // Panel
+      const mg = this.add.graphics().setDepth(MD + 1);
+      mo.push(mg);
+      mg.fillStyle(WD, 1); mg.fillRect(mx, my, MW, MH);
+      mg.lineStyle(2, GOLD, 0.9); mg.strokeRect(mx, my, MW, MH);
+      mg.fillStyle(WB, 1); mg.fillRect(mx, my, MW, 36);
+      mg.lineStyle(1, GOLD, 0.4); mg.lineBetween(mx, my + 36, mx + MW, my + 36);
+
+      mo.push(this.add.text(W / 2, my + 18, '選擇獎勵裝備', {
+        fontSize: '14px', fontStyle: 'bold',
+        color: '#e8c070', stroke: '#1a0800', strokeThickness: 2,
+        padding: { top: 4, bottom: 2 },
+      }).setOrigin(0.5).setDepth(MD + 2));
+
+      items.forEach((item, idx) => {
+        const iy = my + 36 + idx * ITEM_H + 8;
+        const qColor = QUALITY_COLORS[item.quality];
+        const qHex   = '#' + qColor.toString(16).padStart(6, '0');
+
+        // Row bg
+        const rg = this.add.graphics().setDepth(MD + 2);
+        mo.push(rg);
+        rg.fillStyle(WM, 1); rg.fillRect(mx + 6, iy, MW - 12, ITEM_H - 8);
+        rg.lineStyle(1.5, qColor, 0.7); rg.strokeRect(mx + 6, iy, MW - 12, ITEM_H - 8);
+        rg.fillStyle(qColor, 0.15); rg.fillRect(mx + 6, iy, MW - 12, 3);
+
+        // Image
+        if (this.textures.exists(item.texture))
+          mo.push(this.add.image(mx + 34, iy + (ITEM_H - 8) / 2, item.texture)
+            .setDisplaySize(44, 44).setDepth(MD + 3));
+
+        // Slot + quality
+        mo.push(this.add.text(mx + 62, iy + 10,
+          `${SLOT_NAMES[item.slot]}  [${QUALITY_NAMES[item.quality]}]`, {
+            fontSize: '12px', fontStyle: 'bold',
+            color: qHex, stroke: '#0a0600', strokeThickness: 2,
+            padding: { top: 2, bottom: 1 },
+          }).setOrigin(0, 0.5).setDepth(MD + 3));
+
+        // Affixes
+        const affixLines = item.affixes.map(a => {
+          const isPct = ['crit','atkSpeed','lifesteal','evasion'].includes(a.stat);
+          return `${STAT_NAMES[a.stat]} +${isPct ? (a.value*100).toFixed(1)+'%' : a.value}`;
+        });
+        if (item.behavior) affixLines.push(BEHAVIOR_NAMES[item.behavior]);
+        mo.push(this.add.text(mx + 62, iy + 30, affixLines.join('   '), {
+          fontSize: '10px', color: '#88cc88',
+          stroke: '#0a0600', strokeThickness: 1,
+          padding: { top: 2, bottom: 1 },
+          wordWrap: { width: MW - 76 },
+        }).setOrigin(0, 0.5).setDepth(MD + 3));
+
+        // Hit zone
+        const hit = this.add.rectangle(mx + MW / 2, iy + (ITEM_H - 8) / 2, MW - 12, ITEM_H - 8)
+          .setInteractive({ useHandCursor: true }).setDepth(MD + 4);
+        mo.push(hit);
+        hit.on('pointerover',  () => { rg.clear(); rg.fillStyle(WL, 1); rg.fillRect(mx + 6, iy, MW - 12, ITEM_H - 8); rg.lineStyle(2, qColor, 1); rg.strokeRect(mx + 6, iy, MW - 12, ITEM_H - 8); });
+        hit.on('pointerout',   () => { rg.clear(); rg.fillStyle(WM, 1); rg.fillRect(mx + 6, iy, MW - 12, ITEM_H - 8); rg.lineStyle(1.5, qColor, 0.7); rg.strokeRect(mx + 6, iy, MW - 12, ITEM_H - 8); rg.fillStyle(qColor, 0.15); rg.fillRect(mx + 6, iy, MW - 12, 3); });
+        hit.on('pointerdown', () => {
+          PlayerStore.addOwned(item);
+          QuestStore.claimQuest(quest.id);
+          SaveStore.save();
+          closeMo();
+          afterClose();
+          this.showQuestPanel(W, H);
+        });
+      });
+    };
+
+    // ── Claim ─────────────────────────────────────────────
+    const claimQuest = (quest: Quest, afterClose: () => void) => {
+      const gold = QuestStore.claimQuest(quest.id);
+      InventoryStore.addGold(gold);
+      SaveStore.save();
+      afterClose();
+      this.showQuestPanel(W, H);
+    };
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, closeAll);
   }
@@ -941,8 +997,8 @@ export class PrepScene extends Phaser.Scene {
   // ── Equipment panel (wooden cabinet) ───────────────────
 
   private showEquipmentPanel(W: number, H: number): void {
-    const PW = Math.min(340, W - 20);
-    const PH = Math.min(480, H - 40);
+    const PW = Math.min(W - 16, 640);
+    const PH = Math.min(H - 16, 560);
     const D  = 500;
 
     const container = this.add.container(W / 2, H / 2).setDepth(D);
@@ -975,17 +1031,17 @@ export class PrepScene extends Phaser.Scene {
         bg.fillStyle(IRON, 1); bg.fillRect(rx, ry, 8, 8);
         bg.fillStyle(0x6a7580, 1); bg.fillRect(rx + 2, ry + 2, 4, 4);
       });
-    bg.fillStyle(WB, 0.9); bg.fillRect(px, py, PW, 36);
-    bg.fillStyle(WH, 0.4); bg.fillRect(px, py + 34, PW, 2);
-    bg.fillStyle(WB, 1);   bg.fillRect(px, py + 36, PW, 1);
+    bg.fillStyle(WB, 0.9); bg.fillRect(px, py, PW, 42);
+    bg.fillStyle(WH, 0.4); bg.fillRect(px, py + 40, PW, 2);
+    bg.fillStyle(WB, 1);   bg.fillRect(px, py + 42, PW, 1);
     container.add(bg);
 
-    container.add(this.add.text(0, py + 18, '裝  備', {
-      fontSize: '15px', color: '#e8c070', stroke: '#1a0800', strokeThickness: 2,
+    container.add(this.add.text(0, py + 21, '裝  備', {
+      fontSize: '17px', color: '#e8c070', stroke: '#1a0800', strokeThickness: 2,
     }).setOrigin(0.5));
 
-    const closeBtn = this.add.text(px + PW - 20, py + 18, '✕', {
-      fontSize: '15px', color: '#cc4444', stroke: '#1a0800', strokeThickness: 2,
+    const closeBtn = this.add.text(px + PW - 22, py + 21, '✕', {
+      fontSize: '16px', color: '#cc4444', stroke: '#1a0800', strokeThickness: 2,
     }).setOrigin(0.5).setInteractive({ useHandCursor: true });
     closeBtn.on('pointerdown', () => {
       PlayerStore.offChange(onStoreChange);
@@ -1010,21 +1066,26 @@ export class PrepScene extends Phaser.Scene {
       { label: '飾品', color: 0xff88cc, slotKeys: ['ring1', 'ring2'] },
     ];
 
-    // ── 裝備格子：2 欄 × 3 列 ────────────────────────────
-    const slotSz  = 52;
-    const slotGap = 6;
-    const ECOLS   = 2;
-    const EROWS   = 3;
+    // ── 裝備格子：3 欄 × 2 列 ────────────────────────────
+    const slotSz  = 76;
+    const slotGap = 8;
+    const ECOLS   = 3;
+    const EROWS   = 2;
     const eGridX  = px + 12;
-    const eGridY  = py + 44;
-    const eGridW  = ECOLS * slotSz + (ECOLS - 1) * slotGap;   // 110
-    const eGridH  = EROWS * slotSz + (EROWS - 1) * slotGap;   // 168
+    const eGridY  = py + 50;
+    const eGridH  = EROWS * slotSz + (EROWS - 1) * slotGap;   // 160
 
-    // ── 人物屬性區（裝備格右側）─────────────────────────
-    const statsX = eGridX + eGridW + 14;
-    const statsW = px + PW - 12 - statsX;
-    const statsY = eGridY;
-    const statsH = eGridH;
+    // ── 人物屬性區（裝備格下方，左欄同寬）───────────────
+    const eGridW  = ECOLS * slotSz + (ECOLS - 1) * slotGap;   // 244
+    const statsX  = eGridX;
+    const statsY  = eGridY + eGridH + 10;
+    const statsW  = eGridW;
+    const statsH  = 104;
+
+    // ── 右欄（清單區）────────────────────────────────────
+    const rightColX = eGridX + eGridW + 26;   // left edge of right column
+    const rightColW = px + PW - 10 - rightColX;  // remaining width
+    const rightColTop = py + 50;              // top of right column (below title)
 
     // ── Top equipped slots (reactive) ─────────────────────
     const topSlotsLayer = this.add.container(0, 0);
@@ -1035,78 +1096,208 @@ export class PrepScene extends Phaser.Scene {
     container.add(statsLayer);
 
     // ── Equipped slot detail overlay ──────────────────────
+    // ── 共用按鈕繪製 ──────────────────────────────────────
+    const drawBtn = (
+      det: Phaser.GameObjects.Container,
+      cx: number, cy: number, bw: number, bh: number,
+      label: string, bgClr: number, borderClr: number, txtClr: string,
+      onClick: () => void,
+    ) => {
+      const g = this.add.graphics();
+      g.fillStyle(bgClr, 1);         g.fillRect(cx - bw / 2, cy - bh / 2, bw, bh);
+      g.fillStyle(borderClr, 0.12);  g.fillRect(cx - bw / 2, cy - bh / 2, bw, bh);
+      g.lineStyle(2, borderClr, 0.85); g.strokeRect(cx - bw / 2, cy - bh / 2, bw, bh);
+      g.fillStyle(borderClr, 0.35);  g.fillRect(cx - bw / 2, cy - bh / 2, bw, 2);
+      det.add(g);
+      const t = this.add.text(cx, cy, label, {
+        fontSize: '15px', color: txtClr, stroke: '#1a0800', strokeThickness: 2,
+      }).setOrigin(0.5);
+      det.add(t);
+      const hit = this.add.rectangle(cx, cy, bw, bh).setInteractive({ useHandCursor: true });
+      hit.on('pointerdown', onClick);
+      det.add(hit);
+    };
+
+    const showBehaviorModal = (behavior: import('../data/equipment-data').AttackBehavior) => {
+      const info = BEHAVIOR_INFO[behavior];
+      const { width: W, height: H } = this.scale;
+      const mw = 280;
+
+      const probe = this.add.text(-9999, -9999, info.desc, {
+        fontSize: '12px', wordWrap: { width: mw - 32, useAdvancedWrap: true }, lineSpacing: 3,
+      });
+      const descH = probe.height;
+      probe.destroy();
+
+      const titleH    = 48;
+      const sepGap    = 14;
+      const formulaH  = 28 + info.formula.length * 20;
+      const statsH    = 28 + Math.ceil(info.relatedStats.length / 2) * 22;
+      const closeBtnH = 44;
+      const mh = titleH + descH + sepGap + 14 + formulaH + 12 + statsH + closeBtnH;
+      const mx = W / 2 - mw / 2;
+      const my = H / 2 - mh / 2;
+
+      const D = 900;
+      const objs: Phaser.GameObjects.GameObject[] = [];
+      const s = <T extends Phaser.GameObjects.GameObject>(o: T): T => { objs.push(o); return o; };
+
+      const prevTopOnly = this.input.topOnly;
+      this.input.topOnly = true; // 只有最高 depth 的物件收到事件，完全阻擋下層點擊
+      const closeModal = () => {
+        this.input.topOnly = prevTopOnly;
+        objs.forEach(o => o.destroy());
+      };
+
+      // 全螢幕遮罩，depth 900，攔截所有點擊
+      const overlay = s(this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.55)
+        .setInteractive({ useHandCursor: false }).setDepth(D));
+      overlay.on('pointerdown', () => closeModal());
+
+      const bg = s(this.add.graphics().setDepth(D + 1));
+      bg.fillStyle(0x1a1008, 0.97); bg.fillRect(mx, my, mw, mh);
+      bg.lineStyle(2, 0xc49050, 0.8); bg.strokeRect(mx, my, mw, mh);
+      bg.fillStyle(0xc49050, 0.35); bg.fillRect(mx, my, mw, 3);
+
+      s(this.add.text(mx + mw / 2, my + 20, BEHAVIOR_NAMES[behavior], {
+        fontSize: '17px', color: '#ffe066', stroke: '#1a0800', strokeThickness: 2, fontStyle: 'bold',
+      }).setOrigin(0.5, 0).setDepth(D + 2));
+
+      s(this.add.text(mx + 16, my + titleH, info.desc, {
+        fontSize: '12px', color: '#ccbbaa', wordWrap: { width: mw - 32, useAdvancedWrap: true }, lineSpacing: 3,
+      }).setOrigin(0, 0).setDepth(D + 2));
+
+      const sepY = my + titleH + descH + sepGap;
+      const sepG = s(this.add.graphics().setDepth(D + 2));
+      sepG.fillStyle(0xc49050, 0.3); sepG.fillRect(mx + 12, sepY, mw - 24, 1);
+
+      s(this.add.text(mx + 16, sepY + 8, '傷害公式', {
+        fontSize: '11px', color: '#c49050', fontStyle: 'bold',
+      }).setOrigin(0, 0).setDepth(D + 2));
+
+      info.formula.forEach((line, i) => {
+        s(this.add.text(mx + 16, sepY + 26 + i * 20, `• ${line}`, {
+          fontSize: '12px', color: '#aaddaa',
+        }).setOrigin(0, 0).setDepth(D + 2));
+      });
+
+      // ── 影響數值 ──────────────────────────────────────────
+      const statsY = sepY + 26 + info.formula.length * 20 + 12;
+      const statsG = s(this.add.graphics().setDepth(D + 2));
+      statsG.fillStyle(0xc49050, 0.3); statsG.fillRect(mx + 12, statsY, mw - 24, 1);
+
+      s(this.add.text(mx + 16, statsY + 8, '影響數值', {
+        fontSize: '11px', color: '#c49050', fontStyle: 'bold',
+      }).setOrigin(0, 0).setDepth(D + 2));
+
+      const STAT_TAG_COLORS: Partial<Record<import('../data/equipment-data').StatKey, number>> = {
+        atk: 0x6633aa, hp: 0xaa3333, def: 0x336688, crit: 0xcc8800,
+        atkSpeed: 0x227744, speed: 0x225588, lifesteal: 0x883344, evasion: 0x557722,
+      };
+      info.relatedStats.forEach(({ stat, note }, i) => {
+        const col  = i % 2;
+        const row  = Math.floor(i / 2);
+        const tx   = mx + 16 + col * ((mw - 32) / 2);
+        const ty   = statsY + 26 + row * 22;
+        const tagW = (mw - 40) / 2;
+        const tagH = 18;
+        const tagG = s(this.add.graphics().setDepth(D + 2));
+        const c    = STAT_TAG_COLORS[stat] ?? 0x444444;
+        tagG.fillStyle(c, 0.25); tagG.fillRoundedRect(tx, ty, tagW, tagH, 4);
+        tagG.lineStyle(1, c, 0.6); tagG.strokeRoundedRect(tx, ty, tagW, tagH, 4);
+        s(this.add.text(tx + tagW / 2, ty + tagH / 2, `${STAT_NAMES[stat]}  ${note}`, {
+          fontSize: '10px', color: '#ddd8cc',
+        }).setOrigin(0.5, 0.5).setDepth(D + 3));
+      });
+
+      const closeY = my + mh - 22;
+      const closeG = s(this.add.graphics().setDepth(D + 2));
+      closeG.fillStyle(0x3a2000, 1); closeG.fillRect(mx + mw / 2 - 40, closeY - 14, 80, 28);
+      closeG.lineStyle(1.5, 0xc49050, 0.7); closeG.strokeRect(mx + mw / 2 - 40, closeY - 14, 80, 28);
+
+      const closeT = s(this.add.text(mx + mw / 2, closeY, '關  閉', {
+        fontSize: '13px', color: '#e8c070', stroke: '#1a0800', strokeThickness: 2,
+      }).setOrigin(0.5).setInteractive({ useHandCursor: true }).setDepth(D + 3));
+      closeT.on('pointerdown', () => closeModal());
+    };
+
+    const showEnhanceStub = () => {
+      const note = this.add.text(rightColX + rightColW / 2, rightColTop + 20, '強化功能即將推出', {
+        fontSize: '13px', color: '#ffcc44', stroke: '#000', strokeThickness: 2,
+        backgroundColor: '#3a2000', padding: { x: 10, y: 5 },
+      }).setOrigin(0.5).setDepth(600);
+      this.tweens.add({ targets: note, alpha: 0, delay: 1200, duration: 400, onComplete: () => note.destroy() });
+    };
+
+    let activeDetail: Phaser.GameObjects.Container | null = null;
+
     const showEquippedDetail = (item: import('../data/equipment-data').EquipmentItem, equipSlot: EquipSlot) => {
+      if (activeDetail) return;
       const det = this.add.container(0, 0);
+      activeDetail = det;
       container.add(det);
 
-      const areaTop = dividerY + 4;
-      const areaH   = py + PH - areaTop - 4;
+      const areaTop = rightColTop;
+      const areaH   = py + PH - areaTop - 6;
+      const rcx     = rightColX + rightColW / 2;   // centre of right column
 
       const detBg = this.add.graphics();
-      detBg.fillStyle(WD, 0.98); detBg.fillRect(px + 4, areaTop, PW - 8, areaH);
+      detBg.fillStyle(WD, 0.98); detBg.fillRect(rightColX - 4, areaTop, rightColW + 8, areaH);
       det.add(detBg);
+      det.add(this.add.rectangle(rightColX - 4 + (rightColW + 8) / 2, areaTop + areaH / 2, rightColW + 8, areaH, 0x000000, 0).setInteractive());
 
-      const backBtn = this.add.text(px + 16, areaTop + 14, '← 返回', {
-        fontSize: '13px', color: '#c49050', stroke: '#1a0800', strokeThickness: 1,
+      const backBtn = this.add.text(rightColX + 8, areaTop + 16, '← 返回', {
+        fontSize: '14px', color: '#c49050', stroke: '#1a0800', strokeThickness: 1,
       }).setOrigin(0, 0.5).setInteractive({ useHandCursor: true });
-      backBtn.on('pointerdown', () => det.destroy());
+      const closeEquipped = () => { activeDetail = null; det.destroy(); };
+      backBtn.on('pointerdown', () => closeEquipped());
       det.add(backBtn);
 
       if (this.textures.exists(item.texture))
-        det.add(this.add.image(-80, areaTop + 46, item.texture).setDisplaySize(48, 48));
+        det.add(this.add.image(rightColX + 32, areaTop + 60, item.texture).setDisplaySize(56, 56));
 
-      det.add(this.add.text(-48, areaTop + 28, item.name, {
-        fontSize: '15px', color: '#e8c070', stroke: '#1a0800', strokeThickness: 2,
+      det.add(this.add.text(rightColX + 72, areaTop + 38, item.name, {
+        fontSize: '16px', color: '#e8c070', stroke: '#1a0800', strokeThickness: 2,
       }).setOrigin(0, 0.5));
 
-      const statParts: string[] = [];
-      if (item.stats.atk)   statParts.push(`ATK +${item.stats.atk}`);
-      if (item.stats.hp)    statParts.push(`HP +${item.stats.hp}`);
-      if (item.stats.speed) statParts.push(`SPD +${item.stats.speed}`);
-      if (item.stats.def)   statParts.push(`DEF +${item.stats.def}`);
-      if (item.stats.crit)  statParts.push(`CRIT +${(item.stats.crit * 100).toFixed(0)}%`);
-      det.add(this.add.text(-48, areaTop + 46, statParts.join('  '), {
-        fontSize: '11px', color: '#88cc88', stroke: '#1a0800', strokeThickness: 1,
-      }).setOrigin(0, 0.5));
-
-      if (item.slot === 'sword') {
-        const el    = item.element ?? 'none';
-        const elClr = '#' + ELEMENT_COLORS[el].toString(16).padStart(6, '0');
-        const eg    = this.add.graphics();
-        eg.fillStyle(ELEMENT_COLORS[el], 0.25); eg.fillRect(-48, areaTop + 54, 52, 14);
-        eg.lineStyle(1, ELEMENT_COLORS[el], 0.6); eg.strokeRect(-48, areaTop + 54, 52, 14);
-        det.add(eg);
-        det.add(this.add.text(-22, areaTop + 61, `屬性：${ELEMENT_NAMES[el]}`, {
-          fontSize: '11px', color: elClr, stroke: '#1a0800', strokeThickness: 1,
-        }).setOrigin(0.5));
+      let statOffsetY = areaTop + 58;
+      if (item.behavior) {
+        det.add(this.add.text(rightColX + 72, statOffsetY, `攻擊模式：${BEHAVIOR_NAMES[item.behavior]}`, {
+          fontSize: '12px', color: '#88cc88', stroke: '#1a0800', strokeThickness: 1,
+        }).setOrigin(0, 0));
+        const viewBtn = this.add.text(rightColX + rightColW - 8, statOffsetY, '查看', {
+          fontSize: '11px', color: '#ffe066', stroke: '#1a0800', strokeThickness: 1,
+          backgroundColor: '#3a2000', padding: { x: 5, y: 2 },
+        }).setOrigin(1, 0).setInteractive({ useHandCursor: true });
+        viewBtn.on('pointerdown', () => showBehaviorModal(item.behavior!));
+        det.add(viewBtn);
+        statOffsetY += 18;
       }
+      const statParts: string[] = [];
+      item.affixes.forEach(a => {
+        const isPct = ['crit','atkSpeed','lifesteal','evasion'].includes(a.stat);
+        statParts.push(`${STAT_NAMES[a.stat]} +${isPct ? (a.value * 100).toFixed(1) + '%' : a.value}`);
+      });
+      det.add(this.add.text(rightColX + 72, statOffsetY, statParts.join('\n'), {
+        fontSize: '12px', color: '#88cc88', stroke: '#1a0800', strokeThickness: 1,
+        lineSpacing: 4,
+      }).setOrigin(0, 0));
 
       const dg = this.add.graphics();
-      dg.fillStyle(WB, 1);  dg.fillRect(px + 12, areaTop + 72, PW - 24, 1);
-      dg.fillStyle(WH, 0.3); dg.fillRect(px + 12, areaTop + 73, PW - 24, 1);
+      const statBlockH = (item.behavior ? 1 : 0) * 18 + statParts.length * 18 + 12;
+      dg.fillStyle(WB, 1);   dg.fillRect(rightColX, areaTop + 50 + statBlockH, rightColW, 1);
+      dg.fillStyle(WH, 0.3); dg.fillRect(rightColX, areaTop + 51 + statBlockH, rightColW, 1);
       det.add(dg);
 
-      // Unequip button
-      const btnW = 130; const btnH = 34;
-      const btnY = areaTop + areaH - 24;
-
-      const btnGfx = this.add.graphics();
-      btnGfx.fillStyle(0x3a1a1a, 1); btnGfx.fillRect(-btnW / 2, btnY - btnH / 2, btnW, btnH);
-      btnGfx.fillStyle(0xcc4444, 0.1); btnGfx.fillRect(-btnW / 2, btnY - btnH / 2, btnW, btnH);
-      btnGfx.lineStyle(2, 0xcc4444, 0.75); btnGfx.strokeRect(-btnW / 2, btnY - btnH / 2, btnW, btnH);
-      btnGfx.fillStyle(0xcc4444, 0.3); btnGfx.fillRect(-btnW / 2, btnY - btnH / 2, btnW, 2);
-      det.add(btnGfx);
-
-      det.add(this.add.text(0, btnY, '脫  下', {
-        fontSize: '14px', color: '#ee8888', stroke: '#1a0800', strokeThickness: 2,
-      }).setOrigin(0.5));
-
-      const hitArea = this.add.rectangle(0, btnY, btnW, btnH).setInteractive({ useHandCursor: true });
-      hitArea.on('pointerdown', () => {
-        PlayerStore.unequip(equipSlot);
-        det.destroy();
-      });
-      det.add(hitArea);
+      // 脫下 | 強化
+      const btnH = 38, btnW = 136, btnGap = 8;
+      const btnY = areaTop + areaH - 28;
+      drawBtn(det, rcx - btnW / 2 - btnGap / 2, btnY, btnW, btnH,
+        '脫  下', 0x3a1a1a, 0xcc4444, '#ee8888',
+        () => { PlayerStore.unequip(equipSlot); closeEquipped(); });
+      drawBtn(det, rcx + btnW / 2 + btnGap / 2, btnY, btnW, btnH,
+        '強  化', 0x3a2800, 0xf0c040, '#ffe066',
+        () => showEnhanceStub());
     };
 
     // ── buildTopSlots：3欄×2列六宮格 ─────────────────────
@@ -1130,12 +1321,12 @@ export class PrepScene extends Phaser.Scene {
 
         if (item && this.textures.exists(item.texture)) {
           topSlotsLayer.add(
-            this.add.image(sx + slotSz / 2, sy + slotSz / 2 - 6, item.texture)
-              .setDisplaySize(36, 36),
+            this.add.image(sx + slotSz / 2, sy + slotSz / 2 - 8, item.texture)
+              .setDisplaySize(48, 48),
           );
-          sg.fillStyle(0x000000, 0.5); sg.fillRect(sx, sy + slotSz - 16, slotSz, 16);
-          topSlotsLayer.add(this.add.text(sx + slotSz / 2, sy + slotSz - 9, item.name, {
-            fontSize: '10px', color: '#ffe8a0', stroke: '#000000', strokeThickness: 2,
+          sg.fillStyle(0x000000, 0.5); sg.fillRect(sx, sy + slotSz - 18, slotSz, 18);
+          topSlotsLayer.add(this.add.text(sx + slotSz / 2, sy + slotSz - 10, item.name, {
+            fontSize: '11px', color: '#ffe8a0', stroke: '#000000', strokeThickness: 2,
           }).setOrigin(0.5));
 
           const tap = this.add.rectangle(sx + slotSz / 2, sy + slotSz / 2, slotSz, slotSz)
@@ -1144,14 +1335,14 @@ export class PrepScene extends Phaser.Scene {
           topSlotsLayer.add(tap);
         } else {
           topSlotsLayer.add(this.add.text(sx + slotSz / 2, sy + slotSz / 2 - 4, s.label, {
-            fontSize: '12px', color: '#b08040', stroke: '#000000', strokeThickness: 2,
+            fontSize: '14px', color: '#b08040', stroke: '#000000', strokeThickness: 2,
           }).setOrigin(0.5));
         }
       });
     };
     buildTopSlots();
 
-    // ── buildStats：人物屬性 ───────────────────────────────
+    // ── buildStats：人物屬性（全寬 2列×3欄）──────────────────
     const buildStats = () => {
       statsLayer.removeAll(true);
       const s  = PlayerStore.getStats();
@@ -1160,53 +1351,44 @@ export class PrepScene extends Phaser.Scene {
       const sg = this.add.graphics();
       sg.fillStyle(WD, 0.55); sg.fillRect(statsX, statsY, statsW, statsH);
       sg.lineStyle(1, WL, 0.25); sg.strokeRect(statsX, statsY, statsW, statsH);
-      sg.fillStyle(WB, 0.6); sg.fillRect(statsX, statsY, statsW, 22);
+      sg.fillStyle(WB, 0.6); sg.fillRect(statsX, statsY, statsW, 20);
       statsLayer.add(sg);
 
-      statsLayer.add(this.add.text(statsX + statsW / 2, statsY + 11, '人 物 屬 性', {
-        fontSize: '11px', color: '#d4a044', stroke: '#1a0800', strokeThickness: 1,
+      statsLayer.add(this.add.text(statsX + statsW / 2, statsY + 10, '人 物 屬 性', {
+        fontSize: '12px', color: '#d4a044', stroke: '#1a0800', strokeThickness: 1,
       }).setOrigin(0.5));
 
-      // 左欄 / 右欄各三項
-      const leftRows  = [
-        { label: 'Lv',   value: `${lv}`,                         color: '#ffee88' },
-        { label: '攻擊', value: `${s.atk}`,                      color: '#ff8855' },
-        { label: '防禦', value: `${s.def}`,                      color: '#88aaff' },
+      const allRows = [
+        [{ label: 'Lv',   value: `${lv}`,                             color: '#ffee88' }, { label: 'HP',   value: `${s.maxHp}`,                        color: '#88ee88' }],
+        [{ label: '攻擊', value: `${s.atk}`,                          color: '#ff8855' }, { label: '防禦', value: `${s.def}`,                          color: '#88aaff' }],
+        [{ label: '速度', value: `${s.speed}`,                        color: '#ffff88' }, { label: '暴擊', value: `${(s.crit * 100).toFixed(0)}%`,     color: '#ffaa44' }],
+        [{ label: '攻速', value: `${(s.atkSpeed * 100).toFixed(0)}%`, color: '#ff88ff' }, { label: '閃避', value: `${(s.evasion * 100).toFixed(1)}%`,  color: '#aaddff' }],
       ];
-      const rightRows = [
-        { label: 'HP',   value: `${s.maxHp}`,                    color: '#88ee88' },
-        { label: '速度', value: `${s.speed}`,                    color: '#ffff88' },
-        { label: '暴擊', value: `${(s.crit*100).toFixed(0)}%`,   color: '#ffaa44' },
-      ];
+      const colW2 = statsW / 2;
+      const rowH4 = (statsH - 20) / 4;
 
-      const colW  = statsW / 2;
-      const rowH  = (statsH - 22) / leftRows.length;
-      const labelColor = '#888888';
-
-      leftRows.forEach((r, i) => {
-        const ry = statsY + 22 + i * rowH + rowH / 2;
-        statsLayer.add(this.add.text(statsX + 8,            ry, r.label, { fontSize: '11px', color: labelColor, stroke: '#000', strokeThickness: 1 }).setOrigin(0, 0.5));
-        statsLayer.add(this.add.text(statsX + colW - 8,     ry, r.value, { fontSize: '13px', fontStyle: 'bold', color: r.color, stroke: '#000', strokeThickness: 1 }).setOrigin(1, 0.5));
-      });
-      rightRows.forEach((r, i) => {
-        const ry = statsY + 22 + i * rowH + rowH / 2;
-        statsLayer.add(this.add.text(statsX + colW + 8,     ry, r.label, { fontSize: '11px', color: labelColor, stroke: '#000', strokeThickness: 1 }).setOrigin(0, 0.5));
-        statsLayer.add(this.add.text(statsX + statsW - 8,   ry, r.value, { fontSize: '13px', fontStyle: 'bold', color: r.color, stroke: '#000', strokeThickness: 1 }).setOrigin(1, 0.5));
+      allRows.forEach((row, ri) => {
+        row.forEach((cell, ci) => {
+          const cx = statsX + ci * colW2;
+          const ry = statsY + 20 + ri * rowH4 + rowH4 / 2;
+          statsLayer.add(this.add.text(cx + 6, ry, cell.label, { fontSize: '11px', color: '#888888', stroke: '#000', strokeThickness: 1 }).setOrigin(0, 0.5));
+          statsLayer.add(this.add.text(cx + colW2 - 6, ry, cell.value, { fontSize: '13px', fontStyle: 'bold', color: cell.color, stroke: '#000', strokeThickness: 1 }).setOrigin(1, 0.5));
+        });
       });
     };
     buildStats();
 
-    // ── Divider ───────────────────────────────────────────
-    const dividerY = eGridY + eGridH + 10;
-    const divGfx   = this.add.graphics();
-    divGfx.fillStyle(WB, 1);  divGfx.fillRect(px + 8, dividerY, PW - 16, 2);
-    divGfx.fillStyle(WH, 0.3); divGfx.fillRect(px + 8, dividerY + 2, PW - 16, 1);
+    // ── 垂直分隔線 ────────────────────────────────────────
+    const divGfx = this.add.graphics();
+    const divX   = rightColX - 13;
+    divGfx.fillStyle(WB, 1);   divGfx.fillRect(divX, py + 44, 2, PH - 52);
+    divGfx.fillStyle(WH, 0.3); divGfx.fillRect(divX + 2, py + 44, 1, PH - 52);
     container.add(divGfx);
 
-    // ── Tabs ─────────────────────────────────────────────
-    const tabH    = 26;
-    const tabY    = dividerY + 5;
-    const tabW    = PW / tabDefs.length;
+    // ── Tabs（右欄頂部）──────────────────────────────────
+    const tabH    = 30;
+    const tabY    = rightColTop;
+    const tabW    = rightColW / tabDefs.length;
     let activeTab = 0;
 
     const tabGfx = this.add.graphics();
@@ -1215,7 +1397,7 @@ export class PrepScene extends Phaser.Scene {
     const redrawTabs = (active: number) => {
       tabGfx.clear();
       tabDefs.forEach((t, i) => {
-        const tx = px + i * tabW;
+        const tx = rightColX + i * tabW;
         tabGfx.fillStyle(i === active ? WMI : WD, 1); tabGfx.fillRect(tx, tabY, tabW, tabH);
         tabGfx.lineStyle(1, WB, 0.25); tabGfx.lineBetween(tx + 2, tabY + tabH / 2, tx + tabW - 2, tabY + tabH / 2);
         tabGfx.lineStyle(1, i === active ? WH : WM, i === active ? 0.7 : 0.3);
@@ -1226,76 +1408,83 @@ export class PrepScene extends Phaser.Scene {
     redrawTabs(0);
     container.add(tabGfx);
 
-    // ── Grid ─────────────────────────────────────────────
-    const gridY    = tabY + tabH + 4;
-    const cellSz   = 52;
-    const cellGap  = 5;
-    const gridLeft = px + 8;
-    const cols     = Math.floor((PW - 16 + cellGap) / (cellSz + cellGap));
+    // ── Grid（右欄）─────────────────────────────────────
+    const gridY    = tabY + tabH + 6;
+    const cellSz   = 68;
+    const cellGap  = 7;
+    const gridLeft = rightColX;
+    const cols     = Math.floor((rightColW + cellGap) / (cellSz + cellGap));
 
     const gridLayer = this.add.container(0, 0);
     container.add(gridLayer);
 
     // ── Detail overlay ────────────────────────────────────
     const showItemDetail = (item: import('../data/equipment-data').EquipmentItem) => {
+      if (activeDetail) return;
       const det = this.add.container(0, 0);
+      activeDetail = det;
       container.add(det);
 
-      const areaTop = dividerY + 4;
-      const areaH   = py + PH - areaTop - 4;
+      const areaTop = rightColTop;
+      const areaH   = py + PH - areaTop - 6;
+      const rcx     = rightColX + rightColW / 2;
 
       const detBg = this.add.graphics();
-      detBg.fillStyle(WD, 0.98); detBg.fillRect(px + 4, areaTop, PW - 8, areaH);
+      detBg.fillStyle(WD, 0.98); detBg.fillRect(rightColX - 4, areaTop, rightColW + 8, areaH);
       det.add(detBg);
+      det.add(this.add.rectangle(rightColX - 4 + (rightColW + 8) / 2, areaTop + areaH / 2, rightColW + 8, areaH, 0x000000, 0).setInteractive());
 
-      const backBtn = this.add.text(px + 16, areaTop + 14, '← 返回', {
-        fontSize: '13px', color: '#c49050', stroke: '#1a0800', strokeThickness: 1,
+      const backBtn = this.add.text(rightColX + 8, areaTop + 16, '← 返回', {
+        fontSize: '14px', color: '#c49050', stroke: '#1a0800', strokeThickness: 1,
       }).setOrigin(0, 0.5).setInteractive({ useHandCursor: true });
-      backBtn.on('pointerdown', () => det.destroy());
+      const closeItem = () => { activeDetail = null; det.destroy(); };
+      backBtn.on('pointerdown', () => closeItem());
       det.add(backBtn);
 
       if (this.textures.exists(item.texture))
-        det.add(this.add.image(-80, areaTop + 46, item.texture).setDisplaySize(48, 48));
+        det.add(this.add.image(rightColX + 32, areaTop + 60, item.texture).setDisplaySize(56, 56));
 
-      det.add(this.add.text(-48, areaTop + 28, item.name, {
-        fontSize: '15px', color: '#e8c070', stroke: '#1a0800', strokeThickness: 2,
+      det.add(this.add.text(rightColX + 72, areaTop + 38, item.name, {
+        fontSize: '16px', color: '#e8c070', stroke: '#1a0800', strokeThickness: 2,
       }).setOrigin(0, 0.5));
 
-      const statParts: string[] = [];
-      if (item.stats.atk)   statParts.push(`ATK +${item.stats.atk}`);
-      if (item.stats.hp)    statParts.push(`HP +${item.stats.hp}`);
-      if (item.stats.speed) statParts.push(`SPD +${item.stats.speed}`);
-      if (item.stats.def)   statParts.push(`DEF +${item.stats.def}`);
-      if (item.stats.crit)  statParts.push(`CRIT +${(item.stats.crit * 100).toFixed(0)}%`);
-      det.add(this.add.text(-48, areaTop + 46, statParts.join('  '), {
-        fontSize: '11px', color: '#88cc88', stroke: '#1a0800', strokeThickness: 1,
-      }).setOrigin(0, 0.5));
-
-      if (item.slot === 'sword') {
-        const el    = item.element ?? 'none';
-        const elClr = '#' + ELEMENT_COLORS[el].toString(16).padStart(6, '0');
-        const eg    = this.add.graphics();
-        eg.fillStyle(ELEMENT_COLORS[el], 0.25); eg.fillRect(-48, areaTop + 54, 52, 14);
-        eg.lineStyle(1, ELEMENT_COLORS[el], 0.6); eg.strokeRect(-48, areaTop + 54, 52, 14);
-        det.add(eg);
-        det.add(this.add.text(-22, areaTop + 61, `屬性：${ELEMENT_NAMES[el]}`, {
-          fontSize: '11px', color: elClr, stroke: '#1a0800', strokeThickness: 1,
-        }).setOrigin(0.5));
+      let statOffsetY2 = areaTop + 58;
+      if (item.behavior) {
+        det.add(this.add.text(rightColX + 72, statOffsetY2, `攻擊模式：${BEHAVIOR_NAMES[item.behavior]}`, {
+          fontSize: '12px', color: '#88cc88', stroke: '#1a0800', strokeThickness: 1,
+        }).setOrigin(0, 0));
+        const viewBtn = this.add.text(rightColX + rightColW - 8, statOffsetY2, '查看', {
+          fontSize: '11px', color: '#ffe066', stroke: '#1a0800', strokeThickness: 1,
+          backgroundColor: '#3a2000', padding: { x: 5, y: 2 },
+        }).setOrigin(1, 0).setInteractive({ useHandCursor: true });
+        viewBtn.on('pointerdown', () => showBehaviorModal(item.behavior!));
+        det.add(viewBtn);
+        statOffsetY2 += 18;
       }
+      const statParts: string[] = [];
+      item.affixes.forEach(a => {
+        const isPct = ['crit','atkSpeed','lifesteal','evasion'].includes(a.stat);
+        statParts.push(`${STAT_NAMES[a.stat]} +${isPct ? (a.value * 100).toFixed(1) + '%' : a.value}`);
+      });
+      det.add(this.add.text(rightColX + 72, statOffsetY2, statParts.join('\n'), {
+        fontSize: '12px', color: '#88cc88', stroke: '#1a0800', strokeThickness: 1,
+        lineSpacing: 4,
+      }).setOrigin(0, 0));
 
       const dg = this.add.graphics();
-      dg.fillStyle(WB, 1); dg.fillRect(px + 12, areaTop + 72, PW - 24, 1);
-      dg.fillStyle(WH, 0.3); dg.fillRect(px + 12, areaTop + 73, PW - 24, 1);
+      const statBlockH = (item.behavior ? 1 : 0) * 18 + statParts.length * 18 + 12;
+      dg.fillStyle(WB, 1);   dg.fillRect(rightColX, areaTop + 50 + statBlockH, rightColW, 1);
+      dg.fillStyle(WH, 0.3); dg.fillRect(rightColX, areaTop + 51 + statBlockH, rightColW, 1);
       det.add(dg);
 
-      const btnW = 130; const btnH = 34;
-      const btnY = areaTop + areaH - 24;
+      const btnH = 38, btnW = 136, btnGap = 8;
+      const btnY = areaTop + areaH - 28;
 
       if (item.slot === 'ring1') {
-        // ── 飾品：兩個槽位按鈕 ──────────────────────────────
-        const hW  = (btnW - 4) / 2;   // 每顆按鈕寬度
-        const cx1 = -btnW / 2 + hW / 2;
-        const cx2 =  btnW / 2 - hW / 2;
+        // ── 飾品：槽位按鈕一排，強化單獨一排 ─────────────
+        const hW  = (btnW - 4) / 2;
+        const cx1 = rcx - btnW / 2 + hW / 2;
+        const cx2 = rcx + btnW / 2 - hW / 2;
         const eq1 = PlayerStore.getEquipped()['ring1'];
         const eq2 = PlayerStore.getEquipped()['ring2'];
 
@@ -1311,40 +1500,29 @@ export class PrepScene extends Phaser.Scene {
         drawSlotBtn(slotBtnGfx, cx2, !!eq2);
         det.add(slotBtnGfx);
 
-        det.add(this.add.text(cx1, btnY - 6, '飾品 1', {
-          fontSize: '12px', color: '#e8c070', stroke: '#1a0800', strokeThickness: 2,
-        }).setOrigin(0.5));
-        det.add(this.add.text(cx1, btnY + 8, eq1 ? eq1.name.slice(0, 5) : '空', {
-          fontSize: '9px', color: eq1 ? '#cc8888' : '#558855',
-        }).setOrigin(0.5));
-
-        det.add(this.add.text(cx2, btnY - 6, '飾品 2', {
-          fontSize: '12px', color: '#e8c070', stroke: '#1a0800', strokeThickness: 2,
-        }).setOrigin(0.5));
-        det.add(this.add.text(cx2, btnY + 8, eq2 ? eq2.name.slice(0, 5) : '空', {
-          fontSize: '9px', color: eq2 ? '#cc8888' : '#558855',
-        }).setOrigin(0.5));
+        det.add(this.add.text(cx1, btnY - 7, '飾品 1', { fontSize: '13px', color: '#e8c070', stroke: '#1a0800', strokeThickness: 2 }).setOrigin(0.5));
+        det.add(this.add.text(cx1, btnY + 9, eq1 ? eq1.name.slice(0, 6) : '空', { fontSize: '10px', color: eq1 ? '#cc8888' : '#558855' }).setOrigin(0.5));
+        det.add(this.add.text(cx2, btnY - 7, '飾品 2', { fontSize: '13px', color: '#e8c070', stroke: '#1a0800', strokeThickness: 2 }).setOrigin(0.5));
+        det.add(this.add.text(cx2, btnY + 9, eq2 ? eq2.name.slice(0, 6) : '空', { fontSize: '10px', color: eq2 ? '#cc8888' : '#558855' }).setOrigin(0.5));
 
         const hit1 = this.add.rectangle(cx1, btnY, hW, btnH).setInteractive({ useHandCursor: true });
-        hit1.on('pointerdown', () => { PlayerStore.equipToSlot(item, 'ring1'); det.destroy(); });
+        hit1.on('pointerdown', () => { PlayerStore.equipToSlot(item, 'ring1'); closeItem(); });
         det.add(hit1);
         const hit2 = this.add.rectangle(cx2, btnY, hW, btnH).setInteractive({ useHandCursor: true });
-        hit2.on('pointerdown', () => { PlayerStore.equipToSlot(item, 'ring2'); det.destroy(); });
+        hit2.on('pointerdown', () => { PlayerStore.equipToSlot(item, 'ring2'); closeItem(); });
         det.add(hit2);
+
+        drawBtn(det, rcx, btnY + btnH + 8, btnW, btnH,
+          '強  化', 0x3a2800, 0xf0c040, '#ffe066',
+          () => showEnhanceStub());
       } else {
-        // ── 一般裝備：單一裝備按鈕（永遠可點，允許換裝）──────
-        const btnGfx = this.add.graphics();
-        btnGfx.fillStyle(0x5a3800, 1); btnGfx.fillRect(-btnW / 2, btnY - btnH / 2, btnW, btnH);
-        btnGfx.fillStyle(GOLD, 0.12);  btnGfx.fillRect(-btnW / 2, btnY - btnH / 2, btnW, btnH);
-        btnGfx.lineStyle(2, GOLD, 0.8); btnGfx.strokeRect(-btnW / 2, btnY - btnH / 2, btnW, btnH);
-        btnGfx.fillStyle(GOLD, 0.35);  btnGfx.fillRect(-btnW / 2, btnY - btnH / 2, btnW, 2);
-        det.add(btnGfx);
-        det.add(this.add.text(0, btnY, '裝  備', {
-          fontSize: '14px', color: '#e8c070', stroke: '#1a0800', strokeThickness: 2,
-        }).setOrigin(0.5));
-        const hitArea = this.add.rectangle(0, btnY, btnW, btnH).setInteractive({ useHandCursor: true });
-        hitArea.on('pointerdown', () => { PlayerStore.equip(item); det.destroy(); });
-        det.add(hitArea);
+        // ── 一般裝備：裝備 | 強化 ──────────��───────────────
+        drawBtn(det, rcx - btnW / 2 - btnGap / 2, btnY, btnW, btnH,
+          '裝  備', 0x5a3800, GOLD, '#e8c070',
+          () => { PlayerStore.equip(item); closeItem(); });
+        drawBtn(det, rcx + btnW / 2 + btnGap / 2, btnY, btnW, btnH,
+          '強  化', 0x3a2800, 0xf0c040, '#ffe066',
+          () => showEnhanceStub());
       }
     };
 
@@ -1376,12 +1554,12 @@ export class PrepScene extends Phaser.Scene {
 
         if (this.textures.exists(item.texture))
           gridLayer.add(
-            this.add.image(cx2 + cellSz / 2, cy2 + cellSz / 2 - 7, item.texture).setDisplaySize(36, 36),
+            this.add.image(cx2 + cellSz / 2, cy2 + cellSz / 2 - 8, item.texture).setDisplaySize(42, 42),
           );
 
-        gg.fillStyle(0x000000, 0.5); gg.fillRect(cx2, cy2 + cellSz - 16, cellSz, 16);
-        gridLayer.add(this.add.text(cx2 + cellSz / 2, cy2 + cellSz - 9, item.name, {
-          fontSize: '10px', color: '#ffe8a0', stroke: '#000000', strokeThickness: 2,
+        gg.fillStyle(0x000000, 0.5); gg.fillRect(cx2, cy2 + cellSz - 18, cellSz, 18);
+        gridLayer.add(this.add.text(cx2 + cellSz / 2, cy2 + cellSz - 10, item.name, {
+          fontSize: '11px', color: '#ffe8a0', stroke: '#000000', strokeThickness: 2,
         }).setOrigin(0.5));
 
         const tap = this.add.rectangle(cx2 + cellSz / 2, cy2 + cellSz / 2, cellSz, cellSz)
@@ -1394,14 +1572,14 @@ export class PrepScene extends Phaser.Scene {
 
     // ── Tab bar ───────────────────────────────────────────
     tabDefs.forEach((t, i) => {
-      const lbl = this.add.text(px + i * tabW + tabW / 2, tabY + tabH / 2, t.label, {
-        fontSize: '13px', color: i === 0 ? '#e8c070' : '#7a5830',
+      const lbl = this.add.text(rightColX + i * tabW + tabW / 2, tabY + tabH / 2, t.label, {
+        fontSize: '14px', color: i === 0 ? '#e8c070' : '#7a5830',
         stroke: '#1a0800', strokeThickness: 1,
       }).setOrigin(0.5);
       tabLabels.push(lbl);
       container.add(lbl);
 
-      const hit = this.add.rectangle(px + i * tabW + tabW / 2, tabY + tabH / 2, tabW, tabH)
+      const hit = this.add.rectangle(rightColX + i * tabW + tabW / 2, tabY + tabH / 2, tabW, tabH)
         .setInteractive({ useHandCursor: true });
       hit.on('pointerdown', () => {
         tabLabels[activeTab].setStyle({ color: '#7a5830' });
@@ -1428,7 +1606,7 @@ export class PrepScene extends Phaser.Scene {
 
   private showItemPanel(W: number, H: number): void {
     const PW = Math.min(480, W - 20);
-    const PH = Math.min(300, H - 40);
+    const PH = Math.min(380, H - 40);
     const D  = 500;
 
     const container = this.add.container(W / 2, H / 2).setDepth(D);
@@ -1490,8 +1668,8 @@ export class PrepScene extends Phaser.Scene {
 
     // ── Item grid ─────────────────────────────────────────
     const gridY    = py + 44;
-    const cellSz   = 60;
-    const cellGap  = 6;
+    const cellSz   = 80;
+    const cellGap  = 8;
     const gridLeft = px + 10;
     const cols     = Math.floor((PW - 20 + cellGap) / (cellSz + cellGap));
 
@@ -1571,18 +1749,18 @@ export class PrepScene extends Phaser.Scene {
         const iconKey = `icon_${item.id}`;
         if (this.textures.exists(iconKey)) {
           gridContainer.add(
-            this.add.image(cx2 + cellSz / 2, cy2 + cellSz / 2 - 9, iconKey).setDisplaySize(36, 36),
+            this.add.image(cx2 + cellSz / 2, cy2 + 34, iconKey).setDisplaySize(44, 44),
           );
         }
 
-        gridContainer.add(this.add.text(cx2 + cellSz / 2, cy2 + cellSz - 12, item.name, {
-          fontSize: '9px', color: '#ffe090', stroke: '#1a0800', strokeThickness: 2,
-          wordWrap: { width: cellSz - 4 }, align: 'center',
+        gridContainer.add(this.add.text(cx2 + cellSz / 2, cy2 + cellSz - 4, item.name, {
+          fontSize: '11px', color: '#ffe090', stroke: '#1a0800', strokeThickness: 2,
+          wordWrap: { width: cellSz - 6 }, align: 'center',
         }).setOrigin(0.5, 1));
 
-        gridContainer.add(this.add.text(cx2 + cellSz - 3, cy2 + cellSz - 3, `×${item.qty}`, {
-          fontSize: '10px', fontStyle: 'bold', color: '#ffe866', stroke: '#1a0800', strokeThickness: 2,
-        }).setOrigin(1, 1));
+        gridContainer.add(this.add.text(cx2 + cellSz - 3, cy2 + 4, `×${item.qty}`, {
+          fontSize: '12px', fontStyle: 'bold', color: '#ffe866', stroke: '#1a0800', strokeThickness: 2,
+        }).setOrigin(1, 0));
 
         const tap = this.add.rectangle(cx2 + cellSz / 2, cy2 + cellSz / 2, cellSz, cellSz)
           .setInteractive({ useHandCursor: true });
@@ -1606,8 +1784,8 @@ export class PrepScene extends Phaser.Scene {
   // ── Card Window ─────────────────────────────────────────
 
   private openCardWindow(W: number, H: number): void {
-    const PW = Math.min(340, W - 20);
-    const PH = Math.min(460, H - 40);
+    const PW = Math.min(W - 16, 380);
+    const PH = Math.min(H - 20, 520);
     const D  = 500;
 
     const container = this.add.container(W / 2, H / 2).setDepth(D);
@@ -1662,63 +1840,324 @@ export class PrepScene extends Phaser.Scene {
     container.add(closeBtn);
 
     // Layout constants
-    const CARD_W   = 52;
-    const CARD_H   = 68;
-    const SLOT_GAP = 6;
+    const CARD_W   = 64;
+    const CARD_H   = 86;
+    const SLOT_GAP = 4;
     const slotsTotW = CARD_SLOT_COUNT * CARD_W + (CARD_SLOT_COUNT - 1) * SLOT_GAP;
     const slotsX0   = -slotsTotW / 2;
-    const slotsY    = py + 56;   // top of equipped row
-    const INV_TOP   = slotsY + CARD_H + 20;
+    const slotsY    = py + 58;   // top of equipped row
+    const INV_TOP   = slotsY + CARD_H + 24;
     const INV_H     = py + PH - INV_TOP - 8;
-    const INV_COLS  = 4;
-    const INV_GAP   = 6;
+    const INV_COLS  = 3;
+    const INV_GAP   = 10;
     const invTotW   = INV_COLS * CARD_W + (INV_COLS - 1) * INV_GAP;
     const invX0     = -invTotW / 2;
 
     // ── Equipped slots label ──────────────────────────────
-    container.add(this.add.text(0, slotsY - 12, '裝備中', {
-      fontSize: '10px', color: '#b07030', stroke: '#1a0800', strokeThickness: 1,
+    container.add(this.add.text(0, slotsY - 14, '裝備中', {
+      fontSize: '13px', color: '#b07030', stroke: '#1a0800', strokeThickness: 1,
     }).setOrigin(0.5));
 
     // ── Content sub-container (rebuilt on change) ──────────
     let contentCnt = this.add.container(0, 0);
     container.add(contentCnt);
 
-    // ── Helper: draw one card ──────────────────────────────
-    const drawCardShape = (
+    // ── Helper: 持有欄卡片（木質風格）────────────────────────
+    const drawInvCard = (
       g: Phaser.GameObjects.Graphics,
       cx: number, cy: number, w: number, h: number,
-      tint: number, alpha = 1,
     ) => {
-      g.fillStyle(0x1a0a00, alpha);
-      g.fillRect(cx - w / 2, cy - h / 2, w, h);
-      g.lineStyle(2, tint, 0.9);
-      g.strokeRect(cx - w / 2, cy - h / 2, w, h);
-      g.fillStyle(tint, 0.25);
-      g.fillRect(cx - w / 2, cy - h / 2, w, 6);
+      const x    = cx - w / 2, y = cy - h / 2;
+      const SILV = 0xb87333;   // 銅色框
+      // 陰影
+      g.fillStyle(0x000000, 0.35);
+      g.fillRect(x + 2, y + 2, w, h);
+      // 底色
+      g.fillStyle(WMI, 1);
+      g.fillRect(x, y, w, h);
+      // 外框：銀灰色
+      g.lineStyle(2.5, SILV, 0.9);
+      g.strokeRect(x, y, w, h);
+      // 內框
+      g.lineStyle(1, SILV, 0.4);
+      g.strokeRect(x + 3, y + 3, w - 6, h - 6);
+      // 四角裝飾點
+      const cr = 3;
+      g.fillStyle(SILV, 0.85);
+      g.fillCircle(x + cr + 1,     y + cr + 1,     cr);
+      g.fillCircle(x + w - cr - 1, y + cr + 1,     cr);
+      g.fillCircle(x + cr + 1,     y + h - cr - 1, cr);
+      g.fillCircle(x + w - cr - 1, y + h - cr - 1, cr);
+      // 上下橫紋
+      g.lineStyle(1.5, SILV, 0.45);
+      g.lineBetween(x + 10, y + 8,     x + w - 10, y + 8);
+      g.lineBetween(x + 10, y + h - 8, x + w - 10, y + h - 8);
+    };
+
+    // ── Helper: 菁英卡片（銀框質感）─────────────────────────
+    const drawEliteCard = (
+      g: Phaser.GameObjects.Graphics,
+      cx: number, cy: number, w: number, h: number,
+    ) => {
+      const x    = cx - w / 2, y = cy - h / 2;
+      const SILV = 0x9aacb8;   // 銀色框
+      // 陰影
+      g.fillStyle(0x000000, 0.4);
+      g.fillRect(x + 2, y + 2, w, h);
+      // 底色
+      g.fillStyle(WMI, 1);
+      g.fillRect(x, y, w, h);
+      // 外框：銀色
+      g.lineStyle(2.5, SILV, 0.95);
+      g.strokeRect(x, y, w, h);
+      // 內框
+      g.lineStyle(1, SILV, 0.45);
+      g.strokeRect(x + 3, y + 3, w - 6, h - 6);
+      // 四角裝飾點
+      const cr = 3;
+      g.fillStyle(SILV, 0.9);
+      g.fillCircle(x + cr + 1,     y + cr + 1,     cr);
+      g.fillCircle(x + w - cr - 1, y + cr + 1,     cr);
+      g.fillCircle(x + cr + 1,     y + h - cr - 1, cr);
+      g.fillCircle(x + w - cr - 1, y + h - cr - 1, cr);
+      // 上下橫紋
+      g.lineStyle(1.5, SILV, 0.5);
+      g.lineBetween(x + 10, y + 8,     x + w - 10, y + 8);
+      g.lineBetween(x + 10, y + h - 8, x + w - 10, y + h - 8);
+    };
+
+    // ── Helper: Boss 卡片（金框質感）─────────────────────────
+    const drawBossCard = (
+      g: Phaser.GameObjects.Graphics,
+      cx: number, cy: number, w: number, h: number,
+    ) => {
+      const x = cx - w / 2, y = cy - h / 2;
+      const GOLD = 0xf0c040;
+      // 陰影
+      g.fillStyle(0x000000, 0.5);
+      g.fillRect(x + 3, y + 3, w, h);
+      // 底色（同小怪卡）
+      g.fillStyle(WMI, 1);
+      g.fillRect(x, y, w, h);
+      // 外框：金色粗框
+      g.lineStyle(2.5, GOLD, 0.95);
+      g.strokeRect(x, y, w, h);
+      // 內框
+      g.lineStyle(1, GOLD, 0.45);
+      g.strokeRect(x + 3, y + 3, w - 6, h - 6);
+      // 四角裝飾點
+      const cr = 3;
+      g.fillStyle(GOLD, 0.9);
+      g.fillCircle(x + cr + 1,     y + cr + 1,     cr);
+      g.fillCircle(x + w - cr - 1, y + cr + 1,     cr);
+      g.fillCircle(x + cr + 1,     y + h - cr - 1, cr);
+      g.fillCircle(x + w - cr - 1, y + h - cr - 1, cr);
+      // 上下橫紋
+      g.lineStyle(1.5, GOLD, 0.55);
+      g.lineBetween(x + 10, y + 8,     x + w - 10, y + 8);
+      g.lineBetween(x + 10, y + h - 8, x + w - 10, y + h - 8);
+    };
+
+    // ── Card detail popup (card-styled) ───────────────────
+    let detailPopup: Phaser.GameObjects.Container | null = null;
+    const showCardDetail = (
+      def: ReturnType<typeof getCardDef> & object,
+      equippedSlot: number | null,   // null = from inventory
+      cardId: string,
+    ) => {
+      detailPopup?.destroy();
+      const PDW      = 200;
+      const PDH      = 310;
+      const BANNER_H = 52;
+      const D2       = D + 10;
+
+      const pop = this.add.container(0, 0).setDepth(D2);
+      container.add(pop);
+      detailPopup = pop;
+
+      // Full-panel dim backdrop — click to close
+      const dimBg = this.add.rectangle(0, 0, W, H, 0x000000, 0.6).setInteractive();
+      dimBg.on('pointerdown', () => { pop.destroy(); detailPopup = null; });
+      pop.add(dimBg);
+
+      // ── Card body ─────────────────────────────────────
+      const monDefPre  = getMonsterDef(def.monsterId);
+      const isBoss     = (monDefPre?.tier ?? 1) >= 5;
+      const FRAME_CLR  = isBoss ? 0xf0c040 : 0x9aacb8;   // 金 or 銀
+      const FRAME_CLR2 = isBoss ? 0xffee88 : 0xc8d8e0;
+      const cg = this.add.graphics();
+
+      // 陰影
+      cg.fillStyle(0x000000, 0.5);
+      cg.fillRect(-PDW / 2 + 4, -PDH / 2 + 4, PDW, PDH);
+
+      // 底色（亮木色）
+      cg.fillStyle(WMI, 1);
+      cg.fillRect(-PDW / 2, -PDH / 2, PDW, PDH);
+
+      // 外框粗線
+      cg.lineStyle(2.5, FRAME_CLR, 0.95);
+      cg.strokeRect(-PDW / 2, -PDH / 2, PDW, PDH);
+
+      // 內框細線
+      cg.lineStyle(1, FRAME_CLR, 0.4);
+      cg.strokeRect(-PDW / 2 + 4, -PDH / 2 + 4, PDW - 8, PDH - 8);
+
+      // 四角裝飾點
+      const PCR = 4;
+      cg.fillStyle(FRAME_CLR, 0.9);
+      cg.fillCircle(-PDW / 2 + PCR + 1, -PDH / 2 + PCR + 1, PCR);
+      cg.fillCircle( PDW / 2 - PCR - 1, -PDH / 2 + PCR + 1, PCR);
+      cg.fillCircle(-PDW / 2 + PCR + 1,  PDH / 2 - PCR - 1, PCR);
+      cg.fillCircle( PDW / 2 - PCR - 1,  PDH / 2 - PCR - 1, PCR);
+
+      // Banner（標題區）
+      cg.fillStyle(WM, 1);
+      cg.fillRect(-PDW / 2, -PDH / 2, PDW, BANNER_H);
+
+      // Banner 上下橫紋
+      cg.lineStyle(1.5, FRAME_CLR, 0.6);
+      cg.lineBetween(-PDW / 2 + 14, -PDH / 2 + 6,        PDW / 2 - 14, -PDH / 2 + 6);
+      cg.lineBetween(-PDW / 2 + 14, -PDH / 2 + BANNER_H - 6, PDW / 2 - 14, -PDH / 2 + BANNER_H - 6);
+
+      // 底部橫紋
+      cg.lineStyle(1.5, FRAME_CLR2, 0.4);
+      cg.lineBetween(-PDW / 2 + 14, PDH / 2 - 10, PDW / 2 - 14, PDH / 2 - 10);
+      pop.add(cg);
+
+      // ── Banner: card name (vertically centered) ───────
+      pop.add(this.add.text(0, -PDH / 2 + BANNER_H / 2, def.name, {
+        fontSize: '14px', fontStyle: 'bold',
+        color: '#f0d080',
+        stroke: '#1a0800', strokeThickness: 2,
+        wordWrap: { width: PDW - 20, useAdvancedWrap: true }, align: 'center',
+        maxLines: 2,
+      }).setOrigin(0.5, 0.5));
+
+      // ── Monster sprite (no circle) ────────────────────
+      const SPRITE_Y = -PDH / 2 + BANNER_H + 62;
+      const monDef = getMonsterDef(def.monsterId);
+      if (monDef) {
+        const spriteKey  = `${monDef.spriteKey}_idle`;
+        const spriteScale = monDef.tier >= 5 ? 3.0 : 1.5;
+        try {
+          const sp = this.add.sprite(0, SPRITE_Y, spriteKey, 0).setScale(spriteScale);
+          if (monDef.tint !== 0xffffff) sp.setTint(monDef.tint);
+          pop.add(sp);
+        } catch { /* texture not loaded */ }
+      }
+
+      // ── Divider ──────────────────────────────────────
+      const DIVIDER_Y = SPRITE_Y + 56;
+      const dg = this.add.graphics();
+      dg.lineStyle(1, WH, 0.4);
+      dg.lineBetween(-PDW / 2 + 16, DIVIDER_Y, PDW / 2 - 16, DIVIDER_Y);
+      pop.add(dg);
+
+      // ── Effect description ────────────────────────────
+      pop.add(this.add.text(0, DIVIDER_Y + 10, def.desc, {
+        fontSize: '12px', color: '#c8a060',
+        stroke: '#1a0800', strokeThickness: 1,
+        wordWrap: { width: PDW - 24, useAdvancedWrap: true }, align: 'center',
+        maxLines: 3,
+      }).setOrigin(0.5, 0));
+
+      // ── Action button ─────────────────────────────────
+      const isEquipped = equippedSlot !== null;
+      const btnLabel   = isEquipped ? '取  下' : '配  置';
+      const btnColor   = isEquipped ? 0x3a1010 : 0x0e2a0e;
+      const btnBorder  = isEquipped ? 0xcc4444 : 0x44cc44;
+      const btnTxtC    = isEquipped ? '#ff8888' : '#88ff88';
+
+      const BW = PDW - 40, BH = 32;
+      const btnY = PDH / 2 - 28;
+      const btnBg = this.add.graphics();
+      btnBg.fillStyle(btnColor, 1);
+      btnBg.fillRect(-BW / 2, btnY - BH / 2, BW, BH);
+      btnBg.lineStyle(1.5, btnBorder, 0.9);
+      btnBg.strokeRect(-BW / 2, btnY - BH / 2, BW, BH);
+      pop.add(btnBg);
+
+      pop.add(this.add.text(0, btnY, btnLabel, {
+        fontSize: '14px', fontStyle: 'bold',
+        color: btnTxtC, stroke: '#000000', strokeThickness: 2,
+      }).setOrigin(0.5));
+
+      const btnHit = this.add.rectangle(0, btnY, BW, BH).setInteractive({ useHandCursor: true });
+      btnHit.on('pointerdown', (ptr: Phaser.Input.Pointer) => {
+        ptr.event.stopPropagation();
+        if (isEquipped) {
+          CardStore.unequip(equippedSlot!);
+        } else {
+          CardStore.equipAuto(cardId);
+        }
+        SaveStore.save();
+        pop.destroy();
+        detailPopup = null;
+      });
+      pop.add(btnHit);
+    };
+
+    // ── Helper: draw card face (name only) ─────────────────
+    const drawCardFace = (
+      target: Phaser.GameObjects.Container,
+      def: ReturnType<typeof getCardDef> & object,
+      cx: number, cy: number,
+      _slotLabel: string,
+      qty?: number,
+    ) => {
+      // 數量標籤（右上角）
+      if (qty !== undefined && qty > 1) {
+        target.add(this.add.text(cx + CARD_W / 2 - 2, cy - CARD_H / 2 + 3, `×${qty}`, {
+          fontSize: '10px', fontStyle: 'bold', color: '#ffee88', stroke: '#000000', strokeThickness: 1,
+        }).setOrigin(1, 0));
+      }
+      // 怪物精靈圖，播放 idle 動畫
+      const monDef = getMonsterDef(def.monsterId);
+      if (monDef) {
+        const spriteKey = `${monDef.spriteKey}_idle`;
+        const animKey   = `card_idle_${def.monsterId}`;
+        try {
+          if (!this.anims.exists(animKey) && this.textures.exists(spriteKey)) {
+            this.anims.create({
+              key: animKey,
+              frames: this.anims.generateFrameNumbers(spriteKey, { start: 0, end: 5 }),
+              frameRate: 8, repeat: -1,
+            });
+          }
+          const baseScale = monDef.tier >= 5 ? 1.6 : 0.9;
+          const sp = this.add.sprite(cx, cy, spriteKey, 0).setScale(baseScale);
+          if (monDef.tint !== 0xffffff) sp.setTint(monDef.tint);
+          if (this.anims.exists(animKey)) sp.play(animKey);
+          target.add(sp);
+        } catch { /* 紋理尚未載入 */ }
+      }
     };
 
     // ── Rebuild function ───────────────────────────────────
     const rebuild = () => {
+      detailPopup?.destroy();
+      detailPopup = null;
       contentCnt.destroy();
       contentCnt = this.add.container(0, 0);
       container.add(contentCnt);
 
-      const eq   = CardStore.getEquipped();
+      const eq       = CardStore.getEquipped();
       const invItems = CardStore.getInventory();
 
       // ── Equipped row ──────────────────────────────────
       for (let i = 0; i < CARD_SLOT_COUNT; i++) {
-        const cx = slotsX0 + i * (CARD_W + SLOT_GAP) + CARD_W / 2;
-        const cy = slotsY + CARD_H / 2;
+        const cx     = slotsX0 + i * (CARD_W + SLOT_GAP) + CARD_W / 2;
+        const cy     = slotsY + CARD_H / 2;
         const cardId = eq[i];
         const def    = cardId ? getCardDef(cardId) : null;
 
         const slotGfx = this.add.graphics();
         if (def) {
-          drawCardShape(slotGfx, cx, cy, CARD_W, CARD_H, def.tint);
+          const monTier = getMonsterDef(def.monsterId)?.tier ?? 1;
+          monTier >= 5 ? drawBossCard(slotGfx, cx, cy, CARD_W, CARD_H) : monTier === 3 ? drawEliteCard(slotGfx, cx, cy, CARD_W, CARD_H) : drawInvCard(slotGfx, cx, cy, CARD_W, CARD_H);
         } else {
-          slotGfx.lineStyle(1, WM, 0.6);
+          slotGfx.lineStyle(1, WM, 0.5);
           slotGfx.strokeRect(cx - CARD_W / 2, cy - CARD_H / 2, CARD_W, CARD_H);
           slotGfx.fillStyle(WD, 0.3);
           slotGfx.fillRect(cx - CARD_W / 2, cy - CARD_H / 2, CARD_W, CARD_H);
@@ -1726,47 +2165,24 @@ export class PrepScene extends Phaser.Scene {
         contentCnt.add(slotGfx);
 
         if (def) {
-          // Element symbol
-          const elemSym = { none: '無', water: '水', fire: '火', grass: '草' }[def.element];
-          contentCnt.add(this.add.text(cx, cy - 8, elemSym, {
-            fontSize: '20px', color: `#${def.tint.toString(16).padStart(6, '0')}`,
-            stroke: '#000000', strokeThickness: 3,
-          }).setOrigin(0.5));
-          // Short name (trim 卡 suffix)
-          const shortName = def.name.replace('卡', '');
-          contentCnt.add(this.add.text(cx, cy + CARD_H / 2 - 10, shortName, {
-            fontSize: '8px', color: '#e8d090', stroke: '#1a0800', strokeThickness: 1,
-            wordWrap: { width: CARD_W - 4 },
-          }).setOrigin(0.5, 1));
-        } else {
-          contentCnt.add(this.add.text(cx, cy, '空', {
-            fontSize: '11px', color: '#5a3818', stroke: '#1a0800', strokeThickness: 1,
-          }).setOrigin(0.5));
-        }
-
-        // Slot index label
-        contentCnt.add(this.add.text(cx - CARD_W / 2 + 3, cy - CARD_H / 2 + 3, `${i + 1}`, {
-          fontSize: '8px', color: '#7a5030', stroke: '#1a0800', strokeThickness: 1,
-        }).setOrigin(0, 0));
-
-        if (def) {
-          const hit = this.add.rectangle(cx, cy, CARD_W, CARD_H)
-            .setInteractive({ useHandCursor: true });
-          hit.on('pointerdown', () => { CardStore.unequip(i); SaveStore.save(); });
+          drawCardFace(contentCnt, def, cx, cy, `${i + 1}`);
+          const hit = this.add.rectangle(cx, cy, CARD_W, CARD_H).setInteractive({ useHandCursor: true });
+          hit.on('pointerdown', () => showCardDetail(def, i, cardId!));
           contentCnt.add(hit);
+        } else {
+          contentCnt.add(this.add.text(cx, cy, `${i + 1}`, {
+            fontSize: '13px', color: '#5a3818', stroke: '#1a0800', strokeThickness: 1,
+          }).setOrigin(0.5));
         }
       }
 
       // Separator
       const sepGfx = this.add.graphics();
-      sepGfx.fillStyle(WB, 1);
-      sepGfx.fillRect(px + 8, INV_TOP - 10, PW - 16, 1);
-      sepGfx.fillStyle(WH, 0.2);
-      sepGfx.fillRect(px + 8, INV_TOP - 9, PW - 16, 1);
+      sepGfx.fillStyle(WB, 1);   sepGfx.fillRect(px + 8, INV_TOP - 10, PW - 16, 1);
+      sepGfx.fillStyle(WH, 0.2); sepGfx.fillRect(px + 8, INV_TOP - 9,  PW - 16, 1);
       contentCnt.add(sepGfx);
-
       contentCnt.add(this.add.text(0, INV_TOP - 5, '持有卡片', {
-        fontSize: '10px', color: '#b07030', stroke: '#1a0800', strokeThickness: 1,
+        fontSize: '13px', color: '#b07030', stroke: '#1a0800', strokeThickness: 1,
       }).setOrigin(0.5, 1));
 
       // ── Inventory scroll area ──────────────────────────
@@ -1777,70 +2193,56 @@ export class PrepScene extends Phaser.Scene {
         return;
       }
 
-      const ROWS     = Math.ceil(invItems.length / INV_COLS);
-      const ROW_H    = CARD_H + INV_GAP;
-      const contentH = ROWS * ROW_H;
-      let   scrollY  = 0;
+      const ROWS      = Math.ceil(invItems.length / INV_COLS);
+      const ROW_H     = CARD_H + INV_GAP;
+      const contentH  = ROWS * ROW_H;
+      let   scrollY   = 0;
       const maxScroll = Math.max(0, contentH - INV_H);
 
       const scrollCnt = this.add.container(0, INV_TOP);
       contentCnt.add(scrollCnt);
 
-      // Mask
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const maskShape = (this.make.graphics as any)({ x: 0, y: 0, add: false }) as Phaser.GameObjects.Graphics;
       maskShape.fillStyle(0xffffff);
       maskShape.fillRect(W / 2 + px + 4, H / 2 + INV_TOP, PW - 8, INV_H);
-      const mask = maskShape.createGeometryMask();
-      scrollCnt.setMask(mask);
+      scrollCnt.setMask(maskShape.createGeometryMask());
 
-      const buildInv = (oy: number) => {
-        scrollCnt.removeAll(true);
-        invItems.forEach(({ cardId, qty }, idx) => {
-          const def = getCardDef(cardId);
-          if (!def) return;
-          const col = idx % INV_COLS;
-          const row = Math.floor(idx / INV_COLS);
-          const cx  = invX0 + col * (CARD_W + INV_GAP) + CARD_W / 2;
-          const cy  = row * ROW_H + CARD_H / 2 + oy;
-
-          const cg = this.add.graphics();
-          drawCardShape(cg, cx, cy, CARD_W, CARD_H, def.tint);
-          scrollCnt.add(cg);
-
-          const elemSym = { none: '無', water: '水', fire: '火', grass: '草' }[def.element];
-          scrollCnt.add(this.add.text(cx, cy - 8, elemSym, {
-            fontSize: '18px', color: `#${def.tint.toString(16).padStart(6, '0')}`,
-            stroke: '#000000', strokeThickness: 3,
-          }).setOrigin(0.5));
-
-          const shortName = def.name.replace('卡', '');
-          scrollCnt.add(this.add.text(cx, cy + CARD_H / 2 - 10, shortName, {
-            fontSize: '8px', color: '#e8d090', stroke: '#1a0800', strokeThickness: 1,
-            wordWrap: { width: CARD_W - 4 },
-          }).setOrigin(0.5, 1));
-
-          // Quantity badge
-          if (qty > 1) {
-            scrollCnt.add(this.add.text(cx + CARD_W / 2 - 2, cy - CARD_H / 2 + 2, `×${qty}`, {
-              fontSize: '8px', color: '#ffee88', stroke: '#1a0800', strokeThickness: 1,
-            }).setOrigin(1, 0));
-          }
-
-          const hit = this.add.rectangle(cx, cy, CARD_W, CARD_H)
-            .setInteractive({ useHandCursor: true });
-          hit.on('pointerdown', () => { CardStore.equipAuto(cardId); SaveStore.save(); });
-          scrollCnt.add(hit);
-        });
+      const applyScroll = (dy: number) => {
+        scrollY = Phaser.Math.Clamp(scrollY + dy, 0, maxScroll);
+        scrollCnt.y = INV_TOP - scrollY;
       };
 
-      buildInv(0);
+      // Build cards once at fixed positions
+      invItems.forEach(({ cardId, qty }, idx) => {
+        const def = getCardDef(cardId);
+        if (!def) return;
+        const col = idx % INV_COLS;
+        const row = Math.floor(idx / INV_COLS);
+        const cx  = invX0 + col * (CARD_W + INV_GAP) + CARD_W / 2;
+        const cy  = row * ROW_H + CARD_H / 2;
 
-      // Drag to scroll
+        const cg = this.add.graphics();
+        const monTier = getMonsterDef(def.monsterId)?.tier ?? 1;
+        monTier >= 5 ? drawBossCard(cg, cx, cy, CARD_W, CARD_H) : monTier === 3 ? drawEliteCard(cg, cx, cy, CARD_W, CARD_H) : drawInvCard(cg, cx, cy, CARD_W, CARD_H);
+        scrollCnt.add(cg);
+
+        drawCardFace(scrollCnt, def, cx, cy, '', qty);
+
+        const hit = this.add.rectangle(cx, cy, CARD_W, CARD_H).setInteractive({ useHandCursor: true });
+        hit.on('pointerdown', () => showCardDetail(def, null, cardId));
+        scrollCnt.add(hit);
+      });
+
+      // Drag scroll
       this.input.on('pointermove', (ptr: Phaser.Input.Pointer) => {
         if (!ptr.isDown) return;
-        scrollY = Phaser.Math.Clamp(scrollY - ptr.velocity.y * 0.016, 0, maxScroll);
-        buildInv(-scrollY);
+        applyScroll(ptr.prevPosition.y - ptr.y);
+      });
+
+      // Wheel scroll
+      this.input.on('wheel', (_ptr: unknown, _objs: unknown, _dx: number, dy: number) => {
+        applyScroll(dy * 0.6);
       });
     };
 
@@ -1853,8 +2255,166 @@ export class PrepScene extends Phaser.Scene {
     const cleanup = () => {
       CardStore.offChange(onCardChange);
       this.input.off('pointermove');
+      this.input.off('wheel');
     };
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, cleanup);
+  }
+
+  private showShopPanel(W: number, H: number): void {
+    const PW = Math.min(320, W - 20);
+    const PH = Math.min(400, H - 40);
+    const D  = 500;
+
+    const container = this.add.container(W / 2, H / 2).setDepth(D);
+
+    // Backdrop
+    const backdrop = this.add.rectangle(0, 0, W, H, 0x000000, 0.78).setInteractive();
+    backdrop.on('pointerdown', (ptr: Phaser.Input.Pointer) => {
+      if (ptr.x < W / 2 - PW / 2 || ptr.x > W / 2 + PW / 2 ||
+          ptr.y < H / 2 - PH / 2 || ptr.y > H / 2 + PH / 2) {
+        container.destroy();
+      }
+    });
+    container.add(backdrop);
+
+    const px = -PW / 2;
+    const py = -PH / 2;
+
+    // Panel shell (wood style)
+    const bg = this.add.graphics();
+    bg.fillStyle(IRON, 1);
+    bg.fillRect(px - 3, py - 3, PW + 6, PH + 6);
+    bg.fillStyle(WL, 1);
+    bg.fillRect(px - 2, py - 2, PW + 4, PH + 4);
+    bg.fillStyle(WD, 1);
+    bg.fillRect(px, py, PW, PH);
+    for (let row = 1; row < Math.ceil(PH / 24); row++) {
+      const ry = py + row * 24;
+      bg.lineStyle(1, WB, 0.5);
+      bg.lineBetween(px + 2, ry, px + PW - 2, ry);
+      bg.lineStyle(1, WH, 0.08);
+      bg.lineBetween(px + 2, ry + 1, px + PW - 2, ry + 1);
+    }
+    [[px, py], [px + PW - 8, py], [px, py + PH - 8], [px + PW - 8, py + PH - 8]]
+      .forEach(([rx, ry]) => {
+        bg.fillStyle(IRON, 1); bg.fillRect(rx!, ry!, 8, 8);
+        bg.fillStyle(0x6a7580, 1); bg.fillRect(rx! + 2, ry! + 2, 4, 4);
+      });
+    bg.fillStyle(WB, 0.9); bg.fillRect(px, py, PW, 36);
+    bg.fillStyle(WH, 0.4); bg.fillRect(px, py + 34, PW, 2);
+    bg.fillStyle(WB, 1);   bg.fillRect(px, py + 36, PW, 1);
+    container.add(bg);
+
+    container.add(this.add.text(0, py + 18, '商  店', {
+      fontSize: '15px', color: '#e8c070', stroke: '#1a0800', strokeThickness: 2,
+    }).setOrigin(0.5));
+
+    const closeBtn = this.add.text(px + PW - 20, py + 18, '✕', {
+      fontSize: '15px', color: '#cc4444', stroke: '#1a0800', strokeThickness: 2,
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+    closeBtn.on('pointerdown', () => container.destroy());
+    container.add(closeBtn);
+
+    // ── Shop items ──────────────────────────────────────────
+    const SHOP_ITEMS: { id: string; name: string; price: number; desc: string; color: number }[] = [
+      { id: 'stone_broken', name: '破損強化石', price:  50, desc: '強化裝備用（+1~+5）', color: 0x88aacc },
+      { id: 'stone_intact', name: '完整強化石', price: 300, desc: '強化+4/+5必須使用',   color: 0x66ddaa },
+      { id: 'quest_reroll', name: '任務重製石', price: 200, desc: '刷新全部任務列表',     color: 0xffcc44 },
+      { id: 'enhance_charm', name: '裝備保護符', price: 500, desc: '強化失敗時保護詞墜',  color: 0xff88cc },
+    ];
+
+    const ROW_H   = 68;
+    const ROW_PAD = 8;
+    const startY  = py + 50;
+
+    // Gold display
+    let goldLabel: Phaser.GameObjects.Text;
+    const refreshGold = () => {
+      goldLabel?.setText(`擁有金幣：${InventoryStore.getGold().toLocaleString()}`);
+    };
+
+    goldLabel = this.add.text(0, py + 38, '', {
+      fontSize: '11px', color: '#d4a044', stroke: '#1a0800', strokeThickness: 1,
+    }).setOrigin(0.5, 0);
+    refreshGold();
+    container.add(goldLabel);
+
+    const onInvChange = () => refreshGold();
+    InventoryStore.onChange(onInvChange);
+    container.once(Phaser.GameObjects.Events.DESTROY, () => InventoryStore.offChange(onInvChange));
+
+    SHOP_ITEMS.forEach((item, i) => {
+      const ry = startY + i * (ROW_H + ROW_PAD);
+
+      // Row background
+      const rowGfx = this.add.graphics();
+      rowGfx.fillStyle(WM, 0.6);
+      rowGfx.fillRect(px + 8, ry, PW - 16, ROW_H);
+      rowGfx.lineStyle(1, WL, 0.3);
+      rowGfx.strokeRect(px + 8, ry, PW - 16, ROW_H);
+      // Color accent left strip
+      rowGfx.fillStyle(item.color, 0.8);
+      rowGfx.fillRect(px + 8, ry, 4, ROW_H);
+      container.add(rowGfx);
+
+      // Item name
+      container.add(this.add.text(px + 22, ry + 10, item.name, {
+        fontSize: '13px', color: `#${item.color.toString(16).padStart(6, '0')}`,
+        stroke: '#1a0800', strokeThickness: 2,
+      }).setOrigin(0, 0));
+
+      // Description
+      container.add(this.add.text(px + 22, ry + 28, item.desc, {
+        fontSize: '10px', color: '#a08060', stroke: '#1a0800', strokeThickness: 1,
+      }).setOrigin(0, 0));
+
+      // Price
+      container.add(this.add.text(px + 22, ry + 46, `${item.price} 金幣`, {
+        fontSize: '11px', color: '#d4a044', stroke: '#1a0800', strokeThickness: 1,
+      }).setOrigin(0, 0));
+
+      // Buy button
+      const BW = 60; const BH = 26;
+      const bx  = px + PW - 16 - BW / 2;
+      const by  = ry + ROW_H / 2;
+
+      const btnGfx = this.add.graphics();
+      const drawBtn = (hover: boolean) => {
+        btnGfx.clear();
+        btnGfx.fillStyle(hover ? 0x6a3810 : WM, 1);
+        btnGfx.fillRect(bx - BW / 2, by - BH / 2, BW, BH);
+        btnGfx.lineStyle(1, GOLD, 0.7);
+        btnGfx.strokeRect(bx - BW / 2, by - BH / 2, BW, BH);
+      };
+      drawBtn(false);
+      container.add(btnGfx);
+
+      const btnTxt = this.add.text(bx, by, '購買', {
+        fontSize: '12px', color: '#e8c870', stroke: '#1a0800', strokeThickness: 2,
+      }).setOrigin(0.5);
+      container.add(btnTxt);
+
+      const hit = this.add.rectangle(bx, by, BW, BH).setInteractive({ useHandCursor: true });
+      hit.on('pointerover',  () => drawBtn(true));
+      hit.on('pointerout',   () => drawBtn(false));
+      hit.on('pointerdown',  () => {
+        if (!InventoryStore.spendGold(item.price)) return;
+
+        if (item.id === 'quest_reroll') {
+          QuestStore.rerollQuests();
+        } else {
+          const NAMES: Record<string, string> = {
+            stone_broken:  '破損強化石',
+            stone_intact:  '完整強化石',
+            enhance_charm: '裝備保護符',
+          };
+          InventoryStore.addItem(item.id, NAMES[item.id] ?? item.name, 1);
+        }
+        SaveStore.save();
+        refreshGold();
+      });
+      container.add(hit);
+    });
   }
 
   private drawCenterHero(W: number, H: number): void {

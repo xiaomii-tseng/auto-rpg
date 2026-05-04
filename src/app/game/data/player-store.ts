@@ -1,19 +1,25 @@
-import { EquipmentItem, EquipSlot, Element } from './equipment-data';
+import { EquipmentItem, EquipSlot, getItemStats } from './equipment-data';
 
 export const BASE_ATK        = 30;
-export const BASE_HP         = 100;
-export const BASE_SPEED      = 100;
+export const BASE_HP         = 80;
+export const BASE_SPEED      = 120;
 export const BASE_DEF        = 0;
 export const BASE_CRIT       = 0;
-export const BASE_ATTACK_ARC = 180;  // degrees, half = ±90°
+export const BASE_ATTACK_ARC = 180;
+
+const LEVEL_ATK = 1;
+const LEVEL_HP  = 10;
 
 export interface EffectiveStats {
   atk:       number;
   maxHp:     number;
   speed:     number;
   def:       number;
-  crit:      number;  // 0~1
-  attackArc: number;  // degrees (total cone width)
+  crit:      number;
+  attackArc: number;
+  atkSpeed:  number;
+  lifesteal: number;
+  evasion:   number;
 }
 
 type EquippedMap = { [K in EquipSlot]: EquipmentItem | null };
@@ -29,7 +35,6 @@ const equipped: EquippedMap = {
 
 let level = 1;
 let exp   = 0;
-const crafted  = new Set<string>();
 const owned:     EquipmentItem[] = [];
 const listeners: Array<() => void> = [];
 
@@ -41,13 +46,16 @@ export const PlayerStore = {
 
   expToNext(lv = level): number { return Math.round(1000 * Math.pow(1.05, lv - 1)); },
 
-  addExp(amount: number): void {
+  addExp(amount: number): number {
     exp += amount;
+    let levelsGained = 0;
     while (exp >= PlayerStore.expToNext()) {
       exp -= PlayerStore.expToNext();
       level++;
+      levelsGained++;
     }
     this.notify();
+    return levelsGained;
   },
 
   // ── Internal load helpers (used by SaveStore only) ────
@@ -61,16 +69,7 @@ export const PlayerStore = {
     equipped[slot] = item;
   },
 
-  // ── Crafting ───────────────────────────────────────────
-
-  isCrafted(itemId: string): boolean { return crafted.has(itemId); },
-
-  markCrafted(itemId: string): void {
-    crafted.add(itemId);
-    this.notify();
-  },
-
-  // ── Owned (crafted, not yet equipped) ─────────────────
+  // ── Owned (received from quests, not yet equipped) ────
 
   addOwned(item: EquipmentItem): void {
     owned.push(item);
@@ -86,7 +85,6 @@ export const PlayerStore = {
   equip(item: EquipmentItem): void {
     const idx = owned.indexOf(item);
     if (idx !== -1) owned.splice(idx, 1);
-    // Auto-fill ring2 when ring1 is occupied
     let targetSlot = item.slot;
     if (targetSlot === 'ring1' && equipped['ring1'] && !equipped['ring2']) targetSlot = 'ring2';
     const prev = equipped[targetSlot];
@@ -95,7 +93,6 @@ export const PlayerStore = {
     this.notify();
   },
 
-  // 飾品指定槽位裝備（ring1 / ring2）
   equipToSlot(item: EquipmentItem, slot: 'ring1' | 'ring2'): void {
     const idx = owned.indexOf(item);
     if (idx !== -1) owned.splice(idx, 1);
@@ -120,29 +117,38 @@ export const PlayerStore = {
     return Object.values(equipped).some(e => e?.id === itemId);
   },
 
-  getWeaponElement(): Element {
-    return equipped['sword']?.element ?? 'none';
-  },
-
   getStats(): EffectiveStats {
-    let atk       = BASE_ATK;
-    let maxHp     = BASE_HP;
+    let atk       = BASE_ATK + (level - 1) * LEVEL_ATK;
+    let maxHp     = BASE_HP  + (level - 1) * LEVEL_HP;
     let speed     = BASE_SPEED;
     let def       = BASE_DEF;
     let crit      = BASE_CRIT;
     let attackArc = BASE_ATTACK_ARC;
+    let atkSpeed  = 0;
+    let lifesteal = 0;
+    let evasion   = 0;
 
     for (const [, item] of Object.entries(equipped) as [EquipSlot, EquipmentItem | null][]) {
       if (!item) continue;
-      atk       += item.stats.atk       ?? 0;
-      maxHp     += item.stats.hp        ?? 0;
-      speed     += item.stats.speed     ?? 0;
-      def       += item.stats.def       ?? 0;
-      crit      += item.stats.crit      ?? 0;
-      attackArc += item.stats.attackArc ?? 0;
+      const s = getItemStats(item);
+      atk       += s.atk       ?? 0;
+      maxHp     += s.hp        ?? 0;
+      speed     += s.speed     ?? 0;
+      def       += s.def       ?? 0;
+      crit      += s.crit      ?? 0;
+      atkSpeed  += s.atkSpeed  ?? 0;
+      lifesteal += s.lifesteal ?? 0;
+      evasion   += s.evasion   ?? 0;
     }
 
-    return { atk, maxHp, speed, def, crit: Math.min(crit, 1), attackArc: Math.min(attackArc, 360) };
+    return {
+      atk, maxHp, speed, def,
+      crit:      Math.min(crit, 1),
+      attackArc: Math.min(attackArc, 360),
+      atkSpeed:  Math.min(atkSpeed, 1),
+      lifesteal: Math.min(lifesteal, 0.5),
+      evasion:   Math.min(evasion, 0.75),
+    };
   },
 
   // ── Listeners ──────────────────────────────────────────

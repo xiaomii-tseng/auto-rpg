@@ -16,7 +16,7 @@ export class VirtualJoystick {
   private pointerId = -1;
   private output: JoystickOutput = { x: 0, y: 0 };
 
-  constructor(private scene: Phaser.Scene) {
+  constructor(scene: Phaser.Scene) {
     this.baseX = 100;
     this.baseY = scene.scale.height - 120;
 
@@ -44,14 +44,11 @@ export class VirtualJoystick {
 
   private onDown(pointer: Phaser.Input.Pointer): void {
     if (this.active) return;
-    // Only activate if tap is in bottom-left quadrant
-    if (pointer.x > this.scene.scale.width * 0.5) return;
+    const dx = pointer.x - this.baseX;
+    const dy = pointer.y - this.baseY;
+    if (dx * dx + dy * dy > (this.radius + 20) * (this.radius + 20)) return;
     this.active = true;
     this.pointerId = pointer.id;
-    this.base.setPosition(pointer.x, pointer.y);
-    this.thumb.setPosition(pointer.x, pointer.y);
-    this.baseX = pointer.x;
-    this.baseY = pointer.y;
     this.base.setAlpha(0.3);
   }
 

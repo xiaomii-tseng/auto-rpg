@@ -4,7 +4,11 @@ import { PlayerStore } from '../data/player-store';
 export class Player extends Phaser.Physics.Arcade.Sprite {
   private isMoving    = false;
   private isAttacking = false;
-  private lastDir: 'down' | 'left' | 'right' | 'up' = 'down';
+  private onCooldown  = false;
+  private rooted      = false;
+  speedMult           = 1;
+  noInterrupt         = false;
+  lastDir: 'down' | 'left' | 'right' | 'up' = 'down';
 
   private hp:    number;
   private maxHp: number;
@@ -53,6 +57,53 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.headGfx.fillRect(bx, by, bw * pct, bh);
   }
 
+  lockAttack(ms: number): boolean {
+    if (this.playingHurt || this.isAttacking || this.onCooldown) return false;
+    this.isAttacking = true;
+    this.scene.time.delayedCall(ms, () => {
+      this.isAttacking = false;
+      if (!this.playingHurt)
+        this.playAnim(this.isMoving ? `player_run_${this.lastDir}` : `player_idle_${this.lastDir}`);
+    });
+    return true;
+  }
+
+  // 冷卻鎖：只管冷卻，不碰 isAttacking
+  lockCooldown(ms: number): boolean {
+    if (this.playingHurt || this.isAttacking || this.onCooldown) return false;
+    this.onCooldown = true;
+    this.scene.time.delayedCall(ms, () => { this.onCooldown = false; });
+    return true;
+  }
+
+  // 播放攻擊動畫並自動管理 isAttacking，完成後自動恢復移動動畫
+  startAttackAnim(key: string): void {
+    this.isAttacking = true;
+    this.play(key, true);
+    this.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => {
+      this.isAttacking = false;
+      if (!this.playingHurt)
+        this.playAnim(this.isMoving ? `player_run_${this.lastDir}` : `player_idle_${this.lastDir}`);
+    });
+  }
+
+  releaseAnimLock(): void {
+    this.isAttacking = false;
+    if (!this.playingHurt)
+      this.playAnim(this.isMoving ? `player_run_${this.lastDir}` : `player_idle_${this.lastDir}`);
+  }
+
+  playWhirlwind(onHit?: () => void): void {
+    if (this.playingHurt || this.isAttacking) return;
+    this.isAttacking = true;
+    this.play('player_whirlwind', true);
+    if (onHit) this.scene.time.delayedCall(150, () => { if (this.isAttacking) onHit(); });
+    this.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => {
+      this.isAttacking = false;
+      this.playAnim(this.isMoving ? `player_run_${this.lastDir}` : `player_idle_${this.lastDir}`);
+    });
+  }
+
   playAttack(targetX: number, targetY: number, onHit?: () => void): void {
     if (this.playingHurt || this.isAttacking) return;
     const dx = targetX - this.x;
@@ -65,16 +116,22 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.isAttacking = true;
     const key = this.isMoving ? `player_run_attack_${dir}` : `player_attack_${dir}`;
     this.play(key, true);
-    // Hit frame ≈ frame 4 of 8 at 14 fps → ~285 ms
-    if (onHit) this.scene.time.delayedCall(285, () => { if (this.isAttacking) onHit(); });
+    if (onHit) this.scene.time.delayedCall(150, () => { if (this.isAttacking) onHit(); });
     this.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => {
       this.isAttacking = false;
       this.playAnim(this.isMoving ? `player_run_${this.lastDir}` : `player_idle_${this.lastDir}`);
     });
   }
 
+  setRooted(ms: number): void {
+    this.rooted = true;
+    this.setVelocity(0, 0);
+    this.scene.time.delayedCall(ms, () => { this.rooted = false; });
+  }
+
   move(velX: number, velY: number): void {
-    const speed  = PlayerStore.getStats().speed;
+    if (this.rooted) { this.setVelocity(0, 0); return; }
+    const speed  = PlayerStore.getStats().speed * this.speedMult;
     const moving = velX !== 0 || velY !== 0;
     if (moving) {
       const len = Math.sqrt(velX * velX + velY * velY);
@@ -106,14 +163,16 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
   private startInvincibility(): void {
     this.invincible = true;
-    this.playingHurt = true;
     this.flashTween?.stop();
 
-    this.play('player_hurt', true);
-    this.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => {
-      this.playingHurt = false;
-      this.playAnim(this.isMoving ? `player_run_${this.lastDir}` : `player_idle_${this.lastDir}`);
-    });
+    if (!this.noInterrupt) {
+      this.playingHurt = true;
+      this.play('player_hurt', true);
+      this.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => {
+        this.playingHurt = false;
+        this.playAnim(this.isMoving ? `player_run_${this.lastDir}` : `player_idle_${this.lastDir}`);
+      });
+    }
 
     this.flashTween = this.scene.tweens.add({
       targets: this,
