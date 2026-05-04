@@ -1,7 +1,7 @@
 {
   "name": "auto-rpg",
   "short_name": "auto-rpg",
-  "display": "standalone",
+  "display": "fullscreen",
   "orientation": "landscape",
   "scope": "./",
   "start_url": "./",

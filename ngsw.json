@@ -1,6 +1,6 @@
 {
   "configVersion": 1,
-  "timestamp": 1777627769233,
+  "timestamp": 1777871089229,
   "index": "/auto-rpg/index.html",
   "assetGroups": [
     {
@@ -13,7 +13,7 @@
       "urls": [
         "/auto-rpg/favicon.ico",
         "/auto-rpg/index.html",
-        "/auto-rpg/main-VJA5MPK7.js",
+        "/auto-rpg/main-PTOCAX2N.js",
         "/auto-rpg/manifest.webmanifest",
         "/auto-rpg/styles-5FO5G3CS.css"
       ],
@@ -60,7 +60,11 @@
         "/auto-rpg/icons/icon-512x512.png",
         "/auto-rpg/icons/icon-72x72.png",
         "/auto-rpg/icons/icon-96x96.png",
+        "/auto-rpg/other/coin.webp",
         "/auto-rpg/other/leader.webp",
+        "/auto-rpg/other/ore1.webp",
+        "/auto-rpg/other/ore2.webp",
+        "/auto-rpg/other/ore4.webp",
         "/auto-rpg/sprite/flower/COUPON.png",
         "/auto-rpg/sprite/flower/PNG/Plant1/Parts/Plant1_Attack_body.png",
         "/auto-rpg/sprite/flower/PNG/Plant1/Parts/Plant1_Attack_head.png",
@@ -2937,10 +2941,14 @@
     "/auto-rpg/icons/icon-512x512.png": "1de182f76f7329dfa8f9fcdd1fdcdd695bea6a99",
     "/auto-rpg/icons/icon-72x72.png": "aa88a6096bd973be7f6d7a5489bfa6bc2463f8c4",
     "/auto-rpg/icons/icon-96x96.png": "7fb8f59c30ce2ff12c700321a0b39e14b3dc8f95",
-    "/auto-rpg/index.html": "afb2e6873f6cd8e72435723d186ff2d41956b5a6",
-    "/auto-rpg/main-VJA5MPK7.js": "f1414b776e56efc25cbba9632509da79c4c45948",
-    "/auto-rpg/manifest.webmanifest": "f04d22a221939a5219406cd035205863da56e7ea",
+    "/auto-rpg/index.html": "8bd6694797577ad482e8d750950ad2c9a8322978",
+    "/auto-rpg/main-PTOCAX2N.js": "e18738897e898c21326028b46a942397f88399da",
+    "/auto-rpg/manifest.webmanifest": "03c10065c5789ddd43072aa6ffb151db7dd3f2e6",
+    "/auto-rpg/other/coin.webp": "d38bce94f94781475ad41d29df564f01a4fa117c",
     "/auto-rpg/other/leader.webp": "2e4d140b5a67bdb8dd9f07e9ec9595dbe9b9c2ff",
+    "/auto-rpg/other/ore1.webp": "0622d372ef2f7a37f0ba00d67ab5d346827dc04a",
+    "/auto-rpg/other/ore2.webp": "d7dd5699f599c9c44adfe2596512e0f14debfc9a",
+    "/auto-rpg/other/ore4.webp": "bebd3d675113ab97764872ee83a1808618e9f953",
     "/auto-rpg/sprite/flower/COUPON.png": "cd62c14c9f44c9738f31f56ab6c54ece7457fbb6",
     "/auto-rpg/sprite/flower/PNG/Plant1/Parts/Plant1_Attack_body.png": "170f200a28d6de59303700bf24ddc05d33409fd9",
     "/auto-rpg/sprite/flower/PNG/Plant1/Parts/Plant1_Attack_head.png": "d2c51f9adc75c9940f2b2990e0af29ab297fed89",
