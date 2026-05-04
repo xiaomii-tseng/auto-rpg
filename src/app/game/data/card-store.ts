@@ -99,6 +99,8 @@ export const CardStore = {
       atkSpeed:  base.atkSpeed,
       lifesteal: base.lifesteal,
       evasion:   base.evasion,
+      critDmg:   base.critDmg,
+      hpRegen:   base.hpRegen,
     };
   },
 

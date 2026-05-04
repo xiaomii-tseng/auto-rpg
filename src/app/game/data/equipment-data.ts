@@ -1,7 +1,7 @@
 export type EquipSlot     = 'hat' | 'outfit' | 'shoes' | 'ring1' | 'ring2' | 'sword';
 export type EquipCategory = 'hat' | 'outfit' | 'shoes' | 'ring'  | 'sword';
 export type EquipQuality  = 'normal' | 'good' | 'fine' | 'perfect';
-export type StatKey       = 'atk' | 'hp' | 'def' | 'crit' | 'speed' | 'atkSpeed' | 'lifesteal' | 'evasion';
+export type StatKey       = 'atk' | 'hp' | 'def' | 'crit' | 'speed' | 'atkSpeed' | 'lifesteal' | 'evasion' | 'critDmg' | 'hpRegen';
 export type AttackBehavior = 'slash180' | 'whirlwind' | 'dashPierce' | 'projectile' | 'aura' | 'multiHit' | 'chargeSlam' | 'boomerang' | 'magicFire';
 
 export type Element = 'none' | 'water' | 'fire' | 'grass';
@@ -87,6 +87,8 @@ export const STAT_NAMES: Record<StatKey, string> = {
   atkSpeed:  '攻擊速度',
   lifesteal: '吸血',
   evasion:   '閃避率',
+  critDmg:   '爆擊傷害',
+  hpRegen:   'HP恢復',
 };
 
 export const BEHAVIOR_NAMES: Record<AttackBehavior, string> = {
@@ -200,6 +202,8 @@ export const STAT_BASE: Record<StatKey, number> = {
   atkSpeed:   0.10,
   lifesteal:  0.03,
   evasion:    0.05,
+  critDmg:    0.20,
+  hpRegen:    5,
 };
 
 export const ENHANCE_INCREMENT: Record<StatKey, number> = {
@@ -211,15 +215,17 @@ export const ENHANCE_INCREMENT: Record<StatKey, number> = {
   atkSpeed:  0.01,
   lifesteal: 0.005,
   evasion:   0.005,
+  critDmg:   0.02,
+  hpRegen:   1,
 };
 
 // Affix pools per slot category (user-defined)
 export const SLOT_AFFIX_POOL: Record<EquipCategory, StatKey[]> = {
-  sword:  ['atk', 'hp', 'crit', 'atkSpeed', 'lifesteal', 'evasion'],
-  hat:    ['atk', 'hp', 'def',  'crit',     'atkSpeed'],
-  outfit: ['hp',  'def', 'lifesteal', 'evasion'],
+  sword:  ['atk', 'hp', 'crit', 'critDmg', 'atkSpeed', 'lifesteal', 'evasion'],
+  hat:    ['atk', 'hp', 'def',  'crit',    'atkSpeed',  'hpRegen'],
+  outfit: ['hp',  'def', 'lifesteal', 'evasion', 'hpRegen'],
   shoes:  ['hp',  'def', 'speed',     'evasion'],
-  ring:   ['atk', 'hp', 'def', 'crit', 'atkSpeed', 'lifesteal', 'evasion'],
+  ring:   ['atk', 'hp', 'def', 'crit', 'critDmg', 'atkSpeed', 'lifesteal', 'evasion'],
 };
 
 export const ATTACK_BEHAVIORS: AttackBehavior[] = [
@@ -230,7 +236,7 @@ const TEXTURE_COUNT: Record<EquipCategory, number> = {
   hat: 5, outfit: 5, shoes: 5, ring: 5, sword: 5,
 };
 
-const PCT_STATS = new Set<StatKey>(['crit', 'atkSpeed', 'lifesteal', 'evasion']);
+const PCT_STATS = new Set<StatKey>(['crit', 'atkSpeed', 'lifesteal', 'evasion', 'critDmg']);
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 

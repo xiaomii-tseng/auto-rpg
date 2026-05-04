@@ -56,7 +56,12 @@ const STAR_WEIGHT: Record<number, number> = {
 // ── Helpers ────────────────────────────────────────────────────────────────
 
 const BOSS_POOL = [
+  'boss_slime_green',
+  'boss_slime_red',
+  'boss_slime_blue',
+  'boss_slime_white',
   'boss_zombie_slime',
+  'boss_lava_slime',
 ];
 
 const FLAVOR_TEMPLATES: Array<(name: string, star: number) => string> = [
@@ -153,40 +158,25 @@ export const QuestStore = {
   dismissQuest(questId: string): void {
     const idx = _quests.findIndex(q => q.id === questId && q.status !== 'accepted');
     if (idx === -1) return;
-    const playerLevel = PlayerStore.getLevel();
-    const [replacement] = [...Array(1)].map(() => {
-      const pool    = ['boss_slime_white'];
-      const used    = _quests.filter((_, i) => i !== idx).map(q => q.bossId);
-      const choices = pool.filter(id => !used.includes(id));
-      const bossId  = choices[Math.floor(Math.random() * choices.length)] ?? pool[0];
-      const def     = MONSTER_DEFS.find(m => m.id === bossId)!;
-      const star    = (() => {
-        const available = Object.entries(STAR_UNLOCK_LEVEL)
-          .filter(([, req]) => playerLevel >= req).map(([s]) => Number(s));
-        const total = available.reduce((s, st) => s + ({ 1:5,2:4,3:3,4:2,5:1 } as Record<number,number>)[st], 0);
-        let roll = Math.random() * total;
-        for (const st of available) { roll -= ({ 1:5,2:4,3:3,4:2,5:1 } as Record<number,number>)[st]; if (roll <= 0) return st; }
-        return available[available.length - 1];
-      })();
-      const base = (Math.floor(Math.random() * 21) + 30) * 10;
-      const isEquipReward = Math.random() < 0.20;
-      const FLAVOR_TEMPLATES: Array<(name: string, star: number) => string> = [
-        (n, s) => `國王下令：${n}橫行東方森林，急需${s >= 3 ? '精英' : ''}勇者前往討伐！`,
-        (n)    => `懸賞通告：北方山脈出現${n}，嚴重威脅居民安全。`,
-        (n)    => `緊急召集：${n}侵擾邊境村莊，徵召勇者出征！`,
-      ];
-      const tmpl = FLAVOR_TEMPLATES[Math.floor(Math.random() * FLAVOR_TEMPLATES.length)];
-      return {
-        id: `q_${Date.now()}_r`,
-        bossId,
-        reward: isEquipReward ? 0 : Math.round(base * STAR_REWARD_MULT[star] / 10) * 10,
-        flavorText: tmpl(def.name, star),
-        status: 'available' as QuestStatus,
-        star,
-        isEquipReward,
-      };
-    });
-    _quests[idx] = replacement;
+    const used    = _quests.filter((_, i) => i !== idx).map(q => q.bossId);
+    const choices = BOSS_POOL.filter(id => !used.includes(id));
+    const bossId  = choices.length > 0
+      ? choices[Math.floor(Math.random() * choices.length)]
+      : BOSS_POOL[Math.floor(Math.random() * BOSS_POOL.length)];
+    const def    = MONSTER_DEFS.find(m => m.id === bossId)!;
+    const star   = pickStar(PlayerStore.getLevel());
+    const base   = (Math.floor(Math.random() * 21) + 30) * 10;
+    const isEquipReward = Math.random() < 0.20;
+    const tmpl   = FLAVOR_TEMPLATES[Math.floor(Math.random() * FLAVOR_TEMPLATES.length)];
+    _quests[idx] = {
+      id: `q_${Date.now()}_r`,
+      bossId,
+      reward: isEquipReward ? 0 : Math.round(base * STAR_REWARD_MULT[star] / 10) * 10,
+      flavorText: tmpl(def.name, star),
+      status: 'available',
+      star,
+      isEquipReward,
+    };
     this.notify();
   },
 

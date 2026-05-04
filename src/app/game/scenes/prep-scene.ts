@@ -36,11 +36,12 @@ export class PrepScene extends Phaser.Scene {
       this.load.image('bg_prep', 'other/leader.webp');
     if (!this.textures.exists('icon_coin'))
       this.load.image('icon_coin', 'other/coin.webp');
-    const equipKeys = ['hat1','outfit1','shoes1','ring1','sword1'] as const;
-    equipKeys.forEach(k => {
-      const key = `equip_${k}`;
-      if (!this.textures.exists(key))
-        this.load.image(key, `equip/${k}.webp`);
+    ['hat','outfit','shoes','ring','sword'].forEach(cat => {
+      for (let i = 1; i <= 5; i++) {
+        const key = `equip_${cat}${i}`;
+        if (!this.textures.exists(key))
+          this.load.image(key, `equip/${cat}${i}.webp`);
+      }
     });
     // Boss idle sprites for quest panel
     const bossSprites: [string, string][] = [
@@ -370,9 +371,8 @@ export class PrepScene extends Phaser.Scene {
       this.addSideBtn(SIDE_W / 2, by, btnSz, b.label, b.accent, b.badge, b.onClick);
     });
 
-    // Right: 製作 / 卡片 / 商店
+    // Right: 卡片 / 商店
     const rightDefs: { label: string; accent: number; badge: number; onClick?: () => void }[] = [
-      { label: '製作', accent: 0x5cc8a0, badge: 0, onClick: () => this.openForgeWindow(W, H) },
       { label: '卡片', accent: 0xcc6688, badge: 0, onClick: () => this.openCardWindow(W, H) },
       { label: '商店', accent: 0xd47820, badge: 0, onClick: () => this.showShopPanel(W, H) },
     ];
@@ -1080,7 +1080,7 @@ export class PrepScene extends Phaser.Scene {
     const statsX  = eGridX;
     const statsY  = eGridY + eGridH + 10;
     const statsW  = eGridW;
-    const statsH  = 104;
+    const statsH  = 140;
 
     // ── 右欄（清單區）────────────────────────────────────
     const rightColX = eGridX + eGridW + 26;   // left edge of right column
@@ -1241,10 +1241,12 @@ export class PrepScene extends Phaser.Scene {
       const areaH   = py + PH - areaTop - 6;
       const rcx     = rightColX + rightColW / 2;   // centre of right column
 
+      // 全面板透明遮擋，阻止點擊穿透到下層
+      det.add(this.add.rectangle(0, 0, PW, PH, 0x000000, 0).setInteractive());
+
       const detBg = this.add.graphics();
       detBg.fillStyle(WD, 0.98); detBg.fillRect(rightColX - 4, areaTop, rightColW + 8, areaH);
       det.add(detBg);
-      det.add(this.add.rectangle(rightColX - 4 + (rightColW + 8) / 2, areaTop + areaH / 2, rightColW + 8, areaH, 0x000000, 0).setInteractive());
 
       const backBtn = this.add.text(rightColX + 8, areaTop + 16, '← 返回', {
         fontSize: '14px', color: '#c49050', stroke: '#1a0800', strokeThickness: 1,
@@ -1331,7 +1333,7 @@ export class PrepScene extends Phaser.Scene {
 
           const tap = this.add.rectangle(sx + slotSz / 2, sy + slotSz / 2, slotSz, slotSz)
             .setInteractive({ useHandCursor: true });
-          tap.on('pointerup', () => showEquippedDetail(item, s.slotKey));
+          tap.on('pointerdown', () => showEquippedDetail(item, s.slotKey));
           topSlotsLayer.add(tap);
         } else {
           topSlotsLayer.add(this.add.text(sx + slotSz / 2, sy + slotSz / 2 - 4, s.label, {
@@ -1359,18 +1361,20 @@ export class PrepScene extends Phaser.Scene {
       }).setOrigin(0.5));
 
       const allRows = [
-        [{ label: 'Lv',   value: `${lv}`,                             color: '#ffee88' }, { label: 'HP',   value: `${s.maxHp}`,                        color: '#88ee88' }],
-        [{ label: '攻擊', value: `${s.atk}`,                          color: '#ff8855' }, { label: '防禦', value: `${s.def}`,                          color: '#88aaff' }],
-        [{ label: '速度', value: `${s.speed}`,                        color: '#ffff88' }, { label: '暴擊', value: `${(s.crit * 100).toFixed(0)}%`,     color: '#ffaa44' }],
-        [{ label: '攻速', value: `${(s.atkSpeed * 100).toFixed(0)}%`, color: '#ff88ff' }, { label: '閃避', value: `${(s.evasion * 100).toFixed(1)}%`,  color: '#aaddff' }],
+        [{ label: 'Lv',   value: `${lv}`,                             color: '#ffee88' }, { label: 'HP',    value: `${s.maxHp}`,                              color: '#88ee88' }],
+        [{ label: '攻擊', value: `${s.atk}`,                          color: '#ff8855' }, { label: '防禦',  value: `${s.def}`,                               color: '#88aaff' }],
+        [{ label: '速度', value: `${s.speed}`,                        color: '#ffff88' }, { label: '暴擊',  value: `${(s.crit * 100).toFixed(0)}%`,           color: '#ffaa44' }],
+        [{ label: '攻速', value: `${(s.atkSpeed * 100).toFixed(0)}%`, color: '#ff88ff' }, { label: '閃避',  value: `${(s.evasion * 100).toFixed(1)}%`,        color: '#aaddff' }],
+        [{ label: '爆傷', value: `${((1 + s.critDmg) * 100).toFixed(0)}%`, color: '#ffdd44' }, { label: '吸血', value: `${(s.lifesteal * 100).toFixed(1)}%`, color: '#ff6699' }],
+        [{ label: 'HP恢復', value: `${s.hpRegen}/s`,                  color: '#44ffaa' }],
       ];
       const colW2 = statsW / 2;
-      const rowH4 = (statsH - 20) / 4;
+      const rowH  = (statsH - 20) / 6;
 
       allRows.forEach((row, ri) => {
         row.forEach((cell, ci) => {
           const cx = statsX + ci * colW2;
-          const ry = statsY + 20 + ri * rowH4 + rowH4 / 2;
+          const ry = statsY + 20 + ri * rowH + rowH / 2;
           statsLayer.add(this.add.text(cx + 6, ry, cell.label, { fontSize: '11px', color: '#888888', stroke: '#000', strokeThickness: 1 }).setOrigin(0, 0.5));
           statsLayer.add(this.add.text(cx + colW2 - 6, ry, cell.value, { fontSize: '13px', fontStyle: 'bold', color: cell.color, stroke: '#000', strokeThickness: 1 }).setOrigin(1, 0.5));
         });
@@ -1414,6 +1418,12 @@ export class PrepScene extends Phaser.Scene {
     const cellGap  = 7;
     const gridLeft = rightColX;
     const cols     = Math.floor((rightColW + cellGap) / (cellSz + cellGap));
+    const gridH    = PH / 2 - 10 - gridY;   // visible height of grid area
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let gridWheelHandler: ((...args: any[]) => void) | null = null;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let gridMoveHandler:  ((...args: any[]) => void) | null = null;
 
     const gridLayer = this.add.container(0, 0);
     container.add(gridLayer);
@@ -1429,10 +1439,12 @@ export class PrepScene extends Phaser.Scene {
       const areaH   = py + PH - areaTop - 6;
       const rcx     = rightColX + rightColW / 2;
 
+      // 全面板透明遮擋，阻止點擊穿透到下層
+      det.add(this.add.rectangle(0, 0, PW, PH, 0x000000, 0).setInteractive());
+
       const detBg = this.add.graphics();
       detBg.fillStyle(WD, 0.98); detBg.fillRect(rightColX - 4, areaTop, rightColW + 8, areaH);
       det.add(detBg);
-      det.add(this.add.rectangle(rightColX - 4 + (rightColW + 8) / 2, areaTop + areaH / 2, rightColW + 8, areaH, 0x000000, 0).setInteractive());
 
       const backBtn = this.add.text(rightColX + 8, areaTop + 16, '← 返回', {
         fontSize: '14px', color: '#c49050', stroke: '#1a0800', strokeThickness: 1,
@@ -1527,24 +1539,47 @@ export class PrepScene extends Phaser.Scene {
     };
 
     const buildGrid = () => {
+      if (gridWheelHandler) { this.input.off('wheel', gridWheelHandler); gridWheelHandler = null; }
+      if (gridMoveHandler)  { this.input.off('pointermove', gridMoveHandler); gridMoveHandler = null; }
       gridLayer.removeAll(true);
+
       const slotKeys = tabDefs[activeTab].slotKeys;
       const items    = PlayerStore.getOwned().filter(it => slotKeys.includes(it.slot));
-      const gg       = this.add.graphics();
-      gridLayer.add(gg);
 
       if (items.length === 0) {
-        gridLayer.add(this.add.text(0, gridY + 32, '尚無裝備', {
+        gridLayer.add(this.add.text(rightColX + rightColW / 2, gridY + 32, '尚無裝備', {
           fontSize: '14px', color: '#5a3820', stroke: '#1a0800', strokeThickness: 1,
         }).setOrigin(0.5));
         return;
       }
 
+      const rows      = Math.ceil(items.length / cols);
+      const contentH  = rows * (cellSz + cellGap) - cellGap;
+      let   scrollY   = 0;
+      const maxScroll = Math.max(0, contentH - gridH);
+
+      const scrollCnt = this.add.container(0, gridY);
+      gridLayer.add(scrollCnt);
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const maskShape = (this.make.graphics as any)({ x: 0, y: 0, add: false }) as Phaser.GameObjects.Graphics;
+      maskShape.fillStyle(0xffffff);
+      maskShape.fillRect(W / 2 + rightColX, H / 2 + gridY, rightColW, gridH);
+      scrollCnt.setMask(maskShape.createGeometryMask());
+
+      const applyScroll = (dy: number) => {
+        scrollY = Phaser.Math.Clamp(scrollY + dy, 0, maxScroll);
+        scrollCnt.y = gridY - scrollY;
+      };
+
+      const gg = this.add.graphics();
+      scrollCnt.add(gg);
+
       items.forEach((item, idx) => {
         const col  = idx % cols;
         const row  = Math.floor(idx / cols);
         const cx2  = gridLeft + col * (cellSz + cellGap);
-        const cy2  = gridY    + row * (cellSz + cellGap);
+        const cy2  = row * (cellSz + cellGap);   // relative to scrollCnt
         const col2 = slotDefs[activeTab].color;
 
         gg.fillStyle(WB, 1); gg.fillRect(cx2, cy2, cellSz, cellSz);
@@ -1553,20 +1588,30 @@ export class PrepScene extends Phaser.Scene {
         gg.lineStyle(1.5, WL, 0.35); gg.strokeRect(cx2, cy2, cellSz, cellSz);
 
         if (this.textures.exists(item.texture))
-          gridLayer.add(
+          scrollCnt.add(
             this.add.image(cx2 + cellSz / 2, cy2 + cellSz / 2 - 8, item.texture).setDisplaySize(42, 42),
           );
 
         gg.fillStyle(0x000000, 0.5); gg.fillRect(cx2, cy2 + cellSz - 18, cellSz, 18);
-        gridLayer.add(this.add.text(cx2 + cellSz / 2, cy2 + cellSz - 10, item.name, {
+        scrollCnt.add(this.add.text(cx2 + cellSz / 2, cy2 + cellSz - 10, item.name, {
           fontSize: '11px', color: '#ffe8a0', stroke: '#000000', strokeThickness: 2,
         }).setOrigin(0.5));
 
         const tap = this.add.rectangle(cx2 + cellSz / 2, cy2 + cellSz / 2, cellSz, cellSz)
           .setInteractive({ useHandCursor: true });
-        tap.on('pointerup', () => showItemDetail(item));
-        gridLayer.add(tap);
+        tap.on('pointerdown', () => showItemDetail(item));
+        scrollCnt.add(tap);
       });
+
+      gridMoveHandler = (ptr: Phaser.Input.Pointer) => {
+        if (!ptr.isDown) return;
+        applyScroll(ptr.prevPosition.y - ptr.y);
+      };
+      gridWheelHandler = (_ptr: unknown, _objs: unknown, _dx: number, dy: number) => {
+        applyScroll((dy as number) * 0.6);
+      };
+      this.input.on('pointermove', gridMoveHandler!);
+      this.input.on('wheel', gridWheelHandler!);
     };
     buildGrid();
 
@@ -1599,7 +1644,13 @@ export class PrepScene extends Phaser.Scene {
       buildGrid();
     };
     PlayerStore.onChange(onStoreChange);
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => PlayerStore.offChange(onStoreChange));
+    const cleanupGrid = () => {
+      PlayerStore.offChange(onStoreChange);
+      if (gridWheelHandler) this.input.off('wheel', gridWheelHandler);
+      if (gridMoveHandler)  this.input.off('pointermove', gridMoveHandler);
+    };
+    container.once('destroy', cleanupGrid);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, cleanupGrid);
   }
 
   // ── Item panel ──────────────────────────────────────────

@@ -22,7 +22,9 @@ export class BossWhiteSlime extends Boss {
   protected override pickNextAttack(): void {
     const roll = Math.random();
     let fn: () => void;
-    if      (roll < 0.50) fn = () => this.enterHolyCrossWarn();
+    if      (roll < 0.20) fn = () => this.enterAoeWarn();
+    else if (roll < 0.40) fn = () => this.enterDashWarn();
+    else if (roll < 0.70) fn = () => this.enterHolyCrossWarn();
     else                  fn = () => this.enterHolyOrbsWarn();
     this.stateTimer = this.scene.time.delayedCall(this.getNextAttackDelay(), fn);
   }

@@ -6,8 +6,8 @@ import { BossRedSlime }    from '../objects/boss-red-slime';
 import { BossBlueSlime }   from '../objects/boss-blue-slime';
 import { BossWhiteSlime }  from '../objects/boss-white-slime';
 import { BossZombieSlime } from '../objects/boss-zombie-slime';
+import { BossLavaSlime }  from '../objects/boss-lava-slime';
 import { MinionSlime } from '../objects/minion-slime';
-import { SlashEffect } from '../objects/slash-effect';
 import { VirtualJoystick } from '../ui/joystick';
 import { PlayerStore } from '../data/player-store';
 import { InventoryStore } from '../data/inventory-store';
@@ -31,7 +31,6 @@ interface LootDrop {
 export class GameScene extends Phaser.Scene {
   private player!: Player;
   private boss!: Boss;
-  private slashEffect!: SlashEffect;
   private joystick!: VirtualJoystick;
   private keys!: Phaser.Types.Input.Keyboard.CursorKeys & {
     w: Phaser.Input.Keyboard.Key;
@@ -144,12 +143,13 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
     this.player.onDead = () => this.handlePlayerDead();
 
-    this.slashEffect = new SlashEffect(this);
 
     const bossWp = this.waypoints[this.waypoints.length - 1];
     const bossDef = getMonsterDef(this.bossMonsterId)!;
     const hpMult = STAR_HP_MULT[this.questStar] ?? 1;
     this.boss = this.createBoss(bossDef, Math.round(bossDef.hp * hpMult));
+    this.boss.arenaRadius = this.BOSS_ARENA_RADIUS;
+    this.boss.arenaShape  = this.bossArenaShape;
     bossDef.fillTint ? this.boss.setTintFill(bossDef.tint) : this.boss.setTint(bossDef.tint);
     this.boss.setVisible(false);
     this.boss.getTargetPos = () => [this.player.x, this.player.y];
@@ -194,16 +194,6 @@ export class GameScene extends Phaser.Scene {
       space: kb.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE),
     };
 
-    // ── Dev shortcut: B 鍵直接跳 Boss 戰 ─────────────────
-    this.input.keyboard!.on('keydown-B', () => {
-      if (this.bossActive || this.gameOver) return;
-      this.bossActive  = true;
-      this.teleporting = true;
-      this.player.move(0, 0);
-      (this.player.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
-      this.teleportToBossArena();
-    });
-
     const onResize = () => this.physics.world.setBounds(0, 0, this.worldW, this.worldH);
     this.scale.on('resize', onResize);
     this.events.once('shutdown', () => this.scale.off('resize', onResize));
@@ -225,6 +215,15 @@ export class GameScene extends Phaser.Scene {
       this.auraTimer = this.time.delayedCall(delay, () => { this.tickAura(); scheduleAuraTick(); });
     };
     scheduleAuraTick();
+
+    // HP恢復計時器（每秒恢復）
+    this.time.addEvent({
+      delay: 1000, repeat: -1,
+      callback: () => {
+        const regen = CardStore.getTotalStats().hpRegen;
+        if (regen > 0 && this.player.active) this.player.heal(regen);
+      },
+    });
 
     // 血環持續視覺圈圈（只有裝備血環時才顯示）
     this.auraRing = this.add.graphics().setDepth(this.player.depth - 1);
@@ -419,16 +418,15 @@ export class GameScene extends Phaser.Scene {
     srcX:        number, srcY: number,
     dir:         'down' | 'left' | 'right' | 'up',
     attackElem:  import('../data/equipment-data').Element = 'none',
-    playSlash  = true,
   ): void {
     const stats    = CardStore.getTotalStats();
     const isCrit   = Math.random() < stats.crit;
     const elemMult = (target === this.boss) ? getElementMultiplier(attackElem, this.boss.element) : 1;
-    const dmg      = Math.round(stats.atk * Phaser.Math.FloatBetween(0.85, 1.15) * dmgMult * (isCrit ? 2 : 1) * elemMult);
+    const dmg      = Math.round(stats.atk * Phaser.Math.FloatBetween(0.85, 1.15) * dmgMult * (isCrit ? (1 + stats.critDmg) : 1) * elemMult);
     target.takeDamage(dmg);
     target.knockback(srcX, srcY);
+    if (stats.lifesteal > 0) this.player.heal(Math.round(dmg * stats.lifesteal));
     this.spawnDamageNumber(target.x, target.y, dmg, isCrit, elemMult);
-    if (playSlash) this.slashEffect.play(target.x, target.y, dir);
   }
 
   private hitInArea(
@@ -1450,7 +1448,7 @@ export class GameScene extends Phaser.Scene {
           if (hit) break;
           if (Phaser.Math.Distance.Between(orb.x, orb.y, t.x, t.y) > ORB_R) continue;
           hit = true;
-          this.dealDamage(t, 0.50, orb.x, orb.y, dir, 'fire', false);
+          this.dealDamage(t, 0.50, orb.x, orb.y, dir, 'fire');
           spawnFire(orb.x, orb.y);
           return;
         }
@@ -1487,7 +1485,7 @@ export class GameScene extends Phaser.Scene {
       if (m.isDead || m.burnStacks <= 0) continue;
       if (now >= m.burnExpiresAt) { m.burnStacks = 0; continue; }
       const isCrit = Math.random() < stats.crit;
-      const dmg = Math.round(stats.atk * 0.032 *m.burnStacks * (isCrit ? 2 : 1));
+      const dmg = Math.round(stats.atk * 0.032 *m.burnStacks * (isCrit ? (1 + stats.critDmg) : 1));
       m.takeDamage(dmg);
       this.spawnDamageNumber(m.x, m.y, dmg, isCrit, 1);
     }
@@ -1495,7 +1493,7 @@ export class GameScene extends Phaser.Scene {
       if (now >= this.boss.burnExpiresAt) { this.boss.burnStacks = 0; this.refreshBossBar(); return; }
       const isCrit   = Math.random() < stats.crit;
       const elemMult = getElementMultiplier('fire', this.boss.element);
-      const dmg = Math.round(stats.atk * 0.032 *this.boss.burnStacks * (isCrit ? 2 : 1) * elemMult);
+      const dmg = Math.round(stats.atk * 0.032 *this.boss.burnStacks * (isCrit ? (1 + stats.critDmg) : 1) * elemMult);
       this.boss.takeDamage(dmg);
       this.spawnDamageNumber(this.boss.x, this.boss.y, dmg, isCrit, elemMult);
       this.refreshBossBar();
@@ -1515,7 +1513,7 @@ export class GameScene extends Phaser.Scene {
       if (m.isDead) continue;
       if (Phaser.Math.Distance.Between(px, py, m.x, m.y) > RANGE) continue;
       const isCrit = Math.random() < stats.crit;
-      const dmg    = Math.round(baseDmg * Phaser.Math.FloatBetween(0.9, 1.1) * (isCrit ? 2 : 1));
+      const dmg    = Math.round(baseDmg * Phaser.Math.FloatBetween(0.9, 1.1) * (isCrit ? (1 + stats.critDmg) : 1));
       m.takeDamage(dmg);
       this.spawnDamageNumber(m.x, m.y, dmg, isCrit, 1);
     }
@@ -1523,7 +1521,7 @@ export class GameScene extends Phaser.Scene {
         Phaser.Math.Distance.Between(px, py, this.boss.x, this.boss.y) <= RANGE) {
       const isCrit   = Math.random() < stats.crit;
       const elemMult = getElementMultiplier('none', this.boss.element);
-      const dmg      = Math.round(baseDmg * Phaser.Math.FloatBetween(0.9, 1.1) * (isCrit ? 2 : 1) * elemMult);
+      const dmg      = Math.round(baseDmg * Phaser.Math.FloatBetween(0.9, 1.1) * (isCrit ? (1 + stats.critDmg) : 1) * elemMult);
       this.boss.takeDamage(dmg);
       this.spawnDamageNumber(this.boss.x, this.boss.y, dmg, isCrit, elemMult);
     }
@@ -1970,6 +1968,19 @@ export class GameScene extends Phaser.Scene {
       b.onPoisonFanHit = (dmg) => {
         if (!this.bossActive) return;
         this.player.takeDamage(dmg);
+      };
+      return b;
+    }
+    if (bossDef.id === 'boss_lava_slime') {
+      const b = new BossLavaSlime(this, cx, cy, totalHp, bossDef.element, bossDef.spriteKey, bossDef.tint);
+      b.onBarrageHit = (dmg) => {
+        if (!this.bossActive) return;
+        this.player.takeDamage(dmg);
+      };
+      b.onPillarExplode = (x, y, r, dmg) => {
+        if (!this.bossActive) return;
+        const dSq = Phaser.Math.Distance.BetweenPointsSquared({ x, y }, this.player);
+        if (dSq <= r * r) this.player.takeDamage(dmg);
       };
       return b;
     }

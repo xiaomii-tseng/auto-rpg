@@ -2,6 +2,7 @@ import { Component, AfterViewInit } from '@angular/core';
 import Phaser from 'phaser';
 import { PrepScene } from './game/scenes/prep-scene';
 import { GameScene } from './game/scenes/game.scene';
+import { InventoryStore } from './game/data/inventory-store';
 
 @Component({
   selector: 'app-root',
@@ -48,6 +49,12 @@ export class App implements AfterViewInit {
     });
 
     game.events.once('ready', () => this.patchRotationInput(game, isPortrait));
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (window as any).addRerollStone = (n = 1) => {
+      InventoryStore.addItem('quest_reroll', '任務重製石', n);
+      console.log(`已新增 ${n} 顆任務重製石，目前共 ${InventoryStore.getItemQty('quest_reroll')} 顆`);
+    };
   }
 
   private patchRotationInput(game: Phaser.Game, isPortrait: boolean): void {

@@ -20,6 +20,8 @@ export interface EffectiveStats {
   atkSpeed:  number;
   lifesteal: number;
   evasion:   number;
+  critDmg:   number;
+  hpRegen:   number;
 }
 
 type EquippedMap = { [K in EquipSlot]: EquipmentItem | null };
@@ -127,6 +129,8 @@ export const PlayerStore = {
     let atkSpeed  = 0;
     let lifesteal = 0;
     let evasion   = 0;
+    let critDmg   = 0.5;
+    let hpRegen   = 0;
 
     for (const [, item] of Object.entries(equipped) as [EquipSlot, EquipmentItem | null][]) {
       if (!item) continue;
@@ -139,6 +143,8 @@ export const PlayerStore = {
       atkSpeed  += s.atkSpeed  ?? 0;
       lifesteal += s.lifesteal ?? 0;
       evasion   += s.evasion   ?? 0;
+      critDmg   += s.critDmg   ?? 0;
+      hpRegen   += s.hpRegen   ?? 0;
     }
 
     return {
@@ -148,6 +154,8 @@ export const PlayerStore = {
       atkSpeed:  Math.min(atkSpeed, 1),
       lifesteal: Math.min(lifesteal, 0.5),
       evasion:   Math.min(evasion, 0.75),
+      critDmg,
+      hpRegen,
     };
   },
 

@@ -17,6 +17,8 @@ export enum BossState {
   HOLY_ORBS_WARN   = 'HOLY_ORBS_WARN',
   ZOMBIE_SUMMON_WARN = 'ZOMBIE_SUMMON_WARN',
   POISON_FAN_WARN    = 'POISON_FAN_WARN',
+  LAVA_BARRAGE_WARN  = 'LAVA_BARRAGE_WARN',
+  LAVA_PILLAR_WARN   = 'LAVA_PILLAR_WARN',
   DEAD             = 'DEAD',
 }
 
@@ -48,6 +50,9 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
   protected baseTint = 0xffffff;
 
   readonly element: Element;
+  readonly arenaCenter: Phaser.Math.Vector2;
+  arenaRadius = 400;
+  arenaShape  = 0;   // 0=圓, 1=八角, 2=菱形, 3=圓角矩形
 
   getTargetPos: () => [number, number] = () => [0, 0];
 
@@ -65,11 +70,12 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
 
   constructor(scene: Phaser.Scene, x: number, y: number, totalHp = 500, element: Element = 'none', spriteKey = 'slime', tint = 0xffffff) {
     super(scene, x, y, `${spriteKey}_idle`, 0);
-    this.animPrefix = spriteKey;
-    this.baseTint   = tint;
-    this.hp = totalHp;
-    this.maxHp = totalHp;
-    this.element = element;
+    this.animPrefix  = spriteKey;
+    this.baseTint    = tint;
+    this.hp          = totalHp;
+    this.maxHp       = totalHp;
+    this.element     = element;
+    this.arenaCenter = new Phaser.Math.Vector2(x, y);
     scene.add.existing(this);
     scene.physics.add.existing(this);
     const body = this.body as Phaser.Physics.Arcade.Body;
@@ -112,7 +118,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
   }
 
   knockback(fromX: number, fromY: number, power = 110): void {
-    if (this.bossState === BossState.DEAD || this.bossState === BossState.DASHING) return;
+    if (this.bossState !== BossState.IDLE) return;
     const angle = Phaser.Math.Angle.Between(fromX, fromY, this.x, this.y);
     const body  = this.body as Phaser.Physics.Arcade.Body;
     this.scene.physics.velocityFromAngle(Phaser.Math.RadToDeg(angle), power, body.velocity);
@@ -296,12 +302,11 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     this.updateDirFromAngle(angle);
     this.playDir(`${this.animPrefix}_run`);
 
-    // 計算並夾住終點，避免衝出地圖
-    const dist   = Boss.DASH_SPEED * (Boss.DASH_MS / 1000);
-    const bounds = this.scene.physics.world.bounds;
-    const PAD    = 40;
-    const endX   = Phaser.Math.Clamp(this.x + Math.cos(angle) * dist, bounds.left + PAD, bounds.right  - PAD);
-    const endY   = Phaser.Math.Clamp(this.y + Math.sin(angle) * dist, bounds.top  + PAD, bounds.bottom - PAD);
+    // 計算並夾住終點，依競技場形狀限制
+    const dist = Boss.DASH_SPEED * (Boss.DASH_MS / 1000);
+    const rawX = this.x + Math.cos(angle) * dist;
+    const rawY = this.y + Math.sin(angle) * dist;
+    const [endX, endY] = this.clampToArena(rawX, rawY, 0);
 
     this.startDashTrail();
 
@@ -317,6 +322,34 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
         this.enterIdle();
       },
     });
+  }
+
+  // 將座標夾在當前競技場形狀內（pad = 距邊界的安全距離）
+  private clampToArena(px: number, py: number, pad: number): [number, number] {
+    const cx = this.arenaCenter.x, cy = this.arenaCenter.y;
+    const R  = this.arenaRadius;
+
+    const isInside = (x: number, y: number): boolean => {
+      const dx = x - cx, dy = y - cy;
+      switch (this.arenaShape) {
+        case 1: { const hs = R * 0.875 - pad; return Math.abs(dx) <= hs && Math.abs(dy) <= hs && Math.abs(dx) + Math.abs(dy) <= hs * 1.5; }
+        case 2: return Math.abs(dx) + Math.abs(dy) <= R - pad;
+        case 3: { const hw = 380 - pad, hh = 300 - pad, cr = 100; const ex = Math.max(Math.abs(dx) - (hw - cr), 0); const ey = Math.max(Math.abs(dy) - (hh - cr), 0); return ex * ex + ey * ey <= cr * cr; }
+        default: return dx * dx + dy * dy <= (R - pad) * (R - pad);
+      }
+    };
+
+    if (isInside(px, py)) return [px, py];
+
+    // 從 Boss 位置向目標方向二分搜尋最遠合法點
+    let lo = 0, hi = 1;
+    for (let i = 0; i < 16; i++) {
+      const mid = (lo + hi) / 2;
+      const mx  = this.x + (px - this.x) * mid;
+      const my  = this.y + (py - this.y) * mid;
+      if (isInside(mx, my)) lo = mid; else hi = mid;
+    }
+    return [this.x + (px - this.x) * lo, this.y + (py - this.y) * lo];
   }
 
   private die(): void {

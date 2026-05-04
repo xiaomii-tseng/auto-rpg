@@ -194,6 +194,12 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.play(key, true);
   }
 
+  heal(amount: number): void {
+    if (!this.active || amount <= 0) return;
+    this.hp = Math.min(this.maxHp, this.hp + amount);
+    this.onHpChanged?.(this.hp, this.maxHp);
+  }
+
   get moving(): boolean    { return this.isMoving; }
   get currentHp(): number  { return this.hp; }
   get maxHpValue(): number { return this.maxHp; }
