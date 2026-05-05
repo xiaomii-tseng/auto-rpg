@@ -1,5 +1,6 @@
 import { MONSTER_DEFS } from './monster-data';
 import { PlayerStore } from './player-store';
+import { generateEquipment, randomQuality, EquipmentItem, EquipSlot } from './equipment-data';
 
 export type QuestStatus = 'available' | 'accepted' | 'completed' | 'claimed';
 
@@ -37,6 +38,10 @@ export const STAR_HP_MULT: Record<number, number> = {
 
 export const STAR_DROP_MULT: Record<number, number> = {
   1: 1.0, 2: 1.3, 3: 1.7, 4: 2.2, 5: 3.0,
+};
+
+export const STAR_DEF_MULT: Record<number, number> = {
+  1: 0.6, 2: 1.2, 3: 2.2, 4: 3.5, 5: 4.5,
 };
 
 // Equipment quality weights by star (for quest equip rewards)
@@ -119,6 +124,10 @@ function generateQuests(): Quest[] {
 let _quests: Quest[] = [];
 const _listeners: Array<() => void> = [];
 
+// 裝備獎勵選項 cache：同一張任務每次打開 modal 顯示相同三件裝備
+const _equipOptionsCache = new Map<string, EquipmentItem[]>();
+const EQUIP_SLOTS: EquipSlot[] = ['hat', 'outfit', 'shoes', 'ring1', 'ring2', 'sword'];
+
 export const QuestStore = {
   getQuests(): Quest[] {
     if (_quests.length === 0) _quests = generateQuests();
@@ -141,11 +150,24 @@ export const QuestStore = {
     return false;
   },
 
+  getEquipOptions(questId: string): EquipmentItem[] {
+    if (!_equipOptionsCache.has(questId)) {
+      const q = _quests.find(q => q.id === questId);
+      if (!q) return [];
+      const weights    = STAR_EQUIP_QUALITY[q.star] ?? {};
+      const pickedSlots = [...EQUIP_SLOTS].sort(() => Math.random() - 0.5).slice(0, 3);
+      _equipOptionsCache.set(questId, pickedSlots.map(s =>
+        generateEquipment(s, randomQuality(weights as Record<string, number>)),
+      ));
+    }
+    return _equipOptionsCache.get(questId)!;
+  },
+
   claimQuest(questId: string): number {
     const idx = _quests.findIndex(q => q.id === questId && q.status === 'completed');
     if (idx === -1) return 0;
     const reward = _quests[idx].reward;
-    // 直接用新任務替換，不需要消耗重製券
+    _equipOptionsCache.delete(questId);
     this.dismissQuest(questId);
     return reward;
   },
@@ -158,6 +180,7 @@ export const QuestStore = {
   dismissQuest(questId: string): void {
     const idx = _quests.findIndex(q => q.id === questId && q.status !== 'accepted');
     if (idx === -1) return;
+    _equipOptionsCache.delete(questId);
     const used    = _quests.filter((_, i) => i !== idx).map(q => q.bossId);
     const choices = BOSS_POOL.filter(id => !used.includes(id));
     const bossId  = choices.length > 0
@@ -181,6 +204,7 @@ export const QuestStore = {
   },
 
   rerollQuests(): void {
+    _equipOptionsCache.clear();
     _quests = generateQuests();
     this.notify();
   },

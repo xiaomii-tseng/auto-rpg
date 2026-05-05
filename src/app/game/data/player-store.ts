@@ -20,8 +20,10 @@ export interface EffectiveStats {
   atkSpeed:  number;
   lifesteal: number;
   evasion:   number;
-  critDmg:   number;
-  hpRegen:   number;
+  critDmg:     number;
+  hpRegen:     number;
+  dotBonus:    number;
+  penetration: number;
 }
 
 type EquippedMap = { [K in EquipSlot]: EquipmentItem | null };
@@ -48,14 +50,18 @@ export const PlayerStore = {
 
   expToNext(lv = level): number { return Math.round(1000 * Math.pow(1.05, lv - 1)); },
 
+  MAX_LEVEL: 50,
+
   addExp(amount: number): number {
+    if (level >= PlayerStore.MAX_LEVEL) { exp = 0; this.notify(); return 0; }
     exp += amount;
     let levelsGained = 0;
-    while (exp >= PlayerStore.expToNext()) {
+    while (exp >= PlayerStore.expToNext() && level < PlayerStore.MAX_LEVEL) {
       exp -= PlayerStore.expToNext();
       level++;
       levelsGained++;
     }
+    if (level >= PlayerStore.MAX_LEVEL) exp = 0;
     this.notify();
     return levelsGained;
   },
@@ -126,11 +132,13 @@ export const PlayerStore = {
     let def       = BASE_DEF;
     let crit      = BASE_CRIT;
     let attackArc = BASE_ATTACK_ARC;
-    let atkSpeed  = 0;
-    let lifesteal = 0;
-    let evasion   = 0;
-    let critDmg   = 0.5;
-    let hpRegen   = 0;
+    let atkSpeed    = 0;
+    let lifesteal   = 0;
+    let evasion     = 0;
+    let critDmg     = 0.5;
+    let hpRegen     = 0;
+    let dotBonus    = 0;
+    let penetration = 0;
 
     for (const [, item] of Object.entries(equipped) as [EquipSlot, EquipmentItem | null][]) {
       if (!item) continue;
@@ -143,8 +151,10 @@ export const PlayerStore = {
       atkSpeed  += s.atkSpeed  ?? 0;
       lifesteal += s.lifesteal ?? 0;
       evasion   += s.evasion   ?? 0;
-      critDmg   += s.critDmg   ?? 0;
-      hpRegen   += s.hpRegen   ?? 0;
+      critDmg     += s.critDmg     ?? 0;
+      hpRegen     += s.hpRegen     ?? 0;
+      dotBonus    += s.dotBonus    ?? 0;
+      penetration += s.penetration ?? 0;
     }
 
     return {
@@ -152,10 +162,12 @@ export const PlayerStore = {
       crit:      Math.min(crit, 1),
       attackArc: Math.min(attackArc, 360),
       atkSpeed:  Math.min(atkSpeed, 1),
-      lifesteal: Math.min(lifesteal, 0.5),
+      lifesteal: Math.min(lifesteal, 0.1),
       evasion:   Math.min(evasion, 0.75),
       critDmg,
       hpRegen,
+      dotBonus,
+      penetration,
     };
   },
 

@@ -5,7 +5,7 @@ import { CardStore } from './card-store';
 import { QuestStore } from './quest-store';
 
 const SAVE_KEY = 'auto_rpg_save';
-const VERSION  = 7;
+const VERSION  = 8;
 let   _loaded  = false;
 
 interface SaveData {
@@ -67,12 +67,18 @@ export const SaveStore = {
 
       if (p.equipped) {
         for (const [slot, item] of Object.entries(p.equipped) as [EquipSlot, EquipmentItem | null][]) {
-          if (item) PlayerStore.equipDirect(slot, item);
+          if (item) {
+            if (!item.enhanceLog) item.enhanceLog = [];
+            PlayerStore.equipDirect(slot, item);
+          }
         }
       }
 
       if (p.owned) {
-        for (const item of p.owned) PlayerStore.addOwned(item);
+        for (const item of p.owned) {
+          if (!item.enhanceLog) item.enhanceLog = [];
+          PlayerStore.addOwned(item);
+        }
       }
 
       InventoryStore.setGold(data.inventory.gold);

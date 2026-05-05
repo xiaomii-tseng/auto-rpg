@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { PlayerStore } from '../data/player-store';
+import { CardStore } from '../data/card-store';
 
 export class Player extends Phaser.Physics.Arcade.Sprite {
   private isMoving    = false;
@@ -20,6 +21,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
   onHpChanged?: (hp: number, maxHp: number) => void;
   onDead?: () => void;
+  onEvade?: (x: number, y: number) => void;
 
   constructor(scene: Phaser.Scene, x: number, y: number) {
     super(scene, x, y, 'player_idle_shadow', 0);
@@ -150,8 +152,11 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
   takeDamage(amount: number): void {
     if (this.invincible || !this.active) return;
-    const def    = PlayerStore.getStats().def;
-    const actual = Math.max(1, amount - def);
+    const evasion = CardStore.getTotalStats().evasion;
+    if (evasion > 0 && Math.random() < evasion) { this.onEvade?.(this.x, this.y); return; }
+    const def      = PlayerStore.getStats().def;
+    const reduction = def / (def + 100);
+    const actual    = Math.max(1, Math.round(amount * (1 - reduction)));
     this.hp = Math.max(0, this.hp - actual);
     this.onHpChanged?.(this.hp, this.maxHp);
     if (this.hp <= 0) {

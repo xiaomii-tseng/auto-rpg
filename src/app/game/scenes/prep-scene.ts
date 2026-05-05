@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { InventoryStore } from '../data/inventory-store';
 import { PlayerStore } from '../data/player-store';
-import { generateEquipment, randomQuality, QUALITY_NAMES, QUALITY_COLORS, SLOT_NAMES, STAT_NAMES, BEHAVIOR_NAMES, BEHAVIOR_INFO, EquipSlot, EquipmentItem } from '../data/equipment-data';
+import { generateEquipment, randomQuality, QUALITY_NAMES, QUALITY_COLORS, SLOT_NAMES, STAT_NAMES, BEHAVIOR_NAMES, BEHAVIOR_INFO, EquipSlot, EquipmentItem, applyEnhancement, revertEnhancement, ENHANCE_COST, ENHANCE_RATE, ENHANCE_DEMOTE_FROM, ENHANCE_MAX } from '../data/equipment-data';
 import { SaveStore } from '../data/save-store';
 import { CardStore, CARD_SLOT_COUNT } from '../data/card-store';
 import { getCardDef, getMonsterDef } from '../data/monster-data';
@@ -72,6 +72,8 @@ export class PrepScene extends Phaser.Scene {
     }
 
     const hasSave = SaveStore.load();
+    // 測試：補足重製石至 999
+    InventoryStore.addItem('quest_reroll', '任務重製石', 999 - InventoryStore.getItemQty('quest_reroll'));
     if (!hasSave) {
       // 測試用：每種攻擊模式各一把，slash180 直接裝備
       const testBehaviors: import('../data/equipment-data').AttackBehavior[] =
@@ -85,7 +87,7 @@ export class PrepScene extends Phaser.Scene {
         id: 'sword_test_slash180', name: '半月斬', slot: 'sword',
         texture: 'equip_sword1', quality: 'perfect',
         affixes: [{ stat: 'atk', value: 20 }, { stat: 'crit', value: 0.15 }],
-        behavior: 'slash180', enhancement: 0,
+        behavior: 'slash180', enhancement: 0, enhanceLog: [],
       });
       testBehaviors.forEach((bv) => {
         const sword: EquipmentItem = {
@@ -97,6 +99,7 @@ export class PrepScene extends Phaser.Scene {
           affixes:     [{ stat: 'atk', value: 20 }, { stat: 'crit', value: 0.15 }],
           behavior:    bv,
           enhancement: 0,
+          enhanceLog:  [],
         };
         PlayerStore.addOwned(sword);
       });
@@ -123,6 +126,7 @@ export class PrepScene extends Phaser.Scene {
             affixes:     [{ stat: 'atk', value: 20 }, { stat: 'crit', value: 0.15 }],
             behavior:    bv,
             enhancement: 0,
+            enhanceLog:  [],
           });
         }
       }
@@ -892,16 +896,13 @@ export class PrepScene extends Phaser.Scene {
 
     // ── Equip reward modal ────────────────────────────────
     const showEquipRewardModal = (quest: Quest, afterClose: () => void) => {
-      const SLOTS: EquipSlot[] = ['hat', 'outfit', 'shoes', 'ring1', 'ring2', 'sword'];
-      const pickedSlots = [...SLOTS].sort(() => Math.random() - 0.5).slice(0, 3);
-      const weights = STAR_EQUIP_QUALITY[quest.star] ?? {};
-      const items: EquipmentItem[] = pickedSlots.map(s =>
-        generateEquipment(s, randomQuality(weights as any))
-      );
+      const items = QuestStore.getEquipOptions(quest.id);
 
-      const MW = Math.min(W - 24, 340);
-      const ITEM_H = 80;
-      const MH = ITEM_H * 3 + 56 + 16;
+      const CARD_W = 138;
+      const CARD_H = 230;
+      const GAP    = 10;
+      const MW = CARD_W * 3 + GAP * 4;
+      const MH = CARD_H + 44 + GAP * 2;
       const mx = W / 2 - MW / 2;
       const my = H / 2 - MH / 2;
       const MD = D + 10;
@@ -909,8 +910,9 @@ export class PrepScene extends Phaser.Scene {
       const closeMo = () => mo.forEach(o => o.destroy());
 
       // Backdrop
-      const mbk = this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.7)
+      const mbk = this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.75)
         .setDepth(MD).setInteractive();
+      mbk.on('pointerdown', closeMo);
       mo.push(mbk);
 
       // Panel
@@ -918,39 +920,64 @@ export class PrepScene extends Phaser.Scene {
       mo.push(mg);
       mg.fillStyle(WD, 1); mg.fillRect(mx, my, MW, MH);
       mg.lineStyle(2, GOLD, 0.9); mg.strokeRect(mx, my, MW, MH);
-      mg.fillStyle(WB, 1); mg.fillRect(mx, my, MW, 36);
-      mg.lineStyle(1, GOLD, 0.4); mg.lineBetween(mx, my + 36, mx + MW, my + 36);
+      mg.fillStyle(WB, 1); mg.fillRect(mx, my, MW, 44);
+      mg.lineStyle(1, GOLD, 0.4); mg.lineBetween(mx, my + 44, mx + MW, my + 44);
 
-      mo.push(this.add.text(W / 2, my + 18, '選擇獎勵裝備', {
-        fontSize: '14px', fontStyle: 'bold',
+      mo.push(this.add.text(W / 2, my + 22, '選擇獎勵裝備', {
+        fontSize: '16px', fontStyle: 'bold',
         color: '#e8c070', stroke: '#1a0800', strokeThickness: 2,
-        padding: { top: 4, bottom: 2 },
       }).setOrigin(0.5).setDepth(MD + 2));
 
+      // 右上角叉叉（可晚點再選）
+      const xBtn = this.add.text(mx + MW - 14, my + 22, '✕', {
+        fontSize: '15px', color: '#cc4444', stroke: '#1a0800', strokeThickness: 2,
+      }).setOrigin(0.5).setInteractive({ useHandCursor: true }).setDepth(MD + 3);
+      xBtn.on('pointerdown', closeMo);
+      mo.push(xBtn);
+
       items.forEach((item, idx) => {
-        const iy = my + 36 + idx * ITEM_H + 8;
+        const cx = mx + GAP + idx * (CARD_W + GAP);
+        const cy = my + 44 + GAP;
         const qColor = QUALITY_COLORS[item.quality];
         const qHex   = '#' + qColor.toString(16).padStart(6, '0');
 
-        // Row bg
+        // Card bg
         const rg = this.add.graphics().setDepth(MD + 2);
         mo.push(rg);
-        rg.fillStyle(WM, 1); rg.fillRect(mx + 6, iy, MW - 12, ITEM_H - 8);
-        rg.lineStyle(1.5, qColor, 0.7); rg.strokeRect(mx + 6, iy, MW - 12, ITEM_H - 8);
-        rg.fillStyle(qColor, 0.15); rg.fillRect(mx + 6, iy, MW - 12, 3);
+        const drawCard = (hover: boolean) => {
+          rg.clear();
+          rg.fillStyle(hover ? WL : WM, 1);
+          rg.fillRoundedRect(cx, cy, CARD_W, CARD_H, 7);
+          rg.lineStyle(hover ? 2.5 : 1.5, qColor, hover ? 1 : 0.75);
+          rg.strokeRoundedRect(cx, cy, CARD_W, CARD_H, 7);
+          rg.fillStyle(qColor, 0.35);
+          rg.fillRoundedRect(cx, cy, CARD_W, 5, { tl: 7, tr: 7, bl: 0, br: 0 });
+        };
+        drawCard(false);
 
-        // Image
+        // Image box — 80×80
+        const imgBg = this.add.graphics().setDepth(MD + 3);
+        mo.push(imgBg);
+        imgBg.fillStyle(0x0a0600, 0.7);
+        imgBg.fillRoundedRect(cx + (CARD_W - 80) / 2, cy + 14, 80, 80, 5);
+        imgBg.lineStyle(1.5, qColor, 0.5);
+        imgBg.strokeRoundedRect(cx + (CARD_W - 80) / 2, cy + 14, 80, 80, 5);
+
         if (this.textures.exists(item.texture))
-          mo.push(this.add.image(mx + 34, iy + (ITEM_H - 8) / 2, item.texture)
-            .setDisplaySize(44, 44).setDepth(MD + 3));
+          mo.push(this.add.image(cx + CARD_W / 2, cy + 54, item.texture)
+            .setDisplaySize(68, 68).setDepth(MD + 4));
 
-        // Slot + quality
-        mo.push(this.add.text(mx + 62, iy + 10,
-          `${SLOT_NAMES[item.slot]}  [${QUALITY_NAMES[item.quality]}]`, {
-            fontSize: '12px', fontStyle: 'bold',
-            color: qHex, stroke: '#0a0600', strokeThickness: 2,
-            padding: { top: 2, bottom: 1 },
-          }).setOrigin(0, 0.5).setDepth(MD + 3));
+        // Slot name
+        mo.push(this.add.text(cx + CARD_W / 2, cy + 100, SLOT_NAMES[item.slot], {
+          fontSize: '13px', fontStyle: 'bold',
+          color: '#e8c070', stroke: '#0a0600', strokeThickness: 2,
+        }).setOrigin(0.5, 0).setDepth(MD + 3));
+
+        // Quality badge
+        mo.push(this.add.text(cx + CARD_W / 2, cy + 118, QUALITY_NAMES[item.quality], {
+          fontSize: '12px', fontStyle: 'bold',
+          color: qHex, stroke: '#0a0600', strokeThickness: 2,
+        }).setOrigin(0.5, 0).setDepth(MD + 3));
 
         // Affixes
         const affixLines = item.affixes.map(a => {
@@ -958,19 +985,19 @@ export class PrepScene extends Phaser.Scene {
           return `${STAT_NAMES[a.stat]} +${isPct ? (a.value*100).toFixed(1)+'%' : a.value}`;
         });
         if (item.behavior) affixLines.push(BEHAVIOR_NAMES[item.behavior]);
-        mo.push(this.add.text(mx + 62, iy + 30, affixLines.join('   '), {
-          fontSize: '10px', color: '#88cc88',
+        mo.push(this.add.text(cx + CARD_W / 2, cy + 136, affixLines.join('\n'), {
+          fontSize: '11px', color: '#88cc88',
           stroke: '#0a0600', strokeThickness: 1,
-          padding: { top: 2, bottom: 1 },
-          wordWrap: { width: MW - 76 },
-        }).setOrigin(0, 0.5).setDepth(MD + 3));
+          align: 'center', lineSpacing: 3,
+          wordWrap: { width: CARD_W - 12 },
+        }).setOrigin(0.5, 0).setDepth(MD + 3));
 
         // Hit zone
-        const hit = this.add.rectangle(mx + MW / 2, iy + (ITEM_H - 8) / 2, MW - 12, ITEM_H - 8)
-          .setInteractive({ useHandCursor: true }).setDepth(MD + 4);
+        const hit = this.add.rectangle(cx + CARD_W / 2, cy + CARD_H / 2, CARD_W, CARD_H)
+          .setInteractive({ useHandCursor: true }).setDepth(MD + 5);
         mo.push(hit);
-        hit.on('pointerover',  () => { rg.clear(); rg.fillStyle(WL, 1); rg.fillRect(mx + 6, iy, MW - 12, ITEM_H - 8); rg.lineStyle(2, qColor, 1); rg.strokeRect(mx + 6, iy, MW - 12, ITEM_H - 8); });
-        hit.on('pointerout',   () => { rg.clear(); rg.fillStyle(WM, 1); rg.fillRect(mx + 6, iy, MW - 12, ITEM_H - 8); rg.lineStyle(1.5, qColor, 0.7); rg.strokeRect(mx + 6, iy, MW - 12, ITEM_H - 8); rg.fillStyle(qColor, 0.15); rg.fillRect(mx + 6, iy, MW - 12, 3); });
+        hit.on('pointerover',  () => drawCard(true));
+        hit.on('pointerout',   () => drawCard(false));
         hit.on('pointerdown', () => {
           PlayerStore.addOwned(item);
           QuestStore.claimQuest(quest.id);
@@ -1040,14 +1067,18 @@ export class PrepScene extends Phaser.Scene {
       fontSize: '17px', color: '#e8c070', stroke: '#1a0800', strokeThickness: 2,
     }).setOrigin(0.5));
 
-    const closeBtn = this.add.text(px + PW - 22, py + 21, '✕', {
+    // Close button lives OUTSIDE the container at depth D+1 so it is always the
+    // topmost interactive object regardless of container child ordering.
+    const closeBtn = this.add.text(W / 2 + px + PW - 22, H / 2 + py + 21, '✕', {
       fontSize: '16px', color: '#cc4444', stroke: '#1a0800', strokeThickness: 2,
-    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
-    closeBtn.on('pointerdown', () => {
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true }).setDepth(D + 1).setScrollFactor(0);
+    const closePanelFn = () => {
+      if (closeBtn.active) closeBtn.destroy();
       PlayerStore.offChange(onStoreChange);
-      container.destroy();
-    });
-    container.add(closeBtn);
+      if (container.active) container.destroy();
+    };
+    closeBtn.on('pointerdown', closePanelFn);
+    container.once('destroy', () => { if (closeBtn.active) closeBtn.destroy(); });
 
     // ── Slot definitions ──────────────────────────────────
     const slotDefs: { label: string; color: number; slotKey: EquipSlot }[] = [
@@ -1221,18 +1252,153 @@ export class PrepScene extends Phaser.Scene {
       closeT.on('pointerdown', () => closeModal());
     };
 
-    const showEnhanceStub = () => {
-      const note = this.add.text(rightColX + rightColW / 2, rightColTop + 20, '強化功能即將推出', {
-        fontSize: '13px', color: '#ffcc44', stroke: '#000', strokeThickness: 2,
-        backgroundColor: '#3a2000', padding: { x: 10, y: 5 },
-      }).setOrigin(0.5).setDepth(600);
-      this.tweens.add({ targets: note, alpha: 0, delay: 1200, duration: 400, onComplete: () => note.destroy() });
+    const showEnhanceModal = (item: EquipmentItem, onClose: () => void) => {
+      const { width: W, height: H } = this.scale;
+      const mw  = 300;
+      const ED  = 960;
+      const eo: Phaser.GameObjects.GameObject[] = [];
+      const es  = <T extends Phaser.GameObjects.GameObject>(o: T): T => { eo.push(o); return o; };
+      const closeEnhance = () => { eo.forEach(o => o.destroy()); onClose(); };
+
+      const isPct = (stat: string) => ['crit','atkSpeed','lifesteal','evasion','critDmg','dotBonus'].includes(stat);
+      const fmtVal = (stat: string, val: number) =>
+        isPct(stat) ? (val * 100).toFixed(1) + '%' : String(val);
+
+      const TITLE_H   = 44;
+      const LEVEL_H   = 38;
+      const AFFIX_ROW = 24;
+      const BEH_ROW   = item.behavior ? 24 : 0;
+      const INFO_H    = 28;
+      const BTN_H     = 42;
+      const RESULT_H  = 28;
+      const PAD       = 10;
+      const mh = TITLE_H + LEVEL_H + PAD + item.affixes.length * AFFIX_ROW + BEH_ROW +
+                 PAD + INFO_H + PAD + BTN_H + RESULT_H + PAD;
+      const mx = W / 2 - mw / 2;
+      const my = H / 2 - mh / 2;
+
+      es(this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.6)
+        .setInteractive().setDepth(ED));
+
+      const bg = es(this.add.graphics().setDepth(ED + 1));
+      bg.fillStyle(WD, 0.97); bg.fillRect(mx, my, mw, mh);
+      bg.lineStyle(2, GOLD, 0.85); bg.strokeRect(mx, my, mw, mh);
+      bg.fillStyle(WB, 1); bg.fillRect(mx, my, mw, TITLE_H);
+      bg.lineStyle(1, GOLD, 0.4); bg.lineBetween(mx, my + TITLE_H, mx + mw, my + TITLE_H);
+
+      es(this.add.text(W / 2, my + TITLE_H / 2, '強 化 裝 備', {
+        fontSize: '15px', fontStyle: 'bold', color: '#e8c070',
+        stroke: '#1a0800', strokeThickness: 2,
+      }).setOrigin(0.5).setDepth(ED + 2));
+
+      es(this.add.text(mx + mw - 16, my + TITLE_H / 2, '✕', {
+        fontSize: '14px', color: '#cc4444', stroke: '#1a0800', strokeThickness: 2,
+      }).setOrigin(0.5).setInteractive({ useHandCursor: true }).setDepth(ED + 3))
+        .on('pointerdown', closeEnhance);
+
+      const levelTxt = es(this.add.text(W / 2, my + TITLE_H + LEVEL_H / 2, '', {
+        fontSize: '19px', fontStyle: 'bold', color: '#ffe066',
+        stroke: '#1a0800', strokeThickness: 3,
+      }).setOrigin(0.5).setDepth(ED + 2));
+
+      const affixStartY = my + TITLE_H + LEVEL_H + PAD;
+      const valTexts: Phaser.GameObjects.Text[] = [];
+      item.affixes.forEach((a, i) => {
+        const ay     = affixStartY + i * AFFIX_ROW + AFFIX_ROW / 2;
+        const mustUp = item.slot === 'sword' && i === 0;
+        es(this.add.text(mx + 10, ay, mustUp ? '必定↑' : '隨機↑', {
+          fontSize: '10px', color: mustUp ? '#ffcc44' : '#778899',
+          stroke: '#1a0800', strokeThickness: 1,
+        }).setOrigin(0, 0.5).setDepth(ED + 2));
+        es(this.add.text(mx + 58, ay, STAT_NAMES[a.stat], {
+          fontSize: '12px', color: '#ccbbaa', stroke: '#1a0800', strokeThickness: 1,
+        }).setOrigin(0, 0.5).setDepth(ED + 2));
+        valTexts.push(es(this.add.text(mx + mw - 10, ay, '', {
+          fontSize: '12px', color: '#ffe8a0', stroke: '#1a0800', strokeThickness: 1,
+        }).setOrigin(1, 0.5).setDepth(ED + 2)));
+      });
+
+      if (item.behavior) {
+        const by = affixStartY + item.affixes.length * AFFIX_ROW + BEH_ROW / 2;
+        es(this.add.text(mx + 10, by, '攻擊模式', {
+          fontSize: '12px', color: '#aaaaaa', stroke: '#1a0800', strokeThickness: 1,
+        }).setOrigin(0, 0.5).setDepth(ED + 2));
+        es(this.add.text(mx + mw - 10, by, BEHAVIOR_NAMES[item.behavior], {
+          fontSize: '12px', color: '#ffe066', stroke: '#1a0800', strokeThickness: 1,
+        }).setOrigin(1, 0.5).setDepth(ED + 2));
+      }
+
+      const infoY   = affixStartY + item.affixes.length * AFFIX_ROW + BEH_ROW + PAD + INFO_H / 2;
+      const rateTxt = es(this.add.text(mx + 10, infoY, '', {
+        fontSize: '12px', color: '#aaccff', stroke: '#1a0800', strokeThickness: 1,
+      }).setOrigin(0, 0.5).setDepth(ED + 2));
+      const costTxt = es(this.add.text(mx + mw - 10, infoY, '', {
+        fontSize: '12px', color: '#ffdd66', stroke: '#1a0800', strokeThickness: 1,
+      }).setOrigin(1, 0.5).setDepth(ED + 2));
+
+      const bx   = mx + 12;
+      const btnY = infoY + INFO_H / 2 + PAD;
+      const bw   = mw - 24;
+      const btnG = es(this.add.graphics().setDepth(ED + 2));
+      const drawEnhBtn = (enabled: boolean) => {
+        btnG.clear();
+        btnG.fillStyle(enabled ? 0x5a3800 : 0x2a1a08, 1); btnG.fillRect(bx, btnY, bw, BTN_H);
+        btnG.lineStyle(2, enabled ? GOLD : 0x443322, enabled ? 0.9 : 0.3);
+        btnG.strokeRect(bx, btnY, bw, BTN_H);
+        if (enabled) { btnG.fillStyle(GOLD, 0.3); btnG.fillRect(bx, btnY, bw, 2); }
+      };
+      const btnLbl = es(this.add.text(W / 2, btnY + BTN_H / 2, '強  化', {
+        fontSize: '15px', fontStyle: 'bold', color: '#ffe066',
+        stroke: '#1a0800', strokeThickness: 2,
+      }).setOrigin(0.5).setDepth(ED + 3));
+      const btnHit = es(this.add.rectangle(W / 2, btnY + BTN_H / 2, bw, BTN_H)
+        .setInteractive({ useHandCursor: true }).setDepth(ED + 4));
+
+      const resultTxt = es(this.add.text(W / 2, btnY + BTN_H + RESULT_H / 2, '', {
+        fontSize: '12px', color: '#ffffff', stroke: '#1a0800', strokeThickness: 1,
+      }).setOrigin(0.5).setDepth(ED + 2));
+
+      const refresh = () => {
+        const lv    = item.enhancement;
+        const maxed = lv >= ENHANCE_MAX;
+        levelTxt.setText(`+${lv}${!maxed ? `  →  +${lv + 1}` : '  （最高）'}`);
+        levelTxt.setColor(lv >= ENHANCE_DEMOTE_FROM ? '#ff9966' : '#ffe066');
+        item.affixes.forEach((a, i) => valTexts[i]?.setText(fmtVal(a.stat, a.value)));
+        rateTxt.setText(maxed ? '' : `成功率  ${(ENHANCE_RATE[lv] * 100).toFixed(0)}%`);
+        costTxt.setText(maxed ? '' : `${ENHANCE_COST[lv].toLocaleString()} G`);
+        drawEnhBtn(!maxed);
+        btnLbl.setAlpha(maxed ? 0.4 : 1);
+        if (maxed) btnHit.removeInteractive(); else btnHit.setInteractive({ useHandCursor: true });
+      };
+      refresh();
+
+      btnHit.on('pointerdown', () => {
+        const lv = item.enhancement;
+        if (lv >= ENHANCE_MAX) return;
+        if (!InventoryStore.spendGold(ENHANCE_COST[lv])) {
+          resultTxt.setText('金幣不足！').setColor('#ff4444'); return;
+        }
+        if (Math.random() < ENHANCE_RATE[lv]) {
+          const boosted = applyEnhancement(item);
+          SaveStore.save(); refresh();
+          const names = boosted.map(idx => STAT_NAMES[item.affixes[idx].stat]).join('、');
+          resultTxt.setText(`✓ 成功！${names} 提升`).setColor('#44ff88');
+        } else {
+          if (lv >= ENHANCE_DEMOTE_FROM) {
+            revertEnhancement(item);
+            resultTxt.setText(`✗ 失敗，退至 +${item.enhancement}`).setColor('#ff4444');
+          } else {
+            resultTxt.setText('✗ 強化失敗').setColor('#ff6644');
+          }
+          SaveStore.save(); refresh();
+        }
+      });
     };
 
     let activeDetail: Phaser.GameObjects.Container | null = null;
 
     const showEquippedDetail = (item: import('../data/equipment-data').EquipmentItem, equipSlot: EquipSlot) => {
-      if (activeDetail) return;
+      if (activeDetail) { activeDetail.destroy(); activeDetail = null; }
       const det = this.add.container(0, 0);
       activeDetail = det;
       container.add(det);
@@ -1241,12 +1407,11 @@ export class PrepScene extends Phaser.Scene {
       const areaH   = py + PH - areaTop - 6;
       const rcx     = rightColX + rightColW / 2;   // centre of right column
 
-      // 全面板透明遮擋，阻止點擊穿透到下層
-      det.add(this.add.rectangle(0, 0, PW, PH, 0x000000, 0).setInteractive());
-
       const detBg = this.add.graphics();
       detBg.fillStyle(WD, 0.98); detBg.fillRect(rightColX - 4, areaTop, rightColW + 8, areaH);
       det.add(detBg);
+      // 只擋右欄，讓左欄裝備格可直接點擊切換
+      det.add(this.add.rectangle(rcx, areaTop + areaH / 2, rightColW + 8, areaH, 0, 0).setInteractive());
 
       const backBtn = this.add.text(rightColX + 8, areaTop + 16, '← 返回', {
         fontSize: '14px', color: '#c49050', stroke: '#1a0800', strokeThickness: 1,
@@ -1299,7 +1464,7 @@ export class PrepScene extends Phaser.Scene {
         () => { PlayerStore.unequip(equipSlot); closeEquipped(); });
       drawBtn(det, rcx + btnW / 2 + btnGap / 2, btnY, btnW, btnH,
         '強  化', 0x3a2800, 0xf0c040, '#ffe066',
-        () => showEnhanceStub());
+        () => showEnhanceModal(item, () => { closeEquipped(); showEquippedDetail(item, equipSlot); }));
     };
 
     // ── buildTopSlots：3欄×2列六宮格 ─────────────────────
@@ -1366,7 +1531,7 @@ export class PrepScene extends Phaser.Scene {
         [{ label: '速度', value: `${s.speed}`,                        color: '#ffff88' }, { label: '暴擊',  value: `${(s.crit * 100).toFixed(0)}%`,           color: '#ffaa44' }],
         [{ label: '攻速', value: `${(s.atkSpeed * 100).toFixed(0)}%`, color: '#ff88ff' }, { label: '閃避',  value: `${(s.evasion * 100).toFixed(1)}%`,        color: '#aaddff' }],
         [{ label: '爆傷', value: `${((1 + s.critDmg) * 100).toFixed(0)}%`, color: '#ffdd44' }, { label: '吸血', value: `${(s.lifesteal * 100).toFixed(1)}%`, color: '#ff6699' }],
-        [{ label: 'HP恢復', value: `${s.hpRegen}/s`,                  color: '#44ffaa' }],
+        [{ label: '持續傷害', value: `+${(s.dotBonus * 100).toFixed(0)}%`, color: '#cc88ff' }, { label: '穿甲', value: `${s.penetration}`, color: '#ff9944' }],
       ];
       const colW2 = statsW / 2;
       const rowH  = (statsH - 20) / 6;
@@ -1430,7 +1595,7 @@ export class PrepScene extends Phaser.Scene {
 
     // ── Detail overlay ────────────────────────────────────
     const showItemDetail = (item: import('../data/equipment-data').EquipmentItem) => {
-      if (activeDetail) return;
+      if (activeDetail) { activeDetail.destroy(); activeDetail = null; }
       const det = this.add.container(0, 0);
       activeDetail = det;
       container.add(det);
@@ -1439,12 +1604,11 @@ export class PrepScene extends Phaser.Scene {
       const areaH   = py + PH - areaTop - 6;
       const rcx     = rightColX + rightColW / 2;
 
-      // 全面板透明遮擋，阻止點擊穿透到下層
-      det.add(this.add.rectangle(0, 0, PW, PH, 0x000000, 0).setInteractive());
-
       const detBg = this.add.graphics();
       detBg.fillStyle(WD, 0.98); detBg.fillRect(rightColX - 4, areaTop, rightColW + 8, areaH);
       det.add(detBg);
+      // 只擋右欄，讓左欄裝備格可直接點擊切換
+      det.add(this.add.rectangle(rcx, areaTop + areaH / 2, rightColW + 8, areaH, 0, 0).setInteractive());
 
       const backBtn = this.add.text(rightColX + 8, areaTop + 16, '← 返回', {
         fontSize: '14px', color: '#c49050', stroke: '#1a0800', strokeThickness: 1,
@@ -1526,15 +1690,15 @@ export class PrepScene extends Phaser.Scene {
 
         drawBtn(det, rcx, btnY + btnH + 8, btnW, btnH,
           '強  化', 0x3a2800, 0xf0c040, '#ffe066',
-          () => showEnhanceStub());
+          () => showEnhanceModal(item, () => { closeItem(); showItemDetail(item); }));
       } else {
-        // ── 一般裝備：裝備 | 強化 ──────────��───────────────
+        // ── 一般裝備：裝備 | 強化 ──────────────────────────
         drawBtn(det, rcx - btnW / 2 - btnGap / 2, btnY, btnW, btnH,
           '裝  備', 0x5a3800, GOLD, '#e8c070',
           () => { PlayerStore.equip(item); closeItem(); });
         drawBtn(det, rcx + btnW / 2 + btnGap / 2, btnY, btnW, btnH,
           '強  化', 0x3a2800, 0xf0c040, '#ffe066',
-          () => showEnhanceStub());
+          () => showEnhanceModal(item, () => { closeItem(); showItemDetail(item); }));
       }
     };
 

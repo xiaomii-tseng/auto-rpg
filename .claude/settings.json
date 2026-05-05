@@ -15,7 +15,12 @@
       "Bash(sed -i 's/\\(this\\\\.body as Phaser\\\\.Physics\\\\.Arcade\\\\.Body\\)/this.pb/g' src/app/game/objects/minion-slime.ts)",
       "Bash(sed -i 's/const body  = this\\\\.body as Phaser\\\\.Physics\\\\.Arcade\\\\.Body;/const body = this.pb;/g' src/app/game/objects/minion-slime.ts)",
       "Bash(sed -i 's/const body     = this\\\\.body as Phaser\\\\.Physics\\\\.Arcade\\\\.Body;/const body = this.pb;/g' src/app/game/objects/minion-slime.ts)",
-      "Bash(xargs grep *)"
+      "Bash(xargs grep *)",
+      "WebSearch",
+      "WebFetch(domain:irowiki.org)",
+      "WebFetch(domain:ratemyserver.net)",
+      "WebFetch(domain:www.novaragnarok.com)",
+      "WebFetch(domain:ragnarok.fandom.com)"
     ]
   }
 }

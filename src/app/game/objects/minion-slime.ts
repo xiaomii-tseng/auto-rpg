@@ -44,9 +44,9 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
   burnStacks    = 0;
   burnExpiresAt = 0;
 
-  applyBurn(gameTime: number): void {
-    if (this.burnStacks < 15) this.burnStacks++;
-    this.burnExpiresAt = gameTime + 4000;
+  applyBurn(gameTime: number, maxStacks = 15, duration = 4000): void {
+    if (this.burnStacks < maxStacks) this.burnStacks++;
+    this.burnExpiresAt = gameTime + duration;
   }
 
   private readonly animPrefix: string;

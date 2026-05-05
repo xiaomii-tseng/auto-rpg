@@ -15,7 +15,7 @@ import { SaveStore } from '../data/save-store';
 import { CardStore } from '../data/card-store';
 import { getMonsterDef, getCardDef, DropEntry, MonsterDef } from '../data/monster-data';
 import { getElementMultiplier, ELEMENT_NAMES, ELEMENT_COLORS } from '../data/equipment-data';
-import { QuestStore, STAR_HP_MULT, STAR_DROP_MULT } from '../data/quest-store';
+import { QuestStore, STAR_HP_MULT, STAR_DROP_MULT, STAR_DEF_MULT } from '../data/quest-store';
 import { ELITE_HP_MULT, ELITE_SCALE_MOD } from '../data/monster-data';
 
 const MELEE_RANGE = 60;
@@ -141,7 +141,8 @@ export class GameScene extends Phaser.Scene {
     this.playerStartY = startPt.y;
     this.player = new Player(this, this.playerStartX, this.playerStartY);
     this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
-    this.player.onDead = () => this.handlePlayerDead();
+    this.player.onDead  = () => this.handlePlayerDead();
+    this.player.onEvade = (x, y) => this.spawnEvadeText(x, y);
 
 
     const bossWp = this.waypoints[this.waypoints.length - 1];
@@ -150,6 +151,7 @@ export class GameScene extends Phaser.Scene {
     this.boss = this.createBoss(bossDef, Math.round(bossDef.hp * hpMult));
     this.boss.arenaRadius = this.BOSS_ARENA_RADIUS;
     this.boss.arenaShape  = this.bossArenaShape;
+    this.boss.def         = Math.round((bossDef.def ?? 0) * (STAR_DEF_MULT[this.questStar] ?? 0));
     bossDef.fillTint ? this.boss.setTintFill(bossDef.tint) : this.boss.setTint(bossDef.tint);
     this.boss.setVisible(false);
     this.boss.getTargetPos = () => [this.player.x, this.player.y];
@@ -423,7 +425,8 @@ export class GameScene extends Phaser.Scene {
     const isCrit   = Math.random() < stats.crit;
     const elemMult = (target === this.boss) ? getElementMultiplier(attackElem, this.boss.element) : 1;
     const dmg      = Math.round(stats.atk * Phaser.Math.FloatBetween(0.85, 1.15) * dmgMult * (isCrit ? (1 + stats.critDmg) : 1) * elemMult);
-    target.takeDamage(dmg);
+    const pen      = target === this.boss ? stats.penetration : 0;
+    target.takeDamage(dmg, pen);
     target.knockback(srcX, srcY);
     if (stats.lifesteal > 0) this.player.heal(Math.round(dmg * stats.lifesteal));
     this.spawnDamageNumber(target.x, target.y, dmg, isCrit, elemMult);
@@ -1301,11 +1304,11 @@ export class GameScene extends Phaser.Scene {
     const cd  = Math.round(1100 / spd);
     if (!this.player.lockCooldown(cd)) return;
 
-    const { dir, rad } = this.resolveAttackDir(240);
+    const { dir, rad } = this.resolveAttackDir(260);
     this.player.startAttackAnim(`player_attack_${dir}`);
 
     const SPEED    = 300;
-    const MAX_DIST = 180;
+    const MAX_DIST = 200;
     const ORB_R    = 14;
     const FIRE_R   = 25;
     const FIRE_DUR = 3000;
@@ -1448,7 +1451,7 @@ export class GameScene extends Phaser.Scene {
           if (hit) break;
           if (Phaser.Math.Distance.Between(orb.x, orb.y, t.x, t.y) > ORB_R) continue;
           hit = true;
-          this.dealDamage(t, 0.50, orb.x, orb.y, dir, 'fire');
+          this.dealDamage(t, 0.30, orb.x, orb.y, dir, 'fire');
           spawnFire(orb.x, orb.y);
           return;
         }
@@ -1461,6 +1464,11 @@ export class GameScene extends Phaser.Scene {
 
   private readonly AURA_RANGE = 56;
 
+  // ── Burn constants — future cards can pass different values to applyBurn ──
+  private readonly BURN_MAX_STACKS = 15;
+  private readonly BURN_DURATION   = 4000; // ms
+  private readonly BURN_SOFT_CAP   = 8;    // stacks above this decay faster each tick
+
   private tickBurns(): void {
     if (this.gameOver) return;
     const now   = this.time.now;
@@ -1469,33 +1477,44 @@ export class GameScene extends Phaser.Scene {
     // 清除過期火焰
     this.activeFires = this.activeFires.filter(f => now < f.expiresAt);
 
-    // 對踩在任意火焰內的敵人疊 1 層（不重複疊加）
+    // 對踩在任意火焰內的敵人疊 1 層，同時記錄誰在火裡
+    const minionInFire = new Set<(typeof this.allMinions)[number]>();
     for (const m of this.allMinions) {
       if (m.isDead) continue;
-      if (this.activeFires.some(f => Phaser.Math.Distance.Between(m.x, m.y, f.x, f.y) <= f.r))
-        m.applyBurn(now);
+      if (this.activeFires.some(f => Phaser.Math.Distance.Between(m.x, m.y, f.x, f.y) <= f.r)) {
+        m.applyBurn(now, this.BURN_MAX_STACKS, this.BURN_DURATION);
+        m.applyBurn(now, this.BURN_MAX_STACKS, this.BURN_DURATION); // 小怪疊層速度是 Boss 的兩倍
+        minionInFire.add(m);
+      }
     }
+    let bossInFire = false;
     if (this.bossActive && this.boss.active) {
-      if (this.activeFires.some(f => Phaser.Math.Distance.Between(this.boss.x, this.boss.y, f.x, f.y) <= f.r))
-        this.boss.applyBurn(now);
+      if (this.activeFires.some(f => Phaser.Math.Distance.Between(this.boss.x, this.boss.y, f.x, f.y) <= f.r)) {
+        this.boss.applyBurn(now, this.BURN_MAX_STACKS, this.BURN_DURATION);
+        bossInFire = true;
+      }
     }
+
+    // 離開火焰才衰減：高層數衰減更快，創造 8-10 層的自然平均值
+    const applyDecay = (stacks: number): number =>
+      Math.max(0, stacks - Math.max(1, Math.ceil(stacks / this.BURN_SOFT_CAP)));
 
     // 造成燃燒傷害
     for (const m of this.allMinions) {
       if (m.isDead || m.burnStacks <= 0) continue;
       if (now >= m.burnExpiresAt) { m.burnStacks = 0; continue; }
-      const isCrit = Math.random() < stats.crit;
-      const dmg = Math.round(stats.atk * 0.032 *m.burnStacks * (isCrit ? (1 + stats.critDmg) : 1));
+      if (!minionInFire.has(m)) m.burnStacks = applyDecay(m.burnStacks);
+      const dmg = Math.round(stats.atk * 0.030 * m.burnStacks * (1 + stats.dotBonus));
       m.takeDamage(dmg);
-      this.spawnDamageNumber(m.x, m.y, dmg, isCrit, 1);
+      this.spawnDamageNumber(m.x, m.y, dmg, false, 1);
     }
     if (this.bossActive && this.boss.active && this.boss.burnStacks > 0) {
       if (now >= this.boss.burnExpiresAt) { this.boss.burnStacks = 0; this.refreshBossBar(); return; }
-      const isCrit   = Math.random() < stats.crit;
+      if (!bossInFire) this.boss.burnStacks = applyDecay(this.boss.burnStacks);
       const elemMult = getElementMultiplier('fire', this.boss.element);
-      const dmg = Math.round(stats.atk * 0.032 *this.boss.burnStacks * (isCrit ? (1 + stats.critDmg) : 1) * elemMult);
-      this.boss.takeDamage(dmg);
-      this.spawnDamageNumber(this.boss.x, this.boss.y, dmg, isCrit, elemMult);
+      const dmg = Math.round(stats.atk * 0.032 * this.boss.burnStacks * (1 + stats.dotBonus) * elemMult);
+      this.boss.takeDamage(dmg, stats.penetration);
+      this.spawnDamageNumber(this.boss.x, this.boss.y, dmg, false, elemMult);
       this.refreshBossBar();
     }
   }
@@ -1506,7 +1525,7 @@ export class GameScene extends Phaser.Scene {
 
     const RANGE   = this.AURA_RANGE;
     const stats   = CardStore.getTotalStats();
-    const baseDmg = this.player.maxHpValue * 0.075;
+    const baseDmg = this.player.maxHpValue * 0.065;
     const px = this.player.x, py = this.player.y;
 
     for (const m of this.allMinions) {
@@ -1515,6 +1534,7 @@ export class GameScene extends Phaser.Scene {
       const isCrit = Math.random() < stats.crit;
       const dmg    = Math.round(baseDmg * Phaser.Math.FloatBetween(0.9, 1.1) * (isCrit ? (1 + stats.critDmg) : 1));
       m.takeDamage(dmg);
+      if (stats.lifesteal > 0) this.player.heal(Math.round(dmg * stats.lifesteal));
       this.spawnDamageNumber(m.x, m.y, dmg, isCrit, 1);
     }
     if (this.bossActive && this.boss.active &&
@@ -1522,7 +1542,8 @@ export class GameScene extends Phaser.Scene {
       const isCrit   = Math.random() < stats.crit;
       const elemMult = getElementMultiplier('none', this.boss.element);
       const dmg      = Math.round(baseDmg * Phaser.Math.FloatBetween(0.9, 1.1) * (isCrit ? (1 + stats.critDmg) : 1) * elemMult);
-      this.boss.takeDamage(dmg);
+      this.boss.takeDamage(dmg, stats.penetration);
+      if (stats.lifesteal > 0) this.player.heal(Math.round(dmg * stats.lifesteal));
       this.spawnDamageNumber(this.boss.x, this.boss.y, dmg, isCrit, elemMult);
     }
   }
@@ -2491,6 +2512,19 @@ export class GameScene extends Phaser.Scene {
       alpha: 0,
       duration: isCrit ? 900 : 700,
       ease: 'Cubic.easeOut',
+      onComplete: () => label.destroy(),
+    });
+  }
+
+  private spawnEvadeText(x: number, y: number): void {
+    const label = this.add.text(x, y - 24, '閃避', {
+      fontSize: '16px', fontStyle: 'bold',
+      color: '#aaddff', stroke: '#001133', strokeThickness: 3,
+    }).setOrigin(0.5, 1).setDepth(300);
+    this.tweens.add({
+      targets: label,
+      y: label.y - 36, alpha: 0,
+      duration: 700, ease: 'Cubic.easeOut',
       onComplete: () => label.destroy(),
     });
   }

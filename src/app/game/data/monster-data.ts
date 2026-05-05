@@ -21,6 +21,7 @@ export interface MonsterDef {
   tier:         number;
   hp:           number;
   atk:          number;
+  def?:         number;
   speed:        number;
   exp:          number;
   gold:         number;
@@ -166,28 +167,28 @@ export const MONSTER_DEFS: MonsterDef[] = [
   {
     id: 'boss_slime_green', name: '綠史萊姆王', spriteKey: 'slime', frameEnd: 9,
     element: 'grass', tint: 0x33ff33, tier: 5,
-    hp: 750, atk: 25, speed: 80, exp: 200, gold: 100,
+    hp: 750, atk: 25, def: 18, speed: 80, exp: 200, gold: 100,
     cardId: 'card_boss_slime_green', cardDropRate: 1.00,
     drops: bossDrops,
   },
   {
     id: 'boss_slime_red', name: '紅史萊姆王', spriteKey: 'slime', frameEnd: 9,
     element: 'fire', tint: 0xff1111, tier: 5,
-    hp: 750, atk: 30, speed: 80, exp: 200, gold: 100,
+    hp: 750, atk: 30, def: 18, speed: 80, exp: 200, gold: 100,
     cardId: 'card_boss_slime_red', cardDropRate: 1.00,
     drops: bossDrops,
   },
   {
     id: 'boss_slime_blue', name: '藍史萊姆王', spriteKey: 'slime', frameEnd: 9,
     element: 'water', tint: 0x1188ff, tier: 5,
-    hp: 720, atk: 25, speed: 80, exp: 200, gold: 100,
+    hp: 720, atk: 25, def: 18, speed: 80, exp: 200, gold: 100,
     cardId: 'card_boss_slime_blue', cardDropRate: 1.00,
     drops: bossDrops,
   },
   {
     id: 'boss_slime_white', name: '白史萊姆王', spriteKey: 'slime', frameEnd: 9,
     element: 'none', tint: 0xccddee, tier: 5,
-    hp: 750, atk: 25, speed: 80, exp: 200, gold: 100,
+    hp: 750, atk: 25, def: 24, speed: 80, exp: 200, gold: 100,
     cardId: 'card_boss_slime_white', cardDropRate: 1.00,
     drops: bossDrops,
   },
@@ -196,7 +197,7 @@ export const MONSTER_DEFS: MonsterDef[] = [
   {
     id: 'boss_zombie_slime', name: '殭屍史萊姆王', spriteKey: 'slime2', frameEnd: 9,
     element: 'none', tint: 0x99dd44, tier: 5,
-    hp: 825, atk: 28, speed: 80, exp: 220, gold: 120,
+    hp: 825, atk: 28, def: 20, speed: 80, exp: 220, gold: 120,
     cardId: 'card_boss_zombie_slime', cardDropRate: 1.00,
     drops: bossDrops,
   },
@@ -205,7 +206,7 @@ export const MONSTER_DEFS: MonsterDef[] = [
   {
     id: 'boss_lava_slime', name: '熔岩史萊姆王', spriteKey: 'slime3', frameEnd: 9,
     element: 'none', tint: 0xffffff, tier: 5,
-    hp: 900, atk: 32, speed: 80, exp: 250, gold: 150,
+    hp: 900, atk: 32, def: 30, speed: 80, exp: 250, gold: 150,
     cardId: 'card_boss_lava_slime', cardDropRate: 1.00,
     drops: bossDrops,
   },

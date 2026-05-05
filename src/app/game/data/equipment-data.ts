@@ -1,7 +1,7 @@
 export type EquipSlot     = 'hat' | 'outfit' | 'shoes' | 'ring1' | 'ring2' | 'sword';
 export type EquipCategory = 'hat' | 'outfit' | 'shoes' | 'ring'  | 'sword';
 export type EquipQuality  = 'normal' | 'good' | 'fine' | 'perfect';
-export type StatKey       = 'atk' | 'hp' | 'def' | 'crit' | 'speed' | 'atkSpeed' | 'lifesteal' | 'evasion' | 'critDmg' | 'hpRegen';
+export type StatKey       = 'atk' | 'hp' | 'def' | 'crit' | 'speed' | 'atkSpeed' | 'lifesteal' | 'evasion' | 'critDmg' | 'hpRegen' | 'dotBonus' | 'penetration';
 export type AttackBehavior = 'slash180' | 'whirlwind' | 'dashPierce' | 'projectile' | 'aura' | 'multiHit' | 'chargeSlam' | 'boomerang' | 'magicFire';
 
 export type Element = 'none' | 'water' | 'fire' | 'grass';
@@ -48,9 +48,10 @@ export interface EquipmentItem {
   slot:        EquipSlot;
   texture:     string;          // Phaser texture key, e.g. 'equip_hat3'
   quality:     EquipQuality;
-  affixes:     Affix[];         // always 2
-  behavior?:   AttackBehavior;  // sword slot only
-  enhancement: number;          // 0~5
+  affixes:     Affix[];         // 非武器 2 條；武器 3 條（攻擊力固定＋2隨機）
+  behavior?:   AttackBehavior;  // sword slot only（必定出現）
+  enhancement: number;          // 0~10
+  enhanceLog:  number[][];      // 每次強化提升的詞綴 index，用於退階還原
 }
 
 // ── Constants ──────────────────────────────────────────────────────────────────
@@ -87,8 +88,10 @@ export const STAT_NAMES: Record<StatKey, string> = {
   atkSpeed:  '攻擊速度',
   lifesteal: '吸血',
   evasion:   '閃避率',
-  critDmg:   '爆擊傷害',
-  hpRegen:   'HP恢復',
+  critDmg:     '爆擊傷害',
+  hpRegen:     'HP恢復',
+  dotBonus:    '持續傷害',
+  penetration: '穿甲',
 };
 
 export const BEHAVIOR_NAMES: Record<AttackBehavior, string> = {
@@ -194,38 +197,47 @@ export const BEHAVIOR_INFO: Record<AttackBehavior, BehaviorInfo> = {
 };
 
 export const STAT_BASE: Record<StatKey, number> = {
-  atk:       12,
-  hp:        40,
+  atk:       20,
+  hp:        25,
   def:        4,
   crit:       0.05,
   speed:     15,
   atkSpeed:   0.10,
-  lifesteal:  0.03,
+  lifesteal:  0.0075,
   evasion:    0.05,
-  critDmg:    0.20,
-  hpRegen:    5,
+  critDmg:     0.20,
+  hpRegen:     5,
+  dotBonus:    0.08,
+  penetration: 10,
 };
 
 export const ENHANCE_INCREMENT: Record<StatKey, number> = {
-  atk:       2,
-  hp:        6,
+  atk:       1,
+  hp:        2,
   def:       1,
-  crit:      0.005,
-  speed:     2,
-  atkSpeed:  0.01,
-  lifesteal: 0.005,
-  evasion:   0.005,
-  critDmg:   0.02,
+  crit:      0.003,
+  speed:     1,
+  atkSpeed:  0.003,
+  lifesteal: 0.0015,
+  evasion:   0.0015,
+  critDmg:   0.005,
   hpRegen:   1,
+  dotBonus:  0.010,
+  penetration: 1,
 };
 
-// Affix pools per slot category (user-defined)
+export const ENHANCE_LEVEL_MULT: Record<number, number> = {
+  1: 1, 2: 1, 3: 2, 4: 2, 5: 3, 6: 4, 7: 5, 8: 6, 9: 8, 10: 10,
+};
+
+// Affix pools per slot category
+// 武器固定有攻擊力+攻擊模式，此 pool 只用於剩餘 2 條隨機詞墜
 export const SLOT_AFFIX_POOL: Record<EquipCategory, StatKey[]> = {
-  sword:  ['atk', 'hp', 'crit', 'critDmg', 'atkSpeed', 'lifesteal', 'evasion'],
-  hat:    ['atk', 'hp', 'def',  'crit',    'atkSpeed',  'hpRegen'],
-  outfit: ['hp',  'def', 'lifesteal', 'evasion', 'hpRegen'],
-  shoes:  ['hp',  'def', 'speed',     'evasion'],
-  ring:   ['atk', 'hp', 'def', 'crit', 'critDmg', 'atkSpeed', 'lifesteal', 'evasion'],
+  sword:  ['hp', 'crit', 'critDmg', 'dotBonus', 'penetration', 'atkSpeed', 'lifesteal', 'evasion'],
+  hat:    ['hp', 'crit', 'atkSpeed', 'penetration', 'def'],
+  outfit: ['hp', 'def',  'lifesteal', 'dotBonus', 'evasion'],
+  shoes:  ['hp', 'def',  'speed',   'evasion',  'lifesteal'],
+  ring:   ['critDmg', 'dotBonus', 'penetration', 'crit', 'atkSpeed', 'lifesteal', 'evasion'],
 };
 
 export const ATTACK_BEHAVIORS: AttackBehavior[] = [
@@ -236,7 +248,7 @@ const TEXTURE_COUNT: Record<EquipCategory, number> = {
   hat: 5, outfit: 5, shoes: 5, ring: 5, sword: 5,
 };
 
-const PCT_STATS = new Set<StatKey>(['crit', 'atkSpeed', 'lifesteal', 'evasion', 'critDmg']);
+const PCT_STATS = new Set<StatKey>(['crit', 'atkSpeed', 'lifesteal', 'evasion', 'critDmg', 'dotBonus']);
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -264,12 +276,23 @@ function pickAffixes(category: EquipCategory, quality: EquipQuality): Affix[] {
 // ── Generation ─────────────────────────────────────────────────────────────────
 
 export function generateEquipment(slot: EquipSlot, quality: EquipQuality): EquipmentItem {
-  const cat     = slotToCategory(slot);
-  const texNum  = Math.floor(Math.random() * TEXTURE_COUNT[cat]) + 1;
-  const affixes = pickAffixes(cat, quality);
-  const behavior: AttackBehavior | undefined = slot === 'sword'
-    ? ATTACK_BEHAVIORS[Math.floor(Math.random() * ATTACK_BEHAVIORS.length)]
-    : undefined;
+  const cat    = slotToCategory(slot);
+  const texNum = Math.floor(Math.random() * TEXTURE_COUNT[cat]) + 1;
+
+  let affixes: Affix[];
+  let behavior: AttackBehavior | undefined;
+
+  if (slot === 'sword') {
+    // 武器：攻擊力固定第一條 + 攻擊模式 + 2 條隨機
+    const [lo, hi] = QUALITY_RANGES[quality];
+    const atkRaw = STAT_BASE.atk * (lo + Math.random() * (hi - lo));
+    const fixedAtk: Affix = { stat: 'atk', value: Math.round(atkRaw) };
+    affixes  = [fixedAtk, ...pickAffixes('sword', quality)];
+    behavior = ATTACK_BEHAVIORS[Math.floor(Math.random() * ATTACK_BEHAVIORS.length)];
+  } else {
+    affixes  = pickAffixes(cat, quality);
+    behavior = undefined;
+  }
 
   return {
     id:          `${slot}_${Date.now()}_${Math.floor(Math.random() * 10000)}`,
@@ -280,6 +303,7 @@ export function generateEquipment(slot: EquipSlot, quality: EquipQuality): Equip
     affixes,
     behavior,
     enhancement: 0,
+    enhanceLog:  [],
   };
 }
 
@@ -300,13 +324,64 @@ export function getItemStats(item: EquipmentItem): Partial<Record<StatKey, numbe
   return out;
 }
 
-// Apply one enhancement to a random affix in-place; returns the affix that was boosted
-export function applyEnhancement(item: EquipmentItem): Affix | null {
-  if (item.enhancement >= 5) return null;
-  const target = item.affixes[Math.floor(Math.random() * item.affixes.length)];
-  target.value = PCT_STATS.has(target.stat)
-    ? Math.round((target.value + ENHANCE_INCREMENT[target.stat]) * 1000) / 1000
-    : target.value + ENHANCE_INCREMENT[target.stat];
+// ── Enhancement system constants ───────────────────────────────────────────────
+
+export const ENHANCE_MAX = 10;
+
+export const ENHANCE_COST: Record<number, number> = {
+  0: 100, 1: 250, 2: 500, 3: 1000, 4: 2000,
+  5: 4000, 6: 6000, 7: 10000, 8: 16000, 9: 25000,
+};
+
+export const ENHANCE_RATE: Record<number, number> = {
+  0: 1.0, 1: 0.9, 2: 0.8, 3: 0.7, 4: 0.6,
+  5: 0.5, 6: 0.4, 7: 0.3, 8: 0.2, 9: 0.1,
+};
+
+// 等級 >= 此值時失敗會退階
+export const ENHANCE_DEMOTE_FROM = 5;
+
+// 強化成功：回傳被提升的詞綴 index 陣列
+export function applyEnhancement(item: EquipmentItem): number[] {
+  if (item.enhancement >= ENHANCE_MAX) return [];
+
+  let indices: number[];
+  if (item.slot === 'sword' && item.affixes.length >= 3) {
+    // 攻擊力（index 0）必定提升＋隨機一條其他
+    const randIdx = 1 + Math.floor(Math.random() * (item.affixes.length - 1));
+    indices = [0, randIdx];
+  } else {
+    indices = [Math.floor(Math.random() * item.affixes.length)];
+  }
+
+  const mult = ENHANCE_LEVEL_MULT[item.enhancement + 1] ?? 1;
+  for (const idx of indices) {
+    const { stat } = item.affixes[idx];
+    const inc = ENHANCE_INCREMENT[stat] * mult;
+    item.affixes[idx].value = PCT_STATS.has(stat)
+      ? Math.round((item.affixes[idx].value + inc) * 1000) / 1000
+      : item.affixes[idx].value + inc;
+  }
+
   item.enhancement++;
-  return target;
+  if (!item.enhanceLog) item.enhanceLog = [];
+  item.enhanceLog.push(indices);
+  return indices;
+}
+
+// 退階：還原上一次強化（供失敗退階使用）
+export function revertEnhancement(item: EquipmentItem): void {
+  if (item.enhancement <= 0) return;
+  const log = item.enhanceLog ?? [];
+  const indices = log.length > 0 ? log.pop()! : [];
+  const mult = ENHANCE_LEVEL_MULT[item.enhancement] ?? 1;
+  for (const idx of indices) {
+    if (idx >= item.affixes.length) continue;
+    const { stat } = item.affixes[idx];
+    const inc = ENHANCE_INCREMENT[stat] * mult;
+    item.affixes[idx].value = PCT_STATS.has(stat)
+      ? Math.round((item.affixes[idx].value - inc) * 1000) / 1000
+      : item.affixes[idx].value - inc;
+  }
+  item.enhancement--;
 }

@@ -58,10 +58,11 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
 
   burnStacks    = 0;
   burnExpiresAt = 0;
+  def           = 0;
 
-  applyBurn(gameTime: number): void {
-    if (this.burnStacks < 15) this.burnStacks++;
-    this.burnExpiresAt = gameTime + 4000;
+  applyBurn(gameTime: number, maxStacks = 15, duration = 4000): void {
+    if (this.burnStacks < maxStacks) this.burnStacks++;
+    this.burnExpiresAt = gameTime + duration;
   }
 
   onHpChanged?: (hp: number, maxHp: number) => void;
@@ -127,9 +128,10 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     });
   }
 
-  takeDamage(amount: number): void {
+  takeDamage(amount: number, penetration = 0): void {
     if (this.bossState === BossState.DEAD) return;
-    this.hp = Math.max(0, this.hp - amount);
+    const reduction = this.def / (this.def + 100 + penetration);
+    this.hp = Math.max(0, this.hp - Math.max(1, Math.round(amount * (1 - reduction))));
     this.onHpChanged?.(this.hp, this.maxHp);
 
     this.playDir(`${this.animPrefix}_hurt`);

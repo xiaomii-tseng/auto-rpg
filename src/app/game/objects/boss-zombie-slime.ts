@@ -16,6 +16,24 @@ export class BossZombieSlime extends Boss {
   onSummonZombie?:  (x: number, y: number) => void;
   onPoisonFanHit?:  (dmg: number) => void;
 
+  private zombieOrbs:        Phaser.GameObjects.Graphics[] = [];
+  private zombieOrbTimer?:   Phaser.Time.TimerEvent;
+  private zombieScaleTween?: Phaser.Tweens.Tween;
+  private zombieEmitter?:    Phaser.GameObjects.Particles.ParticleEmitter;
+  private zombiePortalG?:    Phaser.GameObjects.Graphics;
+  private zombieFanWarnG?:   Phaser.GameObjects.Graphics;
+
+  protected override clearWarning(): void {
+    super.clearWarning();
+    this.zombieOrbTimer?.destroy();  this.zombieOrbTimer   = undefined;
+    this.zombieScaleTween?.stop();   this.zombieScaleTween = undefined;
+    this.zombieOrbs.forEach(o => { if (o.active) o.destroy(); });
+    this.zombieOrbs = [];
+    if (this.zombieEmitter?.active)  this.zombieEmitter.destroy();  this.zombieEmitter  = undefined;
+    if (this.zombiePortalG?.active)  this.zombiePortalG.destroy();  this.zombiePortalG  = undefined;
+    if (this.zombieFanWarnG?.active) this.zombieFanWarnG.destroy(); this.zombieFanWarnG = undefined;
+  }
+
   protected override pickNextAttack(): void {
     const roll = Math.random();
     let fn: () => void;
@@ -41,7 +59,7 @@ export class BossZombieSlime extends Boss {
     });
 
     // 旋轉能量球
-    const orbs = Array.from({ length: SUMMON_COUNT }, () => {
+    this.zombieOrbs = Array.from({ length: SUMMON_COUNT }, () => {
       const o = this.scene.add.graphics().setDepth(this.depth + 2);
       o.fillStyle(0x99dd44, 0.95);
       o.fillCircle(0, 0, 5);
@@ -49,6 +67,7 @@ export class BossZombieSlime extends Boss {
       o.strokeCircle(0, 0, 8);
       return o;
     });
+    const orbs = this.zombieOrbs;
 
     let orbAngle = 0;
     const orbTimer = this.scene.time.addEvent({
@@ -63,10 +82,11 @@ export class BossZombieSlime extends Boss {
       },
     });
 
-    const scaleTween = this.scene.tweens.add({
+    this.zombieScaleTween = this.scene.tweens.add({
       targets: this, scaleX: 2.22, scaleY: 2.22,
       duration: 260, yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
     });
+    const scaleTween = this.zombieScaleTween;
 
     // 擴散殭綠環
     for (let wave = 0; wave < 2; wave++) {
@@ -88,7 +108,7 @@ export class BossZombieSlime extends Boss {
       });
     }
 
-    const emitter = this.scene.add.particles(this.x, this.y, 'pxl2', {
+    this.zombieEmitter = this.scene.add.particles(this.x, this.y, 'pxl2', {
       speed: { min: 30, max: 80 },
       angle: { min: 250, max: 290 },
       scale: { start: 1.8, end: 0 },
@@ -97,8 +117,10 @@ export class BossZombieSlime extends Boss {
       lifespan: { min: 450, max: 1000 },
       frequency: 35, quantity: 2, gravityY: -28,
     }).setDepth(9);
+    const emitter = this.zombieEmitter;
 
-    const portalG = this.scene.add.graphics().setDepth(9);
+    this.zombiePortalG = this.scene.add.graphics().setDepth(9);
+    const portalG = this.zombiePortalG;
     positions.forEach(p => this.drawPortalWarning(portalG, p.x, p.y));
     const pw = { a: 1.0 };
     this.pulseTween?.stop();
@@ -107,7 +129,10 @@ export class BossZombieSlime extends Boss {
       onUpdate: () => portalG.setAlpha(pw.a),
     });
 
+    this.zombieOrbTimer = orbTimer;
     this.stateTimer = this.scene.time.delayedCall(1400, () => {
+      // 已由追蹤欄位持有，正常完成時手動清空
+      this.zombieOrbs = []; this.zombieOrbTimer = this.zombieScaleTween = this.zombieEmitter = this.zombiePortalG = undefined;
       this.pulseTween?.stop();
       orbTimer.destroy();
       scaleTween.stop();
@@ -136,7 +161,8 @@ export class BossZombieSlime extends Boss {
     const sideRad     = Phaser.Math.DegToRad(FAN_SIDE_DEG);
     const fanAngles   = [centerAngle - sideRad, centerAngle, centerAngle + sideRad];
 
-    const warnG = this.scene.add.graphics().setDepth(8);
+    this.zombieFanWarnG = this.scene.add.graphics().setDepth(8);
+    const warnG = this.zombieFanWarnG;
     fanAngles.forEach(a => this.drawFanWarning(warnG, this.x, this.y, a, FAN_HALF_DEG, FAN_RANGE * 0.75));
     const pw = { a: 1.0 };
     this.pulseTween?.stop();
@@ -146,6 +172,7 @@ export class BossZombieSlime extends Boss {
     });
 
     this.stateTimer = this.scene.time.delayedCall(1200, () => {
+      this.zombieFanWarnG = undefined;
       this.pulseTween?.stop();
       warnG.destroy();
       fanAngles.forEach(a => this.firePoisonFan(a));
