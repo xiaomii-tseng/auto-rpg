@@ -328,17 +328,21 @@ export function getItemStats(item: EquipmentItem): Partial<Record<StatKey, numbe
 
 export const ENHANCE_MAX = 10;
 
+// 每次強化消耗的破損強化石數量（期望總花費 ≈ 150 顆，含防退石全程保護）
 export const ENHANCE_COST: Record<number, number> = {
-  0: 100, 1: 250, 2: 500, 3: 1000, 4: 2000,
-  5: 4000, 6: 6000, 7: 10000, 8: 16000, 9: 25000,
+  0: 1, 1: 2, 2: 2, 3: 3, 4: 3,
+  5: 4, 6: 4, 7: 4, 8: 5, 9: 5,
 };
 
 export const ENHANCE_RATE: Record<number, number> = {
-  0: 1.0, 1: 0.9, 2: 0.8, 3: 0.7, 4: 0.6,
-  5: 0.5, 6: 0.4, 7: 0.3, 8: 0.2, 9: 0.1,
+  0: 1.00, 1: 0.90, 2: 0.85, 3: 0.80, 4: 0.60,
+  5: 0.45, 6: 0.30, 7: 0.20, 8: 0.15, 9: 0.08,
 };
 
-// 等級 >= 此值時失敗會退階
+// 完整強化石加成成功率
+export const ENHANCE_COMPLETE_BONUS = 0.08;
+
+// 等級 >= 此值時失敗會退階（最多退到 +4）
 export const ENHANCE_DEMOTE_FROM = 5;
 
 // 強化成功：回傳被提升的詞綴 index 陣列

@@ -114,6 +114,7 @@ export class GameScene extends Phaser.Scene {
     if (!this.textures.exists('slime3_death'))  this.load.spritesheet('slime3_death',  s3 + 'Slime3_Death_with_shadow.png',  cfg);
     if (!this.textures.exists('icon_stone_broken'))  this.load.image('icon_stone_broken',  'other/ore2.webp');
     if (!this.textures.exists('icon_stone_intact'))  this.load.image('icon_stone_intact',  'other/ore1.webp');
+    if (!this.textures.exists('icon_stone_guard'))   this.load.image('icon_stone_guard',   'other/ore3.webp');
     if (!this.textures.exists('icon_quest_reroll'))  this.load.image('icon_quest_reroll',  'other/ore4.webp');
     if (!this.textures.exists('icon_gold'))          this.load.image('icon_gold',          'other/coin.webp');
     this.generateTextures();
@@ -1680,7 +1681,9 @@ export class GameScene extends Phaser.Scene {
     const def = getMonsterDef(monsterId);
     if (!def) return;
     this.spawnLoot(x, y, def.drops);
-    if (Math.random() < def.cardDropRate) this.spawnCardDrop(x, y, def.cardId);
+    for (const card of def.cards) {
+      if (Math.random() < card.rate) this.spawnCardDrop(x, y, card.cardId);
+    }
     const gained = PlayerStore.addExp(def.exp);
     if (gained > 0) this.showLevelUp(PlayerStore.getLevel());
   }
@@ -2542,7 +2545,9 @@ export class GameScene extends Phaser.Scene {
       const dropMult = STAR_DROP_MULT[this.questStar] ?? 1;
       const scaledDrops = bossDef.drops.map(d => ({ ...d, rate: Math.min(1, d.rate * dropMult) }));
       this.spawnLoot(this.boss.x, this.boss.y, scaledDrops);
-      if (Math.random() < bossDef.cardDropRate) this.spawnCardDrop(this.boss.x, this.boss.y, bossDef.cardId);
+      for (const card of bossDef.cards) {
+        if (Math.random() < card.rate) this.spawnCardDrop(this.boss.x, this.boss.y, card.cardId);
+      }
     }
 
     // Exp (no gold — gold comes from quest claim)
