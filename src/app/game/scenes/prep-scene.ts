@@ -397,7 +397,7 @@ export class PrepScene extends Phaser.Scene {
     // Right: 卡片 / 商店
     const rightDefs: { label: string; accent: number; badge: number; onClick?: () => void }[] = [
       { label: '卡片', accent: 0xcc6688, badge: 0, onClick: () => this.openCardWindow(W, H) },
-      { label: '商店', accent: 0xd47820, badge: 0, onClick: () => this.showShopPanel(W, H) },
+      { label: '商店', accent: 0xd47820, badge: 0, onClick: () => this.showComingSoon(W, H, '商店') },
     ];
     const rightTotalH = rightDefs.length * btnSz + (rightDefs.length - 1) * gap;
     const rightY0     = TOP_H + (midH - rightTotalH) / 2;
@@ -2751,9 +2751,12 @@ export class PrepScene extends Phaser.Scene {
 
       // ── Card body ─────────────────────────────────────
       const monDefPre  = getMonsterDef(def.monsterId);
-      const isBoss     = (monDefPre?.tier ?? 1) >= 5;
-      const FRAME_CLR  = isBoss ? 0xf0c040 : 0x9aacb8;   // 金 or 銀
-      const FRAME_CLR2 = isBoss ? 0xffee88 : 0xc8d8e0;
+      const monTierPre = monDefPre?.tier ?? 1;
+      const isBoss     = monTierPre >= 5;
+      const isElite    = monTierPre === 3;
+      // Boss=金, 菁英=銀, 小怪=銅
+      const FRAME_CLR  = isBoss ? 0xf0c040 : isElite ? 0x9aacb8 : 0xb87333;
+      const FRAME_CLR2 = isBoss ? 0xffee88 : isElite ? 0xc8d8e0 : 0xd4a070;
       const cg = this.add.graphics();
 
       // 陰影
@@ -2764,13 +2767,15 @@ export class PrepScene extends Phaser.Scene {
       cg.fillStyle(WMI, 1);
       cg.fillRect(-PDW / 2, -PDH / 2, PDW, PDH);
 
-      // 外框粗線
-      cg.lineStyle(2.5, FRAME_CLR, 0.95);
+      // 外框粗線（加外發光層）
+      cg.lineStyle(6, FRAME_CLR, 0.2);
+      cg.strokeRect(-PDW / 2 - 2, -PDH / 2 - 2, PDW + 4, PDH + 4);
+      cg.lineStyle(4, FRAME_CLR, 0.95);
       cg.strokeRect(-PDW / 2, -PDH / 2, PDW, PDH);
 
       // 內框細線
-      cg.lineStyle(1, FRAME_CLR, 0.4);
-      cg.strokeRect(-PDW / 2 + 4, -PDH / 2 + 4, PDW - 8, PDH - 8);
+      cg.lineStyle(1.5, FRAME_CLR2, 0.6);
+      cg.strokeRect(-PDW / 2 + 5, -PDH / 2 + 5, PDW - 10, PDH - 10);
 
       // 四角裝飾點
       const PCR = 4;
@@ -2803,15 +2808,24 @@ export class PrepScene extends Phaser.Scene {
         maxLines: 2,
       }).setOrigin(0.5, 0.5));
 
-      // ── Monster sprite (no circle) ────────────────────
+      // ── Monster sprite (animated) ─────────────────────
       const SPRITE_Y = -PDH / 2 + BANNER_H + 62;
       const monDef = getMonsterDef(def.monsterId);
       if (monDef) {
         const spriteKey  = `${monDef.spriteKey}_idle`;
+        const animKey    = `card_idle_${def.monsterId}`;
         const spriteScale = monsterDetailScale(monDef.tier);
         try {
+          if (!this.anims.exists(animKey) && this.textures.exists(spriteKey)) {
+            this.anims.create({
+              key: animKey,
+              frames: this.anims.generateFrameNumbers(spriteKey, { start: 0, end: 5 }),
+              frameRate: 8, repeat: -1,
+            });
+          }
           const sp = this.add.sprite(0, SPRITE_Y, spriteKey, 0).setScale(spriteScale);
           if (monDef.tint !== 0xffffff) sp.setTint(monDef.tint);
+          if (this.anims.exists(animKey)) sp.play(animKey);
           pop.add(sp);
         } catch { /* texture not loaded */ }
       }
@@ -2916,7 +2930,7 @@ export class PrepScene extends Phaser.Scene {
       if (variant === 'A' || variant === 'B' || variant === 'C') {
         const vColor = '#ffffff';
         target.add(this.add.text(cx, cy, variant, {
-          fontSize: '64px', fontStyle: 'bold', color: vColor,
+          fontSize: '88px', fontStyle: 'bold', color: vColor,
         }).setOrigin(0.5).setAlpha(0.15));
       }
 
@@ -2981,16 +2995,6 @@ export class PrepScene extends Phaser.Scene {
 
         if (def) {
           drawCardFace(contentCnt, def, cx, cy, `${i + 1}`);
-          // Tier badge (bottom-right of equipped slot)
-          const eqMonTier   = getMonsterDef(def.monsterId)?.tier ?? 1;
-          const tierLabel   = eqMonTier >= 5 ? 'Boss' : eqMonTier === 3 ? '菁英' : '一般';
-          const tierBgColor = eqMonTier >= 5 ? '#8b5e00' : eqMonTier === 3 ? '#1a3a5c' : '#1a2e1a';
-          const tierTxtColor= eqMonTier >= 5 ? '#ffd060' : eqMonTier === 3 ? '#80c8ff' : '#88dd88';
-          contentCnt.add(this.add.text(cx + CARD_W / 2 - 2, cy + CARD_H / 2 - 2, tierLabel, {
-            fontSize: '8px', fontStyle: 'bold', color: tierTxtColor,
-            stroke: '#000000', strokeThickness: 1,
-            backgroundColor: tierBgColor, padding: { x: 2, y: 1 },
-          }).setOrigin(1, 1));
           const hit = this.add.rectangle(cx, cy, CARD_W, CARD_H).setInteractive({ useHandCursor: true });
           hit.on('pointerdown', () => showCardDetail(def, i, cardId!));
           contentCnt.add(hit);
@@ -3119,6 +3123,23 @@ export class PrepScene extends Phaser.Scene {
       this.input.off('wheel');
     };
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, cleanup);
+  }
+
+  private showComingSoon(W: number, H: number, label: string): void {
+    const D   = 900;
+    const bk  = this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.55).setInteractive().setDepth(D);
+    const box = this.add.graphics().setDepth(D + 1);
+    const bw = 260, bh = 100;
+    box.fillStyle(0x1a1208, 0.97); box.fillRect(W / 2 - bw / 2, H / 2 - bh / 2, bw, bh);
+    box.lineStyle(2, 0xd4a044, 0.8); box.strokeRect(W / 2 - bw / 2, H / 2 - bh / 2, bw, bh);
+    const txt = this.add.text(W / 2, H / 2 - 14, `${label}`, {
+      fontSize: '15px', fontStyle: 'bold', color: '#e8c070', stroke: '#1a0800', strokeThickness: 2,
+    }).setOrigin(0.5).setDepth(D + 2);
+    const sub = this.add.text(W / 2, H / 2 + 14, '功能待開發', {
+      fontSize: '12px', color: '#886644', stroke: '#1a0800', strokeThickness: 1,
+    }).setOrigin(0.5).setDepth(D + 2);
+    const close = () => { bk.destroy(); box.destroy(); txt.destroy(); sub.destroy(); };
+    bk.on('pointerdown', close);
   }
 
   private showShopPanel(W: number, H: number): void {

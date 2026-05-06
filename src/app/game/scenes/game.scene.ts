@@ -891,7 +891,6 @@ export class GameScene extends Phaser.Scene {
     const trail = this.add.graphics().setDepth(this.player.depth);
     proj.setPosition(this.player.x, this.player.y);
     proj.setRotation(rad);
-    trail.setRotation(rad);
 
     const trailHistory: { x: number; y: number }[] = [];
 

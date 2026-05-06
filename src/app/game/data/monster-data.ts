@@ -107,44 +107,44 @@ export const MONSTER_DEFS: MonsterDef[] = [
 
   // ── 小史萊姆 (Tier 1) ──────────────────────────────────
   {
-    id: 'slime_green_s', name: '綠史萊姆(小)', spriteKey: 'slime', frameEnd: 5,
+    id: 'slime_green_s', name: '綠史萊姆小', spriteKey: 'slime', frameEnd: 5,
     element: 'grass', tint: 0x44ff44, tier: 1,
     hp: 60, atk: 8, speed: 90, exp: 15, gold: 5,
     cards: [{ cardId: 'card_slime_green_s_a', rate: CA_S }, { cardId: 'card_slime_green_s_b', rate: CB_S }, { cardId: 'card_slime_green_s_c', rate: CC_S }],
     drops: smallDrops,
   },
   {
-    id: 'slime_red_s', name: '紅史萊姆(小)', spriteKey: 'slime', frameEnd: 5,
+    id: 'slime_red_s', name: '紅史萊姆小', spriteKey: 'slime', frameEnd: 5,
     element: 'fire', tint: 0xff2020, tier: 1,
     hp: 65, atk: 10, speed: 85, exp: 18, gold: 6,
     cards: [{ cardId: 'card_slime_red_s_a', rate: CA_S }, { cardId: 'card_slime_red_s_b', rate: CB_S }, { cardId: 'card_slime_red_s_c', rate: CC_S }],
     drops: smallDrops,
   },
   {
-    id: 'slime_blue_s', name: '藍史萊姆(小)', spriteKey: 'slime', frameEnd: 5,
+    id: 'slime_blue_s', name: '藍史萊姆小', spriteKey: 'slime', frameEnd: 5,
     element: 'water', tint: 0x2299ff, tier: 1,
     hp: 55, atk: 8, speed: 100, exp: 15, gold: 5,
     cards: [{ cardId: 'card_slime_blue_s_a', rate: CA_S }, { cardId: 'card_slime_blue_s_b', rate: CB_S }, { cardId: 'card_slime_blue_s_c', rate: CC_S }],
     drops: smallDrops,
   },
   {
-    id: 'slime_white_s', name: '白史萊姆(小)', spriteKey: 'slime', frameEnd: 5,
+    id: 'slime_white_s', name: '白史萊姆小', spriteKey: 'slime', frameEnd: 5,
     element: 'none', tint: 0xccddee, tier: 1,
     hp: 60, atk: 8, speed: 90, exp: 12, gold: 4,
     cards: [{ cardId: 'card_slime_white_s_a', rate: CA_S }, { cardId: 'card_slime_white_s_b', rate: CB_S }, { cardId: 'card_slime_white_s_c', rate: CC_S }],
     drops: smallDrops,
   },
 
-  // ── 殭屍史萊姆(小) / 熔岩史萊姆(小) ───────────────────
+  // ── 殭屍史萊姆小 / 熔岩史萊姆小 ───────────────────
   {
-    id: 'slime_zombie_s', name: '殭屍史萊姆(小)', spriteKey: 'slime2', frameEnd: 5,
+    id: 'slime_zombie_s', name: '殭屍史萊姆小', spriteKey: 'slime2', frameEnd: 5,
     element: 'none', tint: 0x99dd44, tier: 1,
     hp: 80, atk: 10, speed: 70, exp: 20, gold: 7,
     cards: [{ cardId: 'card_slime_zombie_s_a', rate: CA_S }, { cardId: 'card_slime_zombie_s_b', rate: CB_S }, { cardId: 'card_slime_zombie_s_c', rate: CC_S }],
     drops: smallDrops,
   },
   {
-    id: 'slime_lava_s', name: '熔岩史萊姆(小)', spriteKey: 'slime3', frameEnd: 5,
+    id: 'slime_lava_s', name: '熔岩史萊姆小', spriteKey: 'slime3', frameEnd: 5,
     element: 'fire', tint: 0xffffff, tier: 1,
     hp: 70, atk: 12, speed: 100, exp: 22, gold: 8,
     cards: [{ cardId: 'card_slime_lava_s_a', rate: CA_S }, { cardId: 'card_slime_lava_s_b', rate: CB_S }, { cardId: 'card_slime_lava_s_c', rate: CC_S }],
@@ -153,42 +153,42 @@ export const MONSTER_DEFS: MonsterDef[] = [
 
   // ── 菁英史萊姆 Tier 3 ──────────────────────────────────
   {
-    id: 'elite_slime_green', name: '綠史萊姆(菁英)', spriteKey: 'slime', frameEnd: 5,
+    id: 'elite_slime_green', name: '綠史萊姆菁英', spriteKey: 'slime', frameEnd: 5,
     element: 'grass', tint: 0x00ff88, tier: 3,
     hp: 60, atk: 8, speed: 95, exp: 60, gold: 25,
     cards: [{ cardId: 'card_elite_slime_green_a', rate: CA_E }, { cardId: 'card_elite_slime_green_b', rate: CB_E }, { cardId: 'card_elite_slime_green_c', rate: CC_E }],
     drops: eliteDrops,
   },
   {
-    id: 'elite_slime_red', name: '紅史萊姆(菁英)', spriteKey: 'slime', frameEnd: 5,
+    id: 'elite_slime_red', name: '紅史萊姆菁英', spriteKey: 'slime', frameEnd: 5,
     element: 'fire', tint: 0xff6600, tier: 3,
     hp: 65, atk: 10, speed: 90, exp: 65, gold: 28,
     cards: [{ cardId: 'card_elite_slime_red_a', rate: CA_E }, { cardId: 'card_elite_slime_red_b', rate: CB_E }, { cardId: 'card_elite_slime_red_c', rate: CC_E }],
     drops: eliteDrops,
   },
   {
-    id: 'elite_slime_blue', name: '藍史萊姆(菁英)', spriteKey: 'slime', frameEnd: 5,
+    id: 'elite_slime_blue', name: '藍史萊姆菁英', spriteKey: 'slime', frameEnd: 5,
     element: 'water', tint: 0x00ddff, tier: 3,
     hp: 55, atk: 8, speed: 110, exp: 60, gold: 25,
     cards: [{ cardId: 'card_elite_slime_blue_a', rate: CA_E }, { cardId: 'card_elite_slime_blue_b', rate: CB_E }, { cardId: 'card_elite_slime_blue_c', rate: CC_E }],
     drops: eliteDrops,
   },
   {
-    id: 'elite_slime_white', name: '白史萊姆(菁英)', spriteKey: 'slime', frameEnd: 5,
+    id: 'elite_slime_white', name: '白史萊姆菁英', spriteKey: 'slime', frameEnd: 5,
     element: 'none', tint: 0xeeffff, tier: 3,
     hp: 60, atk: 8, speed: 95, exp: 55, gold: 22,
     cards: [{ cardId: 'card_elite_slime_white_a', rate: CA_E }, { cardId: 'card_elite_slime_white_b', rate: CB_E }, { cardId: 'card_elite_slime_white_c', rate: CC_E }],
     drops: eliteDrops,
   },
   {
-    id: 'elite_slime_zombie', name: '殭屍史萊姆(菁英)', spriteKey: 'slime2', frameEnd: 5,
+    id: 'elite_slime_zombie', name: '殭屍史萊姆菁英', spriteKey: 'slime2', frameEnd: 5,
     element: 'none', tint: 0xccff44, tier: 3,
     hp: 80, atk: 10, speed: 78, exp: 75, gold: 32,
     cards: [{ cardId: 'card_elite_slime_zombie_a', rate: CA_E }, { cardId: 'card_elite_slime_zombie_b', rate: CB_E }, { cardId: 'card_elite_slime_zombie_c', rate: CC_E }],
     drops: eliteDrops,
   },
   {
-    id: 'elite_slime_lava', name: '熔岩史萊姆(菁英)', spriteKey: 'slime3', frameEnd: 5,
+    id: 'elite_slime_lava', name: '熔岩史萊姆菁英', spriteKey: 'slime3', frameEnd: 5,
     element: 'fire', tint: 0xff4400, tier: 3,
     hp: 70, atk: 12, speed: 110, exp: 80, gold: 36,
     cards: [{ cardId: 'card_elite_slime_lava_a', rate: CA_E }, { cardId: 'card_elite_slime_lava_b', rate: CB_E }, { cardId: 'card_elite_slime_lava_c', rate: CC_E }],
@@ -249,85 +249,85 @@ export const MONSTER_DEFS: MonsterDef[] = [
 export const CARD_DEFS: CardDef[] = [
 
   // ── 小史萊姆卡 A/B/C ──
-  { id: 'card_slime_green_s_a', name: '綠史萊姆(小)A卡', monsterId: 'slime_green_s', element: 'none', tint: 0x44cc44, effect: { crit: 0.03 }, desc: '爆擊機率 +3%' },
-  { id: 'card_slime_green_s_b', name: '綠史萊姆(小)B卡', monsterId: 'slime_green_s', element: 'none', tint: 0x44cc44, effect: { hp: 25 }, desc: '最大HP +25' },
-  { id: 'card_slime_green_s_c', name: '綠史萊姆(小)C卡', monsterId: 'slime_green_s', element: 'none', tint: 0x44cc44, effect: { hpPct: 0.05 }, desc: '最大HP +5%' },
+  { id: 'card_slime_green_s_a', name: '綠史萊姆小卡片(A)', monsterId: 'slime_green_s', element: 'none', tint: 0x44cc44, effect: { crit: 0.03 }, desc: '爆擊機率 +3%' },
+  { id: 'card_slime_green_s_b', name: '綠史萊姆小卡片(B)', monsterId: 'slime_green_s', element: 'none', tint: 0x44cc44, effect: { hp: 25 }, desc: '最大HP +25' },
+  { id: 'card_slime_green_s_c', name: '綠史萊姆小卡片(C)', monsterId: 'slime_green_s', element: 'none', tint: 0x44cc44, effect: { hpPct: 0.05 }, desc: '最大HP +5%' },
 
-  { id: 'card_slime_red_s_a', name: '紅史萊姆(小)A卡', monsterId: 'slime_red_s', element: 'none', tint: 0xff5522, effect: { atk: 5 }, desc: '攻擊力 +5' },
-  { id: 'card_slime_red_s_b', name: '紅史萊姆(小)B卡', monsterId: 'slime_red_s', element: 'none', tint: 0xff5522, effect: { critDmg: 0.08 }, desc: '爆擊傷害 +8%' },
-  { id: 'card_slime_red_s_c', name: '紅史萊姆(小)C卡', monsterId: 'slime_red_s', element: 'none', tint: 0xff5522, effect: { crit: 0.02, critDmg: 0.03 }, desc: '爆擊機率 +2%、爆擊傷害 +3%' },
+  { id: 'card_slime_red_s_a', name: '紅史萊姆小卡片(A)', monsterId: 'slime_red_s', element: 'none', tint: 0xff5522, effect: { atk: 5 }, desc: '攻擊力 +5' },
+  { id: 'card_slime_red_s_b', name: '紅史萊姆小卡片(B)', monsterId: 'slime_red_s', element: 'none', tint: 0xff5522, effect: { critDmg: 0.08 }, desc: '爆擊傷害 +8%' },
+  { id: 'card_slime_red_s_c', name: '紅史萊姆小卡片(C)', monsterId: 'slime_red_s', element: 'none', tint: 0xff5522, effect: { crit: 0.02, critDmg: 0.03 }, desc: '爆擊機率 +2%、爆擊傷害 +3%' },
 
-  { id: 'card_slime_blue_s_a', name: '藍史萊姆(小)A卡', monsterId: 'slime_blue_s', element: 'none', tint: 0x44aaff, effect: { def: 5 }, desc: '防禦力 +5' },
-  { id: 'card_slime_blue_s_b', name: '藍史萊姆(小)B卡', monsterId: 'slime_blue_s', element: 'none', tint: 0x44aaff, effect: { evasion: 0.02 }, desc: '閃避率 +2%' },
-  { id: 'card_slime_blue_s_c', name: '藍史萊姆(小)C卡', monsterId: 'slime_blue_s', element: 'none', tint: 0x44aaff, effect: { defPct: 0.10 }, desc: '防禦力 +10%' },
+  { id: 'card_slime_blue_s_a', name: '藍史萊姆小卡片(A)', monsterId: 'slime_blue_s', element: 'none', tint: 0x44aaff, effect: { def: 5 }, desc: '防禦力 +5' },
+  { id: 'card_slime_blue_s_b', name: '藍史萊姆小卡片(B)', monsterId: 'slime_blue_s', element: 'none', tint: 0x44aaff, effect: { evasion: 0.02 }, desc: '閃避率 +2%' },
+  { id: 'card_slime_blue_s_c', name: '藍史萊姆小卡片(C)', monsterId: 'slime_blue_s', element: 'none', tint: 0x44aaff, effect: { defPct: 0.10 }, desc: '防禦力 +10%' },
 
-  { id: 'card_slime_white_s_a', name: '白史萊姆(小)A卡', monsterId: 'slime_white_s', element: 'none', tint: 0xaaaaaa, effect: { speed: 10 }, desc: '移動速度 +10' },
-  { id: 'card_slime_white_s_b', name: '白史萊姆(小)B卡', monsterId: 'slime_white_s', element: 'none', tint: 0xaaaaaa, effect: { atkSpeed: 0.06 }, desc: '攻擊速度 +6%' },
-  { id: 'card_slime_white_s_c', name: '白史萊姆(小)C卡', monsterId: 'slime_white_s', element: 'none', tint: 0xaaaaaa, effect: { speed: 4, atkPct: 0.01 }, desc: '移動速度 +4、攻擊力 +1%' },
+  { id: 'card_slime_white_s_a', name: '白史萊姆小卡片(A)', monsterId: 'slime_white_s', element: 'none', tint: 0xaaaaaa, effect: { speed: 10 }, desc: '移動速度 +10' },
+  { id: 'card_slime_white_s_b', name: '白史萊姆小卡片(B)', monsterId: 'slime_white_s', element: 'none', tint: 0xaaaaaa, effect: { atkSpeed: 0.06 }, desc: '攻擊速度 +6%' },
+  { id: 'card_slime_white_s_c', name: '白史萊姆小卡片(C)', monsterId: 'slime_white_s', element: 'none', tint: 0xaaaaaa, effect: { speed: 4, atkPct: 0.01 }, desc: '移動速度 +4、攻擊力 +1%' },
 
-  { id: 'card_slime_zombie_s_a', name: '殭屍史萊姆(小)A卡', monsterId: 'slime_zombie_s', element: 'none', tint: 0x88aa44, effect: { atkPct: 0.03 }, desc: '攻擊力 +3%' },
-  { id: 'card_slime_zombie_s_b', name: '殭屍史萊姆(小)B卡', monsterId: 'slime_zombie_s', element: 'none', tint: 0x88aa44, effect: { evasion: 0.01, atk: 2 }, desc: '閃避率 +1%、攻擊力 +2' },
-  { id: 'card_slime_zombie_s_c', name: '殭屍史萊姆(小)C卡', monsterId: 'slime_zombie_s', element: 'none', tint: 0x88aa44, effect: { dotBonus: 0.03 }, desc: '持續傷害 +3%' },
+  { id: 'card_slime_zombie_s_a', name: '殭屍史萊姆小卡片(A)', monsterId: 'slime_zombie_s', element: 'none', tint: 0x88aa44, effect: { atkPct: 0.03 }, desc: '攻擊力 +3%' },
+  { id: 'card_slime_zombie_s_b', name: '殭屍史萊姆小卡片(B)', monsterId: 'slime_zombie_s', element: 'none', tint: 0x88aa44, effect: { evasion: 0.01, atk: 2 }, desc: '閃避率 +1%、攻擊力 +2' },
+  { id: 'card_slime_zombie_s_c', name: '殭屍史萊姆小卡片(C)', monsterId: 'slime_zombie_s', element: 'none', tint: 0x88aa44, effect: { dotBonus: 0.03 }, desc: '持續傷害 +3%' },
 
-  { id: 'card_slime_lava_s_a', name: '熔岩史萊姆(小)A卡', monsterId: 'slime_lava_s', element: 'none', tint: 0xff6622, effect: { penetration: 18 }, desc: '穿甲 +18' },
-  { id: 'card_slime_lava_s_b', name: '熔岩史萊姆(小)B卡', monsterId: 'slime_lava_s', element: 'none', tint: 0xff6622, effect: { dotBonus: 0.01, atk: 3 }, desc: '持續傷害 +1%、攻擊力 +3' },
-  { id: 'card_slime_lava_s_c', name: '熔岩史萊姆(小)C卡', monsterId: 'slime_lava_s', element: 'none', tint: 0xff6622, effect: { penetration: 8, atk: 3 }, desc: '穿甲 +8、攻擊力 +3' },
+  { id: 'card_slime_lava_s_a', name: '熔岩史萊姆小卡片(A)', monsterId: 'slime_lava_s', element: 'none', tint: 0xff6622, effect: { penetration: 18 }, desc: '穿甲 +18' },
+  { id: 'card_slime_lava_s_b', name: '熔岩史萊姆小卡片(B)', monsterId: 'slime_lava_s', element: 'none', tint: 0xff6622, effect: { dotBonus: 0.01, atk: 3 }, desc: '持續傷害 +1%、攻擊力 +3' },
+  { id: 'card_slime_lava_s_c', name: '熔岩史萊姆小卡片(C)', monsterId: 'slime_lava_s', element: 'none', tint: 0xff6622, effect: { penetration: 8, atk: 3 }, desc: '穿甲 +8、攻擊力 +3' },
 
   // ── 菁英史萊姆卡 A/B/C ──
-  { id: 'card_elite_slime_green_a', name: '綠史萊姆(菁英)A卡', monsterId: 'elite_slime_green', element: 'none', tint: 0x00ff88, effect: { hp: 40 }, desc: '最大HP +40' },
-  { id: 'card_elite_slime_green_b', name: '綠史萊姆(菁英)B卡', monsterId: 'elite_slime_green', element: 'none', tint: 0x00ff88, effect: { dmgVsWater: 0.08 }, desc: '對水屬性傷害 +8%' },
-  { id: 'card_elite_slime_green_c', name: '綠史萊姆(菁英)C卡', monsterId: 'elite_slime_green', element: 'none', tint: 0x00ff88, effect: { weaponEnhance8Hp: 60 }, desc: '武器精煉+8以上時最大HP +60' },
+  { id: 'card_elite_slime_green_a', name: '綠史萊姆菁英卡片(A)', monsterId: 'elite_slime_green', element: 'none', tint: 0x00ff88, effect: { hp: 40 }, desc: '最大HP +40' },
+  { id: 'card_elite_slime_green_b', name: '綠史萊姆菁英卡片(B)', monsterId: 'elite_slime_green', element: 'none', tint: 0x00ff88, effect: { dmgVsWater: 0.08 }, desc: '對水屬性傷害 +8%' },
+  { id: 'card_elite_slime_green_c', name: '綠史萊姆菁英卡片(C)', monsterId: 'elite_slime_green', element: 'none', tint: 0x00ff88, effect: { weaponEnhance8Hp: 60 }, desc: '武器精煉+8以上時最大HP +60' },
 
-  { id: 'card_elite_slime_red_a', name: '紅史萊姆(菁英)A卡', monsterId: 'elite_slime_red', element: 'none', tint: 0xff6600, effect: { atk: 8 }, desc: '攻擊力 +8' },
-  { id: 'card_elite_slime_red_b', name: '紅史萊姆(菁英)B卡', monsterId: 'elite_slime_red', element: 'none', tint: 0xff6600, effect: { dmgVsGrass: 0.08 }, desc: '對草屬性傷害 +8%' },
-  { id: 'card_elite_slime_red_c', name: '紅史萊姆(菁英)C卡', monsterId: 'elite_slime_red', element: 'none', tint: 0xff6600, effect: { weaponEnhance8Atk: 12 }, desc: '武器精煉+8以上時攻擊力 +12' },
+  { id: 'card_elite_slime_red_a', name: '紅史萊姆菁英卡片(A)', monsterId: 'elite_slime_red', element: 'none', tint: 0xff6600, effect: { atk: 8 }, desc: '攻擊力 +8' },
+  { id: 'card_elite_slime_red_b', name: '紅史萊姆菁英卡片(B)', monsterId: 'elite_slime_red', element: 'none', tint: 0xff6600, effect: { dmgVsGrass: 0.08 }, desc: '對草屬性傷害 +8%' },
+  { id: 'card_elite_slime_red_c', name: '紅史萊姆菁英卡片(C)', monsterId: 'elite_slime_red', element: 'none', tint: 0xff6600, effect: { weaponEnhance8Atk: 12 }, desc: '武器精煉+8以上時攻擊力 +12' },
 
-  { id: 'card_elite_slime_blue_a', name: '藍史萊姆(菁英)A卡', monsterId: 'elite_slime_blue', element: 'none', tint: 0x00ddff, effect: { speed: 18 }, desc: '移動速度 +18' },
-  { id: 'card_elite_slime_blue_b', name: '藍史萊姆(菁英)B卡', monsterId: 'elite_slime_blue', element: 'none', tint: 0x00ddff, effect: { dmgVsFire: 0.08 }, desc: '對火屬性傷害 +8%' },
-  { id: 'card_elite_slime_blue_c', name: '藍史萊姆(菁英)C卡', monsterId: 'elite_slime_blue', element: 'none', tint: 0x00ddff, effect: { evasion: 0.03, hp: 30 }, desc: '閃避率 +3%、最大HP +30' },
+  { id: 'card_elite_slime_blue_a', name: '藍史萊姆菁英卡片(A)', monsterId: 'elite_slime_blue', element: 'none', tint: 0x00ddff, effect: { speed: 18 }, desc: '移動速度 +18' },
+  { id: 'card_elite_slime_blue_b', name: '藍史萊姆菁英卡片(B)', monsterId: 'elite_slime_blue', element: 'none', tint: 0x00ddff, effect: { dmgVsFire: 0.08 }, desc: '對火屬性傷害 +8%' },
+  { id: 'card_elite_slime_blue_c', name: '藍史萊姆菁英卡片(C)', monsterId: 'elite_slime_blue', element: 'none', tint: 0x00ddff, effect: { evasion: 0.03, hp: 30 }, desc: '閃避率 +3%、最大HP +30' },
 
-  { id: 'card_elite_slime_white_a', name: '白史萊姆(菁英)A卡', monsterId: 'elite_slime_white', element: 'none', tint: 0xaaccdd, effect: { penetration: 30 }, desc: '穿甲 +30' },
-  { id: 'card_elite_slime_white_b', name: '白史萊姆(菁英)B卡', monsterId: 'elite_slime_white', element: 'none', tint: 0xaaccdd, effect: { dmgVsNone: 0.08 }, desc: '對無屬性傷害 +8%' },
-  { id: 'card_elite_slime_white_c', name: '白史萊姆(菁英)C卡', monsterId: 'elite_slime_white', element: 'none', tint: 0xaaccdd, effect: { lifesteal: 0.003 }, desc: '吸血 +0.3%' },
+  { id: 'card_elite_slime_white_a', name: '白史萊姆菁英卡片(A)', monsterId: 'elite_slime_white', element: 'none', tint: 0xaaccdd, effect: { penetration: 30 }, desc: '穿甲 +30' },
+  { id: 'card_elite_slime_white_b', name: '白史萊姆菁英卡片(B)', monsterId: 'elite_slime_white', element: 'none', tint: 0xaaccdd, effect: { dmgVsNone: 0.08 }, desc: '對無屬性傷害 +8%' },
+  { id: 'card_elite_slime_white_c', name: '白史萊姆菁英卡片(C)', monsterId: 'elite_slime_white', element: 'none', tint: 0xaaccdd, effect: { lifesteal: 0.003 }, desc: '吸血 +0.3%' },
 
-  { id: 'card_elite_slime_zombie_a', name: '殭屍史萊姆(菁英)A卡', monsterId: 'elite_slime_zombie', element: 'none', tint: 0xccff44, effect: { dotBonus: 0.045 }, desc: '持續傷害 +4.5%' },
-  { id: 'card_elite_slime_zombie_b', name: '殭屍史萊姆(菁英)B卡', monsterId: 'elite_slime_zombie', element: 'none', tint: 0xccff44, effect: { dmgVsAnyElement: 0.05 }, desc: '對火/水/草屬性傷害 +5%' },
-  { id: 'card_elite_slime_zombie_c', name: '殭屍史萊姆(菁英)C卡', monsterId: 'elite_slime_zombie', element: 'none', tint: 0xccff44, effect: { dmgVsSlime: 0.15 }, desc: '對史萊姆種族傷害 +15%' },
+  { id: 'card_elite_slime_zombie_a', name: '殭屍史萊姆菁英卡片(A)', monsterId: 'elite_slime_zombie', element: 'none', tint: 0xccff44, effect: { dotBonus: 0.045 }, desc: '持續傷害 +4.5%' },
+  { id: 'card_elite_slime_zombie_b', name: '殭屍史萊姆菁英卡片(B)', monsterId: 'elite_slime_zombie', element: 'none', tint: 0xccff44, effect: { dmgVsAnyElement: 0.05 }, desc: '對火/水/草屬性傷害 +5%' },
+  { id: 'card_elite_slime_zombie_c', name: '殭屍史萊姆菁英卡片(C)', monsterId: 'elite_slime_zombie', element: 'none', tint: 0xccff44, effect: { dmgVsSlime: 0.15 }, desc: '對史萊姆種族傷害 +15%' },
 
-  { id: 'card_elite_slime_lava_a', name: '熔岩史萊姆(菁英)A卡', monsterId: 'elite_slime_lava', element: 'none', tint: 0xff4400, effect: { lifesteal: 0.001, atk: 5 }, desc: '吸血 +0.1%、攻擊力 +5' },
-  { id: 'card_elite_slime_lava_b', name: '熔岩史萊姆(菁英)B卡', monsterId: 'elite_slime_lava', element: 'none', tint: 0xff4400, effect: { weaponEnhance8DotBonus: 0.06 }, desc: '武器精煉+8以上時持續傷害 +6%' },
-  { id: 'card_elite_slime_lava_c', name: '熔岩史萊姆(菁英)C卡', monsterId: 'elite_slime_lava', element: 'none', tint: 0xff4400, effect: { dmgVsEliteOrBoss: 0.10 }, desc: '對菁英/Boss傷害 +10%' },
+  { id: 'card_elite_slime_lava_a', name: '熔岩史萊姆菁英卡片(A)', monsterId: 'elite_slime_lava', element: 'none', tint: 0xff4400, effect: { lifesteal: 0.001, atk: 5 }, desc: '吸血 +0.1%、攻擊力 +5' },
+  { id: 'card_elite_slime_lava_b', name: '熔岩史萊姆菁英卡片(B)', monsterId: 'elite_slime_lava', element: 'none', tint: 0xff4400, effect: { weaponEnhance8DotBonus: 0.06 }, desc: '武器精煉+8以上時持續傷害 +6%' },
+  { id: 'card_elite_slime_lava_c', name: '熔岩史萊姆菁英卡片(C)', monsterId: 'elite_slime_lava', element: 'none', tint: 0xff4400, effect: { dmgVsEliteOrBoss: 0.10 }, desc: '對菁英/Boss傷害 +10%' },
 
   // ── 史萊姆王卡 A/B/C ──
   // 綠史萊姆王：防禦特化 / 條件HP / 條件ATK
-  { id: 'card_boss_slime_green_a', name: '綠史萊姆王A卡', monsterId: 'boss_slime_green', element: 'none', tint: 0x44cc44, effect: { def: 60 }, desc: '防禦力 +60' },
-  { id: 'card_boss_slime_green_b', name: '綠史萊姆王B卡', monsterId: 'boss_slime_green', element: 'none', tint: 0x44cc44, effect: { condHpPct: 0.30 }, desc: '最大HP≥800時，HP +30%' },
-  { id: 'card_boss_slime_green_c', name: '綠史萊姆王C卡', monsterId: 'boss_slime_green', element: 'none', tint: 0x44cc44, effect: { condPenAtk: 30 }, desc: '穿甲≥100時，攻擊力 +30' },
+  { id: 'card_boss_slime_green_a', name: '綠史萊姆王卡片(A)', monsterId: 'boss_slime_green', element: 'none', tint: 0x44cc44, effect: { def: 60 }, desc: '防禦力 +60' },
+  { id: 'card_boss_slime_green_b', name: '綠史萊姆王卡片(B)', monsterId: 'boss_slime_green', element: 'none', tint: 0x44cc44, effect: { condHpPct: 0.30 }, desc: '最大HP≥800時，HP +30%' },
+  { id: 'card_boss_slime_green_c', name: '綠史萊姆王卡片(C)', monsterId: 'boss_slime_green', element: 'none', tint: 0x44cc44, effect: { condPenAtk: 30 }, desc: '穿甲≥100時，攻擊力 +30' },
 
   // 紅史萊姆王：爆擊特化 / 條件爆傷 / 半月斬
-  { id: 'card_boss_slime_red_a', name: '紅史萊姆王A卡', monsterId: 'boss_slime_red', element: 'none', tint: 0xff5522, effect: { crit: 0.20 }, desc: '爆擊機率 +20%' },
-  { id: 'card_boss_slime_red_b', name: '紅史萊姆王B卡', monsterId: 'boss_slime_red', element: 'none', tint: 0xff5522, effect: { condCritDmgBonus: 0.40 }, desc: '爆擊率≥50%時，爆擊傷害 +40%' },
-  { id: 'card_boss_slime_red_c', name: '紅史萊姆王C卡', monsterId: 'boss_slime_red', element: 'none', tint: 0xff5522, effect: { slash180DmgPct: 0.20 }, desc: '半月斬傷害 +20%' },
+  { id: 'card_boss_slime_red_a', name: '紅史萊姆王卡片(A)', monsterId: 'boss_slime_red', element: 'none', tint: 0xff5522, effect: { crit: 0.20 }, desc: '爆擊機率 +20%' },
+  { id: 'card_boss_slime_red_b', name: '紅史萊姆王卡片(B)', monsterId: 'boss_slime_red', element: 'none', tint: 0xff5522, effect: { condCritDmgBonus: 0.40 }, desc: '爆擊率≥50%時，爆擊傷害 +40%' },
+  { id: 'card_boss_slime_red_c', name: '紅史萊姆王卡片(C)', monsterId: 'boss_slime_red', element: 'none', tint: 0xff5522, effect: { slash180DmgPct: 0.20 }, desc: '半月斬傷害 +20%' },
 
   // 藍史萊姆王：瞬步斬 / 風刃 / 旋風斬
-  { id: 'card_boss_slime_blue_a', name: '藍史萊姆王A卡', monsterId: 'boss_slime_blue', element: 'none', tint: 0x44aaff, effect: { dashDistBonus: 45 }, desc: '瞬步斬距離 +45' },
-  { id: 'card_boss_slime_blue_b', name: '藍史萊姆王B卡', monsterId: 'boss_slime_blue', element: 'none', tint: 0x44aaff, effect: { projectileDistBonus: 50 }, desc: '風刃距離 +50' },
-  { id: 'card_boss_slime_blue_c', name: '藍史萊姆王C卡', monsterId: 'boss_slime_blue', element: 'none', tint: 0x44aaff, effect: { whirlwindRangePct: 0.30 }, desc: '旋風斬攻擊範圍 +30%' },
+  { id: 'card_boss_slime_blue_a', name: '藍史萊姆王卡片(A)', monsterId: 'boss_slime_blue', element: 'none', tint: 0x44aaff, effect: { dashDistBonus: 45 }, desc: '瞬步斬距離 +45' },
+  { id: 'card_boss_slime_blue_b', name: '藍史萊姆王卡片(B)', monsterId: 'boss_slime_blue', element: 'none', tint: 0x44aaff, effect: { projectileDistBonus: 50 }, desc: '風刃距離 +50' },
+  { id: 'card_boss_slime_blue_c', name: '藍史萊姆王卡片(C)', monsterId: 'boss_slime_blue', element: 'none', tint: 0x44aaff, effect: { whirlwindRangePct: 0.30 }, desc: '旋風斬攻擊範圍 +30%' },
 
   // 白史萊姆王：掉落率 / 迴旋飛刃 / 血環
-  { id: 'card_boss_slime_white_a', name: '白史萊姆王A卡', monsterId: 'boss_slime_white', element: 'none', tint: 0xaaaaaa, effect: { dropRateMult: 1.5 }, desc: '掉落率 ×1.5' },
-  { id: 'card_boss_slime_white_b', name: '白史萊姆王B卡', monsterId: 'boss_slime_white', element: 'none', tint: 0xaaaaaa, effect: { boomerangRangePct: 0.30 }, desc: '迴旋飛刃命中範圍 +30%' },
-  { id: 'card_boss_slime_white_c', name: '白史萊姆王C卡', monsterId: 'boss_slime_white', element: 'none', tint: 0xaaaaaa, effect: { auraRadiusPct: 0.30 }, desc: '血環範圍 +30%' },
+  { id: 'card_boss_slime_white_a', name: '白史萊姆王卡片(A)', monsterId: 'boss_slime_white', element: 'none', tint: 0xaaaaaa, effect: { dropRateMult: 1.5 }, desc: '掉落率 ×1.5' },
+  { id: 'card_boss_slime_white_b', name: '白史萊姆王卡片(B)', monsterId: 'boss_slime_white', element: 'none', tint: 0xaaaaaa, effect: { boomerangRangePct: 0.30 }, desc: '迴旋飛刃命中範圍 +30%' },
+  { id: 'card_boss_slime_white_c', name: '白史萊姆王卡片(C)', monsterId: 'boss_slime_white', element: 'none', tint: 0xaaaaaa, effect: { auraRadiusPct: 0.30 }, desc: '血環範圍 +30%' },
 
   // 殭屍史萊姆王：玻璃砲 / 條件DoT / 燃燒上限
-  { id: 'card_boss_zombie_slime_a', name: '殭屍史萊姆王A卡', monsterId: 'boss_zombie_slime', element: 'none', tint: 0x88aa44, effect: { allDmgPct: 0.45, takenDmgPct: 0.30 }, desc: '所有傷害 +45%、受到傷害 +30%（不含燃燒）' },
-  { id: 'card_boss_zombie_slime_b', name: '殭屍史萊姆王B卡', monsterId: 'boss_zombie_slime', element: 'none', tint: 0x88aa44, effect: { condDotStackBonus: 0.03 }, desc: '持續傷害達30%時，每層燃燒傷害 +3%' },
-  { id: 'card_boss_zombie_slime_c', name: '殭屍史萊姆王C卡', monsterId: 'boss_zombie_slime', element: 'none', tint: 0x88aa44, effect: { burnMaxStackBonus: 5 }, desc: '燃燒上限 +5層' },
+  { id: 'card_boss_zombie_slime_a', name: '殭屍史萊姆王卡片(A)', monsterId: 'boss_zombie_slime', element: 'none', tint: 0x88aa44, effect: { allDmgPct: 0.45, takenDmgPct: 0.30 }, desc: '所有傷害 +45%、受到傷害 +30%（不含燃燒）' },
+  { id: 'card_boss_zombie_slime_b', name: '殭屍史萊姆王卡片(B)', monsterId: 'boss_zombie_slime', element: 'none', tint: 0x88aa44, effect: { condDotStackBonus: 0.03 }, desc: '持續傷害達30%時，每層燃燒傷害 +3%' },
+  { id: 'card_boss_zombie_slime_c', name: '殭屍史萊姆王卡片(C)', monsterId: 'boss_zombie_slime', element: 'none', tint: 0x88aa44, effect: { burnMaxStackBonus: 5 }, desc: '燃燒上限 +5層' },
 
   // 熔岩史萊姆王：Boss傷害 / 五連斬無僵直 / 蓄力暈眩
-  { id: 'card_boss_lava_slime_a', name: '熔岩史萊姆王A卡', monsterId: 'boss_lava_slime', element: 'none', tint: 0xff6622, effect: { dmgVsBoss: 0.25 }, desc: '對Boss傷害 +25%' },
-  { id: 'card_boss_lava_slime_b', name: '熔岩史萊姆王B卡', monsterId: 'boss_lava_slime', element: 'none', tint: 0xff6622, effect: { multiHitNoStagger: 1 }, desc: '五連斬不再有僵直' },
-  { id: 'card_boss_lava_slime_c', name: '熔岩史萊姆王C卡', monsterId: 'boss_lava_slime', element: 'none', tint: 0xff6622, effect: { chargeSlamStunChance: 0.50 }, desc: '蓄力重擊有50%機率造成暈眩2秒' },
+  { id: 'card_boss_lava_slime_a', name: '熔岩史萊姆王卡片(A)', monsterId: 'boss_lava_slime', element: 'none', tint: 0xff6622, effect: { dmgVsBoss: 0.25 }, desc: '對Boss傷害 +25%' },
+  { id: 'card_boss_lava_slime_b', name: '熔岩史萊姆王卡片(B)', monsterId: 'boss_lava_slime', element: 'none', tint: 0xff6622, effect: { multiHitNoStagger: 1 }, desc: '五連斬不再有僵直' },
+  { id: 'card_boss_lava_slime_c', name: '熔岩史萊姆王卡片(C)', monsterId: 'boss_lava_slime', element: 'none', tint: 0xff6622, effect: { chargeSlamStunChance: 0.50 }, desc: '蓄力重擊有50%機率造成暈眩2秒' },
 ];
 
 // ── Helpers ────────────────────────────────────────────────────────────────

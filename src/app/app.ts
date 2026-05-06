@@ -13,13 +13,18 @@ import { InventoryStore } from './game/data/inventory-store';
 export class App implements AfterViewInit {
 
   ngAfterViewInit(): void {
-    const W = window.innerWidth;
-    const H = window.innerHeight;
-    const isPortrait = H > W;
+    const wrapper = document.getElementById('game-wrapper')!;
+
+    // Read safe-area-aware dimensions from the wrapper (CSS already applied env() insets)
+    const rect = wrapper.getBoundingClientRect();
+    const W = rect.width  || window.innerWidth;
+    const H = rect.height || window.innerHeight;
+    const isPortrait = window.innerHeight > window.innerWidth;
+
+    // In portrait mode the canvas is rotated 90°: gameW=H, gameH=W
     const gameW = isPortrait ? H : W;
     const gameH = isPortrait ? W : H;
 
-    const wrapper = document.getElementById('game-wrapper')!;
     if (isPortrait) {
       Object.assign(wrapper.style, {
         width:           `${gameW}px`,

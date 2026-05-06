@@ -59,11 +59,25 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
 
   burnStacks    = 0;
   burnExpiresAt = 0;
+  stunUntil     = 0;
   def           = 0;
 
   applyBurn(gameTime: number, maxStacks = 15, duration = 4000): void {
     if (this.burnStacks < maxStacks) this.burnStacks++;
     this.burnExpiresAt = gameTime + duration;
+  }
+
+  applyStun(duration = 2000): void {
+    if (this.bossState === BossState.DEAD) return;
+    this.stunUntil = Math.max(this.stunUntil, this.scene.time.now + duration);
+    (this.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
+    this.stateTimer?.destroy();
+    this.stateTimer = undefined;
+    this.clearWarning();
+    this.setBossState(BossState.IDLE);
+    this.scene.time.delayedCall(duration, () => {
+      if (this.active && this.bossState !== BossState.DEAD) this.enterIdle();
+    });
   }
 
   onHpChanged?: (hp: number, maxHp: number) => void;
@@ -100,7 +114,12 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
 
   override preUpdate(time: number, delta: number): void {
     super.preUpdate(time, delta);
-    if (!this.started || this.bossState !== BossState.IDLE) return;
+    if (!this.started || this.bossState === BossState.DEAD) return;
+    if (time < this.stunUntil) {
+      (this.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
+      return;
+    }
+    if (this.bossState !== BossState.IDLE) return;
     const [tx, ty] = this.getTargetPos();
     const dist = Phaser.Math.Distance.Between(this.x, this.y, tx, ty);
     const body = this.body as Phaser.Physics.Arcade.Body;
