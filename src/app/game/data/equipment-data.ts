@@ -27,12 +27,58 @@ export function getElementMultiplier(atk: Element, def: Element): number {
 
 // Kept for card system compatibility
 export interface StatBonus {
-  atk?:       number;
-  hp?:        number;
-  speed?:     number;
-  def?:       number;
-  crit?:      number;
-  attackArc?: number;
+  // ── 固定值 ──
+  atk?:         number;
+  hp?:          number;
+  speed?:       number;
+  def?:         number;
+  crit?:        number;
+  attackArc?:   number;
+  atkSpeed?:    number;
+  evasion?:     number;
+  critDmg?:     number;
+  dotBonus?:    number;
+  penetration?: number;
+  lifesteal?:   number;
+  hpRegen?:     number;
+  // ── 百分比加成（套用在固定值加完之後）──
+  atkPct?:      number;  // ATK ×(1+X)
+  hpPct?:       number;  // MaxHP ×(1+X)
+  defPct?:      number;  // DEF ×(1+X)
+  // ── 條件加成 ──
+  weaponEnhance8Atk?:      number;  // 武器≥+8 時 ATK+X
+  weaponEnhance8Hp?:       number;  // 武器≥+8 時 HP+X
+  weaponEnhance8DotBonus?: number;  // 武器≥+8 時 dotBonus+X
+  // ── 目標傷害加成（乘數，加在 1 上面）──
+  dmgVsFire?:         number;  // 對火屬性 +X%
+  dmgVsWater?:        number;  // 對水屬性 +X%
+  dmgVsGrass?:        number;  // 對草屬性 +X%
+  dmgVsNone?:         number;  // 對無屬性 +X%
+  dmgVsAnyElement?:   number;  // 對火/水/草 +X%
+  dmgVsEliteOrBoss?:  number;  // 對菁英/Boss +X%
+  dmgVsSlime?:        number;  // 對史萊姆種族 +X%
+  dmgVsBoss?:         number;  // 對 Boss 專屬 +X%
+  // ── 技能特化 ──
+  whirlwindRangePct?:   number;  // 旋風斬範圍 ×(1+X)
+  slash180DmgPct?:      number;  // 半月斬傷害 ×(1+X)
+  burnMaxStackBonus?:   number;  // 燃燒上限 +X 層
+  dashDistBonus?:       number;  // 瞬步斬距離 +X
+  multiHitNoStagger?:   number;  // 五連斬無僵直（1 = 啟用）
+  chargeSlamStunChance?:number;  // 蓄力重擊暈眩機率
+  boomerangRangePct?:   number;  // 迴旋飛刃範圍 ×(1+X)
+  auraRadiusPct?:       number;  // 血環半徑 ×(1+X)
+  projectileDistBonus?: number;  // 風刃距離 +X
+  // ── 條件判斷加成（在 getTotalStats 內 resolve）──
+  condCritDmgBonus?:    number;  // 爆擊率≥50% 時 critDmg +X
+  condPenAtk?:          number;  // 穿甲≥100 時 ATK +X
+  condHpPct?:           number;  // maxHp≥800 時 HP ×(1+X)
+  // ── 玻璃砲 ──
+  allDmgPct?:           number;  // 所有主動攻擊傷害 ×(1+X)（不含 burn tick）
+  takenDmgPct?:         number;  // 受到傷害 ×(1+X)
+  // ── 掉落加成 ──
+  dropRateMult?:        number;  // 掉落率倍率
+  // ── 條件 DoT ──
+  condDotStackBonus?:   number;  // dotBonus≥30% 時每層 burn +X（加入 1+dotBonus 後的乘數）
 }
 
 // ── Affix system ───────────────────────────────────────────────────────────────

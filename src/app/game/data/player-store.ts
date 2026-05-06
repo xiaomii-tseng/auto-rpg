@@ -20,10 +20,35 @@ export interface EffectiveStats {
   atkSpeed:  number;
   lifesteal: number;
   evasion:   number;
-  critDmg:     number;
-  hpRegen:     number;
-  dotBonus:    number;
-  penetration: number;
+  critDmg:        number;
+  hpRegen:        number;
+  dotBonus:       number;
+  penetration:    number;
+  dmgVsFire?:        number;
+  dmgVsWater?:       number;
+  dmgVsGrass?:       number;
+  dmgVsNone?:        number;
+  dmgVsAnyElement?:  number;
+  dmgVsEliteOrBoss?: number;
+  dmgVsSlime?:       number;
+  dmgVsBoss?:        number;
+  // ── 技能特化 ──
+  whirlwindRangePct?:    number;
+  slash180DmgPct?:       number;
+  burnMaxStackBonus?:    number;
+  dashDistBonus?:        number;
+  multiHitNoStagger?:    number;
+  chargeSlamStunChance?: number;
+  boomerangRangePct?:    number;
+  auraRadiusPct?:        number;
+  projectileDistBonus?:  number;
+  // ── 玻璃砲 ──
+  allDmgPct?:    number;
+  takenDmgPct?:  number;
+  // ── 掉落 ──
+  dropRateMult?: number;
+  // ── 條件 DoT ──
+  condDotStackBonus?: number;
 }
 
 type EquippedMap = { [K in EquipSlot]: EquipmentItem | null };

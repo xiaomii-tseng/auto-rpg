@@ -43,10 +43,21 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
   atk           = 10;
   burnStacks    = 0;
   burnExpiresAt = 0;
+  stunUntil     = 0;
+  element:      import('../data/equipment-data').Element = 'none';
+  tier          = 1;
+  race          = 'slime';
 
   applyBurn(gameTime: number, maxStacks = 15, duration = 4000): void {
     if (this.burnStacks < maxStacks) this.burnStacks++;
     this.burnExpiresAt = gameTime + duration;
+  }
+
+  applyStun(duration = 2000): void {
+    this.stunUntil = Math.max(this.stunUntil, this.scene.time.now + duration);
+    this.pb.setVelocity(0, 0);
+    this.stateTimer?.destroy();
+    this.stateTimer = undefined;
   }
 
   private readonly animPrefix: string;
@@ -243,6 +254,13 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
     super.preUpdate(time, delta);
     if (!this.started || this.mState === MinionState.DEAD) return;
 
+    // 暈眩：凍結所有行動
+    if (time < this.stunUntil) {
+      this.pb.setVelocity(0, 0);
+      this.drawHpBar();
+      return;
+    }
+
     if (this.mState === MinionState.PATROL) {
       const [tx, ty] = this.getTargetPos();
       // 只在走回家之後才允許重新 aggro，避免抖動
@@ -352,6 +370,14 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
       slot++;
     } else {
       this.hideDebuffText('burn');
+    }
+
+    if (now < this.stunUntil) {
+      this.drawDebuffIcon(cx + slot * 16 - 8, cy, 'stun', 0xffdd00, 0x332200);
+      this.updateDebuffText('stun', cx + slot * 16 - 8, cy, '★');
+      slot++;
+    } else {
+      this.hideDebuffText('stun');
     }
 
     // hide texts for any slots beyond what's active

@@ -4,6 +4,7 @@ import { PlayerStore } from '../data/player-store';
 import { generateEquipment, randomQuality, QUALITY_NAMES, QUALITY_COLORS, SLOT_NAMES, STAT_NAMES, BEHAVIOR_NAMES, BEHAVIOR_INFO, EquipSlot, EquipmentItem, applyEnhancement, revertEnhancement, ENHANCE_COST, ENHANCE_RATE, ENHANCE_COMPLETE_BONUS, ENHANCE_DEMOTE_FROM, ENHANCE_MAX } from '../data/equipment-data';
 import { SaveStore } from '../data/save-store';
 import { CardStore, CARD_SLOT_COUNT } from '../data/card-store';
+
 import { getCardDef, getMonsterDef } from '../data/monster-data';
 import { QuestStore, Quest, STAR_EQUIP_QUALITY } from '../data/quest-store';
 
@@ -2427,12 +2428,24 @@ export class PrepScene extends Phaser.Scene {
         maxLines: 3,
       }).setOrigin(0.5, 0));
 
+      // ── Tier & stack limit info ────────────────────────
+      const detMonTier   = getMonsterDef(def.monsterId)?.tier ?? 1;
+      const detTierName  = detMonTier >= 5 ? 'Boss' : detMonTier === 3 ? '菁英' : '一般';
+      const detLimit     = CardStore.getStackLimit(cardId);
+      const detEquipped  = CardStore.getEquipped().filter(s => s === cardId).length;
+      const detTierColor = detMonTier >= 5 ? '#ffd060' : detMonTier === 3 ? '#80c8ff' : '#88dd88';
+      pop.add(this.add.text(0, PDH / 2 - 56, `${detTierName}怪物卡 · 裝備上限 ${detLimit}  (已裝 ${detEquipped})`, {
+        fontSize: '10px', color: detTierColor,
+        stroke: '#1a0800', strokeThickness: 1, align: 'center',
+      }).setOrigin(0.5, 0.5));
+
       // ── Action button ─────────────────────────────────
       const isEquipped = equippedSlot !== null;
-      const btnLabel   = isEquipped ? '取  下' : '配  置';
-      const btnColor   = isEquipped ? 0x3a1010 : 0x0e2a0e;
-      const btnBorder  = isEquipped ? 0xcc4444 : 0x44cc44;
-      const btnTxtC    = isEquipped ? '#ff8888' : '#88ff88';
+      const atDetLimit = !isEquipped && detEquipped >= detLimit;
+      const btnLabel   = isEquipped ? '取  下' : atDetLimit ? '已達上限' : '配  置';
+      const btnColor   = isEquipped ? 0x3a1010 : atDetLimit ? 0x2a2a2a : 0x0e2a0e;
+      const btnBorder  = isEquipped ? 0xcc4444 : atDetLimit ? 0x666666 : 0x44cc44;
+      const btnTxtC    = isEquipped ? '#ff8888' : atDetLimit ? '#666666' : '#88ff88';
 
       const BW = PDW - 40, BH = 32;
       const btnY = PDH / 2 - 28;
@@ -2448,19 +2461,21 @@ export class PrepScene extends Phaser.Scene {
         color: btnTxtC, stroke: '#000000', strokeThickness: 2,
       }).setOrigin(0.5));
 
-      const btnHit = this.add.rectangle(0, btnY, BW, BH).setInteractive({ useHandCursor: true });
-      btnHit.on('pointerdown', (ptr: Phaser.Input.Pointer) => {
-        ptr.event.stopPropagation();
-        if (isEquipped) {
-          CardStore.unequip(equippedSlot!);
-        } else {
-          CardStore.equipAuto(cardId);
-        }
-        SaveStore.save();
-        pop.destroy();
-        detailPopup = null;
-      });
-      pop.add(btnHit);
+      if (!atDetLimit) {
+        const btnHit = this.add.rectangle(0, btnY, BW, BH).setInteractive({ useHandCursor: true });
+        btnHit.on('pointerdown', (ptr: Phaser.Input.Pointer) => {
+          ptr.event.stopPropagation();
+          if (isEquipped) {
+            CardStore.unequip(equippedSlot!);
+          } else {
+            CardStore.equipAuto(cardId);
+          }
+          SaveStore.save();
+          pop.destroy();
+          detailPopup = null;
+        });
+        pop.add(btnHit);
+      }
     };
 
     // ── Helper: draw card face (name only) ─────────────────
@@ -2531,6 +2546,16 @@ export class PrepScene extends Phaser.Scene {
 
         if (def) {
           drawCardFace(contentCnt, def, cx, cy, `${i + 1}`);
+          // Tier badge (bottom-right of equipped slot)
+          const eqMonTier   = getMonsterDef(def.monsterId)?.tier ?? 1;
+          const tierLabel   = eqMonTier >= 5 ? 'Boss' : eqMonTier === 3 ? '菁英' : '一般';
+          const tierBgColor = eqMonTier >= 5 ? '#8b5e00' : eqMonTier === 3 ? '#1a3a5c' : '#1a2e1a';
+          const tierTxtColor= eqMonTier >= 5 ? '#ffd060' : eqMonTier === 3 ? '#80c8ff' : '#88dd88';
+          contentCnt.add(this.add.text(cx + CARD_W / 2 - 2, cy + CARD_H / 2 - 2, tierLabel, {
+            fontSize: '8px', fontStyle: 'bold', color: tierTxtColor,
+            stroke: '#000000', strokeThickness: 1,
+            backgroundColor: tierBgColor, padding: { x: 2, y: 1 },
+          }).setOrigin(1, 1));
           const hit = this.add.rectangle(cx, cy, CARD_W, CARD_H).setInteractive({ useHandCursor: true });
           hit.on('pointerdown', () => showCardDetail(def, i, cardId!));
           contentCnt.add(hit);
@@ -2593,6 +2618,25 @@ export class PrepScene extends Phaser.Scene {
         scrollCnt.add(cg);
 
         drawCardFace(scrollCnt, def, cx, cy, '', qty);
+
+        // Stack limit badge (bottom-left)
+        const equippedCount = eq.filter(s => s === cardId).length;
+        const stackLimit    = CardStore.getStackLimit(cardId);
+        const atLimit       = equippedCount >= stackLimit;
+        const badgeColor    = atLimit ? '#cc2222' : equippedCount > 0 ? '#cc8800' : '#226622';
+        scrollCnt.add(this.add.text(cx - CARD_W / 2 + 2, cy + CARD_H / 2 - 2, `${equippedCount}/${stackLimit}`, {
+          fontSize: '9px', fontStyle: 'bold', color: '#ffffff',
+          stroke: '#000000', strokeThickness: 1,
+          backgroundColor: badgeColor, padding: { x: 2, y: 1 },
+        }).setOrigin(0, 1));
+
+        // Dim overlay if at stack limit
+        if (atLimit) {
+          const dimOvl = this.add.graphics();
+          dimOvl.fillStyle(0x000000, 0.45);
+          dimOvl.fillRect(cx - CARD_W / 2, cy - CARD_H / 2, CARD_W, CARD_H);
+          scrollCnt.add(dimOvl);
+        }
 
         const hit = this.add.rectangle(cx, cy, CARD_W, CARD_H).setInteractive({ useHandCursor: true });
         hit.on('pointerdown', () => showCardDetail(def, null, cardId));

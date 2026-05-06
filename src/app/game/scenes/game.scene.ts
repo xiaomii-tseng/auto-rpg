@@ -299,7 +299,7 @@ export class GameScene extends Phaser.Scene {
       this.auraRing.setVisible(isAura && !this.gameOver);
       if (isAura) {
         const g = this.auraRing;
-        const R = this.AURA_RANGE;
+        const R = this.AURA_RANGE * (1 + (CardStore.getTotalStats().auraRadiusPct ?? 0));
         const t = this.time.now / 1000;
 
         // 整體繞玩家旋轉
@@ -424,13 +424,28 @@ export class GameScene extends Phaser.Scene {
   ): void {
     const stats    = CardStore.getTotalStats();
     const isCrit   = Math.random() < stats.crit;
-    const elemMult = (target === this.boss) ? getElementMultiplier(attackElem, this.boss.element) : 1;
-    const dmg      = Math.round(stats.atk * Phaser.Math.FloatBetween(0.85, 1.15) * dmgMult * (isCrit ? (1 + stats.critDmg) : 1) * elemMult);
-    const pen      = target === this.boss ? stats.penetration : 0;
+    const isBoss   = target === this.boss;
+    const tgtElem  = isBoss ? this.boss.element : (target as import('../objects/minion-slime').MinionSlime).element;
+    const tgtTier  = isBoss ? 5 : (target as import('../objects/minion-slime').MinionSlime).tier;
+    const elemMult = isBoss ? getElementMultiplier(attackElem, this.boss.element) : 1;
+
+    let targetMult = 1;
+    if (stats.dmgVsFire        && tgtElem === 'fire')  targetMult += stats.dmgVsFire;
+    if (stats.dmgVsWater       && tgtElem === 'water') targetMult += stats.dmgVsWater;
+    if (stats.dmgVsGrass       && tgtElem === 'grass') targetMult += stats.dmgVsGrass;
+    if (stats.dmgVsNone        && tgtElem === 'none')  targetMult += stats.dmgVsNone;
+    if (stats.dmgVsAnyElement  && tgtElem !== 'none')  targetMult += stats.dmgVsAnyElement;
+    if (stats.dmgVsEliteOrBoss && tgtTier >= 3)        targetMult += stats.dmgVsEliteOrBoss;
+    if (stats.dmgVsSlime)                              targetMult += stats.dmgVsSlime;
+    if (stats.dmgVsBoss        && isBoss)              targetMult += stats.dmgVsBoss;
+
+    const allMult = 1 + (stats.allDmgPct ?? 0);
+    const dmg = Math.round(stats.atk * Phaser.Math.FloatBetween(0.85, 1.15) * dmgMult * (isCrit ? (1 + stats.critDmg) : 1) * elemMult * targetMult * allMult);
+    const pen = isBoss ? stats.penetration : 0;
     target.takeDamage(dmg, pen);
     target.knockback(srcX, srcY);
     if (stats.lifesteal > 0) this.player.heal(Math.round(dmg * stats.lifesteal));
-    this.spawnDamageNumber(target.x, target.y, dmg, isCrit, elemMult);
+    this.spawnDamageNumber(target.x, target.y, dmg, isCrit, elemMult * targetMult);
   }
 
   private hitInArea(
@@ -525,7 +540,7 @@ export class GameScene extends Phaser.Scene {
           while (tAngle < sa - 0.01) tAngle += Math.PI * 2;
           if (tAngle > curEa + 0.01) continue;
           hitTargets.add(t);
-          this.dealDamage(t, 1.0, px, py, dir);
+          this.dealDamage(t, 1.0 * (1 + (stats.slash180DmgPct ?? 0)), px, py, dir);
         }
       };
 
@@ -628,9 +643,10 @@ export class GameScene extends Phaser.Scene {
   // ── 旋風斬 whirlwind ──────────────────────────────────────
 
   private attackWhirlwind(_tx: number, _ty: number): void {
-    const cd = Math.round(650 / (1 + CardStore.getTotalStats().atkSpeed));
+    const stats = CardStore.getTotalStats();
+    const cd = Math.round(650 / (1 + stats.atkSpeed));
     if (!this.player.lockCooldown(cd)) return;
-    const RANGE = Math.round(MELEE_RANGE * 1.1);
+    const RANGE = Math.round(MELEE_RANGE * 1.1 * (1 + (stats.whirlwindRangePct ?? 0)));
     const px = this.player.x, py = this.player.y;
     const D  = this.player.depth;
     this.player.playWhirlwind(() => {
@@ -698,7 +714,7 @@ export class GameScene extends Phaser.Scene {
   // ── 瞬步斬 dashPierce ─────────────────────────────────────
 
   private calcDashEndpoint(sx: number, sy: number, rad: number): { x: number; y: number } {
-    const DASH = 78, PAD = 32, STEP = 4, PW = 10, PH = 8;
+    const DASH = 78 + (CardStore.getTotalStats().dashDistBonus ?? 0), PAD = 32, STEP = 4, PW = 10, PH = 8;
     let endX = Phaser.Math.Clamp(sx + Math.cos(rad) * DASH, PAD, this.worldW - PAD);
     let endY = Phaser.Math.Clamp(sy + Math.sin(rad) * DASH, PAD, this.worldH - PAD);
     const steps = Math.ceil(Phaser.Math.Distance.Between(sx, sy, endX, endY) / STEP);
@@ -843,10 +859,10 @@ export class GameScene extends Phaser.Scene {
   // ── 刀風 projectile ───────────────────────────────────────
 
   private attackProjectile(_tx: number, _ty: number): void {
-    const SPEED = 380, MAX_DIST = 155;
+    const stats0 = CardStore.getTotalStats();
+    const SPEED = 380, MAX_DIST = 155 + (stats0.projectileDistBonus ?? 0);
     const { dir, rad } = this.resolveAttackDir(240);
 
-    const stats0 = CardStore.getTotalStats();
     const cd = Math.round(650 / (1 + stats0.atkSpeed));
     if (!this.player.lockCooldown(cd)) return;
 
@@ -985,7 +1001,7 @@ export class GameScene extends Phaser.Scene {
 
     const { dir, deg } = this.resolveAttackDir(MELEE_RANGE * 3);
     const arc    = stats.attackArc;
-    const rootMs = Math.round(450 / spd);
+    const rootMs = stats.multiHitNoStagger ? 0 : Math.round(450 / spd);
     this.player.setRooted(rootMs);
     this.player.startAttackAnim(`player_multihit_${dir}`);
 
@@ -1116,15 +1132,17 @@ export class GameScene extends Phaser.Scene {
   // ── 迴旋飛刃 boomerang ────────────────────────────────────
 
   private attackBoomerang(_tx: number, _ty: number): void {
-    const spd = 1 + CardStore.getTotalStats().atkSpeed;
+    const bStats = CardStore.getTotalStats();
+    const spd = 1 + bStats.atkSpeed;
     const cd  = Math.round(1500 / spd);
     if (!this.player.lockCooldown(cd)) return;
 
     const { dir, rad } = this.resolveAttackDir(240);
     this.player.startAttackAnim(`player_attack_${dir}`);
 
-    const HIT_R    = 14;
-    const SPIN_R   = 26;   // 旋轉傷害範圍（原 HIT_R+8=22，+20%）
+    const rangeMult = 1 + (bStats.boomerangRangePct ?? 0);
+    const HIT_R    = Math.round(14 * rangeMult);
+    const SPIN_R   = Math.round(26 * rangeMult);
     const MAX_DIST = 160;
     const SPIN_MS  = Math.round(800 / spd);
     const destX    = this.player.x + Math.cos(rad) * MAX_DIST;
@@ -1478,20 +1496,26 @@ export class GameScene extends Phaser.Scene {
     // 清除過期火焰
     this.activeFires = this.activeFires.filter(f => now < f.expiresAt);
 
+    // burnMaxStackBonus 卡片效果
+    const burnCap = this.BURN_MAX_STACKS + (stats.burnMaxStackBonus ?? 0);
+
+    // condDotStackBonus：dotBonus≥30% 時每層額外加成
+    const condDotActive = stats.dotBonus >= 0.30 && (stats.condDotStackBonus ?? 0) > 0;
+
     // 對踩在任意火焰內的敵人疊 1 層，同時記錄誰在火裡
     const minionInFire = new Set<(typeof this.allMinions)[number]>();
     for (const m of this.allMinions) {
       if (m.isDead) continue;
       if (this.activeFires.some(f => Phaser.Math.Distance.Between(m.x, m.y, f.x, f.y) <= f.r)) {
-        m.applyBurn(now, this.BURN_MAX_STACKS, this.BURN_DURATION);
-        m.applyBurn(now, this.BURN_MAX_STACKS, this.BURN_DURATION); // 小怪疊層速度是 Boss 的兩倍
+        m.applyBurn(now, burnCap, this.BURN_DURATION);
+        m.applyBurn(now, burnCap, this.BURN_DURATION); // 小怪疊層速度是 Boss 的兩倍
         minionInFire.add(m);
       }
     }
     let bossInFire = false;
     if (this.bossActive && this.boss.active) {
       if (this.activeFires.some(f => Phaser.Math.Distance.Between(this.boss.x, this.boss.y, f.x, f.y) <= f.r)) {
-        this.boss.applyBurn(now, this.BURN_MAX_STACKS, this.BURN_DURATION);
+        this.boss.applyBurn(now, burnCap, this.BURN_DURATION);
         bossInFire = true;
       }
     }
@@ -1505,7 +1529,8 @@ export class GameScene extends Phaser.Scene {
       if (m.isDead || m.burnStacks <= 0) continue;
       if (now >= m.burnExpiresAt) { m.burnStacks = 0; continue; }
       if (!minionInFire.has(m)) m.burnStacks = applyDecay(m.burnStacks);
-      const dmg = Math.round(stats.atk * 0.030 * m.burnStacks * (1 + stats.dotBonus));
+      const dotMult = 1 + stats.dotBonus + (condDotActive ? (stats.condDotStackBonus! * m.burnStacks) : 0);
+      const dmg = Math.round(stats.atk * 0.030 * m.burnStacks * dotMult);
       m.takeDamage(dmg);
       this.spawnDamageNumber(m.x, m.y, dmg, false, 1);
     }
@@ -1513,7 +1538,8 @@ export class GameScene extends Phaser.Scene {
       if (now >= this.boss.burnExpiresAt) { this.boss.burnStacks = 0; this.refreshBossBar(); return; }
       if (!bossInFire) this.boss.burnStacks = applyDecay(this.boss.burnStacks);
       const elemMult = getElementMultiplier('fire', this.boss.element);
-      const dmg = Math.round(stats.atk * 0.032 * this.boss.burnStacks * (1 + stats.dotBonus) * elemMult);
+      const dotMult  = 1 + stats.dotBonus + (condDotActive ? (stats.condDotStackBonus! * this.boss.burnStacks) : 0);
+      const dmg = Math.round(stats.atk * 0.032 * this.boss.burnStacks * dotMult * elemMult);
       this.boss.takeDamage(dmg, stats.penetration);
       this.spawnDamageNumber(this.boss.x, this.boss.y, dmg, false, elemMult);
       this.refreshBossBar();
@@ -1524,8 +1550,8 @@ export class GameScene extends Phaser.Scene {
     if (this.gameOver) return;
     if ((PlayerStore.getEquipped().sword?.behavior ?? 'slash180') !== 'aura') return;
 
-    const RANGE   = this.AURA_RANGE;
     const stats   = CardStore.getTotalStats();
+    const RANGE   = this.AURA_RANGE * (1 + (stats.auraRadiusPct ?? 0));
     const baseDmg = this.player.maxHpValue * 0.065;
     const px = this.player.x, py = this.player.y;
 
@@ -1666,6 +1692,16 @@ export class GameScene extends Phaser.Scene {
 
         this.hitInArea(px, py, SLAM_RANGE, 1.235, 360, 0, dir);
 
+        // 暈眩效果
+        const slamStats = CardStore.getTotalStats();
+        if ((slamStats.chargeSlamStunChance ?? 0) > 0 && Math.random() < slamStats.chargeSlamStunChance!) {
+          for (const t of this.getHittableTargets()) {
+            if (Phaser.Math.Distance.Between(px, py, t.x, t.y) <= SLAM_RANGE) {
+              (t as MinionSlime).applyStun?.(2000);
+            }
+          }
+        }
+
         // debug: 命中範圍
         const dbg = this.add.graphics().setDepth(this.player.depth + 3);
         dbg.lineStyle(2, 0xff4444, 0.9);
@@ -1681,8 +1717,9 @@ export class GameScene extends Phaser.Scene {
     const def = getMonsterDef(monsterId);
     if (!def) return;
     this.spawnLoot(x, y, def.drops);
+    const cardDropMult = CardStore.getTotalStats().dropRateMult ?? 1;
     for (const card of def.cards) {
-      if (Math.random() < card.rate) this.spawnCardDrop(x, y, card.cardId);
+      if (Math.random() < card.rate * cardDropMult) this.spawnCardDrop(x, y, card.cardId);
     }
     const gained = PlayerStore.addExp(def.exp);
     if (gained > 0) this.showLevelUp(PlayerStore.getLevel());
@@ -2020,7 +2057,9 @@ export class GameScene extends Phaser.Scene {
     const a   = Phaser.Math.FloatBetween(0, Math.PI * 2);
     const r   = Phaser.Math.FloatBetween(20, 60);
     const m   = new MinionSlime(this, wx + Math.cos(a) * r, wy + Math.sin(a) * r, hp, def.spriteKey, def.tint);
-    m.atk = atk;
+    m.atk     = atk;
+    m.element = def.element;
+    m.tier    = isElite ? 3 : def.tier;
     if (isElite) {
       m.isElite = true;
       m.setScale(m.scaleX * ELITE_SCALE_MOD, m.scaleY * ELITE_SCALE_MOD);
@@ -2545,8 +2584,9 @@ export class GameScene extends Phaser.Scene {
       const dropMult = STAR_DROP_MULT[this.questStar] ?? 1;
       const scaledDrops = bossDef.drops.map(d => ({ ...d, rate: Math.min(1, d.rate * dropMult) }));
       this.spawnLoot(this.boss.x, this.boss.y, scaledDrops);
+      const bossCardMult = CardStore.getTotalStats().dropRateMult ?? 1;
       for (const card of bossDef.cards) {
-        if (Math.random() < card.rate) this.spawnCardDrop(this.boss.x, this.boss.y, card.cardId);
+        if (Math.random() < card.rate * bossCardMult) this.spawnCardDrop(this.boss.x, this.boss.y, card.cardId);
       }
     }
 
@@ -2661,8 +2701,9 @@ export class GameScene extends Phaser.Scene {
   }
 
   private spawnLoot(cx: number, cy: number, drops: DropEntry[]): void {
+    const dropMult = CardStore.getTotalStats().dropRateMult ?? 1;
     for (const drop of drops) {
-      if (Math.random() >= drop.rate) continue;
+      if (Math.random() >= drop.rate * dropMult) continue;
       const qty = Phaser.Math.Between(drop.qtyMin, drop.qtyMax);
       const ox  = Phaser.Math.Between(-22, 22);
       const oy  = Phaser.Math.Between(-10, 10);
