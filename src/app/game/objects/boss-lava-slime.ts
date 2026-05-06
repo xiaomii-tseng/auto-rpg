@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { Boss, BossState } from './boss';
 
 const DPR = Math.min(window.devicePixelRatio || 1, 3);
+const P = (n: number): number => Math.round(n * DPR);
 
 // ── 岩漿彈幕常數 ──────────────────────────────────────────
 const BARRAGE_DIRS_P1    = 8;
@@ -67,14 +68,14 @@ export class BossLavaSlime extends Boss {
     this.setTint(0xff6600);
 
     const shockG = this.scene.add.graphics().setDepth(this.depth + 2).setPosition(this.x, this.y);
-    const ss = { r: 8, a: 1.0 };
+    const ss = { r: P(8), a: 1.0 };
     this.scene.tweens.add({
-      targets: ss, r: 115, a: 0, duration: 560, ease: 'Quad.Out',
+      targets: ss, r: P(115), a: 0, duration: 560, ease: 'Quad.Out',
       onUpdate: () => {
         shockG.clear();
-        shockG.lineStyle(6, 0xff6600, ss.a);
+        shockG.lineStyle(P(6), 0xff6600, ss.a);
         shockG.strokeCircle(0, 0, ss.r);
-        shockG.lineStyle(16, 0xffaa00, ss.a * 0.26);
+        shockG.lineStyle(P(16), 0xffaa00, ss.a * 0.26);
         shockG.strokeCircle(0, 0, ss.r);
       },
       onComplete: () => shockG.destroy(),
@@ -127,11 +128,11 @@ export class BossLavaSlime extends Boss {
       const g = this.scene.add.graphics().setDepth(8).setPosition(p.x, p.y);
       g.fillStyle(0xff2200, 0.22);
       g.fillCircle(0, 0, PILLAR_RADIUS);
-      g.lineStyle(2, 0xff5500, 0.95);
+      g.lineStyle(P(2), 0xff5500, 0.95);
       g.strokeCircle(0, 0, PILLAR_RADIUS);
-      g.lineStyle(1.5, 0xff3300, 0.78);
-      g.lineBetween(-8, -8, 8, 8);
-      g.lineBetween(8, -8, -8, 8);
+      g.lineStyle(P(2), 0xff3300, 0.78);
+      g.lineBetween(-P(8), -P(8), P(8), P(8));
+      g.lineBetween(P(8), -P(8), -P(8), P(8));
       return g;
     });
 
@@ -212,7 +213,7 @@ export class BossLavaSlime extends Boss {
       warnG.closePath();
       warnG.fillPath();
       // 扇形邊線
-      warnG.lineStyle(1.5, 0xff6600, 0.70);
+      warnG.lineStyle(P(2), 0xff6600, 0.70);
       warnG.lineBetween(
         this.x, this.y,
         this.x + Math.cos(center - halfRad) * warnLen,
@@ -224,8 +225,8 @@ export class BossLavaSlime extends Boss {
         this.y + Math.sin(center + halfRad) * warnLen,
       );
     }
-    warnG.lineStyle(2.5, 0xff2200, 0.85);
-    warnG.strokeCircle(this.x, this.y, 22);
+    warnG.lineStyle(P(3), 0xff2200, 0.85);
+    warnG.strokeCircle(this.x, this.y, P(22));
 
     const pw = { a: 1.0 };
     this.pulseTween?.stop();
@@ -316,11 +317,11 @@ export class BossLavaSlime extends Boss {
         ball.setPosition(cx, cy);
         ball.clear();
         ball.fillStyle(0xff8800, 0.32);
-        ball.fillCircle(0, 0, 13);
+        ball.fillCircle(0, 0, P(13));
         ball.fillStyle(0xff4400, 0.95);
-        ball.fillCircle(0, 0, 7);
+        ball.fillCircle(0, 0, P(7));
         ball.fillStyle(0xffee44, 0.80);
-        ball.fillCircle(-1, -2, 3);
+        ball.fillCircle(-P(1), -P(2), P(3));
       },
       onComplete: () => {
         hitTimer.destroy();
@@ -381,13 +382,13 @@ export class BossLavaSlime extends Boss {
         const g = this.scene.add.graphics().setDepth(8).setPosition(p.x, p.y);
         g.fillStyle(0xff2200, 0.20);
         g.fillCircle(0, 0, PILLAR_RADIUS);
-        g.lineStyle(2, 0xff5500, 0.90);
+        g.lineStyle(P(2), 0xff5500, 0.90);
         g.strokeCircle(0, 0, PILLAR_RADIUS);
-        g.lineStyle(1.2, 0xff3300, 0.55);
+        g.lineStyle(P(1), 0xff3300, 0.55);
         g.strokeCircle(0, 0, PILLAR_RADIUS * 0.55);
-        g.lineStyle(1.5, 0xff3300, 0.78);
-        g.lineBetween(-8, -8, 8, 8);
-        g.lineBetween(8, -8, -8, 8);
+        g.lineStyle(P(2), 0xff3300, 0.78);
+        g.lineBetween(-P(8), -P(8), P(8), P(8));
+        g.lineBetween(P(8), -P(8), -P(8), P(8));
 
         const pw = { a: 1.0 };
         const pt = this.scene.tweens.add({
@@ -437,14 +438,14 @@ export class BossLavaSlime extends Boss {
     });
 
     const shockG = this.scene.add.graphics().setDepth(20).setPosition(cx, cy);
-    const ss = { r: 8, a: 1.0 };
+    const ss = { r: P(8), a: 1.0 };
     this.scene.tweens.add({
       targets: ss, r: PILLAR_RADIUS * 1.45, a: 0, duration: 320, ease: 'Quad.Out',
       onUpdate: () => {
         shockG.clear();
-        shockG.lineStyle(3, 0xff5500, ss.a);
+        shockG.lineStyle(P(3), 0xff5500, ss.a);
         shockG.strokeCircle(0, 0, ss.r);
-        shockG.lineStyle(9, 0xffaa00, ss.a * 0.22);
+        shockG.lineStyle(P(9), 0xffaa00, ss.a * 0.22);
         shockG.strokeCircle(0, 0, ss.r);
       },
       onComplete: () => shockG.destroy(),

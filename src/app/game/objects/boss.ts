@@ -3,6 +3,7 @@ import { Element } from '../data/equipment-data';
 import { MONSTER_SCALE_BOSS } from '../data/monster-data';
 
 const DPR = Math.min(window.devicePixelRatio || 1, 3);
+const P = (n: number): number => Math.round(n * DPR);
 
 export enum BossState {
   IDLE        = 'IDLE',
@@ -652,10 +653,10 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
 
     // ── Interior: sparse 2×2 dot grid ─────────────────────
     this.warningGfx.fillStyle(0xff0000, 0.14);
-    for (let dx = -(r - 4); dx <= r - 4; dx += 8) {
-      for (let dy = -(r - 4); dy <= r - 4; dy += 8) {
-        if (dx * dx + dy * dy <= (r - 8) * (r - 8)) {
-          this.warningGfx.fillRect(dx - 1, dy - 1, 2, 2);
+    for (let dx = -(r - P(4)); dx <= r - P(4); dx += P(8)) {
+      for (let dy = -(r - P(4)); dy <= r - P(4); dy += P(8)) {
+        if (dx * dx + dy * dy <= (r - P(8)) * (r - P(8))) {
+          this.warningGfx.fillRect(dx - P(1), dy - P(1), P(2), P(2));
         }
       }
     }
@@ -666,14 +667,14 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
       if (i % 4 === 3) continue;
       const a = (i / 28) * Math.PI * 2;
       this.warningGfx.fillStyle(0xff3300, 0.50);
-      this.warningGfx.fillRect(Math.cos(a) * r2 - 2, Math.sin(a) * r2 - 2, 4, 4);
+      this.warningGfx.fillRect(Math.cos(a) * r2 - P(2), Math.sin(a) * r2 - P(2), P(4), P(4));
     }
 
     // ── Outer pixel ring — 4×4 blocks, 8×8 at cardinals ──
     const steps = 48;
     for (let i = 0; i < steps; i++) {
       const isCardinal = i % 12 === 0;
-      const sz  = isCardinal ? 8 : 4;
+      const sz  = isCardinal ? P(8) : P(4);
       const alp = isCardinal ? 1.0 : 0.88;
       const a   = (i / steps) * Math.PI * 2;
       this.warningGfx.fillStyle(0xff1100, alp);
@@ -684,18 +685,18 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     this.warningGfx.fillStyle(0xff4400, 1);
     for (let i = 0; i < 4; i++) {
       const a = (i / 4) * Math.PI * 2;
-      this.warningGfx.fillRect(Math.cos(a) * r - 5,        Math.sin(a) * r - 5,        10, 10);
-      this.warningGfx.fillRect(Math.cos(a) * (r - 14) - 2, Math.sin(a) * (r - 14) - 2, 4,  4);
+      this.warningGfx.fillRect(Math.cos(a) * r - P(5),           Math.sin(a) * r - P(5),           P(10), P(10));
+      this.warningGfx.fillRect(Math.cos(a) * (r - P(14)) - P(2), Math.sin(a) * (r - P(14)) - P(2), P(4),  P(4));
     }
 
     // ── Center target reticle ─────────────────────────────
     this.warningGfx.fillStyle(0xff2200, 0.65);
-    this.warningGfx.fillRect(-12, -2, 24, 4);
-    this.warningGfx.fillRect(-2, -12, 4, 24);
+    this.warningGfx.fillRect(-P(12), -P(2), P(24), P(4));
+    this.warningGfx.fillRect(-P(2), -P(12), P(4), P(24));
     this.warningGfx.fillStyle(0xff5500, 0.9);
     for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
-      this.warningGfx.fillRect(sx * 6,      sy * 6 - 1, sx < 0 ? -6 : 6, 2);
-      this.warningGfx.fillRect(sx * 6 - 1,  sy * 6,     2, sy < 0 ? -6 : 6);
+      this.warningGfx.fillRect(sx * P(6),          sy * P(6) - P(1), sx < 0 ? -P(6) : P(6), P(2));
+      this.warningGfx.fillRect(sx * P(6) - P(1),  sy * P(6),         P(2), sy < 0 ? -P(6) : P(6));
     }
 
     this.pulseTween = this.scene.tweens.add({
@@ -725,17 +726,17 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
 
     // ── Center dotted dashes ──────────────────────────────
     this.warningGfx.fillStyle(0xff3300, 0.45);
-    for (let d = 22; d < len; d += 11) {
-      this.warningGfx.fillRect(this.x + cos * d - 2, this.y + sin * d - 2, 4, 4);
+    for (let d = P(22); d < len; d += P(11)) {
+      this.warningGfx.fillRect(this.x + cos * d - P(2), this.y + sin * d - P(2), P(4), P(4));
     }
 
     // ── 3 pixel chevron arrows ────────────────────────────
     const numChev  = 3;
-    const chevHW   = 20;   // chevron half-width (px)
-    const chevD    = 16;   // forward depth of chevron tip
+    const chevHW   = P(20);   // chevron half-width (px)
+    const chevD    = P(16);   // forward depth of chevron tip
 
     for (let c = 0; c < numChev; c++) {
-      const dist = 44 + c * 68;
+      const dist = P(44) + c * P(68);
       if (dist > len) break;
       const alpha = 1.0 - c * 0.20;
       const bx    = this.x + cos * dist;
@@ -749,15 +750,15 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
         const fd = chevD  * t;
         // Left arm
         this.warningGfx.fillStyle(0xff1100, alpha * 0.9);
-        this.warningGfx.fillRect(bx + cos * fd + pc * hw - 3, by + sin * fd + ps * hw - 3, 6, 6);
+        this.warningGfx.fillRect(bx + cos * fd + pc * hw - P(3), by + sin * fd + ps * hw - P(3), P(6), P(6));
         // Right arm (skip centre overlap at tip)
         if (s < segs) {
-          this.warningGfx.fillRect(bx + cos * fd - pc * hw - 3, by + sin * fd - ps * hw - 3, 6, 6);
+          this.warningGfx.fillRect(bx + cos * fd - pc * hw - P(3), by + sin * fd - ps * hw - P(3), P(6), P(6));
         }
       }
       // Bright tip pixel
       this.warningGfx.fillStyle(0xff6600, alpha);
-      this.warningGfx.fillRect(bx + cos * chevD - 4, by + sin * chevD - 4, 8, 8);
+      this.warningGfx.fillRect(bx + cos * chevD - P(4), by + sin * chevD - P(4), P(8), P(8));
     }
 
     // ── Start ring at boss feet ───────────────────────────
@@ -765,9 +766,9 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     for (let i = 0; i < 8; i++) {
       const a = (i / 8) * Math.PI * 2;
       this.warningGfx.fillRect(
-        this.x + Math.cos(a) * 18 - 3,
-        this.y + Math.sin(a) * 18 - 3,
-        6, 6,
+        this.x + Math.cos(a) * P(18) - P(3),
+        this.y + Math.sin(a) * P(18) - P(3),
+        P(6), P(6),
       );
     }
 
@@ -775,11 +776,11 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     const tx = this.x + cos * len;
     const ty = this.y + sin * len;
     this.warningGfx.fillStyle(0xff4400, 0.85);
-    for (const [ox, oy] of [[-8, 0], [8, 0], [0, -8], [0, 8]]) {
-      this.warningGfx.fillRect(tx + ox - 2, ty + oy - 2, 4, 4);
+    for (const [ox, oy] of [[-P(8), 0], [P(8), 0], [0, -P(8)], [0, P(8)]]) {
+      this.warningGfx.fillRect(tx + ox - P(2), ty + oy - P(2), P(4), P(4));
     }
     this.warningGfx.fillStyle(0xff2200, 1);
-    this.warningGfx.fillRect(tx - 4, ty - 4, 8, 8);
+    this.warningGfx.fillRect(tx - P(4), ty - P(4), P(8), P(8));
 
     this.pulseTween = this.scene.tweens.add({
       targets: this.warningGfx,

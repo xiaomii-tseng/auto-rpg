@@ -3,6 +3,7 @@ import { Boss, BossState } from './boss';
 import { MONSTER_SCALE_BOSS } from '../data/monster-data';
 
 const DPR = Math.min(window.devicePixelRatio || 1, 3);
+const P = (n: number): number => Math.round(n * DPR);
 
 const PUDDLE_RADIUS = Math.round(31 * DPR);   // 原 52 × 0.6
 const PUDDLE_MS     = 3000;
@@ -44,9 +45,9 @@ export class BossGreenSlime extends Boss {
     const orbs = Array.from({ length: ORB_COUNT }, () => {
       const o = this.scene.add.graphics().setDepth(this.depth + 2);
       o.fillStyle(0x4488ff, 0.95);
-      o.fillCircle(0, 0, 5);
-      o.lineStyle(1.5, 0xaabbff, 0.65);
-      o.strokeCircle(0, 0, 8);
+      o.fillCircle(0, 0, P(5));
+      o.lineStyle(P(2), 0xaabbff, 0.65);
+      o.strokeCircle(0, 0, P(8));
       return o;
     });
 
@@ -74,14 +75,14 @@ export class BossGreenSlime extends Boss {
       this.scene.time.delayedCall(wave * 600, () => {
         if (this.currentState !== BossState.SUMMON_WARN) return;
         const rG = this.scene.add.graphics().setDepth(this.depth + 1).setPosition(this.x, this.y);
-        const rs = { r: 12, a: 0.8 };
+        const rs = { r: P(12), a: 0.8 };
         this.scene.tweens.add({
-          targets: rs, r: 52, a: 0, duration: 600, ease: 'Quad.Out',
+          targets: rs, r: P(52), a: 0, duration: 600, ease: 'Quad.Out',
           onUpdate: () => {
             rG.clear();
-            rG.lineStyle(2.5, 0x4488ff, rs.a);
+            rG.lineStyle(P(3), 0x4488ff, rs.a);
             rG.strokeCircle(0, 0, rs.r);
-            rG.lineStyle(6, 0x2255cc, rs.a * 0.2);
+            rG.lineStyle(P(6), 0x2255cc, rs.a * 0.2);
             rG.strokeCircle(0, 0, rs.r);
           },
           onComplete: () => rG.destroy(),
@@ -173,13 +174,13 @@ export class BossGreenSlime extends Boss {
         ball.clear();
         const shine = t * Math.PI * 4;
         ball.fillStyle(0x116611, 0.9);
-        ball.fillCircle(0, 0, 10);
-        ball.lineStyle(2.5, 0x88ff44, 0.85);
-        ball.strokeCircle(0, 0, 10);
-        ball.lineStyle(4, 0x44ff44, 0.25);
-        ball.strokeCircle(0, 0, 14);
+        ball.fillCircle(0, 0, P(10));
+        ball.lineStyle(P(3), 0x88ff44, 0.85);
+        ball.strokeCircle(0, 0, P(10));
+        ball.lineStyle(P(4), 0x44ff44, 0.25);
+        ball.strokeCircle(0, 0, P(14));
         ball.fillStyle(0xccffcc, 0.65);
-        ball.fillCircle(Math.cos(shine) * 3.5, Math.sin(shine) * 3.5, 4);
+        ball.fillCircle(Math.cos(shine) * P(4), Math.sin(shine) * P(4), P(4));
       },
       onComplete: () => {
         ball.destroy();
@@ -264,17 +265,17 @@ export class BossGreenSlime extends Boss {
 
   private drawPortalWarning(g: Phaser.GameObjects.Graphics, x: number, y: number): void {
     g.fillStyle(0x2255cc, 0.22);
-    g.fillCircle(x, y, 22);
-    g.lineStyle(2, 0x4488ff, 0.88);
-    g.strokeCircle(x, y, 22);
-    g.lineStyle(1, 0x88aaff, 0.5);
-    g.lineBetween(x - 13, y, x + 13, y);
-    g.lineBetween(x, y - 13, x, y + 13);
+    g.fillCircle(x, y, P(22));
+    g.lineStyle(P(2), 0x4488ff, 0.88);
+    g.strokeCircle(x, y, P(22));
+    g.lineStyle(P(1), 0x88aaff, 0.5);
+    g.lineBetween(x - P(13), y, x + P(13), y);
+    g.lineBetween(x, y - P(13), x, y + P(13));
     for (let i = 0; i < 8; i++) {
       if (i % 2 === 0) continue;
       const a = (i / 8) * Math.PI * 2;
       g.fillStyle(0x4488ff, 0.65);
-      g.fillRect(x + Math.cos(a) * 27 - 2, y + Math.sin(a) * 27 - 2, 4, 4);
+      g.fillRect(x + Math.cos(a) * P(27) - P(2), y + Math.sin(a) * P(27) - P(2), P(4), P(4));
     }
   }
 
@@ -282,15 +283,15 @@ export class BossGreenSlime extends Boss {
     const r = PUDDLE_RADIUS;
     g.fillStyle(0xff0000, 0.12);
     g.fillCircle(x, y, r);
-    g.lineStyle(3, 0xff2200, 0.90);
+    g.lineStyle(P(3), 0xff2200, 0.90);
     g.strokeCircle(x, y, r);
-    g.lineStyle(1.5, 0xff5500, 0.50);
+    g.lineStyle(P(2), 0xff5500, 0.50);
     g.strokeCircle(x, y, r * 0.55);
     g.fillStyle(0xff3300, 0.72);
-    g.fillRect(x - 9, y - 2, 18, 4);
-    g.fillRect(x - 2, y - 9, 4, 18);
+    g.fillRect(x - P(9), y - P(2), P(18), P(4));
+    g.fillRect(x - P(2), y - P(9), P(4), P(18));
     g.fillStyle(0xff6600, 0.9);
-    g.fillCircle(x, y, 4);
+    g.fillCircle(x, y, P(4));
   }
 
   private drawPuddle(g: Phaser.GameObjects.Graphics, r: number): void {
@@ -298,15 +299,15 @@ export class BossGreenSlime extends Boss {
     g.fillStyle(0x0a2a0a, 0.70);
     g.fillCircle(0, 0, r);
     // 外圍發光邊框
-    g.lineStyle(4, 0x44ff44, 0.60);
+    g.lineStyle(P(4), 0x44ff44, 0.60);
     g.strokeCircle(0, 0, r);
-    g.lineStyle(8, 0x22aa22, 0.20);
+    g.lineStyle(P(8), 0x22aa22, 0.20);
     g.strokeCircle(0, 0, r);
     // 中層半透明綠
     g.fillStyle(0x1a6b1a, 0.45);
     g.fillCircle(0, 0, r * 0.75);
     // 內圈亮環
-    g.lineStyle(1.5, 0x88ff44, 0.55);
+    g.lineStyle(P(2), 0x88ff44, 0.55);
     g.strokeCircle(0, 0, r * 0.55);
     // 毒液高光斑（不對稱，模擬液體）
     g.fillStyle(0x66ff66, 0.22);
@@ -318,7 +319,7 @@ export class BossGreenSlime extends Boss {
       const a  = (i / 6) * Math.PI * 2 + 0.3;
       const dr = r * Phaser.Math.FloatBetween(0.82, 0.98);
       g.fillStyle(0x22ff22, 0.35);
-      g.fillCircle(Math.cos(a) * dr, Math.sin(a) * dr, Phaser.Math.Between(2, 4));
+      g.fillCircle(Math.cos(a) * dr, Math.sin(a) * dr, Phaser.Math.Between(P(2), P(4)));
     }
   }
 

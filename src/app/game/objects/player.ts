@@ -1,4 +1,5 @@
 ﻿const DPR = Math.min(window.devicePixelRatio || 1, 3);
+const P = (n: number): number => Math.round(n * DPR);
 import Phaser from 'phaser';
 import { CardStore } from '../data/card-store';
 
@@ -48,11 +49,11 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   private refreshHeadDisplay(): void {
     this.headGfx.clear();
     if (!this.active) return;
-    const bw = 44, bh = 5;
+    const bw = P(44), bh = P(5);
     const bx = this.x - bw / 2;
-    const by = this.y - 52;
+    const by = this.y - P(52);
     this.headGfx.fillStyle(0x220000);
-    this.headGfx.fillRect(bx - 1, by - 1, bw + 2, bh + 2);
+    this.headGfx.fillRect(bx - P(1), by - P(1), bw + P(2), bh + P(2));
     const pct   = this.hp / this.maxHp;
     const color = pct > 0.5 ? 0x00cc44 : pct > 0.25 ? 0xffaa00 : 0xff2222;
     this.headGfx.fillStyle(color);

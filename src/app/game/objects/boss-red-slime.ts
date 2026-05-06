@@ -3,6 +3,7 @@ import { Boss, BossState } from './boss';
 import { MONSTER_SCALE_BOSS } from '../data/monster-data';
 
 const DPR = Math.min(window.devicePixelRatio || 1, 3);
+const P = (n: number): number => Math.round(n * DPR);
 
 const JUMP_RADIUS = Math.round(78 * DPR);
 const JUMP_DMG    = 40;
@@ -59,14 +60,14 @@ export class BossRedSlime extends Boss {
 
     // 衝擊波環
     const shockG = this.scene.add.graphics().setDepth(this.depth + 2).setPosition(this.x, this.y);
-    const ss = { r: 8, a: 1.0 };
+    const ss = { r: P(8), a: 1.0 };
     this.scene.tweens.add({
-      targets: ss, r: 95, a: 0, duration: 520, ease: 'Quad.Out',
+      targets: ss, r: P(95), a: 0, duration: 520, ease: 'Quad.Out',
       onUpdate: () => {
         shockG.clear();
-        shockG.lineStyle(5, 0xff4400, ss.a);
+        shockG.lineStyle(P(5), 0xff4400, ss.a);
         shockG.strokeCircle(0, 0, ss.r);
-        shockG.lineStyle(14, 0xff8800, ss.a * 0.28);
+        shockG.lineStyle(P(14), 0xff8800, ss.a * 0.28);
         shockG.strokeCircle(0, 0, ss.r);
       },
       onComplete: () => shockG.destroy(),
@@ -238,14 +239,14 @@ export class BossRedSlime extends Boss {
 
     // 光暈漸增
     const glowG = this.scene.add.graphics().setDepth(this.depth - 1).setPosition(this.x, this.y);
-    const gs = { r: 12, a: 0.4 };
+    const gs = { r: P(12), a: 0.4 };
     this.scene.tweens.add({
-      targets: gs, r: 30, a: 1.0, duration: 900, ease: 'Quad.In',
+      targets: gs, r: P(30), a: 1.0, duration: 900, ease: 'Quad.In',
       onUpdate: () => {
         glowG.clear();
         glowG.fillStyle(0xff4400, gs.a * 0.32);
         glowG.fillCircle(0, 0, gs.r);
-        glowG.lineStyle(3, 0xff8800, gs.a * 0.65);
+        glowG.lineStyle(P(3), 0xff8800, gs.a * 0.65);
         glowG.strokeCircle(0, 0, gs.r);
       },
     });
@@ -297,7 +298,7 @@ export class BossRedSlime extends Boss {
 
     const flash = this.scene.add.graphics().setDepth(this.depth + 3).setPosition(this.x, this.y);
     flash.fillStyle(0xffffff, 0.9);
-    flash.fillCircle(0, 0, 18);
+    flash.fillCircle(0, 0, P(18));
     this.scene.tweens.add({
       targets: flash, alpha: 0, scaleX: 2.2, scaleY: 2.2,
       duration: 180, onComplete: () => flash.destroy(),
@@ -319,12 +320,12 @@ export class BossRedSlime extends Boss {
     g.fillPoints(pts, true);
 
     // 兩側邊線
-    g.lineStyle(2.5, 0xff3300, 0.90);
+    g.lineStyle(P(3), 0xff3300, 0.90);
     g.lineBetween(bx, by, bx + Math.cos(angle - FAN_HALF) * r, by + Math.sin(angle - FAN_HALF) * r);
     g.lineBetween(bx, by, bx + Math.cos(angle + FAN_HALF) * r, by + Math.sin(angle + FAN_HALF) * r);
 
     // 外弧線
-    g.lineStyle(2, 0xff5500, 0.72);
+    g.lineStyle(P(2), 0xff5500, 0.72);
     g.beginPath();
     for (let i = 0; i <= FAN_STEPS; i++) {
       const a = (angle - FAN_HALF) + (FAN_HALF * 2) * (i / FAN_STEPS);
@@ -335,7 +336,7 @@ export class BossRedSlime extends Boss {
     g.strokePath();
 
     // 內弧（50%）
-    g.lineStyle(1, 0xff6600, 0.40);
+    g.lineStyle(P(1), 0xff6600, 0.40);
     g.beginPath();
     for (let i = 0; i <= FAN_STEPS; i++) {
       const a = (angle - FAN_HALF) + (FAN_HALF * 2) * (i / FAN_STEPS);
@@ -347,24 +348,24 @@ export class BossRedSlime extends Boss {
 
     // 中心點
     g.fillStyle(0xff4400, 0.88);
-    g.fillCircle(bx, by, 5);
+    g.fillCircle(bx, by, P(5));
   }
 
   private drawJumpWarning(g: Phaser.GameObjects.Graphics, x: number, y: number): void {
     const r = JUMP_RADIUS;
     g.fillStyle(0xff0000, 0.14);
     g.fillCircle(x, y, r);
-    g.lineStyle(3, 0xff2200, 0.92);
+    g.lineStyle(P(3), 0xff2200, 0.92);
     g.strokeCircle(x, y, r);
-    g.lineStyle(1.5, 0xff5500, 0.55);
+    g.lineStyle(P(2), 0xff5500, 0.55);
     g.strokeCircle(x, y, r * 0.55);
-    g.lineStyle(2, 0xff3300, 0.80);
-    g.lineBetween(x - 10, y - 10, x + 10, y + 10);
-    g.lineBetween(x + 10, y - 10, x - 10, y + 10);
+    g.lineStyle(P(2), 0xff3300, 0.80);
+    g.lineBetween(x - P(10), y - P(10), x + P(10), y + P(10));
+    g.lineBetween(x + P(10), y - P(10), x - P(10), y + P(10));
     for (let i = 0; i < 8; i++) {
       const a = (i / 8) * Math.PI * 2;
       g.fillStyle(0xff4400, 0.75);
-      g.fillRect(x + Math.cos(a) * r - 3, y + Math.sin(a) * r - 3, 6, 6);
+      g.fillRect(x + Math.cos(a) * r - P(3), y + Math.sin(a) * r - P(3), P(6), P(6));
     }
   }
 
@@ -377,14 +378,14 @@ export class BossRedSlime extends Boss {
     this.scene.cameras.main.shake(200, 0.016);
 
     const shockG = this.scene.add.graphics().setDepth(20).setPosition(cx, cy);
-    const ss = { r: 12, a: 1.0 };
+    const ss = { r: P(12), a: 1.0 };
     this.scene.tweens.add({
       targets: ss, r: JUMP_RADIUS * 1.3, a: 0, duration: 320, ease: 'Quad.Out',
       onUpdate: () => {
         shockG.clear();
-        shockG.lineStyle(4, 0xff4400, ss.a);
+        shockG.lineStyle(P(4), 0xff4400, ss.a);
         shockG.strokeCircle(0, 0, ss.r);
-        shockG.lineStyle(10, 0xff8800, ss.a * 0.25);
+        shockG.lineStyle(P(10), 0xff8800, ss.a * 0.25);
         shockG.strokeCircle(0, 0, ss.r);
       },
       onComplete: () => shockG.destroy(),

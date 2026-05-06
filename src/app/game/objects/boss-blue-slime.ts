@@ -3,6 +3,7 @@ import { Boss, BossState } from './boss';
 import { MONSTER_SCALE_BOSS } from '../data/monster-data';
 
 const DPR = Math.min(window.devicePixelRatio || 1, 3);
+const P = (n: number): number => Math.round(n * DPR);
 
 const SPIKE_RANGE   = Math.round(400 * DPR);
 const SPIKE_DMG     = 25;
@@ -54,21 +55,21 @@ export class BossBlueSlime extends Boss {
       warnG.clear();
       for (let i = 0; i < 8; i++) {
         const a = (i / 8) * Math.PI * 2;
-        const x1 = this.x + Math.cos(a) * 28;
-        const y1 = this.y + Math.sin(a) * 28;
+        const x1 = this.x + Math.cos(a) * P(28);
+        const y1 = this.y + Math.sin(a) * P(28);
         const x2 = this.x + Math.cos(a) * SPIKE_RANGE;
         const y2 = this.y + Math.sin(a) * SPIKE_RANGE;
-        warnG.lineStyle(2, 0x88ccff, alpha * 0.7);
+        warnG.lineStyle(P(2), 0x88ccff, alpha * 0.7);
         warnG.lineBetween(x1, y1, x2, y2);
         warnG.fillStyle(0xaaddff, alpha * 0.85);
         warnG.fillTriangle(
-          x2 + Math.cos(a) * 10,           y2 + Math.sin(a) * 10,
-          x2 + Math.cos(a + 0.18) * (-8),  y2 + Math.sin(a + 0.18) * (-8),
-          x2 + Math.cos(a - 0.18) * (-8),  y2 + Math.sin(a - 0.18) * (-8),
+          x2 + Math.cos(a) * P(10),           y2 + Math.sin(a) * P(10),
+          x2 + Math.cos(a + 0.18) * (-P(8)),  y2 + Math.sin(a + 0.18) * (-P(8)),
+          x2 + Math.cos(a - 0.18) * (-P(8)),  y2 + Math.sin(a - 0.18) * (-P(8)),
         );
       }
-      warnG.lineStyle(2, 0x4499cc, alpha * 0.5);
-      warnG.strokeCircle(this.x, this.y, 26);
+      warnG.lineStyle(P(2), 0x4499cc, alpha * 0.5);
+      warnG.strokeCircle(this.x, this.y, P(26));
     };
     drawSpikeWarn(1);
     const fw = { a: 1.0 };
@@ -157,7 +158,7 @@ export class BossBlueSlime extends Boss {
   }
 
   private drawIceSpike(g: Phaser.GameObjects.Graphics, angle: number): void {
-    const len = 20, wid = 4;
+    const len = P(20), wid = P(4);
     const cos = Math.cos(angle), sin = Math.sin(angle);
     const perp = angle + Math.PI / 2;
     const pc = Math.cos(perp), ps = Math.sin(perp);
@@ -167,13 +168,13 @@ export class BossBlueSlime extends Boss {
     g.fillPoints([
       new Phaser.Math.Vector2(cos * len, sin * len),
       new Phaser.Math.Vector2(pc * wid, ps * wid),
-      new Phaser.Math.Vector2(-cos * 7, -sin * 7),
+      new Phaser.Math.Vector2(-cos * P(7), -sin * P(7)),
       new Phaser.Math.Vector2(-pc * wid, -ps * wid),
     ], true);
 
     // 高光線
-    g.lineStyle(1.5, 0xffffff, 0.75);
-    g.lineBetween(-cos * 4, -sin * 4, cos * len * 0.65, sin * len * 0.65);
+    g.lineStyle(P(2), 0xffffff, 0.75);
+    g.lineBetween(-cos * P(4), -sin * P(4), cos * len * 0.65, sin * len * 0.65);
   }
 
   // ── 冰地雷 ────────────────────────────────────────────
@@ -185,14 +186,14 @@ export class BossBlueSlime extends Boss {
     this.playDir(`${this.animPrefix}_attack`);
 
     const glowG = this.scene.add.graphics().setDepth(this.depth - 1).setPosition(this.x, this.y);
-    const gs = { r: 10, a: 0.3 };
+    const gs = { r: P(10), a: 0.3 };
     this.scene.tweens.add({
-      targets: gs, r: 28, a: 0.85, duration: 700, ease: 'Quad.In',
+      targets: gs, r: P(28), a: 0.85, duration: 700, ease: 'Quad.In',
       onUpdate: () => {
         glowG.clear();
         glowG.fillStyle(0x4488ff, gs.a * 0.28);
         glowG.fillCircle(0, 0, gs.r);
-        glowG.lineStyle(2.5, 0x88ccff, gs.a);
+        glowG.lineStyle(P(3), 0x88ccff, gs.a);
         glowG.strokeCircle(0, 0, gs.r);
       },
     });
@@ -221,9 +222,9 @@ export class BossBlueSlime extends Boss {
     this.scene.time.delayedCall(delay, () => {
       const projG = this.scene.add.graphics().setDepth(this.depth + 2);
       projG.fillStyle(0x44aaff, 1.0);
-      projG.fillCircle(0, 0, 6);
-      projG.lineStyle(2, 0xaaddff, 0.9);
-      projG.strokeCircle(0, 0, 9);
+      projG.fillCircle(0, 0, P(6));
+      projG.lineStyle(P(2), 0xaaddff, 0.9);
+      projG.strokeCircle(0, 0, P(9));
 
       const prog = { t: 0 };
       const sx = this.x, sy = this.y;
@@ -256,7 +257,7 @@ export class BossBlueSlime extends Boss {
       ringG.clear();
       ringG.fillStyle(0x4488ff, alpha * 0.12);
       ringG.fillCircle(0, 0, MINE_RADIUS);
-      ringG.lineStyle(2.5, 0x88ccff, alpha);
+      ringG.lineStyle(P(3), 0x88ccff, alpha);
       ringG.strokeCircle(0, 0, MINE_RADIUS);
     };
     drawRing(0.8);
@@ -284,14 +285,14 @@ export class BossBlueSlime extends Boss {
     this.scene.cameras.main.shake(120, 0.010);
 
     const shockG = this.scene.add.graphics().setDepth(20).setPosition(x, y);
-    const ss = { r: 10, a: 1 };
+    const ss = { r: P(10), a: 1 };
     this.scene.tweens.add({
       targets: ss, r: MINE_RADIUS * 1.25, a: 0, duration: 380, ease: 'Quad.Out',
       onUpdate: () => {
         shockG.clear();
-        shockG.lineStyle(4, 0x88ccff, ss.a);
+        shockG.lineStyle(P(4), 0x88ccff, ss.a);
         shockG.strokeCircle(0, 0, ss.r);
-        shockG.lineStyle(14, 0x4488ff, ss.a * 0.22);
+        shockG.lineStyle(P(14), 0x4488ff, ss.a * 0.22);
         shockG.strokeCircle(0, 0, ss.r);
       },
       onComplete: () => shockG.destroy(),
@@ -318,13 +319,13 @@ export class BossBlueSlime extends Boss {
     const pts: Phaser.Math.Vector2[] = [];
     for (let i = 0; i < 6; i++) {
       const a = (i / 6) * Math.PI * 2 - Math.PI / 6;
-      pts.push(new Phaser.Math.Vector2(Math.cos(a) * 10, Math.sin(a) * 10));
+      pts.push(new Phaser.Math.Vector2(Math.cos(a) * P(10), Math.sin(a) * P(10)));
     }
     g.fillStyle(0x88ddff, 0.88);
     g.fillPoints(pts, true);
-    g.lineStyle(1.5, 0xffffff, 0.9);
+    g.lineStyle(P(2), 0xffffff, 0.9);
     g.strokePoints(pts, true);
     g.fillStyle(0xffffff, 0.8);
-    g.fillCircle(0, 0, 3);
+    g.fillCircle(0, 0, P(3));
   }
 }

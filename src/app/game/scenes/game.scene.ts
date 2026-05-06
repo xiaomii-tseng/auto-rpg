@@ -78,7 +78,7 @@ export class GameScene extends Phaser.Scene {
   private pickupLog:       Phaser.GameObjects.Text[] = [];
   private playerStartX = 0;
   private playerStartY = 0;
-  private readonly CORR_HW = 100;
+  private readonly CORR_HW = P(100);
   private auraTimer?: Phaser.Time.TimerEvent;
   private auraRing?: Phaser.GameObjects.Graphics;
   private activeFires: { x: number; y: number; r: number; expiresAt: number }[] = [];
@@ -183,8 +183,8 @@ export class GameScene extends Phaser.Scene {
     this.physics.add.collider(this.boss, this.wallGroup);
 
     this.bossHpGfx = this.add.graphics().setScrollFactor(0).setDepth(5).setVisible(false);
-    this.bossHpLabel = this.add.text(W / 2, 6, '', {
-      fontSize: F(15), color: '#ffcccc', stroke: '#000', strokeThickness: 2,
+    this.bossHpLabel = this.add.text(W / 2, P(6), '', {
+      fontSize: F(15), fontStyle: 'bold', color: '#ffcccc', stroke: '#000', strokeThickness: 2,
     }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(6).setVisible(false);
     this.bossDebuffGfx = this.add.graphics().setScrollFactor(0).setDepth(7).setVisible(false);
     // Pre-create debuff stack labels (lazy creation inside physics callbacks causes canvas null errors)
@@ -570,7 +570,7 @@ export class GameScene extends Phaser.Scene {
           }
           // 外暈
           slashG.fillStyle(0x5599ff, 0.18);
-          slashG.fillPoints(pts.map(p => ({ x: p.x + 3, y: p.y + 3 })), true);
+          slashG.fillPoints(pts.map(p => ({ x: p.x + P(3), y: p.y + P(3) })), true);
           // 主體藍白月牙
           slashG.fillStyle(0xaaddff, 0.55);
           slashG.fillPoints(pts, true);
@@ -619,7 +619,7 @@ export class GameScene extends Phaser.Scene {
       const SPARKS = 10;
       const sparks = Array.from({ length: SPARKS }, (_, i) => {
         const a  = sa + (ea - sa) * (i / (SPARKS - 1));
-        const dr = Phaser.Math.FloatBetween(8, 20);
+        const dr = Phaser.Math.FloatBetween(P(8), P(20));
         return { x: px + Math.cos(a) * R, y: py + Math.sin(a) * R,
                  vx: Math.cos(a) * dr, vy: Math.sin(a) * dr, a: 0.9 };
       });
@@ -630,8 +630,8 @@ export class GameScene extends Phaser.Scene {
           sparkG.clear();
           sparks.forEach(s => {
             s.x += s.vx * 0.08; s.y += s.vy * 0.08; s.a *= 0.90;
-            sparkG.fillStyle(0xffffff, s.a * 0.9); sparkG.fillCircle(s.x, s.y, 2.2);
-            sparkG.fillStyle(0x88ccff, s.a * 0.5); sparkG.fillCircle(s.x, s.y, 4);
+            sparkG.fillStyle(0xffffff, s.a * 0.9); sparkG.fillCircle(s.x, s.y, P(2));
+            sparkG.fillStyle(0x88ccff, s.a * 0.5); sparkG.fillCircle(s.x, s.y, P(4));
           });
         },
         onComplete: () => sparkG.destroy(),
@@ -639,8 +639,8 @@ export class GameScene extends Phaser.Scene {
 
       // 4. 起揮中心閃光
       const flashG = this.add.graphics().setDepth(D + 4).setPosition(px, py);
-      flashG.fillStyle(0xffffff, 0.55); flashG.fillCircle(0, 0, 10);
-      flashG.fillStyle(0x88ccff, 0.30); flashG.fillCircle(0, 0, 20);
+      flashG.fillStyle(0xffffff, 0.55); flashG.fillCircle(0, 0, P(10));
+      flashG.fillStyle(0x88ccff, 0.30); flashG.fillCircle(0, 0, P(20));
       this.tweens.add({ targets: flashG, alpha: 0, duration: 180, onComplete: () => flashG.destroy() });
     });
   }
@@ -709,8 +709,8 @@ export class GameScene extends Phaser.Scene {
 
       // 3. 中心強光閃現
       const flashG = this.add.graphics().setDepth(D + 4).setPosition(px, py);
-      flashG.fillStyle(0xffffff, 0.7);  flashG.fillCircle(0, 0, 14);
-      flashG.fillStyle(0x88ddff, 0.45); flashG.fillCircle(0, 0, 30);
+      flashG.fillStyle(0xffffff, 0.7);  flashG.fillCircle(0, 0, P(14));
+      flashG.fillStyle(0x88ddff, 0.45); flashG.fillCircle(0, 0, P(30));
       flashG.fillStyle(0x2255cc, 0.20); flashG.fillCircle(0, 0, RANGE * 0.6);
       this.tweens.add({ targets: flashG, alpha: 0, duration: 260, ease: 'Quad.In', onComplete: () => flashG.destroy() });
     });
@@ -719,7 +719,7 @@ export class GameScene extends Phaser.Scene {
   // ── 瞬步斬 dashPierce ─────────────────────────────────────
 
   private calcDashEndpoint(sx: number, sy: number, rad: number): { x: number; y: number } {
-    const DASH = 78 + (CardStore.getTotalStats().dashDistBonus ?? 0), PAD = 32, STEP = 4, PW = 10, PH = 8;
+    const DASH = P(78) + (CardStore.getTotalStats().dashDistBonus ?? 0), PAD = P(32), STEP = P(4), PW = P(10), PH = P(8);
     let endX = Phaser.Math.Clamp(sx + Math.cos(rad) * DASH, PAD, this.worldW - PAD);
     let endY = Phaser.Math.Clamp(sy + Math.sin(rad) * DASH, PAD, this.worldH - PAD);
     const steps = Math.ceil(Phaser.Math.Distance.Between(sx, sy, endX, endY) / STEP);
@@ -748,11 +748,11 @@ export class GameScene extends Phaser.Scene {
     const totalDist = Phaser.Math.Distance.Between(sx, sy, endX, endY);
 
     // 虛線箭桿
-    const SEG = 7, GAP = 4;
-    let d = 12;
-    while (d < totalDist - 10) {
+    const SEG = P(7), GAP = P(4);
+    let d = P(12);
+    while (d < totalDist - P(10)) {
       const t1 = d / totalDist, t2 = Math.min((d + SEG) / totalDist, 1);
-      g.lineStyle(2, 0x66aaff, 0.75);
+      g.lineStyle(P(2), 0x66aaff, 0.75);
       g.lineBetween(sx + (endX - sx) * t1, sy + (endY - sy) * t1,
                     sx + (endX - sx) * t2, sy + (endY - sy) * t2);
       d += SEG + GAP;
@@ -760,7 +760,7 @@ export class GameScene extends Phaser.Scene {
 
     // 箭頭
     const perp = rad + Math.PI / 2;
-    const AL = 11, AW = 6;
+    const AL = P(11), AW = P(6);
     g.fillStyle(0x88ccff, 0.95);
     g.fillTriangle(
       endX, endY,
@@ -770,9 +770,9 @@ export class GameScene extends Phaser.Scene {
 
     // 落點圓圈
     g.fillStyle(0xaaddff, 0.28);
-    g.fillCircle(endX, endY, 11);
-    g.lineStyle(1.5, 0x88ccff, 0.85);
-    g.strokeCircle(endX, endY, 11);
+    g.fillCircle(endX, endY, P(11));
+    g.lineStyle(P(1), 0x88ccff, 0.85);
+    g.strokeCircle(endX, endY, P(11));
   }
 
   private attackDashPierce(_tx: number, _ty: number): void {
@@ -807,18 +807,18 @@ export class GameScene extends Phaser.Scene {
         for (let i = 0; i <= STEPS; i++) {
           const f  = i / STEPS;
           const tx = sx + (hx - sx) * f, ty = sy + (hy - sy) * f;
-          trailG.fillStyle(0x2255cc, f * 0.22); trailG.fillCircle(tx, ty, 10 + f * 5);
-          trailG.fillStyle(0x66aaff, f * 0.45); trailG.fillCircle(tx, ty,  5 + f * 3);
+          trailG.fillStyle(0x2255cc, f * 0.22); trailG.fillCircle(tx, ty, P(10) + f * P(5));
+          trailG.fillStyle(0x66aaff, f * 0.45); trailG.fillCircle(tx, ty,  P(5) + f * P(3));
         }
         // 中心細線
-        trailG.lineStyle(1.5, 0xddeeff, 0.75);
+        trailG.lineStyle(P(1), 0xddeeff, 0.75);
         trailG.lineBetween(sx, sy, hx, hy);
         // 頭部亮核
-        trailG.fillStyle(0xffffff, 0.95); trailG.fillCircle(hx, hy, 3.5);
-        trailG.fillStyle(0x99ddff, 0.55); trailG.fillCircle(hx, hy, 9);
+        trailG.fillStyle(0xffffff, 0.95); trailG.fillCircle(hx, hy, P(4));
+        trailG.fillStyle(0x99ddff, 0.55); trailG.fillCircle(hx, hy, P(9));
         // 頭部垂直波紋（2 條，間距不同）
-        [10, 16].forEach((len, idx) => {
-          trailG.lineStyle(1.5 - idx * 0.5, 0xaaddff, 0.75 - idx * 0.3);
+        [P(10), P(16)].forEach((len, idx) => {
+          trailG.lineStyle(P(1), 0xaaddff, 0.75 - idx * 0.3);
           trailG.lineBetween(
             hx + Math.cos(perpRad) * len, hy + Math.sin(perpRad) * len,
             hx - Math.cos(perpRad) * len, hy - Math.sin(perpRad) * len,
@@ -833,15 +833,15 @@ export class GameScene extends Phaser.Scene {
     // ── 衝擊環（以終點為原點展開）───────────────────────
     this.time.delayedCall(130, () => {
       const ringG = this.add.graphics().setDepth(D + 1).setPosition(endX, endY);
-      const state = { r: 6, a: 0.85 };
+      const state = { r: P(6), a: 0.85 };
       this.tweens.add({
-        targets: state, r: 40, a: 0, duration: 320, ease: 'Quad.Out',
+        targets: state, r: P(40), a: 0, duration: 320, ease: 'Quad.Out',
         onUpdate: () => {
           ringG.clear();
-          ringG.lineStyle(3, 0x88ccff, state.a);
+          ringG.lineStyle(P(3), 0x88ccff, state.a);
           ringG.strokeCircle(0, 0, state.r);
-          ringG.lineStyle(1.2, 0xffffff, state.a * 0.5);
-          ringG.strokeCircle(0, 0, state.r + 4);
+          ringG.lineStyle(P(1), 0xffffff, state.a * 0.5);
+          ringG.strokeCircle(0, 0, state.r + P(4));
         },
         onComplete: () => ringG.destroy(),
       });
@@ -865,15 +865,15 @@ export class GameScene extends Phaser.Scene {
 
   private attackProjectile(_tx: number, _ty: number): void {
     const stats0 = CardStore.getTotalStats();
-    const SPEED = 380, MAX_DIST = 155 + (stats0.projectileDistBonus ?? 0);
-    const { dir, rad } = this.resolveAttackDir(240);
+    const SPEED = P(380), MAX_DIST = P(155) + (stats0.projectileDistBonus ?? 0);
+    const { dir, rad } = this.resolveAttackDir(P(240));
 
     const cd = Math.round(650 / (1 + stats0.atkSpeed));
     if (!this.player.lockCooldown(cd)) return;
 
     const hitTargets = new Set<object>();
     this.player.startAttackAnim(`player_attack_${dir}`);
-    const HIT_R = 18;
+    const HIT_R = P(18);
 
     const buildCrescent = (outerR: number, innerR: number, ox: number): { x: number; y: number }[] => {
       const steps = 32;
@@ -901,7 +901,7 @@ export class GameScene extends Phaser.Scene {
     // 出手閃光
     const launchFlash = this.add.graphics().setDepth(this.player.depth + 2);
     launchFlash.fillStyle(0xffdd44, 0.55);
-    launchFlash.fillCircle(this.player.x, this.player.y, 20);
+    launchFlash.fillCircle(this.player.x, this.player.y, P(20));
     this.tweens.add({ targets: launchFlash, alpha: 0, duration: 160, onComplete: () => launchFlash.destroy() });
 
     const drawProj = (t: number) => {
@@ -910,28 +910,28 @@ export class GameScene extends Phaser.Scene {
 
       // 外層擴散光暈
       proj.fillStyle(0xffee44, 0.07);
-      proj.fillCircle(0, 0, 28);
+      proj.fillCircle(0, 0, P(28));
       proj.fillStyle(0xffcc00, 0.13);
-      proj.fillCircle(0, 0, 21);
+      proj.fillCircle(0, 0, P(21));
 
       // 半月主體（由外到內三層）
       proj.fillStyle(0xff9900, 0.20);
-      proj.fillPoints(buildCrescent(20, 0, 0), true);       // 最外暈
+      proj.fillPoints(buildCrescent(P(20), 0, 0), true);       // 最外暈
       proj.fillStyle(0xffaa00, 0.95);
-      proj.fillPoints(buildCrescent(18, 11, 8), true);      // 主體深金
+      proj.fillPoints(buildCrescent(P(18), P(11), P(8)), true); // 主體深金
       proj.fillStyle(0xffdd55, 0.65);
-      proj.fillPoints(buildCrescent(18, 11, 8), true);      // 亮金疊加
+      proj.fillPoints(buildCrescent(P(18), P(11), P(8)), true); // 亮金疊加
       proj.fillStyle(0xffffff, 0.35);
-      proj.fillPoints(buildCrescent(17, 13, 9), true);      // 白色薄邊高光
+      proj.fillPoints(buildCrescent(P(17), P(13), P(9)), true); // 白色薄邊高光
 
       // 前緣亮線
       const steps = 32, sa = -115 * Math.PI / 180, ea = 115 * Math.PI / 180;
-      proj.lineStyle(2, 0xffffff, 0.95);
+      proj.lineStyle(P(2), 0xffffff, 0.95);
       proj.beginPath();
       for (let i = 0; i <= steps; i++) {
         const a = sa + (ea - sa) * i / steps;
-        i === 0 ? proj.moveTo(Math.cos(a) * 18, Math.sin(a) * 18)
-                : proj.lineTo(Math.cos(a) * 18, Math.sin(a) * 18);
+        i === 0 ? proj.moveTo(Math.cos(a) * P(18), Math.sin(a) * P(18))
+                : proj.lineTo(Math.cos(a) * P(18), Math.sin(a) * P(18));
       }
       proj.strokePath();
 
@@ -940,7 +940,7 @@ export class GameScene extends Phaser.Scene {
         const a  = sa + (ea - sa) * (i / 3);
         const sp = 0.55 + Math.sin(t * 0.018 + i * 1.3) * 0.35;
         proj.fillStyle(0xffffff, sp);
-        proj.fillCircle(Math.cos(a) * 18, Math.sin(a) * 18, 2);
+        proj.fillCircle(Math.cos(a) * P(18), Math.sin(a) * P(18), P(2));
       }
     };
 
@@ -953,7 +953,7 @@ export class GameScene extends Phaser.Scene {
       trailHistory.forEach((p, i) => {
         const frac  = i / trailHistory.length;
         const alpha = frac * 0.45;
-        const r     = frac * 10 + 3;
+        const r     = frac * P(10) + P(3);
         trail.fillStyle(0xffaa00, alpha);
         trail.fillCircle(p.x, p.y, r);
         trail.fillStyle(0xffee88, alpha * 0.5);
@@ -1081,8 +1081,8 @@ export class GameScene extends Phaser.Scene {
 
           // 掃出前端亮點（兩端 outer）
           g.fillStyle(0xffffff, 0.9 * alpha);
-          g.fillCircle(outerPts[0].x, outerPts[0].y, 3);
-          g.fillCircle(outerPts[STEPS].x, outerPts[STEPS].y, 3);
+          g.fillCircle(outerPts[0].x, outerPts[0].y, P(3));
+          g.fillCircle(outerPts[STEPS].x, outerPts[STEPS].y, P(3));
         };
 
         const slG  = this.add.graphics().setDepth(D + 3);
@@ -1106,24 +1106,24 @@ export class GameScene extends Phaser.Scene {
 
         // 起揮閃光（玩家中心）
         const fG = this.add.graphics().setDepth(D + 4).setPosition(px, py);
-        fG.fillStyle(0xffffff, 0.55 + hitIdx * 0.08); fG.fillCircle(0, 0, 5 + hitIdx);
-        fG.fillStyle(b.color,  0.30);                  fG.fillCircle(0, 0, 11 + hitIdx * 2);
+        fG.fillStyle(0xffffff, 0.55 + hitIdx * 0.08); fG.fillCircle(0, 0, P(5) + hitIdx * P(1));
+        fG.fillStyle(b.color,  0.30);                  fG.fillCircle(0, 0, P(11) + hitIdx * P(2));
         this.tweens.add({ targets: fG, alpha: 0, duration: 120, onComplete: () => fG.destroy() });
 
         // 第五刀：額外衝擊環
         if (hitIdx === 4) {
-          const ringState = { r: 8, a: 0.9 };
+          const ringState = { r: P(8), a: 0.9 };
           const ringG = this.add.graphics().setDepth(D + 2).setPosition(
             px + Math.cos(rad0) * MELEE_RANGE * 0.7,
             py + Math.sin(rad0) * MELEE_RANGE * 0.7,
           );
           this.tweens.add({
-            targets: ringState, r: 38, a: 0, duration: 280, ease: 'Quad.Out',
+            targets: ringState, r: P(38), a: 0, duration: 280, ease: 'Quad.Out',
             onUpdate: () => {
               ringG.clear();
-              ringG.lineStyle(3, 0xffffff, ringState.a);
+              ringG.lineStyle(P(3), 0xffffff, ringState.a);
               ringG.strokeCircle(0, 0, ringState.r);
-              ringG.lineStyle(7, 0x88ccff, ringState.a * 0.25);
+              ringG.lineStyle(P(7), 0x88ccff, ringState.a * 0.25);
               ringG.strokeCircle(0, 0, ringState.r);
             },
             onComplete: () => ringG.destroy(),
@@ -1141,13 +1141,13 @@ export class GameScene extends Phaser.Scene {
     const cd  = Math.round(1500 / spd);
     if (!this.player.lockCooldown(cd)) return;
 
-    const { dir, rad } = this.resolveAttackDir(240);
+    const { dir, rad } = this.resolveAttackDir(P(240));
     this.player.startAttackAnim(`player_attack_${dir}`);
 
     const rangeMult = 1 + (bStats.boomerangRangePct ?? 0);
-    const HIT_R    = Math.round(14 * rangeMult);
-    const SPIN_R   = Math.round(26 * rangeMult);
-    const MAX_DIST = 160;
+    const HIT_R    = Math.round(P(14) * rangeMult);
+    const SPIN_R   = Math.round(P(26) * rangeMult);
+    const MAX_DIST = P(160);
     const SPIN_MS  = Math.round(800 / spd);
     const destX    = this.player.x + Math.cos(rad) * MAX_DIST;
     const destY    = this.player.y + Math.sin(rad) * MAX_DIST;
@@ -1200,11 +1200,11 @@ export class GameScene extends Phaser.Scene {
       }
       // center gem
       blade.fillStyle(0x3366cc, 1);
-      blade.fillCircle(0, 0, 5);
+      blade.fillCircle(0, 0, P(5));
       blade.fillStyle(0xaaddff, 1);
-      blade.fillCircle(0, 0, 3);
+      blade.fillCircle(0, 0, P(3));
       blade.fillStyle(0xffffff, 1);
-      blade.fillCircle(0, 0, 1.5);
+      blade.fillCircle(0, 0, P(2));
     };
 
     const updateTrail = () => {
@@ -1214,7 +1214,7 @@ export class GameScene extends Phaser.Scene {
       trail.clear();
       trailPts.forEach((p, i) => {
         p.alpha *= 0.80;
-        const sz = (i / trailPts.length) * 7 + 1;
+        const sz = (i / trailPts.length) * P(7) + P(1);
         trail.fillStyle(0x55aaff, p.alpha);
         trail.fillCircle(p.x, p.y, sz);
       });
@@ -1229,7 +1229,7 @@ export class GameScene extends Phaser.Scene {
     // 出手閃光
     const launchFlash = this.add.graphics().setDepth(this.player.depth + 2);
     launchFlash.fillStyle(0x99ddff, 0.65);
-    launchFlash.fillCircle(this.player.x, this.player.y, 22);
+    launchFlash.fillCircle(this.player.x, this.player.y, P(22));
     this.tweens.add({ targets: launchFlash, alpha: 0, duration: 200, onComplete: () => launchFlash.destroy() });
 
     const hitOut  = new Set<object>();
@@ -1269,7 +1269,7 @@ export class GameScene extends Phaser.Scene {
             const oy = sy + Math.sin(a) * (SPIN_R);
             const brightness = 0.4 + Math.sin(orbRot * 3 + i) * 0.3;
             spinOrb.fillStyle(0x66bbff, brightness);
-            spinOrb.fillCircle(ox, oy, 3.5);
+            spinOrb.fillCircle(ox, oy, P(4));
           }
           const rp = 0.3 + Math.sin(orbRot * 6) * 0.15;
           spinOrb.lineStyle(1.5, 0x99eeff, rp);
@@ -1305,7 +1305,7 @@ export class GameScene extends Phaser.Scene {
             // 接住閃光
             const catchFlash = this.add.graphics().setDepth(this.player.depth + 2);
             catchFlash.fillStyle(0x99ddff, 0.75);
-            catchFlash.fillCircle(this.player.x, this.player.y, 20);
+            catchFlash.fillCircle(this.player.x, this.player.y, P(20));
             this.tweens.add({ targets: catchFlash, alpha: 0, duration: 200, onComplete: () => catchFlash.destroy() });
           },
         });
@@ -1327,13 +1327,13 @@ export class GameScene extends Phaser.Scene {
     const cd  = Math.round(1100 / spd);
     if (!this.player.lockCooldown(cd)) return;
 
-    const { dir, rad } = this.resolveAttackDir(260);
+    const { dir, rad } = this.resolveAttackDir(P(260));
     this.player.startAttackAnim(`player_attack_${dir}`);
 
-    const SPEED    = 300;
-    const MAX_DIST = 200;
-    const ORB_R    = 14;
-    const FIRE_R   = 25;
+    const SPEED    = P(300);
+    const MAX_DIST = P(200);
+    const ORB_R    = P(14);
+    const FIRE_R   = P(25);
     const FIRE_DUR = 3000;
 
     const orb = this.add.graphics().setDepth(this.player.depth + 1);
@@ -1430,7 +1430,7 @@ export class GameScene extends Phaser.Scene {
             const er = FIRE_R * (0.28 + Math.sin(fireT / 140 + i * 1.1) * 0.12);
             const ea2 = 0.55 + Math.sin(fireT / 80 + i * 0.8) * 0.3;
             fire.fillStyle(0xffee66, ea2);
-            fire.fillCircle(fx + Math.cos(ea) * er, fy + Math.sin(ea) * er, 2.5);
+            fire.fillCircle(fx + Math.cos(ea) * er, fy + Math.sin(ea) * er, P(3));
           }
         },
       });
@@ -1485,7 +1485,7 @@ export class GameScene extends Phaser.Scene {
 
   // ── 血環 aura（被動，每 0.25 秒） ────────────────────────────
 
-  private readonly AURA_RANGE = 56;
+  private readonly AURA_RANGE = P(56);
 
   // ── Burn constants — future cards can pass different values to applyBurn ──
   private readonly BURN_MAX_STACKS = 15;
@@ -1600,16 +1600,16 @@ export class GameScene extends Phaser.Scene {
       const prog = Math.min(chargeT / cd, 1);
       chargeGfx.clear();
       // 外層暈（隨蓄力擴大）
-      const outerR = 8 + prog * 28;
-      chargeGfx.lineStyle(3, 0xffaa00, 0.25 + prog * 0.35);
+      const outerR = P(8) + prog * P(28);
+      chargeGfx.lineStyle(P(3), 0xffaa00, 0.25 + prog * 0.35);
       chargeGfx.strokeCircle(this.player.x, this.player.y, outerR);
       // 中層（微脈動）
-      const pulse = Math.sin(chargeT / 80) * 3;
-      chargeGfx.lineStyle(2, 0xffdd44, 0.5 + prog * 0.4);
-      chargeGfx.strokeCircle(this.player.x, this.player.y, 10 + pulse + prog * 12);
+      const pulse = Math.sin(chargeT / 80) * P(3);
+      chargeGfx.lineStyle(P(2), 0xffdd44, 0.5 + prog * 0.4);
+      chargeGfx.strokeCircle(this.player.x, this.player.y, P(10) + pulse + prog * P(12));
       // 內核小點
       chargeGfx.fillStyle(0xffffff, 0.6 + prog * 0.4);
-      chargeGfx.fillCircle(this.player.x, this.player.y, 3 + prog * 3);
+      chargeGfx.fillCircle(this.player.x, this.player.y, P(3) + prog * P(3));
     };
     const chargeTicker = this.time.addEvent({ delay: 16, repeat: Math.ceil(cd / 16), callback: updateCharge });
 
@@ -1649,7 +1649,7 @@ export class GameScene extends Phaser.Scene {
           cracks.lineStyle(1, 0xffee88, 0.5);
           cracks.beginPath();
           cracks.moveTo(px + Math.cos(a) * midR, py + Math.sin(a) * midR);
-          cracks.lineTo(px + Math.cos(midA) * (midR + 12), py + Math.sin(midA) * (midR + 12));
+          cracks.lineTo(px + Math.cos(midA) * (midR + P(12)), py + Math.sin(midA) * (midR + P(12)));
           cracks.strokePath();
         }
         this.tweens.add({ targets: cracks, alpha: 0, duration: 400, delay: 80, onComplete: () => cracks.destroy() });
@@ -1681,7 +1681,7 @@ export class GameScene extends Phaser.Scene {
         });
 
         // 中心爆閃（固定大小，不超出 R）
-        const flashR = Math.min(16, R * 0.2);
+        const flashR = Math.min(P(16), R * 0.2);
         const flash = this.add.graphics().setDepth(this.player.depth + 4);
         this.tweens.addCounter({
           from: 0, to: flashR, duration: 200, ease: 'Quad.Out',
@@ -1730,13 +1730,13 @@ export class GameScene extends Phaser.Scene {
   }
 
   private generateWaypoints(): void {
-    const PAD = 500;
+    const PAD = P(500);
     let cx = 0, cy = 0;
     let dir = Phaser.Math.FloatBetween(0, Math.PI * 2);
     const raw: Phaser.Math.Vector2[] = [new Phaser.Math.Vector2(cx, cy)];
     for (let i = 0; i < Phaser.Math.Between(3, 5); i++) {
       dir += Phaser.Math.FloatBetween(-Math.PI * 0.5, Math.PI * 0.5);
-      const dist = Phaser.Math.Between(600, 800);
+      const dist = Phaser.Math.Between(P(600), P(800));
       cx += Math.cos(dir) * dist;
       cy += Math.sin(dir) * dist;
       raw.push(new Phaser.Math.Vector2(cx, cy));
@@ -1748,9 +1748,9 @@ export class GameScene extends Phaser.Scene {
     this.worldH = Math.round(Math.max(...ys) - Math.min(...ys) + PAD * 2);
     const ar = this.BOSS_ARENA_RADIUS;
     const baseH = this.worldH;
-    this.worldW += ar * 2 + 700;
-    this.worldH = Math.max(baseH, ar * 2 + 600);
-    this.bossArenaCenter.set(this.worldW - ar - 200, this.worldH / 2);
+    this.worldW += ar * 2 + P(700);
+    this.worldH = Math.max(baseH, ar * 2 + P(600));
+    this.bossArenaCenter.set(this.worldW - ar - P(200), this.worldH / 2);
     this.bossArenaShape = Phaser.Math.Between(0, 3);
     // Use accepted quest boss; fall back to random
     const questBossId = QuestStore.getAcceptedQuest()?.bossId;
@@ -1812,13 +1812,13 @@ export class GameScene extends Phaser.Scene {
     // strokeAll draws inner lines too, but they're hidden by the grass layer on top.
     // Only the part outside the mask (corridor boundary outward) stays visible.
     const wallFace = this.add.graphics().setDepth(-0.5);
-    wallFace.lineStyle(28, 0x060e02, 1.0); strokeAll(wallFace);
-    wallFace.lineStyle(14, 0x0f2205, 0.90); strokeAll(wallFace);
-    wallFace.lineStyle(6, 0x1a3a08, 0.70); strokeAll(wallFace);
+    wallFace.lineStyle(P(28), 0x060e02, 1.0); strokeAll(wallFace);
+    wallFace.lineStyle(P(14), 0x0f2205, 0.90); strokeAll(wallFace);
+    wallFace.lineStyle(P(6), 0x1a3a08, 0.70); strokeAll(wallFace);
 
     // ── Layer 0: base grass (masked to corridor) ─────────
     this.add.tileSprite(this.worldW / 2, this.worldH / 2, this.worldW, this.worldH, 'grass')
-      .setDepth(0).setMask(sharedMask);
+      .setTileScale(DPR, DPR).setDepth(0).setMask(sharedMask);
 
     // ── Layer 0.3: subtle inner-edge AO (fill, not stroke) ─
     // Fill the walkable area dark at low alpha → then the grass on top is already drawn.
@@ -1835,25 +1835,25 @@ export class GameScene extends Phaser.Scene {
         const x1b = Math.max(s.x1, s.x2) - aoTrim;
         if (x1b <= x0) continue;
         const ry = s.y1 - hw;
-        aoGfx.fillRect(x0, ry, x1b - x0, 48);
-        aoGfx.fillRect(x0, ry + hw * 2 - 48, x1b - x0, 48);
+        aoGfx.fillRect(x0, ry, x1b - x0, P(48));
+        aoGfx.fillRect(x0, ry + hw * 2 - P(48), x1b - x0, P(48));
       } else {                                          // 垂直走廊
         const y0  = Math.min(s.y1, s.y2) + aoTrim;
         const y1b = Math.max(s.y1, s.y2) - aoTrim;
         if (y1b <= y0) continue;
         const rx = s.x1 - hw;
-        aoGfx.fillRect(rx, y0, 48, y1b - y0);
-        aoGfx.fillRect(rx + hw * 2 - 48, y0, 48, y1b - y0);
+        aoGfx.fillRect(rx, y0, P(48), y1b - y0);
+        aoGfx.fillRect(rx + hw * 2 - P(48), y0, P(48), y1b - y0);
       }
     }
     // 房間角落 AO（只畫房間邊框，不穿入走廊）
     aoGfx.fillStyle(0x000000, 0.16);
     for (const c of [...this.cornerPts, ...this.waypoints]) {
       const rw2 = this.CORR_HW * 2.2;
-      aoGfx.fillRect(c.x - rw2, c.y - rw2, rw2 * 2, 40);
-      aoGfx.fillRect(c.x - rw2, c.y + rw2 - 40, rw2 * 2, 40);
-      aoGfx.fillRect(c.x - rw2, c.y - rw2, 40, rw2 * 2);
-      aoGfx.fillRect(c.x + rw2 - 40, c.y - rw2, 40, rw2 * 2);
+      aoGfx.fillRect(c.x - rw2, c.y - rw2, rw2 * 2, P(40));
+      aoGfx.fillRect(c.x - rw2, c.y + rw2 - P(40), rw2 * 2, P(40));
+      aoGfx.fillRect(c.x - rw2, c.y - rw2, P(40), rw2 * 2);
+      aoGfx.fillRect(c.x + rw2 - P(40), c.y - rw2, P(40), rw2 * 2);
     }
 
     this.placeWalls();
@@ -1896,25 +1896,34 @@ export class GameScene extends Phaser.Scene {
   }
 
   private placeWalls(): void {
-    const STEP = 38;
+    const STEP = P(38);
     for (let gx = 0; gx < this.worldW; gx += STEP) {
       for (let gy = 0; gy < this.worldH; gy += STEP) {
-        if (this.isInOpenArea(gx, gy)) continue;
+        // Cell covers [gx, gx+STEP] × [gy, gy+STEP].
+        // Skip only if ALL four corners of that exact cell area are inside open area.
+        // This guarantees zero gap at corridor boundaries even with diagonal movement.
+        if (this.isInOpenArea(gx,        gy       ) &&
+            this.isInOpenArea(gx + STEP, gy       ) &&
+            this.isInOpenArea(gx,        gy + STEP) &&
+            this.isInOpenArea(gx + STEP, gy + STEP)) continue;
         const wall = this.wallGroup.create(gx, gy, '__DEFAULT') as Phaser.Physics.Arcade.Sprite;
         wall.setVisible(false).setActive(true);
-        (wall.body as Phaser.Physics.Arcade.StaticBody).setSize(STEP, STEP).setOffset(0, 0);
+        // setOrigin(0,0) makes sprite position = top-left, so body starts exactly at (gx, gy)
+        // and covers [gx, gx+STEP] × [gy, gy+STEP] — matching the corner check above.
+        wall.setOrigin(0, 0);
+        (wall.body as Phaser.Physics.Arcade.StaticBody).setSize(STEP, STEP);
         wall.refreshBody();
       }
     }
   }
 
   private placeInteriorDeco(): void {
-    const STEP = 180;
+    const STEP = P(180);
     for (let gx = 0; gx < this.worldW; gx += STEP) {
       for (let gy = 0; gy < this.worldH; gy += STEP) {
         if (Phaser.Math.Between(0, 9) < 4) continue;
-        const jx = gx + Phaser.Math.Between(-60, 60);
-        const jy = gy + Phaser.Math.Between(-60, 60);
+        const jx = gx + Phaser.Math.Between(-P(60), P(60));
+        const jy = gy + Phaser.Math.Between(-P(60), P(60));
         if (!this.isInOpenArea(jx, jy)) continue;
 
         // Keep clear around waypoints so combat space is unobstructed
@@ -1926,30 +1935,30 @@ export class GameScene extends Phaser.Scene {
         const roll = Phaser.Math.Between(0, 9);
         if (roll < 6) {
           // Small rock — player can walk behind it
-          const sc = Phaser.Math.FloatBetween(0.55, 0.85);
+          const sc = Phaser.Math.FloatBetween(0.55, 0.85) * DPR;
           this.add.image(jx, jy, 'rock')
             .setScale(sc)
-            .setDepth(jy + 12)
+            .setDepth(jy + P(12))
             .setTint(0xbbbbaa);
         } else if (roll < 9) {
           // Grass tuft cluster
           for (let k = 0; k < Phaser.Math.Between(2, 4); k++) {
-            const ox = Phaser.Math.Between(-14, 14);
-            const oy = Phaser.Math.Between(-8, 8);
+            const ox = Phaser.Math.Between(-P(14), P(14));
+            const oy = Phaser.Math.Between(-P(8), P(8));
             this.add.graphics()
-              .setDepth(jy + oy + 4)
+              .setDepth(jy + oy + P(4))
               .fillStyle(0x3a7a1a, 0.7)
-              .fillEllipse(jx + ox, jy + oy, Phaser.Math.Between(10, 18), Phaser.Math.Between(6, 10));
+              .fillEllipse(jx + ox, jy + oy, Phaser.Math.Between(P(10), P(18)), Phaser.Math.Between(P(6), P(10)));
           }
         } else {
           // Tiny dark pebble group
           for (let k = 0; k < 3; k++) {
-            const ox = Phaser.Math.Between(-10, 10);
-            const oy = Phaser.Math.Between(-6, 6);
+            const ox = Phaser.Math.Between(-P(10), P(10));
+            const oy = Phaser.Math.Between(-P(6), P(6));
             this.add.graphics()
-              .setDepth(jy + oy + 2)
+              .setDepth(jy + oy + P(2))
               .fillStyle(0x555544, 0.6)
-              .fillCircle(jx + ox, jy + oy, Phaser.Math.Between(2, 4));
+              .fillCircle(jx + ox, jy + oy, Phaser.Math.Between(P(2), P(4)));
           }
         }
       }
@@ -2112,7 +2121,7 @@ export class GameScene extends Phaser.Scene {
       const hp  = Math.round(def.hp * hpMult * (isElite ? ELITE_HP_MULT : 1));
       const atk = Math.round(def.atk * hpMult * (isElite ? 1.5 : 1));
       const a   = Phaser.Math.FloatBetween(0, Math.PI * 2);
-      const r   = Phaser.Math.FloatBetween(60, 160);
+      const r   = Phaser.Math.FloatBetween(P(150), P(400));
       const m   = new MinionSlime(this, wx + Math.cos(a) * r, wy + Math.sin(a) * r, hp, def.spriteKey, def.tint);
       m.atk = atk;
       if (isElite) {
@@ -2163,30 +2172,30 @@ export class GameScene extends Phaser.Scene {
   private setupPortal(px: number, py: number): void {
     // 地面陰影壓暗感
     const shadowGfx = this.add.graphics().setDepth(5);
-    shadowGfx.fillStyle(0x000000, 0.35); shadowGfx.fillEllipse(px, py + 5, 116, 28);
+    shadowGfx.fillStyle(0x000000, 0.35); shadowGfx.fillEllipse(px, py + P(5), P(116), P(28));
 
     // 外發光橢圓
     const outerGfx = this.add.graphics().setDepth(6);
-    outerGfx.fillStyle(0x6600cc, 0.14); outerGfx.fillEllipse(px, py, 120, 48);
-    outerGfx.fillStyle(0x8800ff, 0.22); outerGfx.fillEllipse(px, py, 96, 38);
+    outerGfx.fillStyle(0x6600cc, 0.14); outerGfx.fillEllipse(px, py, P(120), P(48));
+    outerGfx.fillStyle(0x8800ff, 0.22); outerGfx.fillEllipse(px, py, P(96), P(38));
     // 傳送門內腔
-    outerGfx.fillStyle(0x1a0033, 0.85); outerGfx.fillEllipse(px, py, 76, 28);
-    outerGfx.fillStyle(0xcc99ff, 0.15); outerGfx.fillEllipse(px - 10, py - 4, 28, 10);
+    outerGfx.fillStyle(0x1a0033, 0.85); outerGfx.fillEllipse(px, py, P(76), P(28));
+    outerGfx.fillStyle(0xcc99ff, 0.15); outerGfx.fillEllipse(px - P(10), py - P(4), P(28), P(10));
 
     // 邊緣光環（呼吸 tween）
     const ringGfx = this.add.graphics().setDepth(7);
-    ringGfx.lineStyle(4, 0xcc44ff, 1.0); ringGfx.strokeEllipse(px, py, 76, 28);
-    ringGfx.lineStyle(2, 0xffffff, 0.55); ringGfx.strokeEllipse(px, py, 76, 28);
+    ringGfx.lineStyle(P(4), 0xcc44ff, 1.0); ringGfx.strokeEllipse(px, py, P(76), P(28));
+    ringGfx.lineStyle(P(2), 0xffffff, 0.55); ringGfx.strokeEllipse(px, py, P(76), P(28));
     this.tweens.add({ targets: ringGfx, alpha: { from: 0.45, to: 1.0 }, duration: 900, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
 
     // 浮動標籤
-    const label = this.add.text(px, py - 30, '⚡ BOSS ⚡', {
-      fontSize: F(15), color: '#dd88ff', stroke: '#220033', strokeThickness: 3,
+    const label = this.add.text(px, py - P(30), '⚡ BOSS ⚡', {
+      fontSize: F(15), fontStyle: 'bold', color: '#dd88ff', stroke: '#220033', strokeThickness: 3,
     }).setOrigin(0.5).setDepth(8);
-    this.tweens.add({ targets: label, y: py - 36, alpha: { from: 0.7, to: 1.0 }, duration: 1000, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+    this.tweens.add({ targets: label, y: py - P(36), alpha: { from: 0.7, to: 1.0 }, duration: 1000, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
 
     // 觸發區（對齊內圈橢圓 76×28）
-    const zone = this.add.zone(px, py, 58, 20);
+    const zone = this.add.zone(px, py, P(58), P(20));
     this.physics.world.enable(zone, Phaser.Physics.Arcade.STATIC_BODY);
     this.physics.add.overlap(this.player, zone, () => {
       if (this.bossActive) return;
@@ -2334,7 +2343,7 @@ export class GameScene extends Phaser.Scene {
       case 0: return dx * dx + dy * dy <= R * R;
       case 1: { const hs = R * 0.875; return Math.abs(dx) <= hs && Math.abs(dy) <= hs && Math.abs(dx) + Math.abs(dy) <= hs * 1.5; }
       case 2: return Math.abs(dx) + Math.abs(dy) <= R;
-      case 3: { const hw = 380, hh = 300, cr = 100; const ex = Math.max(Math.abs(dx) - (hw - cr), 0); const ey = Math.max(Math.abs(dy) - (hh - cr), 0); return ex * ex + ey * ey <= cr * cr; }
+      case 3: { const hw = P(380), hh = P(300), cr = P(100); const ex = Math.max(Math.abs(dx) - (hw - cr), 0); const ey = Math.max(Math.abs(dy) - (hh - cr), 0); return ex * ex + ey * ey <= cr * cr; }
       default: return dx * dx + dy * dy <= R * R;
     }
   }
@@ -2365,7 +2374,7 @@ export class GameScene extends Phaser.Scene {
       ];
     }
     if (this.bossArenaShape === 3) {          // 圓角矩形
-      const hw = 380, hh = 300, cr = 100, segs = 10;
+      const hw = P(380), hh = P(300), cr = P(100), segs = 10;
       const pts: { x: number; y: number }[] = [];
       for (const [ox, oy, a0] of [
         [cx + hw - cr, cy + hh - cr, 0            ],
@@ -2394,30 +2403,30 @@ export class GameScene extends Phaser.Scene {
 
     // 崖壁邊緣（地板之下）
     const wallFace = this.add.graphics().setDepth(-0.5);
-    wallFace.lineStyle(32, 0x080010, 1.0); strokeShape(wallFace);
-    wallFace.lineStyle(16, 0x1a0030, 0.9); strokeShape(wallFace);
-    wallFace.lineStyle(7,  0x380055, 0.7); strokeShape(wallFace);
+    wallFace.lineStyle(P(32), 0x080010, 1.0); strokeShape(wallFace);
+    wallFace.lineStyle(P(16), 0x1a0030, 0.9); strokeShape(wallFace);
+    wallFace.lineStyle(P(7),  0x380055, 0.7); strokeShape(wallFace);
 
     // 石板地板 + 遮罩
     const maskGfx = (this.make.graphics as any)({ x: 0, y: 0, add: false }) as Phaser.GameObjects.Graphics;
     maskGfx.fillStyle(0xffffff);
     fillShape(maskGfx);
     const arenaMask = maskGfx.createGeometryMask();
-    this.add.tileSprite(cx, cy, R * 2.2, R * 2.2, 'stone').setDepth(0.1).setMask(arenaMask);
+    this.add.tileSprite(cx, cy, R * 2.2, R * 2.2, 'stone').setTileScale(DPR, DPR).setDepth(0.1).setMask(arenaMask);
 
     // AO 邊緣暗化
     const aoGfx = this.add.graphics().setDepth(0.4).setMask(arenaMask);
     if (isCircle) {
-      aoGfx.lineStyle(70, 0x000000, 0.30); aoGfx.strokeCircle(cx, cy, R - 35);
+      aoGfx.lineStyle(P(70), 0x000000, 0.30); aoGfx.strokeCircle(cx, cy, R - P(35));
     } else {
-      aoGfx.lineStyle(90, 0x000000, 0.28); strokeShape(aoGfx);
+      aoGfx.lineStyle(P(90), 0x000000, 0.28); strokeShape(aoGfx);
     }
 
     // 裝飾魔法陣
     const decoGfx = this.add.graphics().setDepth(1.0);
 
     // 外圈輪廓（依形狀）
-    decoGfx.lineStyle(2, 0x880099, 0.35);
+    decoGfx.lineStyle(P(2), 0x880099, 0.35);
     if (isCircle) {
       decoGfx.strokeCircle(cx, cy, R * 0.80);
     } else {
@@ -2425,30 +2434,30 @@ export class GameScene extends Phaser.Scene {
       const innerPts = pts.map(p => ({ x: cx + (p.x - cx) * 0.75, y: cy + (p.y - cy) * 0.75 }));
       decoGfx.strokePoints(innerPts, true);
     }
-    decoGfx.lineStyle(1, 0x660077, 0.22);
-    decoGfx.strokeCircle(cx, cy, Math.min(R * 0.55, 240));
+    decoGfx.lineStyle(P(1), 0x660077, 0.22);
+    decoGfx.strokeCircle(cx, cy, Math.min(R * 0.55, P(240)));
 
     // 中央儀式圈
-    decoGfx.fillStyle(0x1a0025, 0.55); decoGfx.fillCircle(cx, cy, 85);
-    decoGfx.lineStyle(3, 0xcc0077, 0.65); decoGfx.strokeCircle(cx, cy, 85);
-    decoGfx.lineStyle(1, 0xcc0077, 0.30); decoGfx.strokeCircle(cx, cy, 58);
+    decoGfx.fillStyle(0x1a0025, 0.55); decoGfx.fillCircle(cx, cy, P(85));
+    decoGfx.lineStyle(P(3), 0xcc0077, 0.65); decoGfx.strokeCircle(cx, cy, P(85));
+    decoGfx.lineStyle(P(1), 0xcc0077, 0.30); decoGfx.strokeCircle(cx, cy, P(58));
 
     // 射線（對稱軸數量配合形狀）
     const rayCount = [8, 8, 4, 8][this.bossArenaShape];
-    decoGfx.lineStyle(1, 0x880066, 0.22);
+    decoGfx.lineStyle(P(1), 0x880066, 0.22);
     for (let i = 0; i < rayCount; i++) {
       const a = (i / rayCount) * Math.PI * 2;
-      decoGfx.lineBetween(cx, cy, cx + Math.cos(a) * 85, cy + Math.sin(a) * 85);
+      decoGfx.lineBetween(cx, cy, cx + Math.cos(a) * P(85), cy + Math.sin(a) * P(85));
     }
 
     // 符文點（沿內輪廓擺放）
     decoGfx.fillStyle(0xdd44ff, 0.55);
     const dotCount  = [4, 8, 4, 4][this.bossArenaShape];
     const dotOffset = [Math.PI / 4, 0, 0, Math.PI / 4][this.bossArenaShape];
-    const dotR      = Math.min(R * 0.62, 260);
+    const dotR      = Math.min(R * 0.62, P(260));
     for (let i = 0; i < dotCount; i++) {
       const a = (i / dotCount) * Math.PI * 2 + dotOffset;
-      decoGfx.fillCircle(cx + Math.cos(a) * dotR, cy + Math.sin(a) * dotR, 7);
+      decoGfx.fillCircle(cx + Math.cos(a) * dotR, cy + Math.sin(a) * dotR, P(7));
     }
   }
 
@@ -2456,13 +2465,13 @@ export class GameScene extends Phaser.Scene {
     const W = this.scale.width;
     const bw = W * 0.60;
     const bx = (W - bw) / 2;
-    const by = 20;
-    const bh = 6;
+    const by = P(20);
+    const bh = P(6);
 
     this.bossHpGfx.clear();
     // 底板（名稱 + 血條同一排）
     this.bossHpGfx.fillStyle(0x220000, 0.80);
-    this.bossHpGfx.fillRect(bx - 4, by - 2, bw + 8, bh + 4);
+    this.bossHpGfx.fillRect(bx - P(4), by - P(2), bw + P(8), bh + P(4));
 
     const pct = this.boss.currentHp / this.boss.maxHpValue;
     const color = pct > 0.5 ? 0xcc2200 : pct > 0.25 ? 0xff4400 : 0xff0000;
@@ -2476,12 +2485,12 @@ export class GameScene extends Phaser.Scene {
     const elemTag = this.boss.element !== 'none' ? ` 【${elemName}】` : '';
     if (this.boss.element !== 'none') {
       this.bossHpGfx.fillStyle(elemColor, 0.9);
-      this.bossHpGfx.fillRect(bx - 4, by - 2, 4, bh + 4);
+      this.bossHpGfx.fillRect(bx - P(4), by - P(2), P(4), bh + P(4));
     }
     this.bossHpLabel.setText(`${getMonsterDef(this.bossMonsterId)?.name ?? '???'}${elemTag}  ${this.boss.currentHp}/${this.boss.maxHpValue}`);
-    this.bossHpLabel.setPosition(W / 2, by - 14);
+    this.bossHpLabel.setPosition(W / 2, by - P(14));
 
-    this.drawBossDebuffIcons(by + bh + 10);
+    this.drawBossDebuffIcons(by + bh + P(10));
   }
 
   private drawBossDebuffIcons(iconY: number): void {
@@ -2491,7 +2500,7 @@ export class GameScene extends Phaser.Scene {
     let   slot = 0;
 
     if (this.boss.burnStacks > 0 && now < this.boss.burnExpiresAt) {
-      const cx = W / 2 - 100 + slot * 20;
+      const cx = W / 2 - P(100) + slot * P(20);
       this.drawBossDebuffIcon(cx, iconY, 'burn', 0xff4400, 0x220800);
       this.updateBossDebuffText('burn', cx, iconY, `${this.boss.burnStacks}`);
       slot++;
@@ -2501,7 +2510,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private drawBossDebuffIcon(cx: number, cy: number, key: string, rimColor: number, bgColor: number): void {
-    const r = 8;
+    const r = P(8);
     this.bossDebuffGfx.fillStyle(rimColor, 0.3);
     this.bossDebuffGfx.fillCircle(cx, cy, r + 2);
     this.bossDebuffGfx.fillStyle(bgColor, 0.92);
@@ -2522,7 +2531,7 @@ export class GameScene extends Phaser.Scene {
   private updateBossDebuffText(key: string, cx: number, cy: number, label: string): void {
     const txt = this.bossDebuffTexts.get(key);
     if (!txt) return;
-    txt.setPosition(cx, cy + 6).setText(label).setVisible(true);
+    txt.setPosition(cx, cy + P(6)).setText(label).setVisible(true);
   }
 
   private hideBossDebuffText(key: string): void {
@@ -2530,31 +2539,20 @@ export class GameScene extends Phaser.Scene {
   }
 
   private spawnDamageNumber(x: number, y: number, dmg: number, isCrit: boolean, elemMult: number): void {
-    const ox = Phaser.Math.Between(-14, 14);
-    const fontSize = isCrit ? '20px' : '14px';
-    const color = isCrit ? '#ff8800' : (elemMult > 1 ? '#ff4444' : '#ffffff');
+    const ox = Phaser.Math.Between(-P(14), P(14));
+    const fontSize = isCrit ? F(20) : F(15);
+    const color = isCrit ? '#ff8800' : '#ffffff';
     const stroke = isCrit ? '#4a1800' : '#000000';
 
-    const label = this.add.text(x + ox, y - 24, `${dmg}`, {
-      fontSize, fontStyle: isCrit ? 'bold' : 'normal',
+    const label = this.add.text(x + ox, y - P(24), `${dmg}`, {
+      fontSize, fontStyle: 'bold',
       color, stroke, strokeThickness: isCrit ? 4 : 3,
     }).setOrigin(0.5, 1).setDepth(300);
 
-    if (isCrit) {
-      const crit = this.add.text(x + ox + 2, y - 38, '暴擊！', {
-        fontSize: F(15), color: '#ffcc44', stroke: '#4a1800', strokeThickness: 2,
-      }).setOrigin(0.5, 1).setDepth(300);
-      this.tweens.add({
-        targets: crit,
-        y: crit.y - 28, alpha: 0,
-        duration: 700, ease: 'Cubic.easeOut',
-        onComplete: () => crit.destroy(),
-      });
-    }
 
     this.tweens.add({
       targets: label,
-      y: label.y - (isCrit ? 52 : 38),
+      y: label.y - (isCrit ? P(52) : P(38)),
       alpha: 0,
       duration: isCrit ? 900 : 700,
       ease: 'Cubic.easeOut',
@@ -2563,13 +2561,13 @@ export class GameScene extends Phaser.Scene {
   }
 
   private spawnEvadeText(x: number, y: number): void {
-    const label = this.add.text(x, y - 24, '閃避', {
+    const label = this.add.text(x, y - P(24), '閃避', {
       fontSize: F(16), fontStyle: 'bold',
       color: '#aaddff', stroke: '#001133', strokeThickness: 3,
     }).setOrigin(0.5, 1).setDepth(300);
     this.tweens.add({
       targets: label,
-      y: label.y - 36, alpha: 0,
+      y: label.y - P(36), alpha: 0,
       duration: 700, ease: 'Cubic.easeOut',
       onComplete: () => label.destroy(),
     });
@@ -2603,7 +2601,7 @@ export class GameScene extends Phaser.Scene {
     // Floating victory message
     const W = this.scale.width;
     const line1 = questCompleted ? '任務完成！返回大廳領取賞金' : 'Boss 討伐成功！';
-    const msg = this.add.text(W / 2, 54, line1, {
+    const msg = this.add.text(W / 2, P(54), line1, {
       fontSize: F(15), color: '#ffe066', stroke: '#000000', strokeThickness: 3,
     }).setScrollFactor(0).setDepth(300).setOrigin(0.5);
     this.tweens.add({
@@ -2625,7 +2623,7 @@ export class GameScene extends Phaser.Scene {
 
   private createExitButton(): void {
     const W  = this.scale.width;
-    const bw = 72, bh = 28, pad = 8;
+    const bw = P(72), bh = P(28), pad = P(8);
     const bx = W - pad - bw;
     const by = pad;
     const cx = bx + bw / 2;
@@ -2633,13 +2631,13 @@ export class GameScene extends Phaser.Scene {
 
     const g = this.add.graphics().setScrollFactor(0).setDepth(200);
     g.fillStyle(0x3a1010, 0.92);
-    g.fillRoundedRect(bx, by, bw, bh, 6);
-    g.lineStyle(2, 0xaa2222, 1);
-    g.strokeRoundedRect(bx, by, bw, bh, 6);
+    g.fillRoundedRect(bx, by, bw, bh, P(6));
+    g.lineStyle(P(2), 0xaa2222, 1);
+    g.strokeRoundedRect(bx, by, bw, bh, P(6));
     this.exitBtnGfx = g;
 
     this.exitBtnTxt = this.add.text(cx, cy, '✕ 退出', {
-      fontSize: F(15), color: '#ee4444', stroke: '#000', strokeThickness: 2,
+      fontSize: F(15), fontStyle: 'bold', color: '#ee4444', stroke: '#000', strokeThickness: 2,
     }).setOrigin(0.5).setScrollFactor(0).setDepth(201);
 
     const hit = this.add.rectangle(cx, cy, bw, bh)
@@ -2667,26 +2665,26 @@ export class GameScene extends Phaser.Scene {
   // ── Loot drop system ──────────────────────────────────
 
   private spawnCardDrop(cx: number, cy: number, cardId: string): void {
-    const ox = Phaser.Math.Between(-18, 18);
-    const oy = Phaser.Math.Between(-8, 8);
+    const ox = Phaser.Math.Between(-P(18), P(18));
+    const oy = Phaser.Math.Between(-P(8), P(8));
     const tx = cx + ox;
-    const ty = cy + oy + 18;
+    const ty = cy + oy + P(18);
 
     const cardDef = getCardDef(cardId);
     const monDef  = cardDef ? getMonsterDef(cardDef.monsterId) : null;
     const isBoss  = (monDef?.tier ?? 0) >= 5;
-    const CW = 16, CH = 20;
+    const CW = P(16), CH = P(20);
 
-    const cnt = this.add.container(tx, cy - 24).setDepth(ty + 4);
+    const cnt = this.add.container(tx, cy - P(24)).setDepth(ty + 4);
 
     // Card frame
     const g = this.add.graphics();
     const bColor = isBoss ? 0xf0c040 : 0x9aacb8;
     const fx = -CW / 2, fy = -CH / 2;
-    g.fillStyle(0x000000, 0.4);  g.fillRect(fx + 2, fy + 2, CW, CH);
-    g.fillStyle(0x2a1a0a, 1);    g.fillRect(fx, fy, CW, CH);
-    g.lineStyle(2, bColor, 0.9); g.strokeRect(fx, fy, CW, CH);
-    g.lineStyle(1, bColor, 0.4); g.strokeRect(fx + 2, fy + 2, CW - 4, CH - 4);
+    g.fillStyle(0x000000, 0.4);    g.fillRect(fx + P(2), fy + P(2), CW, CH);
+    g.fillStyle(0x2a1a0a, 1);      g.fillRect(fx, fy, CW, CH);
+    g.lineStyle(P(2), bColor, 0.9); g.strokeRect(fx, fy, CW, CH);
+    g.lineStyle(P(1), bColor, 0.4); g.strokeRect(fx + P(2), fy + P(2), CW - P(4), CH - P(4));
     cnt.add(g);
 
     // Drop + breathing animation
@@ -2709,19 +2707,19 @@ export class GameScene extends Phaser.Scene {
     for (const drop of drops) {
       if (Math.random() >= drop.rate * dropMult) continue;
       const qty = Phaser.Math.Between(drop.qtyMin, drop.qtyMax);
-      const ox  = Phaser.Math.Between(-22, 22);
-      const oy  = Phaser.Math.Between(-10, 10);
+      const ox  = Phaser.Math.Between(-P(22), P(22));
+      const oy  = Phaser.Math.Between(-P(10), P(10));
       const tx  = cx + ox;
-      const ty  = cy + oy + 18;
+      const ty  = cy + oy + P(18);
       const iconKey = `icon_${drop.itemId}`;
-      const img = this.add.image(tx, cy - 24, iconKey)
+      const img = this.add.image(tx, cy - P(24), iconKey)
         .setDisplaySize(P(28), P(28)).setDepth(ty + 4);
       this.tweens.add({
         targets: img, y: ty,
         duration: 420, ease: 'Bounce.Out',
         onComplete: () => {
           this.tweens.add({
-            targets: img, y: ty - 4,
+            targets: img, y: ty - P(4),
             duration: 700, yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
           });
         },
@@ -2753,7 +2751,7 @@ export class GameScene extends Phaser.Scene {
   private showPickupText(_x: number, _y: number, name: string, qty: number): void {
     const W      = this.scale.width;
     const H      = this.scale.height;
-    const LINE_H = 22;
+    const LINE_H = P(22);
     const MAX    = 5;
     const BASE_Y = H * 0.82;
 
@@ -2780,7 +2778,7 @@ export class GameScene extends Phaser.Scene {
       ? targetY(this.pickupLog.length, this.pickupLog.length + 1)
       : BASE_Y;
     const txt = this.add.text(W / 2, startY, `+${qty} ${name}`, {
-      fontSize: F(15), color: '#ffffff',
+      fontSize: F(15), fontStyle: 'bold', color: '#ffffff',
       stroke: '#000000', strokeThickness: 3,
     }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(240);
     this.pickupLog.push(txt);
@@ -2803,15 +2801,15 @@ export class GameScene extends Phaser.Scene {
     const H = this.scale.height;
     const bg = this.add.graphics().setScrollFactor(0).setDepth(290);
     bg.fillStyle(0x000000, 0.55);
-    bg.fillRoundedRect(W / 2 - 120, H / 2 - 38, 240, 76, 10);
+    bg.fillRoundedRect(W / 2 - P(120), H / 2 - P(38), P(240), P(76), P(10));
     bg.lineStyle(2, 0xf0c040, 0.9);
-    bg.strokeRoundedRect(W / 2 - 120, H / 2 - 38, 240, 76, 10);
+    bg.strokeRoundedRect(W / 2 - P(120), H / 2 - P(38), P(240), P(76), P(10));
 
-    const line1 = this.add.text(W / 2, H / 2 - 14, '⬆  等級提升！', {
+    const line1 = this.add.text(W / 2, H / 2 - P(14), '⬆  等級提升！', {
       fontSize: F(20), color: '#f0c040', stroke: '#000', strokeThickness: 3,
     }).setOrigin(0.5).setScrollFactor(0).setDepth(291);
 
-    const line2 = this.add.text(W / 2, H / 2 + 16, `Lv. ${newLevel}   ATK +1   HP +10`, {
+    const line2 = this.add.text(W / 2, H / 2 + P(16), `Lv. ${newLevel}   ATK +1   HP +10`, {
       fontSize: F(15), color: '#ffffff', stroke: '#000', strokeThickness: 2,
     }).setOrigin(0.5).setScrollFactor(0).setDepth(291);
 
@@ -2832,25 +2830,25 @@ export class GameScene extends Phaser.Scene {
     overlay.fillRect(0, 0, W, H);
 
     // ── 面板 ────────────────────────────────────────────
-    const PW = 300, PH = 200;
+    const PW = P(300), PH = P(200);
     const px = W / 2 - PW / 2, py = H / 2 - PH / 2;
 
     const panel = this.add.graphics().setScrollFactor(0).setDepth(D + 1);
     panel.fillStyle(0x000000, 0.5);
-    panel.fillRoundedRect(px + 4, py + 4, PW, PH, 10);
+    panel.fillRoundedRect(px + P(4), py + P(4), PW, PH, P(10));
     panel.fillStyle(0x1a0a0a, 1);
-    panel.fillRoundedRect(px, py, PW, PH, 10);
+    panel.fillRoundedRect(px, py, PW, PH, P(10));
     panel.fillStyle(0x2a1010, 1);
-    panel.fillRoundedRect(px + 2, py + 2, PW - 4, PH - 4, 9);
+    panel.fillRoundedRect(px + P(2), py + P(2), PW - P(4), PH - P(4), P(9));
     panel.fillStyle(0x660000, 0.8);
-    panel.fillRoundedRect(px + 2, py + 2, PW - 4, 44, { tl: 9, tr: 9, bl: 0, br: 0 });
+    panel.fillRoundedRect(px + P(2), py + P(2), PW - P(4), P(44), { tl: P(9), tr: P(9), bl: 0, br: 0 });
     panel.lineStyle(2, 0xaa2222, 0.9);
-    panel.strokeRoundedRect(px, py, PW, PH, 10);
+    panel.strokeRoundedRect(px, py, PW, PH, P(10));
     panel.lineStyle(1, 0xff4444, 0.2);
-    panel.strokeRoundedRect(px + 4, py + 4, PW - 8, PH - 8, 8);
+    panel.strokeRoundedRect(px + P(4), py + P(4), PW - P(8), PH - P(8), P(8));
 
     // ── 標題 ────────────────────────────────────────────
-    this.add.text(W / 2, py + 32, '冒險者倒下了', {
+    this.add.text(W / 2, py + P(32), '冒險者倒下了', {
       fontSize: F(24), color: '#ff4444',
       stroke: '#000', strokeThickness: 6,
     }).setOrigin(0.5).setScrollFactor(0).setDepth(D + 2);
@@ -2858,20 +2856,20 @@ export class GameScene extends Phaser.Scene {
     // 分隔線
     const sep = this.add.graphics().setScrollFactor(0).setDepth(D + 2);
     sep.fillStyle(0xaa2222, 0.4);
-    sep.fillRect(px + 20, py + 58, PW - 40, 1);
+    sep.fillRect(px + P(20), py + P(58), PW - P(40), P(1));
 
     // ── 返回村莊按鈕 ────────────────────────────────────
-    const BW = 140, BH = 42;
-    const cx = W / 2, cy = py + PH - 48;
+    const BW = P(140), BH = P(42);
+    const cx = W / 2, cy = py + PH - P(48);
     const g = this.add.graphics().setScrollFactor(0).setDepth(D + 2);
     g.fillStyle(0x1a0808, 1);
-    g.fillRoundedRect(cx - BW / 2, cy - BH / 2, BW, BH, 7);
+    g.fillRoundedRect(cx - BW / 2, cy - BH / 2, BW, BH, P(7));
     g.fillStyle(0xffffff, 0.05);
-    g.fillRoundedRect(cx - BW / 2, cy - BH / 2, BW, BH / 2, { tl: 7, tr: 7, bl: 0, br: 0 });
+    g.fillRoundedRect(cx - BW / 2, cy - BH / 2, BW, BH / 2, { tl: P(7), tr: P(7), bl: 0, br: 0 });
     g.lineStyle(2, 0xaa2222, 0.9);
-    g.strokeRoundedRect(cx - BW / 2, cy - BH / 2, BW, BH, 7);
+    g.strokeRoundedRect(cx - BW / 2, cy - BH / 2, BW, BH, P(7));
     g.fillStyle(0xaa2222, 0.35);
-    g.fillRoundedRect(cx - BW / 2, cy - BH / 2, BW, 2, { tl: 7, tr: 7, bl: 0, br: 0 });
+    g.fillRoundedRect(cx - BW / 2, cy - BH / 2, BW, P(2), { tl: P(7), tr: P(7), bl: 0, br: 0 });
 
     const txt = this.add.text(cx, cy, '返回村莊', {
       fontSize: F(16), color: '#ff8888', stroke: '#000', strokeThickness: 3,
@@ -2893,10 +2891,10 @@ export class GameScene extends Phaser.Scene {
   }
 
   private addLevelHUD(): void {
-    const STRIP_H = 22, EXP_H = 4;
+    const STRIP_H = P(22), EXP_H = P(4);
 
-    this.levelText = this.add.text(10, 0, '', {
-      fontSize: F(15), color: '#e8d090', stroke: '#1a0800', strokeThickness: 2,
+    this.levelText = this.add.text(P(10), 0, '', {
+      fontSize: F(15), fontStyle: 'bold', color: '#e8d090', stroke: '#1a0800', strokeThickness: 2,
     }).setScrollFactor(0).setDepth(102).setOrigin(0, 0.5);
 
     this.expBarGfx = this.add.graphics().setScrollFactor(0).setDepth(101);
@@ -2913,7 +2911,7 @@ export class GameScene extends Phaser.Scene {
 
       // Lv text (left), vertically centred in strip
       const midY = top + STRIP_H / 2;
-      this.levelText.setPosition(10, midY);
+      this.levelText.setPosition(P(10), midY);
       this.levelText.setText(`Lv.${lv}`);
 
       // Exp bar (full width, sits below the strip)
@@ -2922,10 +2920,10 @@ export class GameScene extends Phaser.Scene {
       this.expBarGfx.fillRect(0, top + STRIP_H, W, EXP_H);
       if (pct > 0) {
         this.expBarGfx.fillStyle(0x44aaff, 1);
-        this.expBarGfx.fillRect(0, top + STRIP_H, Math.max(4, W * pct), EXP_H);
+        this.expBarGfx.fillRect(0, top + STRIP_H, Math.max(P(4), W * pct), EXP_H);
         // Bright leading edge
         this.expBarGfx.fillStyle(0xaaddff, 0.7);
-        this.expBarGfx.fillRect(Math.max(0, W * pct - 3), top + STRIP_H, 3, EXP_H);
+        this.expBarGfx.fillRect(Math.max(0, W * pct - P(3)), top + STRIP_H, P(3), EXP_H);
       }
     };
 
@@ -2940,10 +2938,10 @@ export class GameScene extends Phaser.Scene {
 
   private addAttackButton(): void {
     if ((PlayerStore.getEquipped().sword?.behavior ?? 'slash180') === 'aura') return;
-    const r = 40;
+    const r = P(40);
     const getBtnCenter = () => ({
-      x: this.scale.width - 100,
-      y: this.scale.height - 120,
+      x: this.scale.width - P(100),
+      y: this.scale.height - P(120),
     });
 
     const gfx = this.add.graphics().setScrollFactor(0).setDepth(100).setAlpha(0.25);
@@ -2951,11 +2949,11 @@ export class GameScene extends Phaser.Scene {
     const drawBtn = (pressed: boolean) => {
       gfx.clear();
       const { x: cx, y: cy } = getBtnCenter();
-      const oy = pressed ? 1 : 0;
+      const oy = pressed ? P(1) : 0;
 
       // Drop shadow
       gfx.fillStyle(0x000000, 0.5);
-      gfx.fillCircle(cx + 3, cy + 3, r);
+      gfx.fillCircle(cx + P(3), cy + P(3), r);
 
       // Outer ring (dark border)
       gfx.fillStyle(0x150000, 1);
@@ -2964,17 +2962,17 @@ export class GameScene extends Phaser.Scene {
       // Bevel highlight ring (top-left offset)
       if (!pressed) {
         gfx.fillStyle(0xb82800, 1);
-        gfx.fillCircle(cx - 1, cy - 1, r - 2);
+        gfx.fillCircle(cx - P(1), cy - P(1), r - P(2));
       }
 
       // Main fill
       gfx.fillStyle(pressed ? 0x4a0e00 : 0x6a1500, 1);
-      gfx.fillCircle(cx + (pressed ? 1 : 0), cy + (pressed ? 1 : 0), r - (pressed ? 2 : 4));
+      gfx.fillCircle(cx + (pressed ? P(1) : 0), cy + (pressed ? P(1) : 0), r - (pressed ? P(2) : P(4)));
 
       // Inner glow highlight (top area)
       if (!pressed) {
         gfx.fillStyle(0xff6633, 0.28);
-        gfx.fillCircle(cx - 5, cy - 10, 13);
+        gfx.fillCircle(cx - P(5), cy - P(10), P(13));
       }
 
       // ── Pixel sword icon ──────────────────────────────
@@ -2982,31 +2980,31 @@ export class GameScene extends Phaser.Scene {
 
       // blade (silver)
       gfx.fillStyle(0xdddddd, 1);
-      gfx.fillRect(ox - 2, cy - 18 + oy, 4, 24);
+      gfx.fillRect(ox - P(2), cy - P(18) + oy, P(4), P(24));
       // blade shine
       gfx.fillStyle(0xffffff, 1);
-      gfx.fillRect(ox - 1, cy - 17 + oy, 1, 18);
+      gfx.fillRect(ox - P(1), cy - P(17) + oy, P(1), P(18));
       // blade tip
       gfx.fillStyle(0xbbbbbb, 1);
-      gfx.fillRect(ox - 1, cy - 20 + oy, 2, 2);
+      gfx.fillRect(ox - P(1), cy - P(20) + oy, P(2), P(2));
 
       // guard (gold)
       gfx.fillStyle(0xddaa00, 1);
-      gfx.fillRect(ox - 9, cy + 5 + oy, 18, 4);
+      gfx.fillRect(ox - P(9), cy + P(5) + oy, P(18), P(4));
       gfx.fillStyle(0x997700, 1);
-      gfx.fillRect(ox - 9, cy + 5 + oy, 3, 4);
-      gfx.fillRect(ox + 6, cy + 5 + oy, 3, 4);
+      gfx.fillRect(ox - P(9), cy + P(5) + oy, P(3), P(4));
+      gfx.fillRect(ox + P(6), cy + P(5) + oy, P(3), P(4));
 
       // grip (brown)
       gfx.fillStyle(0x884422, 1);
-      gfx.fillRect(ox - 2, cy + 9 + oy, 4, 9);
+      gfx.fillRect(ox - P(2), cy + P(9) + oy, P(4), P(9));
       gfx.fillStyle(0xaa6633, 1);
-      gfx.fillRect(ox - 2, cy + 11 + oy, 4, 2);
-      gfx.fillRect(ox - 2, cy + 14 + oy, 4, 2);
+      gfx.fillRect(ox - P(2), cy + P(11) + oy, P(4), P(2));
+      gfx.fillRect(ox - P(2), cy + P(14) + oy, P(4), P(2));
 
       // pommel (gold)
       gfx.fillStyle(0xddaa00, 1);
-      gfx.fillRect(ox - 4, cy + 18 + oy, 8, 4);
+      gfx.fillRect(ox - P(4), cy + P(18) + oy, P(8), P(4));
     };
 
     drawBtn(false);

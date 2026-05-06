@@ -3,6 +3,7 @@ import { Boss, BossState } from './boss';
 import { MONSTER_SCALE_BOSS } from '../data/monster-data';
 
 const DPR = Math.min(window.devicePixelRatio || 1, 3);
+const P = (n: number): number => Math.round(n * DPR);
 
 const SUMMON_DIST  = Math.round(85 * DPR);
 const SUMMON_COUNT = 3;
@@ -65,9 +66,9 @@ export class BossZombieSlime extends Boss {
     this.zombieOrbs = Array.from({ length: SUMMON_COUNT }, () => {
       const o = this.scene.add.graphics().setDepth(this.depth + 2);
       o.fillStyle(0x99dd44, 0.95);
-      o.fillCircle(0, 0, 5);
-      o.lineStyle(1.5, 0xccff66, 0.65);
-      o.strokeCircle(0, 0, 8);
+      o.fillCircle(0, 0, P(5));
+      o.lineStyle(P(2), 0xccff66, 0.65);
+      o.strokeCircle(0, 0, P(8));
       return o;
     });
     const orbs = this.zombieOrbs;
@@ -96,14 +97,14 @@ export class BossZombieSlime extends Boss {
       this.scene.time.delayedCall(wave * 600, () => {
         if (this.currentState !== BossState.ZOMBIE_SUMMON_WARN) return;
         const rG = this.scene.add.graphics().setDepth(this.depth + 1).setPosition(this.x, this.y);
-        const rs = { r: 12, a: 0.8 };
+        const rs = { r: P(12), a: 0.8 };
         this.scene.tweens.add({
-          targets: rs, r: 52, a: 0, duration: 600, ease: 'Quad.Out',
+          targets: rs, r: P(52), a: 0, duration: 600, ease: 'Quad.Out',
           onUpdate: () => {
             rG.clear();
-            rG.lineStyle(2.5, 0x99dd44, rs.a);
+            rG.lineStyle(P(3), 0x99dd44, rs.a);
             rG.strokeCircle(0, 0, rs.r);
-            rG.lineStyle(6, 0x446611, rs.a * 0.2);
+            rG.lineStyle(P(6), 0x446611, rs.a * 0.2);
             rG.strokeCircle(0, 0, rs.r);
           },
           onComplete: () => rG.destroy(),
@@ -230,11 +231,11 @@ export class BossZombieSlime extends Boss {
         proj.setPosition(cx, cy);
         proj.clear();
         proj.fillStyle(0x446600, 0.92);
-        proj.fillCircle(0, 0, 7);
-        proj.lineStyle(2, 0xaaff44, 0.85);
-        proj.strokeCircle(0, 0, 7);
+        proj.fillCircle(0, 0, P(7));
+        proj.lineStyle(P(2), 0xaaff44, 0.85);
+        proj.strokeCircle(0, 0, P(7));
         proj.fillStyle(0xccff44, 0.55);
-        proj.fillCircle(-1, -2, 3);
+        proj.fillCircle(-P(1), -P(2), P(3));
       },
       onComplete: () => {
         hitTimer.destroy();
@@ -264,17 +265,17 @@ export class BossZombieSlime extends Boss {
 
   private drawPortalWarning(g: Phaser.GameObjects.Graphics, x: number, y: number): void {
     g.fillStyle(0x446611, 0.22);
-    g.fillCircle(x, y, 22);
-    g.lineStyle(2, 0x99dd44, 0.88);
-    g.strokeCircle(x, y, 22);
-    g.lineStyle(1, 0xccff66, 0.5);
-    g.lineBetween(x - 13, y, x + 13, y);
-    g.lineBetween(x, y - 13, x, y + 13);
+    g.fillCircle(x, y, P(22));
+    g.lineStyle(P(2), 0x99dd44, 0.88);
+    g.strokeCircle(x, y, P(22));
+    g.lineStyle(P(1), 0xccff66, 0.5);
+    g.lineBetween(x - P(13), y, x + P(13), y);
+    g.lineBetween(x, y - P(13), x, y + P(13));
     for (let i = 0; i < 8; i++) {
       if (i % 2 === 0) continue;
       const a = (i / 8) * Math.PI * 2;
       g.fillStyle(0x99dd44, 0.65);
-      g.fillRect(x + Math.cos(a) * 27 - 2, y + Math.sin(a) * 27 - 2, 4, 4);
+      g.fillRect(x + Math.cos(a) * P(27) - P(2), y + Math.sin(a) * P(27) - P(2), P(4), P(4));
     }
   }
 
@@ -298,7 +299,7 @@ export class BossZombieSlime extends Boss {
     g.closePath();
     g.fillPath();
     // 邊線
-    g.lineStyle(2, 0xff5500, 0.85);
+    g.lineStyle(P(2), 0xff5500, 0.85);
     g.beginPath();
     g.moveTo(ox, oy);
     g.lineTo(ox + Math.cos(centerAngle - halfRad) * len, oy + Math.sin(centerAngle - halfRad) * len);
@@ -308,7 +309,7 @@ export class BossZombieSlime extends Boss {
     g.lineTo(ox + Math.cos(centerAngle + halfRad) * len, oy + Math.sin(centerAngle + halfRad) * len);
     g.strokePath();
     // 弧線
-    g.lineStyle(2, 0xff5500, 0.65);
+    g.lineStyle(P(2), 0xff5500, 0.65);
     g.beginPath();
     for (let i = 0; i <= steps; i++) {
       const a = centerAngle - halfRad + (halfRad * 2 / steps) * i;

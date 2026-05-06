@@ -1,14 +1,17 @@
 import Phaser from 'phaser';
 import { Boss, BossState } from './boss';
 
-const CROSS_RANGE  = 400;
-const CROSS_HALF_W = 22;
+const DPR = Math.min(window.devicePixelRatio || 1, 3);
+const P = (n: number): number => Math.round(n * DPR);
+
+const CROSS_RANGE  = P(400);
+const CROSS_HALF_W = P(22);
 const CROSS_DMG    = 38;
 
-const ORB_SPEED    = 130;   // px/s
-const ORB_MAX_DIST = 360;
-const ORB_HIT_R    = 14;
-const ORB_EXP_R    = 65;
+const ORB_SPEED    = 130 * DPR;   // px/s
+const ORB_MAX_DIST = P(360);
+const ORB_HIT_R    = P(14);
+const ORB_EXP_R    = P(65);
 const ORB_DMG      = 32;
 const ORB_COUNT    = 3;
 const ORB_SPREAD   = 15 * (Math.PI / 180);
@@ -51,7 +54,7 @@ export class BossWhiteSlime extends Boss {
       warnG.fillRect(bx - CROSS_RANGE, by - hw, CROSS_RANGE * 2, hw * 2);
       warnG.fillRect(bx - hw, by - CROSS_RANGE, hw * 2, CROSS_RANGE * 2);
       // 邊緣亮線（不蓋中心交叉點）
-      warnG.lineStyle(1.5, 0xffffff, alpha * 0.9);
+      warnG.lineStyle(P(2), 0xffffff, alpha * 0.9);
       warnG.lineBetween(bx - CROSS_RANGE, by - hw, bx - hw, by - hw);
       warnG.lineBetween(bx + hw,          by - hw, bx + CROSS_RANGE, by - hw);
       warnG.lineBetween(bx - CROSS_RANGE, by + hw, bx - hw, by + hw);
@@ -63,7 +66,7 @@ export class BossWhiteSlime extends Boss {
       // 中心光圈
       warnG.fillStyle(0xffeeaa, alpha * 0.55);
       warnG.fillCircle(bx, by, hw);
-      warnG.lineStyle(2, 0xffffff, alpha);
+      warnG.lineStyle(P(2), 0xffffff, alpha);
       warnG.strokeCircle(bx, by, hw * 0.55);
     };
     drawCrossWarn(1);
@@ -160,13 +163,13 @@ export class BossWhiteSlime extends Boss {
 
       // 每一層：[顏色, alpha倍率, 半寬]，從外到內疊加模擬輝光衰減
       const layers: [number, number, number][] = [
-        [0xffffcc, 0.06, 52],
-        [0xffeeaa, 0.10, 36],
-        [0xffdd88, 0.18, 24],
-        [0xffeeaa, 0.30, 14],
-        [0xffffff, 0.55,  8],
-        [0xffffff, 0.80,  4],
-        [0xffffff, 1.00,  2],
+        [0xffffcc, 0.06, P(52)],
+        [0xffeeaa, 0.10, P(36)],
+        [0xffdd88, 0.18, P(24)],
+        [0xffeeaa, 0.30, P(14)],
+        [0xffffff, 0.55,  P(8)],
+        [0xffffff, 0.80,  P(4)],
+        [0xffffff, 1.00,  P(2)],
       ];
       for (const [col, am, half] of layers) {
         beamG.fillStyle(col, a * am);
@@ -211,14 +214,14 @@ export class BossWhiteSlime extends Boss {
     }).setDepth(this.depth + 1);
 
     const glowG = this.scene.add.graphics().setDepth(this.depth - 1).setPosition(this.x, this.y);
-    const gs = { r: 10, a: 0.4 };
+    const gs = { r: P(10), a: 0.4 };
     this.scene.tweens.add({
-      targets: gs, r: 32, a: 1.0, duration: 700, ease: 'Quad.In',
+      targets: gs, r: P(32), a: 1.0, duration: 700, ease: 'Quad.In',
       onUpdate: () => {
         glowG.clear();
         glowG.fillStyle(0xffffcc, gs.a * 0.22);
         glowG.fillCircle(0, 0, gs.r);
-        glowG.lineStyle(3, 0xffeeaa, gs.a * 0.7);
+        glowG.lineStyle(P(3), 0xffeeaa, gs.a * 0.7);
         glowG.strokeCircle(0, 0, gs.r);
       },
     });
@@ -300,25 +303,25 @@ export class BossWhiteSlime extends Boss {
 
   private drawOrb(g: Phaser.GameObjects.Graphics, x: number, y: number): void {
     g.fillStyle(0xffeeaa, 0.28);
-    g.fillCircle(x, y, 17);
+    g.fillCircle(x, y, P(17));
     g.fillStyle(0xffffff, 0.92);
-    g.fillCircle(x, y, 10);
-    g.lineStyle(2, 0xffeeaa, 0.85);
-    g.strokeCircle(x, y, 13);
+    g.fillCircle(x, y, P(10));
+    g.lineStyle(P(2), 0xffeeaa, 0.85);
+    g.strokeCircle(x, y, P(13));
   }
 
   private spawnOrbExplosion(x: number, y: number): void {
     this.scene.cameras.main.shake(100, 0.008);
 
     const shockG = this.scene.add.graphics().setDepth(20).setPosition(x, y);
-    const ss = { r: 8, a: 1 };
+    const ss = { r: P(8), a: 1 };
     this.scene.tweens.add({
       targets: ss, r: ORB_EXP_R * 1.2, a: 0, duration: 350, ease: 'Quad.Out',
       onUpdate: () => {
         shockG.clear();
-        shockG.lineStyle(4, 0xffeeaa, ss.a);
+        shockG.lineStyle(P(4), 0xffeeaa, ss.a);
         shockG.strokeCircle(0, 0, ss.r);
-        shockG.lineStyle(14, 0xffffff, ss.a * 0.22);
+        shockG.lineStyle(P(14), 0xffffff, ss.a * 0.22);
         shockG.strokeCircle(0, 0, ss.r);
       },
       onComplete: () => shockG.destroy(),
@@ -338,7 +341,7 @@ export class BossWhiteSlime extends Boss {
 
     const flash = this.scene.add.graphics().setDepth(22).setPosition(x, y);
     flash.fillStyle(0xffffff, 0.9);
-    flash.fillCircle(0, 0, 16);
+    flash.fillCircle(0, 0, P(16));
     this.scene.tweens.add({
       targets: flash, alpha: 0, scaleX: 2.0, scaleY: 2.0,
       duration: 160, onComplete: () => flash.destroy(),

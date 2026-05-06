@@ -2,6 +2,8 @@ import Phaser from 'phaser';
 import { MONSTER_SCALE_SMALL } from '../data/monster-data';
 
 const DPR = Math.min(window.devicePixelRatio || 1, 3);
+const P   = (n: number): number => Math.round(n * DPR);
+const F   = (n: number): string => `${Math.round(n * DPR)}px`;
 
 enum MinionState {
   PATROL    = 'PATROL',
@@ -31,8 +33,8 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
   private isReturning    = false;
   private readonly patrolRadius  = Math.round(75 * DPR);
   private readonly aggroRange    = Math.round(230 * DPR);
-  private readonly deaggroRange  = Math.round(400 * DPR);
-  private readonly leashRange    = Math.round(310 * DPR);
+  private readonly deaggroRange  = Math.round(800 * DPR);
+  private readonly leashRange    = Math.round(620 * DPR);
 
   static readonly CHASE_SPEED = Math.round(90 * DPR);
   static readonly STOP_RANGE  = Math.round(55 * DPR);
@@ -278,8 +280,9 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
       const distToTarget = Phaser.Math.Distance.Between(this.x, this.y, dtx, dty);
       if (distToTarget > 14) {
         const angle = Phaser.Math.Angle.Between(this.x, this.y, dtx, dty);
+        const moveSpd = this.isReturning ? Math.round(220 * DPR) : 50;
         (this.scene.physics as Phaser.Physics.Arcade.ArcadePhysics).velocityFromAngle(
-          Phaser.Math.RadToDeg(angle), 50, this.pb.velocity,
+          Phaser.Math.RadToDeg(angle), moveSpd, this.pb.velocity,
         );
         const prevDir = this.dir;
         this.updateDirTo(dtx, dty);
@@ -328,9 +331,9 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
     const pct = this.hp / this.maxHp;
 
     if (this.isElite) {
-      const bw = 44, bh = 6;
+      const bw = P(44), bh = P(6);
       const bx = this.x - bw / 2;
-      const by = this.y - 35;
+      const by = this.y - P(35);
       // dark background
       this.hpBarGfx.fillStyle(0x1a0000, 0.9);
       this.hpBarGfx.fillRect(bx, by, bw, bh);
@@ -339,24 +342,24 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
       this.hpBarGfx.fillStyle(color);
       this.hpBarGfx.fillRect(bx, by, bw * pct, bh);
       // gold border (2px)
-      this.hpBarGfx.lineStyle(2, 0xddaa00, 1);
+      this.hpBarGfx.lineStyle(P(2), 0xddaa00, 1);
       this.hpBarGfx.strokeRect(bx, by, bw, bh);
       // inner highlight line
-      this.hpBarGfx.lineStyle(1, 0xffffff, 0.25);
-      this.hpBarGfx.lineBetween(bx + 1, by + 1, bx + bw * pct - 1, by + 1);
-      this.drawDebuffIcons(this.x, by + bh + 9);
+      this.hpBarGfx.lineStyle(P(1), 0xffffff, 0.25);
+      this.hpBarGfx.lineBetween(bx + P(1), by + P(1), bx + bw * pct - P(1), by + P(1));
+      this.drawDebuffIcons(this.x, by + bh + P(9));
     } else {
-      const bw = 30, bh = 4;
+      const bw = P(30), bh = P(4);
       const bx = this.x - bw / 2;
-      const by = this.y - 32;
+      const by = this.y - P(32);
       this.hpBarGfx.fillStyle(0x330000, 0.8);
       this.hpBarGfx.fillRect(bx, by, bw, bh);
       const color = pct > 0.5 ? 0x44cc44 : pct > 0.25 ? 0xffaa00 : 0xff2200;
       this.hpBarGfx.fillStyle(color);
       this.hpBarGfx.fillRect(bx, by, bw * pct, bh);
-      this.hpBarGfx.lineStyle(1, 0x000000, 0.5);
+      this.hpBarGfx.lineStyle(P(1), 0x000000, 0.5);
       this.hpBarGfx.strokeRect(bx, by, bw, bh);
-      this.drawDebuffIcons(this.x, by + bh + 9);
+      this.drawDebuffIcons(this.x, by + bh + P(9));
     }
   }
 
@@ -369,16 +372,16 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
     let slot  = 0;
 
     if (this.burnStacks > 0 && now < this.burnExpiresAt) {
-      this.drawDebuffIcon(cx + slot * 16 - 8, cy, 'burn', 0xff4400, 0x220800);
-      this.updateDebuffText('burn', cx + slot * 16 - 8, cy, `${this.burnStacks}`);
+      this.drawDebuffIcon(cx + slot * P(16) - P(8), cy, 'burn', 0xff4400, 0x220800);
+      this.updateDebuffText('burn', cx + slot * P(16) - P(8), cy, `${this.burnStacks}`);
       slot++;
     } else {
       this.hideDebuffText('burn');
     }
 
     if (now < this.stunUntil) {
-      this.drawDebuffIcon(cx + slot * 16 - 8, cy, 'stun', 0xffdd00, 0x332200);
-      this.updateDebuffText('stun', cx + slot * 16 - 8, cy, '★');
+      this.drawDebuffIcon(cx + slot * P(16) - P(8), cy, 'stun', 0xffdd00, 0x332200);
+      this.updateDebuffText('stun', cx + slot * P(16) - P(8), cy, '★');
       slot++;
     } else {
       this.hideDebuffText('stun');
@@ -389,15 +392,15 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
   }
 
   private drawDebuffIcon(cx: number, cy: number, key: string, rimColor: number, bgColor: number): void {
-    const r = 7;
+    const r = P(7);
     // outer glow
     this.debuffGfx.fillStyle(rimColor, 0.3);
-    this.debuffGfx.fillCircle(cx, cy, r + 2);
+    this.debuffGfx.fillCircle(cx, cy, r + P(2));
     // background
     this.debuffGfx.fillStyle(bgColor, 0.92);
     this.debuffGfx.fillCircle(cx, cy, r);
     // rim
-    this.debuffGfx.lineStyle(1.2, rimColor, 0.9);
+    this.debuffGfx.lineStyle(P(1), rimColor, 0.9);
     this.debuffGfx.strokeCircle(cx, cy, r);
     // flame shape
     if (key === 'burn') this.drawFlameShape(cx, cy, r);
@@ -427,15 +430,15 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
     let txt = this.debuffTexts.get(key);
     if (!txt) {
       txt = this.scene.add.text(0, 0, '', {
-        fontSize:        '7px',
+        fontSize:        F(10),
         color:           '#ffffff',
         stroke:          '#000000',
-        strokeThickness: 2,
+        strokeThickness: P(2),
         fontStyle:       'bold',
       }).setDepth(52).setOrigin(0.5, 0.5);
       this.debuffTexts.set(key, txt);
     }
-    txt.setPosition(cx, cy + 5).setText(label).setVisible(true);
+    txt.setPosition(cx, cy + P(5)).setText(label).setVisible(true);
   }
 
   private hideDebuffText(key: string): void {
