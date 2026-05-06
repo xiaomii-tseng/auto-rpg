@@ -136,6 +136,7 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
     this.stateTimer?.destroy();
     this.stateTimer  = undefined;
     this.isReturning = true;
+    this.hp = this.maxHp;
     this.applyBaseTint();
     // 先走回巡邏中心，到了再開始正常巡邏
     this.patrolTargetX = this.patrolCenter.x;

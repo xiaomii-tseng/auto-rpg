@@ -95,7 +95,7 @@ export class PrepScene extends Phaser.Scene {
       PlayerStore.equipDirect('sword', {
         id: 'sword_test_slash180', name: '半月斬', slot: 'sword',
         texture: 'equip_sword1', quality: 'perfect',
-        affixes: [{ stat: 'atk', value: 20 }, { stat: 'crit', value: 0.15 }],
+        affixes: [{ stat: 'atk', value: 20 }, { stat: 'crit', value: 0.15 }, { stat: 'atkSpeed', value: 0.10 }],
         behavior: 'slash180', enhancement: 0, enhanceLog: [],
       });
       testBehaviors.forEach((bv) => {
@@ -105,7 +105,7 @@ export class PrepScene extends Phaser.Scene {
           slot:        'sword',
           texture:     'equip_sword1',
           quality:     'perfect',
-          affixes:     [{ stat: 'atk', value: 20 }, { stat: 'crit', value: 0.15 }],
+          affixes:     [{ stat: 'atk', value: 20 }, { stat: 'crit', value: 0.15 }, { stat: 'atkSpeed', value: 0.10 }],
           behavior:    bv,
           enhancement: 0,
           enhanceLog:  [],
@@ -132,7 +132,7 @@ export class PrepScene extends Phaser.Scene {
             slot:        'sword',
             texture:     'equip_sword1',
             quality:     'perfect',
-            affixes:     [{ stat: 'atk', value: 20 }, { stat: 'crit', value: 0.15 }],
+            affixes:     [{ stat: 'atk', value: 20 }, { stat: 'crit', value: 0.15 }, { stat: 'atkSpeed', value: 0.10 }],
             behavior:    bv,
             enhancement: 0,
             enhanceLog:  [],

@@ -26,7 +26,6 @@ export class BossLavaSlime extends Boss {
   onPillarExplode?: (x: number, y: number, radius: number, dmg: number) => void;
 
   private phase2 = false;
-  private phase2GlobalActive = false;
   private lavaEmitter?: Phaser.GameObjects.Particles.ParticleEmitter;
 
   // ── 血量監聽：40% 觸發二階段 ─────────────────────────────
@@ -105,12 +104,6 @@ export class BossLavaSlime extends Boss {
     burst.emitParticleAt(0, 0, 90);
     this.scene.time.delayedCall(750, () => { if (burst.active) burst.destroy(); });
 
-    // 二階段入場：封鎖攻擊選擇，直到全場熔岩柱結束
-    this.phase2GlobalActive = true;
-    // 600ms 延遲 + 1400ms 警示 + 70×80ms 爆發 + 800ms 緩衝 ≈ 8400ms
-    const GLOBAL_COUNT = 70;
-    const blockMs = 600 + 1400 + GLOBAL_COUNT * 80 + 800;
-    this.scene.time.delayedCall(blockMs, () => { this.phase2GlobalActive = false; });
     this.scene.time.delayedCall(600, () => this.triggerPhase2GlobalPillars());
   }
 
@@ -182,12 +175,6 @@ export class BossLavaSlime extends Boss {
   // ── 攻擊選擇 ─────────────────────────────────────────────
 
   protected override pickNextAttack(): void {
-    if (this.phase2GlobalActive) {
-      this.stateTimer = this.scene.time.delayedCall(300, () => {
-        if (this.currentState !== BossState.DEAD) this.pickNextAttack();
-      });
-      return;
-    }
     const roll = Math.random();
     let fn: () => void;
     if      (roll < 0.20) fn = () => this.enterAoeWarn();

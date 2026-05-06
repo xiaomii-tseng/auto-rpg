@@ -396,7 +396,7 @@ export function applyEnhancement(item: EquipmentItem): number[] {
   if (item.enhancement >= ENHANCE_MAX) return [];
 
   let indices: number[];
-  if (item.slot === 'sword' && item.affixes.length >= 3) {
+  if (item.slot === 'sword' && item.affixes[0]?.stat === 'atk' && item.affixes.length >= 2) {
     // 攻擊力（index 0）必定提升＋隨機一條其他
     const randIdx = 1 + Math.floor(Math.random() * (item.affixes.length - 1));
     indices = [0, randIdx];
