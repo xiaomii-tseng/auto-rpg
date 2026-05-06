@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { Boss, BossState } from './boss';
+import { MONSTER_SCALE_BOSS } from '../data/monster-data';
 
 const JUMP_RADIUS = 78;
 const JUMP_DMG    = 40;
@@ -158,7 +159,7 @@ export class BossRedSlime extends Boss {
     this.stateTimer = this.scene.time.delayedCall(900, () => {
       this.pulseTween?.stop();
       warnG.destroy();
-      this.setScale(this.belowHalf ? 2.2 : 2);
+      this.setScale(this.belowHalf ? MONSTER_SCALE_BOSS + 0.2 : MONSTER_SCALE_BOSS);
       this.doJump(tx, ty);
     });
   }
@@ -190,7 +191,7 @@ export class BossRedSlime extends Boss {
         this.y = startY * (1 - t) * (1 - t) + peakY * 2 * t * (1 - t) + ty * t * t;
       },
       onComplete: () => {
-        this.setScale(this.belowHalf ? 2.2 : 2);
+        this.setScale(this.belowHalf ? MONSTER_SCALE_BOSS + 0.2 : MONSTER_SCALE_BOSS);
         this.setPosition(tx, ty);
         (this.body as Phaser.Physics.Arcade.Body).reset(tx, ty);
         this.spawnLandingImpact(tx, ty);

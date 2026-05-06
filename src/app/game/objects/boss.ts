@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { Element } from '../data/equipment-data';
+import { MONSTER_SCALE_BOSS } from '../data/monster-data';
 
 export enum BossState {
   IDLE        = 'IDLE',
@@ -82,7 +83,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     const body = this.body as Phaser.Physics.Arcade.Body;
     body.setCollideWorldBounds(true);
     this.setDepth(12);
-    this.setScale(2);
+    this.setScale(MONSTER_SCALE_BOSS);
     this.setVisible(false);
     // Body in unscaled coords — slime occupies lower-center of 64×64 frame
     body.setSize(19, 12).setOffset(23, 29);
@@ -186,7 +187,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     this.clearWarning();
     this.stopDashTrail();
     if (this.baseTint === 0xffffff) this.clearTint(); else this.setTint(this.baseTint);
-    this.setScale(2);
+    this.setScale(MONSTER_SCALE_BOSS);
     this.stateTimer?.destroy();
     this.updateDirToTarget();
     this.playDir(`${this.animPrefix}_walk`);
@@ -294,7 +295,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     this.bossState = BossState.DASHING;
     this.clearWarning();
     this.stateTimer?.destroy();
-    this.setScale(2);
+    this.setScale(MONSTER_SCALE_BOSS);
     this.play(`${this.animPrefix}_walk_down`, true);
     this.anims.timeScale = 2.2;
     this.setTint(0xff8800);

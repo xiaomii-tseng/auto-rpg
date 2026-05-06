@@ -1,5 +1,4 @@
 import Phaser from 'phaser';
-import { PlayerStore } from '../data/player-store';
 import { CardStore } from '../data/card-store';
 
 export class Player extends Phaser.Physics.Arcade.Sprite {
@@ -33,7 +32,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.setBodySize(16, 11).setOffset(24, 37);
     this.play('player_idle_down');
 
-    const stats = PlayerStore.getStats();
+    const stats = CardStore.getTotalStats();
     this.maxHp = stats.maxHp;
     this.hp    = stats.maxHp;
 
@@ -133,7 +132,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
   move(velX: number, velY: number): void {
     if (this.rooted) { this.setVelocity(0, 0); return; }
-    const speed  = PlayerStore.getStats().speed * this.speedMult;
+    const speed  = CardStore.getTotalStats().speed * this.speedMult;
     const moving = velX !== 0 || velY !== 0;
     if (moving) {
       const len = Math.sqrt(velX * velX + velY * velY);

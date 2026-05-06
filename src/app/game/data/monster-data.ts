@@ -59,13 +59,25 @@ export const ITEM_STONE_INTACT = 'stone_intact';  // 完整強化石
 export const ITEM_STONE_GUARD  = 'stone_guard';   // 防退石
 
 // ── Card drop rates (A=普通 / B=稀有 / C=傳說) ────────────────────────────
-const CA_S = 0.03, CB_S = 0.01, CC_S = 0.003;  // 小怪
-const CA_E = 0.05, CB_E = 0.02, CC_E = 0.005;  // 菁英
-const CA_B = 0.10, CB_B = 0.04, CC_B = 0.01;   // Boss
+const CA_S = 1, CB_S = 1, CC_S = 1;  // 小怪
+const CA_E = 1, CB_E = 1, CC_E = 1;  // 菁英
+const CA_B = 1, CB_B = 1, CC_B = 1;  // Boss
+
+// ── Sprite scale constants ─────────────────────────────────────────────────
+export const MONSTER_SCALE_SMALL = 0.78;
+export const MONSTER_SCALE_ELITE = 1.25;
+export const MONSTER_SCALE_BOSS  = 2.0;
+
+/** 統一比例：小怪 0.78 / 菁英 1.25 / Boss 2.0 */
+export function monsterScale(tier: number): number {
+  return tier >= 5 ? MONSTER_SCALE_BOSS : tier === 3 ? MONSTER_SCALE_ELITE : MONSTER_SCALE_SMALL;
+}
+export const monsterCardScale   = monsterScale;
+export const monsterDetailScale = monsterScale;
 
 // ── Elite monster multipliers ──────────────────────────────────────────────
-export const ELITE_HP_MULT    = 3.0;   // 菁英HP倍率（相對物種基礎值）
-export const ELITE_SCALE_MOD  = 1.6;   // 菁英體型縮放倍率
+export const ELITE_HP_MULT   = 3.0;
+export const ELITE_SCALE_MOD = +(MONSTER_SCALE_ELITE / MONSTER_SCALE_SMALL).toFixed(4);
 
 // ── Shared drop tables ─────────────────────────────────────────────────────
 //
@@ -74,19 +86,19 @@ export const ELITE_SCALE_MOD  = 1.6;   // 菁英體型縮放倍率
 // 破損石/趟 = 60×0.02×1 + 8×0.04×2.5 + 0.35×4.5 = 1.2+0.8+1.575 ≈ 3.58
 
 const smallDrops: DropEntry[] = [
-  { itemId: ITEM_STONE_BROKEN, itemName: '破損強化石', rate: 0.03, qtyMin: 1, qtyMax: 1 },
+  { itemId: ITEM_STONE_BROKEN, itemName: '破損強化石', rate: 1 /* 原本: 0.03 */, qtyMin: 1, qtyMax: 1 },
 ];
 
 const eliteDrops: DropEntry[] = [
-  { itemId: ITEM_STONE_BROKEN, itemName: '破損強化石', rate: 0.10, qtyMin: 1, qtyMax: 1 },
-  { itemId: ITEM_STONE_INTACT, itemName: '完整強化石', rate: 0.02, qtyMin: 1, qtyMax: 1 },
-  { itemId: ITEM_STONE_GUARD,  itemName: '防退石',     rate: 0.02, qtyMin: 1, qtyMax: 1 },
+  { itemId: ITEM_STONE_BROKEN, itemName: '破損強化石', rate: 1 /* 原本: 0.10 */, qtyMin: 1, qtyMax: 1 },
+  { itemId: ITEM_STONE_INTACT, itemName: '完整強化石', rate: 1 /* 原本: 0.02 */, qtyMin: 1, qtyMax: 1 },
+  { itemId: ITEM_STONE_GUARD,  itemName: '防退石',     rate: 1 /* 原本: 0.02 */, qtyMin: 1, qtyMax: 1 },
 ];
 
 const bossDrops: DropEntry[] = [
-  { itemId: ITEM_STONE_BROKEN, itemName: '破損強化石', rate: 1.00, qtyMin: 1, qtyMax: 1 },
-  { itemId: ITEM_STONE_INTACT, itemName: '完整強化石', rate: 0.30, qtyMin: 1, qtyMax: 1 },
-  { itemId: ITEM_STONE_GUARD,  itemName: '防退石',     rate: 0.10, qtyMin: 1, qtyMax: 1 },
+  { itemId: ITEM_STONE_BROKEN, itemName: '破損強化石', rate: 1 /* 原本: 1.00 */, qtyMin: 1, qtyMax: 1 },
+  { itemId: ITEM_STONE_INTACT, itemName: '完整強化石', rate: 1 /* 原本: 0.30 */, qtyMin: 1, qtyMax: 1 },
+  { itemId: ITEM_STONE_GUARD,  itemName: '防退石',     rate: 1 /* 原本: 0.10 */, qtyMin: 1, qtyMax: 1 },
 ];
 
 // ── Monster definitions ────────────────────────────────────────────────────

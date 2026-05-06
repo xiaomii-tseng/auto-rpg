@@ -192,7 +192,7 @@ export const CardStore = {
       projectileDistBonus:  bonus.projectileDistBonus,
       allDmgPct:            bonus.allDmgPct,
       takenDmgPct:          bonus.takenDmgPct,
-      dropRateMult:         bonus.dropRateMult,
+      dropRateMult:         bonus.dropRateMult || 1,
       condDotStackBonus:    bonus.condDotStackBonus,
     };
   },

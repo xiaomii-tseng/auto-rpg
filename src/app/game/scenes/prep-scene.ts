@@ -5,7 +5,7 @@ import { generateEquipment, randomQuality, QUALITY_NAMES, QUALITY_COLORS, SLOT_N
 import { SaveStore } from '../data/save-store';
 import { CardStore, CARD_SLOT_COUNT } from '../data/card-store';
 
-import { getCardDef, getMonsterDef } from '../data/monster-data';
+import { getCardDef, getMonsterDef, monsterCardScale, monsterDetailScale } from '../data/monster-data';
 import { QuestStore, Quest, STAR_EQUIP_QUALITY } from '../data/quest-store';
 
 
@@ -133,6 +133,23 @@ export class PrepScene extends Phaser.Scene {
         }
       }
     }
+    // 測試用飾品（補入背包，不重複）
+    {
+      const ownedIds = new Set(PlayerStore.getOwned().map(e => e.id));
+      const testRings: import('../data/equipment-data').EquipmentItem[] = [
+        { id: 'ring_test_a', name: '迅捷戒指', slot: 'ring1', texture: 'equip_ring1',
+          quality: 'good', affixes: [{ stat: 'speed', value: 20 }, { stat: 'atkSpeed', value: 0.10 }],
+          enhancement: 0, enhanceLog: [] },
+        { id: 'ring_test_b', name: '暴擊寶環', slot: 'ring1', texture: 'equip_ring1',
+          quality: 'fine', affixes: [{ stat: 'crit', value: 0.12 }, { stat: 'critDmg', value: 0.30 }],
+          enhancement: 0, enhanceLog: [] },
+        { id: 'ring_test_c', name: '鮮血戒指', slot: 'ring1', texture: 'equip_ring1',
+          quality: 'perfect', affixes: [{ stat: 'lifesteal', value: 0.08 }, { stat: 'atk', value: 15 }],
+          enhancement: 0, enhanceLog: [] },
+      ];
+      testRings.forEach(r => { if (!ownedIds.has(r.id)) PlayerStore.addOwned(r); });
+    }
+
     this.generateItemIcons();
 
     if (!this.anims.exists('player_idle_shadow')) {
@@ -1415,18 +1432,22 @@ export class PrepScene extends Phaser.Scene {
         levelTxt.setColor(lv >= ENHANCE_DEMOTE_FROM ? '#ff9966' : '#ffe066');
         item.affixes.forEach((a, i) => valTexts[i]?.setText(fmtVal(a.stat, a.value)));
 
-        // 破損強化石持有數（不夠時變紅）
+        // 破損強化石：持有數 + 本次消耗
         const brokenQty  = InventoryStore.getItemQty('stone_broken');
         const needStones = !maxed ? ENHANCE_COST[lv] : 0;
-        stoneTxt.setText(`◆ 破損強化石  持有 ${brokenQty} 顆`);
-        stoneTxt.setColor(brokenQty < needStones ? '#ff6666' : '#ffcc66');
+        const enoughBrk  = brokenQty >= needStones;
+        stoneTxt.setText(
+          maxed ? `◆ 破損強化石  持有 ${brokenQty} 顆`
+                : `◆ 破損強化石  持有 ${brokenQty} 顆  消耗 ${needStones} 顆`
+        );
+        stoneTxt.setColor(enoughBrk ? '#ffcc66' : '#ff6666');
 
         if (!maxed) {
           const rateStr = useComplete
-            ? `成功率  ${(base * 100).toFixed(0)}+8 = ${(rate * 100).toFixed(0)}%`
-            : `成功率  ${(base * 100).toFixed(0)}%`;
+            ? `成功率  ${(base * 100).toFixed(0)}% + 8% = ${(rate * 100).toFixed(0)}%`
+            : `成功率  ${(rate * 100).toFixed(0)}%`;
           rateTxt.setText(rateStr);
-          costTxt.setText(`消耗 ${needStones} 顆`);
+          costTxt.setText('');
           const isSword = item.slot === 'sword' && item.affixes.length >= 3;
           hintTxt.setText(isSword ? '必定強化攻擊力，另隨機提升一條詞綴' : '隨機強化一條詞綴屬性');
         } else {
@@ -1436,7 +1457,7 @@ export class PrepScene extends Phaser.Scene {
         btnLbl.setAlpha(maxed ? 0.4 : 1);
         if (maxed) btnHit.removeInteractive(); else btnHit.setInteractive({ useHandCursor: true });
 
-        // 完整強化石
+        // 完整強化石：持有數 + 消耗說明
         const intactQty = InventoryStore.getItemQty('stone_intact');
         const canCmp    = !maxed && intactQty > 0;
         cmpChkG.clear();
@@ -1444,12 +1465,13 @@ export class PrepScene extends Phaser.Scene {
         cmpChkG.lineStyle(1, useComplete ? 0x44cc88 : 0x554433, 1);
         cmpChkG.fillRect(mx + 8, cmpY - 7, 14, 14); cmpChkG.strokeRect(mx + 8, cmpY - 7, 14, 14);
         cmpChkT.setText(useComplete ? '✓' : '');
-        cmpLbl.setText(`完整強化石  ×${intactQty}  (+8%)`);
+        cmpLbl.setText(`完整強化石  持有 ${intactQty} 顆  消耗 1  → +8% 成功率`);
+        cmpLbl.setColor(intactQty === 0 ? '#ff6666' : '#ccbbaa');
         cmpChkG.setAlpha(canCmp ? 1 : 0.35); cmpChkT.setAlpha(canCmp ? 1 : 0.35); cmpLbl.setAlpha(canCmp ? 1 : 0.35);
         if (canCmp) cmpHit.setInteractive({ useHandCursor: true }); else cmpHit.removeInteractive();
         if (!canCmp) useComplete = false;
 
-        // 防退石
+        // 防退石：持有數 + 消耗說明（失敗時才消耗）
         const guardQty = InventoryStore.getItemQty('stone_guard');
         const canGrd   = !maxed && lv >= ENHANCE_DEMOTE_FROM && guardQty > 0;
         const showGrd  = !maxed && lv >= ENHANCE_DEMOTE_FROM;
@@ -1458,7 +1480,12 @@ export class PrepScene extends Phaser.Scene {
         grdChkG.lineStyle(1, useGuard ? 0xcc7722 : 0x554433, 1);
         grdChkG.fillRect(mx + 8, grdY - 7, 14, 14); grdChkG.strokeRect(mx + 8, grdY - 7, 14, 14);
         grdChkT.setText(useGuard && showGrd ? '✓' : '');
-        grdLbl.setText(showGrd ? `防退石  ×${guardQty}  (防止退階)` : '防退石  —');
+        grdLbl.setText(
+          showGrd
+            ? `防退石  持有 ${guardQty} 顆  消耗 1 (失敗時) → 防止退階`
+            : '防退石  ─  (+5 以上強化生效)'
+        );
+        grdLbl.setColor(showGrd && guardQty === 0 ? '#ff6666' : '#ccbbaa');
         const grdAlpha = showGrd ? (guardQty > 0 ? 1 : 0.5) : 0.25;
         grdChkG.setAlpha(grdAlpha); grdChkT.setAlpha(grdAlpha); grdLbl.setAlpha(grdAlpha);
         if (canGrd) grdHit.setInteractive({ useHandCursor: true }); else grdHit.removeInteractive();
@@ -1501,7 +1528,7 @@ export class PrepScene extends Phaser.Scene {
         if (Math.random() < rate) {
           const beforeVals = item.affixes.map(a => a.value);
           const boosted    = applyEnhancement(item);
-          SaveStore.save(); refresh();
+          PlayerStore.notify(); SaveStore.save(); refresh();
           playFlash(0x00cc55);
           for (const idx of boosted) {
             const gain = item.affixes[idx].value - beforeVals[idx];
@@ -1533,6 +1560,7 @@ export class PrepScene extends Phaser.Scene {
               resultTxt.setText('✗ 失敗（防退石保護）').setColor('#ffaa44');
             } else {
               revertEnhancement(item);
+              PlayerStore.notify();
               playFlash(0xff2222);
               this.cameras.main.shake(200, 0.004);
               resultTxt.setText(`✗ 失敗，退至 +${item.enhancement}`).setColor('#ff4444');
@@ -1663,7 +1691,7 @@ export class PrepScene extends Phaser.Scene {
     // ── buildStats：人物屬性（全寬 2列×3欄）──────────────────
     const buildStats = () => {
       statsLayer.removeAll(true);
-      const s  = PlayerStore.getStats();
+      const s  = CardStore.getTotalStats();
       const lv = PlayerStore.getLevel();
 
       const sg = this.add.graphics();
@@ -1744,6 +1772,115 @@ export class PrepScene extends Phaser.Scene {
     const gridLayer = this.add.container(0, 0);
     container.add(gridLayer);
 
+    // ── Equip comparison popup ────────────────────────────
+    const showEquipComparison = (
+      newItem:     import('../data/equipment-data').EquipmentItem,
+      currentItem: import('../data/equipment-data').EquipmentItem,
+      onConfirm: () => void,
+    ) => {
+      const compD = D + 20;
+      const objs: Phaser.GameObjects.GameObject[] = [];
+      const s = <T extends Phaser.GameObjects.GameObject>(o: T): T => { objs.push(o); return o; };
+      const closeComp = () => objs.forEach(o => o.destroy());
+
+      // 全螢幕遮罩（絕對座標）
+      s(this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.65)
+        .setInteractive().setDepth(compD))
+        .on('pointerdown', closeComp);
+
+      const PDW = 380, PDH = 320;
+      const CW  = 158, CH  = 200, GAP = 24;
+      const mx  = W / 2 - PDW / 2;   // popup 左上角 x
+      const my  = H / 2 - PDH / 2;   // popup 左上角 y
+      const pcx = W / 2;             // popup 中心 x
+      const TITLE_H = 28;
+      const CARD_CY = my + TITLE_H + CH / 2 + 10;   // card 中心 y
+      const BTN_Y   = my + PDH - 26;
+
+      const bg = s(this.add.graphics().setDepth(compD + 1));
+      bg.fillStyle(WD, 0.97); bg.fillRect(mx, my, PDW, PDH);
+      bg.lineStyle(2, GOLD, 0.85); bg.strokeRect(mx, my, PDW, PDH);
+      bg.lineStyle(1, GOLD, 0.3);  bg.strokeRect(mx + 4, my + 4, PDW - 8, PDH - 8);
+      bg.fillStyle(WB, 1); bg.fillRect(mx, my, PDW, TITLE_H);
+      bg.lineStyle(1, GOLD, 0.4); bg.lineBetween(mx, my + TITLE_H, mx + PDW, my + TITLE_H);
+
+      s(this.add.text(pcx, my + TITLE_H / 2, '替換裝備', {
+        fontSize: '13px', fontStyle: 'bold', color: '#e8c070', stroke: '#1a0800', strokeThickness: 2,
+      }).setOrigin(0.5).setDepth(compD + 2));
+
+      s(this.add.text(pcx, CARD_CY, '→', {
+        fontSize: '20px', color: '#ffee88', stroke: '#000', strokeThickness: 2,
+      }).setOrigin(0.5).setDepth(compD + 2));
+
+      const isPct = (stat: string) => ['crit','atkSpeed','lifesteal','evasion','critDmg','dotBonus'].includes(stat);
+      const fmtV  = (stat: string, v: number) => isPct(stat) ? `${(v * 100).toFixed(1)}%` : String(v);
+
+      const drawItemCard = (
+        item: import('../data/equipment-data').EquipmentItem,
+        cx: number, labelTxt: string, labelColor: string,
+      ) => {
+        const cy = CARD_CY;
+        const qColorNum = QUALITY_COLORS[item.quality] ?? 0xffffff;
+        const qColorStr = '#' + qColorNum.toString(16).padStart(6, '0');
+
+        const mg = s(this.add.graphics().setDepth(compD + 2));
+        mg.fillStyle(0x1a0e06, 1);   mg.fillRect(cx - CW / 2, cy - CH / 2, CW, CH);
+        mg.lineStyle(2, qColorNum, 0.8); mg.strokeRect(cx - CW / 2, cy - CH / 2, CW, CH);
+
+        s(this.add.text(cx, cy - CH / 2 + 8, labelTxt, {
+          fontSize: '10px', fontStyle: 'bold', color: labelColor, stroke: '#000', strokeThickness: 1,
+        }).setOrigin(0.5, 0).setDepth(compD + 3));
+
+        s(this.add.text(cx, cy - CH / 2 + 24, item.name, {
+          fontSize: '12px', fontStyle: 'bold', color: qColorStr, stroke: '#1a0800', strokeThickness: 2,
+          wordWrap: { width: CW - 12 }, align: 'center',
+        }).setOrigin(0.5, 0).setDepth(compD + 3));
+
+        s(this.add.text(cx, cy - CH / 2 + 44, item.enhancement > 0 ? `+${item.enhancement} 強化` : '未強化', {
+          fontSize: '10px', color: item.enhancement > 0 ? '#ffd060' : '#667766', stroke: '#000', strokeThickness: 1,
+        }).setOrigin(0.5, 0).setDepth(compD + 3));
+
+        let ay = cy - CH / 2 + 62;
+        item.affixes.forEach(a => {
+          s(this.add.text(cx, ay, `${STAT_NAMES[a.stat]}  +${fmtV(a.stat, a.value)}`, {
+            fontSize: '11px', color: '#88cc88', stroke: '#000', strokeThickness: 1,
+          }).setOrigin(0.5, 0).setDepth(compD + 3));
+          ay += 18;
+        });
+
+        if (item.behavior) {
+          s(this.add.text(cx, cy + CH / 2 - 8, BEHAVIOR_NAMES[item.behavior], {
+            fontSize: '10px', color: '#ffe066', stroke: '#000', strokeThickness: 1,
+          }).setOrigin(0.5, 1).setDepth(compD + 3));
+        }
+      };
+
+      const cardCX = CW / 2 + GAP / 2;
+      drawItemCard(currentItem, pcx - cardCX, '現有', '#ff9999');
+      drawItemCard(newItem,     pcx + cardCX, '新增', '#99ff99');
+
+      // ── Buttons ─────────────────────────────────────────
+      const BW = 118, BH = 30;
+
+      const confirmBg = s(this.add.graphics().setDepth(compD + 2));
+      confirmBg.fillStyle(0x0e2a0e, 1); confirmBg.fillRect(pcx - BW - 4, BTN_Y - BH / 2, BW, BH);
+      confirmBg.lineStyle(1.5, 0x44cc44, 0.9); confirmBg.strokeRect(pcx - BW - 4, BTN_Y - BH / 2, BW, BH);
+      s(this.add.text(pcx - BW / 2 - 4, BTN_Y, '確認替換', {
+        fontSize: '13px', fontStyle: 'bold', color: '#88ff88', stroke: '#000', strokeThickness: 2,
+      }).setOrigin(0.5).setDepth(compD + 3));
+      s(this.add.rectangle(pcx - BW / 2 - 4, BTN_Y, BW, BH).setInteractive({ useHandCursor: true }).setDepth(compD + 4))
+        .on('pointerdown', (ptr: Phaser.Input.Pointer) => { ptr.event.stopPropagation(); closeComp(); onConfirm(); });
+
+      const cancelBg = s(this.add.graphics().setDepth(compD + 2));
+      cancelBg.fillStyle(0x1a1a1a, 1); cancelBg.fillRect(pcx + 4, BTN_Y - BH / 2, BW, BH);
+      cancelBg.lineStyle(1.5, 0x666666, 0.9); cancelBg.strokeRect(pcx + 4, BTN_Y - BH / 2, BW, BH);
+      s(this.add.text(pcx + BW / 2 + 4, BTN_Y, '取  消', {
+        fontSize: '13px', fontStyle: 'bold', color: '#aaaaaa', stroke: '#000', strokeThickness: 2,
+      }).setOrigin(0.5).setDepth(compD + 3));
+      s(this.add.rectangle(pcx + BW / 2 + 4, BTN_Y, BW, BH).setInteractive({ useHandCursor: true }).setDepth(compD + 4))
+        .on('pointerdown', (ptr: Phaser.Input.Pointer) => { ptr.event.stopPropagation(); closeComp(); });
+    };
+
     // ── Detail overlay ────────────────────────────────────
     const showItemDetail = (item: import('../data/equipment-data').EquipmentItem) => {
       if (activeDetail) { activeDetail.destroy(); activeDetail = null; }
@@ -1808,7 +1945,7 @@ export class PrepScene extends Phaser.Scene {
       const btnY = areaTop + areaH - 28;
 
       if (item.slot === 'ring1') {
-        // ── 飾品：槽位按鈕一排，強化單獨一排 ─────────────
+        // ── 飾品：飾品1/2 兩個槽位按鈕，靠底部 ──────────────
         const hW  = (btnW - 4) / 2;
         const cx1 = rcx - btnW / 2 + hW / 2;
         const cx2 = rcx + btnW / 2 - hW / 2;
@@ -1833,20 +1970,29 @@ export class PrepScene extends Phaser.Scene {
         det.add(this.add.text(cx2, btnY + 9, eq2 ? eq2.name.slice(0, 6) : '空', { fontSize: '10px', color: eq2 ? '#cc8888' : '#558855' }).setOrigin(0.5));
 
         const hit1 = this.add.rectangle(cx1, btnY, hW, btnH).setInteractive({ useHandCursor: true });
-        hit1.on('pointerdown', () => { PlayerStore.equipToSlot(item, 'ring1'); closeItem(); });
+        hit1.on('pointerdown', () => {
+          if (eq1) { showEquipComparison(item, eq1, () => { PlayerStore.equipToSlot(item, 'ring1'); SaveStore.save(); closeItem(); }); }
+          else { PlayerStore.equipToSlot(item, 'ring1'); SaveStore.save(); closeItem(); }
+        });
         det.add(hit1);
         const hit2 = this.add.rectangle(cx2, btnY, hW, btnH).setInteractive({ useHandCursor: true });
-        hit2.on('pointerdown', () => { PlayerStore.equipToSlot(item, 'ring2'); closeItem(); });
+        hit2.on('pointerdown', () => {
+          if (eq2) { showEquipComparison(item, eq2, () => { PlayerStore.equipToSlot(item, 'ring2'); SaveStore.save(); closeItem(); }); }
+          else { PlayerStore.equipToSlot(item, 'ring2'); SaveStore.save(); closeItem(); }
+        });
         det.add(hit2);
-
-        drawBtn(det, rcx, btnY + btnH + 8, btnW, btnH,
-          '強  化', 0x3a2800, 0xf0c040, '#ffe066',
-          () => showEnhanceModal(item, () => { closeItem(); showItemDetail(item); }));
       } else {
         // ── 一般裝備：裝備 | 強化 ──────────────────────────
+        const currentEquipped = PlayerStore.getEquipped()[item.slot as import('../data/equipment-data').EquipSlot];
         drawBtn(det, rcx - btnW / 2 - btnGap / 2, btnY, btnW, btnH,
           '裝  備', 0x5a3800, GOLD, '#e8c070',
-          () => { PlayerStore.equip(item); closeItem(); });
+          () => {
+            if (currentEquipped) {
+              showEquipComparison(item, currentEquipped, () => { PlayerStore.equip(item); SaveStore.save(); closeItem(); });
+            } else {
+              PlayerStore.equip(item); SaveStore.save(); closeItem();
+            }
+          });
         drawBtn(det, rcx + btnW / 2 + btnGap / 2, btnY, btnW, btnH,
           '強  化', 0x3a2800, 0xf0c040, '#ffe066',
           () => showEnhanceModal(item, () => { closeItem(); showItemDetail(item); }));
@@ -1914,7 +2060,20 @@ export class PrepScene extends Phaser.Scene {
 
         const tap = this.add.rectangle(cx2 + cellSz / 2, cy2 + cellSz / 2, cellSz, cellSz)
           .setInteractive({ useHandCursor: true });
-        tap.on('pointerdown', () => showItemDetail(item));
+        tap.on('pointerdown', () => {
+          if (item.slot === 'ring1') {
+            // 飾品有兩個槽，留給 detail UI 選
+            showItemDetail(item);
+          } else {
+            const slotKey  = item.slot as import('../data/equipment-data').EquipSlot;
+            const equipped = PlayerStore.getEquipped()[slotKey];
+            if (equipped) {
+              showEquipComparison(item, equipped, () => { PlayerStore.equip(item); SaveStore.save(); });
+            } else {
+              showItemDetail(item);
+            }
+          }
+        });
         scrollCnt.add(tap);
       });
 
@@ -1959,8 +2118,10 @@ export class PrepScene extends Phaser.Scene {
       buildGrid();
     };
     PlayerStore.onChange(onStoreChange);
+    CardStore.onChange(onStoreChange);
     const cleanupGrid = () => {
       PlayerStore.offChange(onStoreChange);
+      CardStore.offChange(onStoreChange);
       if (gridWheelHandler) this.input.off('wheel', gridWheelHandler);
       if (gridMoveHandler)  this.input.off('pointermove', gridMoveHandler);
     };
@@ -2150,8 +2311,8 @@ export class PrepScene extends Phaser.Scene {
   // ── Card Window ─────────────────────────────────────────
 
   private openCardWindow(W: number, H: number): void {
-    const PW = Math.min(W - 16, 380);
-    const PH = Math.min(H - 20, 520);
+    const PW = Math.min(W - 16, 480);
+    const PH = Math.min(H - 20, 560);
     const D  = 500;
 
     const container = this.add.container(W / 2, H / 2).setDepth(D);
@@ -2206,15 +2367,15 @@ export class PrepScene extends Phaser.Scene {
     container.add(closeBtn);
 
     // Layout constants
-    const CARD_W   = 64;
-    const CARD_H   = 86;
-    const SLOT_GAP = 4;
+    const CARD_W   = 72;
+    const CARD_H   = 96;
+    const SLOT_GAP = 8;
     const slotsTotW = CARD_SLOT_COUNT * CARD_W + (CARD_SLOT_COUNT - 1) * SLOT_GAP;
     const slotsX0   = -slotsTotW / 2;
     const slotsY    = py + 58;   // top of equipped row
     const INV_TOP   = slotsY + CARD_H + 24;
     const INV_H     = py + PH - INV_TOP - 8;
-    const INV_COLS  = 3;
+    const INV_COLS  = 5;
     const INV_GAP   = 10;
     const invTotW   = INV_COLS * CARD_W + (INV_COLS - 1) * INV_GAP;
     const invX0     = -invTotW / 2;
@@ -2324,6 +2485,248 @@ export class PrepScene extends Phaser.Scene {
       g.lineBetween(x + 10, y + h - 8, x + w - 10, y + h - 8);
     };
 
+    // ── Slot-pick overlay ─────────────────────────────────
+    let slotPickLayer: Phaser.GameObjects.Container | null = null;
+
+    const clearSlotPick = () => { slotPickLayer?.destroy(); slotPickLayer = null; };
+
+    const showComparison = (
+      newCardId: string,
+      newDef: NonNullable<ReturnType<typeof getCardDef>>,
+      oldCardId: string,
+      slot: number,
+    ) => {
+      clearSlotPick();
+      slotPickLayer = this.add.container(0, 0).setDepth(D + 6);
+      container.add(slotPickLayer);
+
+      const dim = this.add.rectangle(0, 0, W, H, 0x000000, 0.65).setInteractive();
+      dim.on('pointerdown', clearSlotPick);
+      slotPickLayer.add(dim);
+
+      const oldDef = getCardDef(oldCardId)!;
+
+      // ── fixed layout ──────────────────────────────────────
+      const PDW    = 340, PDH = 310;
+      const CW     = 130, CH  = 175;
+      const GAP    = 20;
+      const CARD_Y = -20;           // card center y (relative to popup center)
+      const BTN_Y  = PDH / 2 - 24; // button center y (inside frame)
+      const popY   = 0;
+
+      // backdrop
+      const pbg = this.add.graphics();
+      pbg.fillStyle(0x1a0e06, 0.97);
+      pbg.fillRect(-PDW / 2, popY - PDH / 2, PDW, PDH);
+      pbg.lineStyle(2, 0xc89040, 0.8);
+      pbg.strokeRect(-PDW / 2, popY - PDH / 2, PDW, PDH);
+      pbg.lineStyle(1, 0xc89040, 0.3);
+      pbg.strokeRect(-PDW / 2 + 4, popY - PDH / 2 + 4, PDW - 8, PDH - 8);
+      // title bar
+      pbg.fillStyle(0x2a1608, 1);
+      pbg.fillRect(-PDW / 2, popY - PDH / 2, PDW, 26);
+      pbg.lineStyle(1, 0xc89040, 0.4);
+      pbg.lineBetween(-PDW / 2, popY - PDH / 2 + 26, PDW / 2, popY - PDH / 2 + 26);
+      slotPickLayer.add(pbg);
+
+      slotPickLayer.add(this.add.text(0, popY - PDH / 2 + 13, '替換卡片', {
+        fontSize: '13px', fontStyle: 'bold', color: '#e8c070', stroke: '#000', strokeThickness: 2,
+      }).setOrigin(0.5));
+
+      // arrow
+      slotPickLayer.add(this.add.text(0, popY + CARD_Y, '→', {
+        fontSize: '20px', color: '#ffee88', stroke: '#000', strokeThickness: 2,
+      }).setOrigin(0.5));
+
+      // mini card
+      const drawMiniCard = (def: NonNullable<ReturnType<typeof getCardDef>>, cx: number, label: string, labelColor: string) => {
+        const cy      = popY + CARD_Y;
+        const monTier = getMonsterDef(def.monsterId)?.tier ?? 1;
+        const frameC  = monTier >= 5 ? 0xf0c040 : monTier === 3 ? 0x60a8e0 : 0x9aacb8;
+        const mg = this.add.graphics();
+        mg.fillStyle(0x2a1a08, 1);
+        mg.fillRect(cx - CW / 2, cy - CH / 2, CW, CH);
+        mg.lineStyle(2, frameC, 0.9);
+        mg.strokeRect(cx - CW / 2, cy - CH / 2, CW, CH);
+        slotPickLayer!.add(mg);
+
+        // label (現有 / 新增)
+        slotPickLayer!.add(this.add.text(cx, cy - CH / 2 + 8, label, {
+          fontSize: '10px', fontStyle: 'bold', color: labelColor, stroke: '#000', strokeThickness: 1,
+        }).setOrigin(0.5, 0));
+
+        // card name
+        slotPickLayer!.add(this.add.text(cx, cy - CH / 2 + 24, def.name, {
+          fontSize: '11px', fontStyle: 'bold', color: '#f0d080', stroke: '#000', strokeThickness: 2,
+          wordWrap: { width: CW - 12 }, align: 'center',
+        }).setOrigin(0.5, 0));
+
+        // monster sprite — same scale logic as detail popup
+        const monDef = getMonsterDef(def.monsterId);
+        if (monDef) {
+          try {
+            const sprScale = monsterCardScale(monTier);
+            const sp = this.add.sprite(cx, cy - 8, `${monDef.spriteKey}_idle`, 0).setScale(sprScale);
+            if (monDef.tint !== 0xffffff) sp.setTint(monDef.tint);
+            slotPickLayer!.add(sp);
+          } catch { /* */ }
+        }
+
+        // effect desc
+        slotPickLayer!.add(this.add.text(cx, cy + CH / 2 - 8, def.desc, {
+          fontSize: '10px', color: '#c8a060', stroke: '#000', strokeThickness: 1,
+          wordWrap: { width: CW - 12, useAdvancedWrap: true }, align: 'center', maxLines: 3,
+        }).setOrigin(0.5, 1));
+      };
+
+      const cardCX = CW / 2 + GAP / 2;
+      drawMiniCard(oldDef,  -cardCX, '現有', '#ff9999');
+      drawMiniCard(newDef,   cardCX, '新增', '#99ff99');
+
+      // ── Buttons (inside frame) ──────────────────────────
+      const BW = 118, BH = 30;
+      const btnY = popY + BTN_Y;
+
+      const confirmBg = this.add.graphics();
+      confirmBg.fillStyle(0x0e2a0e, 1); confirmBg.fillRect(-BW - 4, btnY - BH / 2, BW, BH);
+      confirmBg.lineStyle(1.5, 0x44cc44, 0.9); confirmBg.strokeRect(-BW - 4, btnY - BH / 2, BW, BH);
+      slotPickLayer.add(confirmBg);
+      slotPickLayer.add(this.add.text(-BW / 2 - 4, btnY, '確認替換', {
+        fontSize: '13px', fontStyle: 'bold', color: '#88ff88', stroke: '#000', strokeThickness: 2,
+      }).setOrigin(0.5));
+      const confirmHit = this.add.rectangle(-BW / 2 - 4, btnY, BW, BH).setInteractive({ useHandCursor: true });
+      confirmHit.on('pointerdown', (ptr: Phaser.Input.Pointer) => {
+        ptr.event.stopPropagation();
+        CardStore.equip(newCardId, slot);
+        SaveStore.save();
+        clearSlotPick();
+      });
+      slotPickLayer.add(confirmHit);
+
+      const cancelBg = this.add.graphics();
+      cancelBg.fillStyle(0x1a1a1a, 1); cancelBg.fillRect(4, btnY - BH / 2, BW, BH);
+      cancelBg.lineStyle(1.5, 0x666666, 0.9); cancelBg.strokeRect(4, btnY - BH / 2, BW, BH);
+      slotPickLayer.add(cancelBg);
+      slotPickLayer.add(this.add.text(BW / 2 + 4, btnY, '取  消', {
+        fontSize: '13px', fontStyle: 'bold', color: '#aaaaaa', stroke: '#000', strokeThickness: 2,
+      }).setOrigin(0.5));
+      const cancelHit = this.add.rectangle(BW / 2 + 4, btnY, BW, BH).setInteractive({ useHandCursor: true });
+      cancelHit.on('pointerdown', (ptr: Phaser.Input.Pointer) => { ptr.event.stopPropagation(); clearSlotPick(); });
+      slotPickLayer.add(cancelHit);
+    };
+
+    // 從裝備槽出發，選庫存卡片來比較/替換
+    const enterInventoryPick = (fromSlot: number, fromCardId: string) => {
+      clearSlotPick();
+      slotPickLayer = this.add.container(0, 0).setDepth(D + 5);
+      container.add(slotPickLayer);
+
+      const dim = this.add.rectangle(0, 0, W, H, 0x000000, 0.5).setInteractive();
+      dim.on('pointerdown', clearSlotPick);
+      slotPickLayer.add(dim);
+
+      slotPickLayer.add(this.add.text(0, slotsY - 18, '請選擇要替換進來的卡片　（點擊空白處取消）', {
+        fontSize: '11px', color: '#ffee88', stroke: '#000', strokeThickness: 2,
+      }).setOrigin(0.5, 1));
+
+      const invItems = CardStore.getInventory();
+      const INV_COLS2 = INV_COLS, ROW_H2 = CARD_H + INV_GAP;
+
+      invItems.forEach(({ cardId, qty }, idx) => {
+        const def = getCardDef(cardId);
+        if (!def) return;
+        const col = idx % INV_COLS2;
+        const row = Math.floor(idx / INV_COLS2);
+        const cx  = invX0 + col * (CARD_W + INV_GAP) + CARD_W / 2;
+        const cy  = INV_TOP + row * ROW_H2 + CARD_H / 2;
+
+        // 疊帶上限檢查（排除 fromSlot 本身）
+        const eq = CardStore.getEquipped();
+        const countElsewhere = eq.filter((s, i) => s === cardId && i !== fromSlot).length;
+        const canEquip = countElsewhere < CardStore.getStackLimit(cardId);
+
+        const cg = this.add.graphics();
+        const monTier = getMonsterDef(def.monsterId)?.tier ?? 1;
+        monTier >= 5 ? drawBossCard(cg, cx, cy, CARD_W, CARD_H) : monTier === 3 ? drawEliteCard(cg, cx, cy, CARD_W, CARD_H) : drawInvCard(cg, cx, cy, CARD_W, CARD_H);
+        slotPickLayer!.add(cg);
+        drawCardFace(slotPickLayer!, def, cx, cy, '', qty);
+
+        if (canEquip) {
+          const hg = this.add.graphics();
+          hg.lineStyle(2.5, 0x44ff88, 1);
+          hg.strokeRect(cx - CARD_W / 2 - 3, cy - CARD_H / 2 - 3, CARD_W + 6, CARD_H + 6);
+          hg.fillStyle(0x44ff88, 0.12);
+          hg.fillRect(cx - CARD_W / 2, cy - CARD_H / 2, CARD_W, CARD_H);
+          slotPickLayer!.add(hg);
+
+          const hit = this.add.rectangle(cx, cy, CARD_W, CARD_H).setInteractive({ useHandCursor: true });
+          hit.on('pointerdown', (ptr: Phaser.Input.Pointer) => {
+            ptr.event.stopPropagation();
+            showComparison(cardId, def as NonNullable<ReturnType<typeof getCardDef>>, fromCardId, fromSlot);
+          });
+          slotPickLayer!.add(hit);
+        } else {
+          const dimOvl = this.add.graphics();
+          dimOvl.fillStyle(0x000000, 0.5);
+          dimOvl.fillRect(cx - CARD_W / 2, cy - CARD_H / 2, CARD_W, CARD_H);
+          slotPickLayer!.add(dimOvl);
+        }
+      });
+    };
+
+    const enterSlotPick = (pickCardId: string, pickDef: NonNullable<ReturnType<typeof getCardDef>>) => {
+      clearSlotPick();
+      slotPickLayer = this.add.container(0, 0).setDepth(D + 5);
+      container.add(slotPickLayer);
+
+      const dim = this.add.rectangle(0, 0, W, H, 0x000000, 0.45).setInteractive();
+      dim.on('pointerdown', clearSlotPick);
+      slotPickLayer.add(dim);
+
+      slotPickLayer.add(this.add.text(0, slotsY - 18, '請選擇要配置的格子　（點擊空白處取消）', {
+        fontSize: '11px', color: '#ffee88', stroke: '#000', strokeThickness: 2,
+      }).setOrigin(0.5, 1));
+
+      const eq = CardStore.getEquipped();
+      for (let i = 0; i < CARD_SLOT_COUNT; i++) {
+        const cx = slotsX0 + i * (CARD_W + SLOT_GAP) + CARD_W / 2;
+        const cy = slotsY + CARD_H / 2;
+
+        const countElsewhere = eq.filter((s, idx) => s === pickCardId && idx !== i).length;
+        const canEquip = countElsewhere < CardStore.getStackLimit(pickCardId);
+
+        const hg = this.add.graphics();
+        if (canEquip) {
+          hg.lineStyle(2.5, 0x44ff88, 1);
+          hg.strokeRect(cx - CARD_W / 2 - 3, cy - CARD_H / 2 - 3, CARD_W + 6, CARD_H + 6);
+          hg.fillStyle(0x44ff88, 0.18);
+          hg.fillRect(cx - CARD_W / 2, cy - CARD_H / 2, CARD_W, CARD_H);
+        } else {
+          hg.lineStyle(2, 0x666666, 0.5);
+          hg.strokeRect(cx - CARD_W / 2 - 3, cy - CARD_H / 2 - 3, CARD_W + 6, CARD_H + 6);
+        }
+        slotPickLayer.add(hg);
+
+        if (canEquip) {
+          const hit = this.add.rectangle(cx, cy, CARD_W, CARD_H).setInteractive({ useHandCursor: true });
+          hit.on('pointerdown', (ptr: Phaser.Input.Pointer) => {
+            ptr.event.stopPropagation();
+            const currentId = eq[i];
+            if (currentId) {
+              const currentDef = getCardDef(currentId);
+              if (currentDef) showComparison(pickCardId, pickDef, currentId, i);
+              else { CardStore.equip(pickCardId, i); SaveStore.save(); clearSlotPick(); }
+            } else {
+              CardStore.equip(pickCardId, i);
+              SaveStore.save();
+              clearSlotPick();
+            }
+          });
+          slotPickLayer.add(hit);
+        }
+      }
+    };
+
     // ── Card detail popup (card-styled) ───────────────────
     let detailPopup: Phaser.GameObjects.Container | null = null;
     const showCardDetail = (
@@ -2405,7 +2808,7 @@ export class PrepScene extends Phaser.Scene {
       const monDef = getMonsterDef(def.monsterId);
       if (monDef) {
         const spriteKey  = `${monDef.spriteKey}_idle`;
-        const spriteScale = monDef.tier >= 5 ? 3.0 : 1.5;
+        const spriteScale = monsterDetailScale(monDef.tier);
         try {
           const sp = this.add.sprite(0, SPRITE_Y, spriteKey, 0).setScale(spriteScale);
           if (monDef.tint !== 0xffffff) sp.setTint(monDef.tint);
@@ -2439,42 +2842,64 @@ export class PrepScene extends Phaser.Scene {
         stroke: '#1a0800', strokeThickness: 1, align: 'center',
       }).setOrigin(0.5, 0.5));
 
-      // ── Action button ─────────────────────────────────
+      // ── Action buttons ────────────────────────────────
       const isEquipped = equippedSlot !== null;
       const atDetLimit = !isEquipped && detEquipped >= detLimit;
-      const btnLabel   = isEquipped ? '取  下' : atDetLimit ? '已達上限' : '配  置';
-      const btnColor   = isEquipped ? 0x3a1010 : atDetLimit ? 0x2a2a2a : 0x0e2a0e;
-      const btnBorder  = isEquipped ? 0xcc4444 : atDetLimit ? 0x666666 : 0x44cc44;
-      const btnTxtC    = isEquipped ? '#ff8888' : atDetLimit ? '#666666' : '#88ff88';
+      const BH = 32, btnY = PDH / 2 - 28;
 
-      const BW = PDW - 40, BH = 32;
-      const btnY = PDH / 2 - 28;
-      const btnBg = this.add.graphics();
-      btnBg.fillStyle(btnColor, 1);
-      btnBg.fillRect(-BW / 2, btnY - BH / 2, BW, BH);
-      btnBg.lineStyle(1.5, btnBorder, 0.9);
-      btnBg.strokeRect(-BW / 2, btnY - BH / 2, BW, BH);
-      pop.add(btnBg);
-
-      pop.add(this.add.text(0, btnY, btnLabel, {
-        fontSize: '14px', fontStyle: 'bold',
-        color: btnTxtC, stroke: '#000000', strokeThickness: 2,
-      }).setOrigin(0.5));
-
-      if (!atDetLimit) {
-        const btnHit = this.add.rectangle(0, btnY, BW, BH).setInteractive({ useHandCursor: true });
-        btnHit.on('pointerdown', (ptr: Phaser.Input.Pointer) => {
-          ptr.event.stopPropagation();
-          if (isEquipped) {
-            CardStore.unequip(equippedSlot!);
-          } else {
-            CardStore.equipAuto(cardId);
-          }
+      if (isEquipped) {
+        // 裝備中：「取下」左、「替換」右
+        const HBW = (PDW - 48) / 2;
+        const makeBtn = (ox: number, label: string, bgC: number, borderC: number, txtC: string, cb: () => void) => {
+          const bg = this.add.graphics();
+          bg.fillStyle(bgC, 1);    bg.fillRect(ox - HBW / 2, btnY - BH / 2, HBW, BH);
+          bg.lineStyle(1.5, borderC, 0.9); bg.strokeRect(ox - HBW / 2, btnY - BH / 2, HBW, BH);
+          pop.add(bg);
+          pop.add(this.add.text(ox, btnY, label, {
+            fontSize: '13px', fontStyle: 'bold', color: txtC, stroke: '#000', strokeThickness: 2,
+          }).setOrigin(0.5));
+          const hit = this.add.rectangle(ox, btnY, HBW, BH).setInteractive({ useHandCursor: true });
+          hit.on('pointerdown', (ptr: Phaser.Input.Pointer) => { ptr.event.stopPropagation(); cb(); });
+          pop.add(hit);
+        };
+        const ox0 = -(HBW / 2 + 4), ox1 = HBW / 2 + 4;
+        makeBtn(ox0, '取  下', 0x3a1010, 0xcc4444, '#ff8888', () => {
+          CardStore.unequip(equippedSlot!);
           SaveStore.save();
-          pop.destroy();
-          detailPopup = null;
+          pop.destroy(); detailPopup = null;
         });
-        pop.add(btnHit);
+        const hasInv = CardStore.getInventory().some(({ cardId: cid }) => {
+          const eq = CardStore.getEquipped();
+          return eq.filter((s, i) => s === cid && i !== equippedSlot!).length < CardStore.getStackLimit(cid);
+        });
+        if (hasInv) {
+          makeBtn(ox1, '替  換', 0x0a1e30, 0x4488cc, '#88ccff', () => {
+            pop.destroy(); detailPopup = null;
+            enterInventoryPick(equippedSlot!, cardId);
+          });
+        }
+      } else {
+        // 庫存中：「配置」或「已達上限」
+        const BW = PDW - 40;
+        const btnBg = this.add.graphics();
+        btnBg.fillStyle(atDetLimit ? 0x2a2a2a : 0x0e2a0e, 1);
+        btnBg.fillRect(-BW / 2, btnY - BH / 2, BW, BH);
+        btnBg.lineStyle(1.5, atDetLimit ? 0x666666 : 0x44cc44, 0.9);
+        btnBg.strokeRect(-BW / 2, btnY - BH / 2, BW, BH);
+        pop.add(btnBg);
+        pop.add(this.add.text(0, btnY, atDetLimit ? '已達上限' : '配  置', {
+          fontSize: '14px', fontStyle: 'bold',
+          color: atDetLimit ? '#666666' : '#88ff88', stroke: '#000000', strokeThickness: 2,
+        }).setOrigin(0.5));
+        if (!atDetLimit) {
+          const btnHit = this.add.rectangle(0, btnY, BW, BH).setInteractive({ useHandCursor: true });
+          btnHit.on('pointerdown', (ptr: Phaser.Input.Pointer) => {
+            ptr.event.stopPropagation();
+            pop.destroy(); detailPopup = null;
+            enterSlotPick(cardId, def as NonNullable<ReturnType<typeof getCardDef>>);
+          });
+          pop.add(btnHit);
+        }
       }
     };
 
@@ -2486,6 +2911,15 @@ export class PrepScene extends Phaser.Scene {
       _slotLabel: string,
       qty?: number,
     ) => {
+      // A/B/C 浮水印
+      const variant = def.id.slice(-1).toUpperCase();
+      if (variant === 'A' || variant === 'B' || variant === 'C') {
+        const vColor = '#ffffff';
+        target.add(this.add.text(cx, cy, variant, {
+          fontSize: '64px', fontStyle: 'bold', color: vColor,
+        }).setOrigin(0.5).setAlpha(0.15));
+      }
+
       // 數量標籤（右上角）
       if (qty !== undefined && qty > 1) {
         target.add(this.add.text(cx + CARD_W / 2 - 2, cy - CARD_H / 2 + 3, `×${qty}`, {
@@ -2505,7 +2939,7 @@ export class PrepScene extends Phaser.Scene {
               frameRate: 8, repeat: -1,
             });
           }
-          const baseScale = monDef.tier >= 5 ? 1.6 : 0.9;
+          const baseScale = monsterCardScale(monDef.tier);
           const sp = this.add.sprite(cx, cy, spriteKey, 0).setScale(baseScale);
           if (monDef.tint !== 0xffffff) sp.setTint(monDef.tint);
           if (this.anims.exists(animKey)) sp.play(animKey);
@@ -2515,6 +2949,7 @@ export class PrepScene extends Phaser.Scene {
     };
 
     // ── Rebuild function ───────────────────────────────────
+    let savedScrollY = 0;   // 保留 scroll 位置跨 rebuild
     const rebuild = () => {
       detailPopup?.destroy();
       detailPopup = null;
@@ -2586,10 +3021,10 @@ export class PrepScene extends Phaser.Scene {
       const ROWS      = Math.ceil(invItems.length / INV_COLS);
       const ROW_H     = CARD_H + INV_GAP;
       const contentH  = ROWS * ROW_H;
-      let   scrollY   = 0;
       const maxScroll = Math.max(0, contentH - INV_H);
+      savedScrollY    = Phaser.Math.Clamp(savedScrollY, 0, maxScroll);
 
-      const scrollCnt = this.add.container(0, INV_TOP);
+      const scrollCnt = this.add.container(0, INV_TOP - savedScrollY);
       contentCnt.add(scrollCnt);
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -2599,8 +3034,8 @@ export class PrepScene extends Phaser.Scene {
       scrollCnt.setMask(maskShape.createGeometryMask());
 
       const applyScroll = (dy: number) => {
-        scrollY = Phaser.Math.Clamp(scrollY + dy, 0, maxScroll);
-        scrollCnt.y = INV_TOP - scrollY;
+        savedScrollY = Phaser.Math.Clamp(savedScrollY + dy, 0, maxScroll);
+        scrollCnt.y = INV_TOP - savedScrollY;
       };
 
       // Build cards once at fixed positions
@@ -2638,9 +3073,26 @@ export class PrepScene extends Phaser.Scene {
           scrollCnt.add(dimOvl);
         }
 
-        const hit = this.add.rectangle(cx, cy, CARD_W, CARD_H).setInteractive({ useHandCursor: true });
-        hit.on('pointerdown', () => showCardDetail(def, null, cardId));
-        scrollCnt.add(hit);
+      });
+
+      // Single hit zone covering the inventory area — avoids overlapping equipped-slot hits
+      const invZone = this.add.rectangle(0, INV_TOP + INV_H / 2, PW - 16, INV_H)
+        .setInteractive({ useHandCursor: true });
+      contentCnt.add(invZone);
+      invZone.on('pointerdown', (ptr: Phaser.Input.Pointer) => {
+        // Convert screen pointer to contentCnt-local coords
+        const localX = ptr.x - (W / 2);
+        const localY = ptr.y - (H / 2) - scrollCnt.y;
+        invItems.forEach(({ cardId }, idx) => {
+          const col = idx % INV_COLS;
+          const row = Math.floor(idx / INV_COLS);
+          const cx  = invX0 + col * (CARD_W + INV_GAP) + CARD_W / 2;
+          const cy  = row * ROW_H + CARD_H / 2;
+          if (Math.abs(localX - cx) <= CARD_W / 2 && Math.abs(localY - cy) <= CARD_H / 2) {
+            const def = getCardDef(cardId);
+            if (def) showCardDetail(def, null, cardId);
+          }
+        });
       });
 
       // Drag scroll

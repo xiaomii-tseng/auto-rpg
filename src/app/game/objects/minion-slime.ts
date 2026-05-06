@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { MONSTER_SCALE_SMALL } from '../data/monster-data';
 
 enum MinionState {
   PATROL    = 'PATROL',
@@ -77,7 +78,7 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
     this.patrolTargetX = x;
     this.patrolTargetY = y;
     this.pb.setSize(19, 12).setOffset(23, 29);
-    this.setScale(0.78);
+    this.setScale(MONSTER_SCALE_SMALL);
     this.setDepth(12);
     this.applyBaseTint();
     this.play(`${spriteKey}_idle_down`, true);

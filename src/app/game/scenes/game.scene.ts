@@ -21,11 +21,12 @@ import { ELITE_HP_MULT, ELITE_SCALE_MOD } from '../data/monster-data';
 const MELEE_RANGE = 60;
 
 interface LootDrop {
-  obj: Phaser.GameObjects.Image | Phaser.GameObjects.Container;
+  obj:      Phaser.GameObjects.Image | Phaser.GameObjects.Container;
   itemId:   string;
   itemName: string;
   qty:      number;
   cardId?:  string;   // set for card drops; pickup calls CardStore.addCard() instead
+  readyAt:  number;   // timestamp after which pickup is allowed
 }
 
 export class GameScene extends Phaser.Scene {
@@ -2697,7 +2698,7 @@ export class GameScene extends Phaser.Scene {
     });
 
     const cardName = cardDef?.name ?? '卡片';
-    this.lootDrops.push({ obj: cnt, itemId: '__card__', itemName: cardName, qty: 1, cardId });
+    this.lootDrops.push({ obj: cnt, itemId: '__card__', itemName: cardName, qty: 1, cardId, readyAt: Date.now() + 600 });
   }
 
   private spawnLoot(cx: number, cy: number, drops: DropEntry[]): void {
@@ -2722,7 +2723,7 @@ export class GameScene extends Phaser.Scene {
           });
         },
       });
-      this.lootDrops.push({ obj: img, itemId: drop.itemId, itemName: drop.itemName, qty });
+      this.lootDrops.push({ obj: img, itemId: drop.itemId, itemName: drop.itemName, qty, readyAt: Date.now() + 600 });
     }
   }
 
@@ -2733,7 +2734,7 @@ export class GameScene extends Phaser.Scene {
       const d = Phaser.Math.Distance.Between(
         this.player.x, this.player.y, loot.obj.x, loot.obj.y,
       );
-      if (d > 48) return true;
+      if (d > 48 || Date.now() < loot.readyAt) return true;
       if (loot.cardId) {
         CardStore.addCard(loot.cardId);
         this.showPickupText(loot.obj.x, loot.obj.y, loot.itemName, 1);

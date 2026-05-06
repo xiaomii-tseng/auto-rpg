@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { Boss, BossState } from './boss';
+import { MONSTER_SCALE_BOSS } from '../data/monster-data';
 
 const SPIKE_RANGE   = 400;
 const SPIKE_DMG     = 25;
@@ -77,7 +78,7 @@ export class BossBlueSlime extends Boss {
 
     this.stateTimer = this.scene.time.delayedCall(1100, () => {
       this.pulseTween?.stop();
-      this.setScale(2.0);
+      this.setScale(MONSTER_SCALE_BOSS);
       warnG.destroy();
       chargeEmitter.destroy();
       this.spawnIceSpikes();

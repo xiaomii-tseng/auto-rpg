@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { Boss, BossState } from './boss';
+import { MONSTER_SCALE_BOSS } from '../data/monster-data';
 
 const SUMMON_DIST  = 85;
 const SUMMON_COUNT = 3;
@@ -37,9 +38,9 @@ export class BossZombieSlime extends Boss {
   protected override pickNextAttack(): void {
     const roll = Math.random();
     let fn: () => void;
-    if      (roll < 0.25) fn = () => this.enterAoeWarn();
-    else if (roll < 0.50) fn = () => this.enterDashWarn();
-    else if (roll < 0.65) fn = () => this.enterZombieSummonWarn();
+    if      (roll < 0.26) fn = () => this.enterAoeWarn();
+    else if (roll < 0.52) fn = () => this.enterDashWarn();
+    else if (roll < 0.64) fn = () => this.enterZombieSummonWarn();
     else                  fn = () => this.enterPoisonFanWarn();
     this.stateTimer = this.scene.time.delayedCall(this.getNextAttackDelay(), fn);
   }
@@ -136,7 +137,7 @@ export class BossZombieSlime extends Boss {
       this.pulseTween?.stop();
       orbTimer.destroy();
       scaleTween.stop();
-      this.setScale(2);
+      this.setScale(MONSTER_SCALE_BOSS);
       orbs.forEach(o => o.destroy());
       emitter.destroy();
       portalG.destroy();

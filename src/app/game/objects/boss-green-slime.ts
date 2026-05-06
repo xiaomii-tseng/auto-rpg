@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { Boss, BossState } from './boss';
+import { MONSTER_SCALE_BOSS } from '../data/monster-data';
 
 const PUDDLE_RADIUS = 31;   // 原 52 × 0.6
 const PUDDLE_MS     = 3000;
@@ -112,7 +113,7 @@ export class BossGreenSlime extends Boss {
       this.pulseTween?.stop();
       orbTimer.destroy();
       scaleTween.stop();
-      this.setScale(2);
+      this.setScale(MONSTER_SCALE_BOSS);
       orbs.forEach(o => o.destroy());
       emitter.destroy();
       portalG.destroy();

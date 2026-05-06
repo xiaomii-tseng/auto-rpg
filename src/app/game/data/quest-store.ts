@@ -106,7 +106,7 @@ function generateQuests(): Quest[] {
     const base = (Math.floor(Math.random() * 21) + 30) * 10;
     const reward = Math.round(base * STAR_REWARD_MULT[star] / 10) * 10;
 
-    const isEquipReward = Math.random() < 0.20;
+    const isEquipReward = Math.random() < 0.40;
     return {
       id:            `q_${Date.now()}_${i}`,
       bossId,
@@ -189,7 +189,7 @@ export const QuestStore = {
     const def    = MONSTER_DEFS.find(m => m.id === bossId)!;
     const star   = pickStar(PlayerStore.getLevel());
     const base   = (Math.floor(Math.random() * 21) + 30) * 10;
-    const isEquipReward = Math.random() < 0.20;
+    const isEquipReward = Math.random() < 0.40;
     const tmpl   = FLAVOR_TEMPLATES[Math.floor(Math.random() * FLAVOR_TEMPLATES.length)];
     _quests[idx] = {
       id: `q_${Date.now()}_r`,
