@@ -1,3 +1,4 @@
+﻿const DPR = Math.min(window.devicePixelRatio || 1, 3);
 import Phaser from 'phaser';
 import { CardStore } from '../data/card-store';
 
@@ -26,7 +27,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     super(scene, x, y, 'player_idle_shadow', 0);
     scene.add.existing(this);
     scene.physics.add.existing(this);
-    this.setScale(1.5);
+    this.setScale(1.5 * DPR);
     this.setCollideWorldBounds(true);
     this.setDepth(10);
     this.setBodySize(16, 11).setOffset(24, 37);
@@ -132,7 +133,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
   move(velX: number, velY: number): void {
     if (this.rooted) { this.setVelocity(0, 0); return; }
-    const speed  = CardStore.getTotalStats().speed * this.speedMult;
+    const speed  = CardStore.getTotalStats().speed * this.speedMult * DPR;
     const moving = velX !== 0 || velY !== 0;
     if (moving) {
       const len = Math.sqrt(velX * velX + velY * velY);

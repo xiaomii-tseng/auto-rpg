@@ -1,3 +1,4 @@
+﻿const DPR = Math.min(window.devicePixelRatio || 1, 3);
 import { Element, StatBonus } from './equipment-data';
 
 // ── Interfaces ─────────────────────────────────────────────────────────────
@@ -64,9 +65,9 @@ const CA_E = 1, CB_E = 1, CC_E = 1;  // 菁英
 const CA_B = 1, CB_B = 1, CC_B = 1;  // Boss
 
 // ── Sprite scale constants ─────────────────────────────────────────────────
-export const MONSTER_SCALE_SMALL = 0.78;
-export const MONSTER_SCALE_ELITE = 1.25;
-export const MONSTER_SCALE_BOSS  = 2.0;
+export const MONSTER_SCALE_SMALL = +(0.78 * DPR).toFixed(4);
+export const MONSTER_SCALE_ELITE = +(1.25 * DPR).toFixed(4);
+export const MONSTER_SCALE_BOSS  = +(2.0  * DPR).toFixed(4);
 
 /** 統一比例：小怪 0.78 / 菁英 1.25 / Boss 2.0 */
 export function monsterScale(tier: number): number {

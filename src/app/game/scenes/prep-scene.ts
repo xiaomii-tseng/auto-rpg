@@ -9,7 +9,11 @@ import { getCardDef, getMonsterDef, monsterCardScale, monsterDetailScale } from 
 import { QuestStore, Quest, STAR_EQUIP_QUALITY } from '../data/quest-store';
 
 
-const TOP_H  = 52;
+const DPR = Math.min(window.devicePixelRatio || 1, 3);
+const F = (n: number): string => `${Math.round(n * DPR)}px`;
+const P = (n: number): number => Math.round(n * DPR);
+
+const TOP_H  = P(52);
 
 // Wood palette
 const WB  = 0x140a02; // base (near-black)
@@ -221,7 +225,7 @@ export class PrepScene extends Phaser.Scene {
 
   private drawBackground(W: number, H: number): void {
     // Render at low resolution then scale up → pixel art look
-    const PDIV = 3;                          // pixelate to match character's ~3.5x pixel scale
+    const PDIV = 6;                          // pixelate to match character's ~3.5x pixel scale
     const rtW  = Math.round(W / PDIV);
     const rtH  = Math.round(H / PDIV);
 
@@ -270,18 +274,18 @@ export class PrepScene extends Phaser.Scene {
 
   private drawTopBar(W: number): void {
     const CY    = TOP_H / 2;
-    const AV_R  = 19;   // avatar radius
-    const AV_CX = 8 + AV_R;
+    const AV_R     = P(19);   // avatar radius
+    const AV_CX = P(8) + AV_R;
     const AV_CY = CY;
-    const SET_W = 36;
-    const SET_X = W - SET_W - 5;
+    const SET_W    = P(36);
+    const SET_X = W - SET_W - P(5);
 
     // Name block width ~90px, then EXP bar fills to settings
-    const nameBlockW = 90;
-    const EXP_X0     = AV_CX + AV_R + 10 + nameBlockW + 8;
-    const EXP_X1     = SET_X - 8;
-    const EXP_BAR_H  = 9;
-    const EXP_BAR_Y  = CY + 9;
+    const nameBlockW = P(90);
+    const EXP_X0     = AV_CX + AV_R + P(10) + nameBlockW + P(8);
+    const EXP_X1     = SET_X - P(8);
+    const EXP_BAR_H = P(9);
+    const EXP_BAR_Y  = CY + P(9);
 
     // ── Bar background ────────────────────────────────────
     const gfx = this.add.graphics();
@@ -300,62 +304,62 @@ export class PrepScene extends Phaser.Scene {
     const avG = this.add.graphics();
     // Outer gold ring glow
     avG.fillStyle(GOLD, 0.25);
-    avG.fillCircle(AV_CX, AV_CY, AV_R + 4);
+    avG.fillCircle(AV_CX, AV_CY, AV_R + P(4));
     // Body
     avG.fillStyle(WM, 1);
     avG.fillCircle(AV_CX, AV_CY, AV_R);
     // Inner top highlight
     avG.fillStyle(0xffffff, 0.08);
-    avG.fillCircle(AV_CX - 3, AV_CY - 5, AV_R * 0.55);
+    avG.fillCircle(AV_CX - P(3), AV_CY - P(5), AV_R * 0.55);
     // Gold ring border
     avG.lineStyle(2.5, GOLD, 0.9);
     avG.strokeCircle(AV_CX, AV_CY, AV_R);
     avG.lineStyle(1, 0xffe8a0, 0.3);
-    avG.strokeCircle(AV_CX, AV_CY, AV_R - 4);
+    avG.strokeCircle(AV_CX, AV_CY, AV_R - P(4));
 
     this.add.text(AV_CX, AV_CY + 1, '勇', {
-      fontSize: '15px', fontStyle: 'bold',
+      fontSize: F(15), fontStyle: 'bold',
       color: '#ffe0a0', stroke: '#1a0800', strokeThickness: 2,
     }).setOrigin(0.5);
 
     // ── Name + Lv stacked ─────────────────────────────────
-    const nameX = AV_CX + AV_R + 10;
-    this.add.text(nameX, CY - 8, '玩家一號', {
-      fontSize: '15px', fontStyle: 'bold',
+    const nameX = AV_CX + AV_R + P(10);
+    this.add.text(nameX, CY - P(8), '玩家一號', {
+      fontSize: F(15), fontStyle: 'bold',
       color: '#ffe8b0', stroke: '#1a0800', strokeThickness: 3,
     }).setOrigin(0, 0.5);
 
-    const lvLabel = this.add.text(nameX, CY + 9, '', {
-      fontSize: '12px', color: '#c8a050', stroke: '#1a0800', strokeThickness: 2,
+    const lvLabel = this.add.text(nameX, CY + P(9), '', {
+      fontSize: F(15), fontStyle: 'bold', color: '#c8a050', stroke: '#1a0800', strokeThickness: 2,
     }).setOrigin(0, 0.5);
 
     // Thin separator after name block
     gfx.fillStyle(GOLD, 0.25);
-    gfx.fillRect(EXP_X0 - 6, 10, 1, TOP_H - 20);
+    gfx.fillRect(EXP_X0 - P(6), P(10), 1, TOP_H - P(20));
 
     // ── EXP bar ───────────────────────────────────────────
     const expBarW   = EXP_X1 - EXP_X0;
     const expTrack  = this.add.graphics();
     // Track shadow
     expTrack.fillStyle(0x000000, 0.5);
-    expTrack.fillRoundedRect(EXP_X0, EXP_BAR_Y - EXP_BAR_H / 2 + 1, expBarW, EXP_BAR_H, 4);
+    expTrack.fillRoundedRect(EXP_X0, EXP_BAR_Y - EXP_BAR_H / 2 + 1, expBarW, EXP_BAR_H, P(4));
     // Track bg — dark wood
     expTrack.fillStyle(0x160c02, 1);
-    expTrack.fillRoundedRect(EXP_X0, EXP_BAR_Y - EXP_BAR_H / 2, expBarW, EXP_BAR_H, 4);
+    expTrack.fillRoundedRect(EXP_X0, EXP_BAR_Y - EXP_BAR_H / 2, expBarW, EXP_BAR_H, P(4));
     expTrack.lineStyle(1, GOLD, 0.35);
-    expTrack.strokeRoundedRect(EXP_X0, EXP_BAR_Y - EXP_BAR_H / 2, expBarW, EXP_BAR_H, 4);
+    expTrack.strokeRoundedRect(EXP_X0, EXP_BAR_Y - EXP_BAR_H / 2, expBarW, EXP_BAR_H, P(4));
     // EXP label above bar
-    this.add.text(EXP_X0 + expBarW / 2, EXP_BAR_Y - EXP_BAR_H / 2 - 5, 'EXP', {
-      fontSize: '9px', color: '#a07830', stroke: '#000', strokeThickness: 1,
+    this.add.text(EXP_X0 + expBarW / 2, EXP_BAR_Y - EXP_BAR_H / 2 - P(5), 'EXP', {
+      fontSize: F(15), fontStyle: 'bold', color: '#c8a050', stroke: '#000', strokeThickness: 2,
     }).setOrigin(0.5, 1);
 
     const expFillGfx = this.add.graphics();
 
     // ── Gold badge (below topbar, right-aligned, fixed width) ──
-    const BADGE_W  = 154;
-    const BADGE_H  = 28;
-    const BADGE_Y  = TOP_H + 4;
-    const BADGE_X  = W - BADGE_W - 4;   // left edge
+    const BADGE_W  = P(154);
+    const BADGE_H  = P(28);
+    const BADGE_Y  = TOP_H + P(4);
+    const BADGE_X  = W - BADGE_W - P(4);   // left edge
 
     const goldBg = this.add.graphics().setDepth(5);
     goldBg.fillStyle(0x0e0600, 0.9);
@@ -365,25 +369,25 @@ export class PrepScene extends Phaser.Scene {
     goldBg.fillStyle(GOLD, 0.18);
     goldBg.fillRect(BADGE_X, BADGE_Y, BADGE_W, 2);
 
-    const ICON_X = BADGE_X + 16;
+    const ICON_X = BADGE_X + P(16);
     const TXT_CY = BADGE_Y + BADGE_H / 2;
-    this.add.image(ICON_X, TXT_CY, 'icon_coin').setDisplaySize(20, 20).setDepth(6);
-    this.goldText = this.add.text(ICON_X + 14, TXT_CY,
+    this.add.image(ICON_X, TXT_CY, 'icon_coin').setDisplaySize(P(20), P(20)).setDepth(6);
+    this.goldText = this.add.text(ICON_X + P(14), TXT_CY,
       InventoryStore.getGold().toLocaleString(), {
-        fontSize: '14px', fontStyle: 'bold',
+        fontSize: F(15), fontStyle: 'bold',
         color: '#f0d090', stroke: '#1a0800', strokeThickness: 2,
       }).setOrigin(0, 0.5).setDepth(6);
 
     // ── Settings button ───────────────────────────────────
     const sg = this.add.graphics();
     sg.fillStyle(WM, 1);
-    sg.fillRoundedRect(SET_X, CY - 15, SET_W, 30, 6);
+    sg.fillRoundedRect(SET_X, CY - P(15), SET_W, P(30), P(6));
     sg.lineStyle(1.5, WL, 0.6);
-    sg.strokeRoundedRect(SET_X, CY - 15, SET_W, 30, 6);
+    sg.strokeRoundedRect(SET_X, CY - P(15), SET_W, P(30), P(6));
     sg.fillStyle(GOLD, 0.18);
-    sg.fillRoundedRect(SET_X, CY - 15, SET_W, 8, { tl: 6, tr: 6, bl: 0, br: 0 });
-    this.add.text(SET_X + SET_W / 2, CY + 1, '≡', {
-      fontSize: '22px', color: '#d4a050', stroke: '#1a0800', strokeThickness: 1,
+    sg.fillRoundedRect(SET_X, CY - P(15), SET_W, P(8), { tl: P(6), tr: P(6), bl: 0, br: 0 });
+    this.add.text(SET_X + SET_W / 2, CY + P(1), '≡', {
+      fontSize: F(22), fontStyle: 'bold', color: '#d4a050', stroke: '#1a0800', strokeThickness: 1,
     }).setOrigin(0.5);
 
     // ── Reactive update ───────────────────────────────────
@@ -397,13 +401,13 @@ export class PrepScene extends Phaser.Scene {
         const fillW = Math.max(5, (expBarW - 2) * pct);
         // Main fill — amber
         expFillGfx.fillStyle(0xc87020, 1);
-        expFillGfx.fillRoundedRect(EXP_X0 + 1, EXP_BAR_Y - EXP_BAR_H / 2 + 1, fillW, EXP_BAR_H - 2, 3);
+        expFillGfx.fillRoundedRect(EXP_X0 + 1, EXP_BAR_Y - EXP_BAR_H / 2 + 1, fillW, EXP_BAR_H - 2, P(3));
         // Top gloss — bright gold
         expFillGfx.fillStyle(0xffcc44, 0.45);
-        expFillGfx.fillRoundedRect(EXP_X0 + 1, EXP_BAR_Y - EXP_BAR_H / 2 + 1, fillW, 4, { tl: 3, tr: 3, bl: 0, br: 0 });
+        expFillGfx.fillRoundedRect(EXP_X0 + 1, EXP_BAR_Y - EXP_BAR_H / 2 + 1, fillW, P(4), { tl: P(3), tr: P(3), bl: 0, br: 0 });
         // Edge glow — amber
         expFillGfx.fillStyle(0xffaa22, 0.6);
-        expFillGfx.fillRect(EXP_X0 + fillW - 2, EXP_BAR_Y - EXP_BAR_H / 2 + 2, 3, EXP_BAR_H - 4);
+        expFillGfx.fillRect(EXP_X0 + fillW - 2, EXP_BAR_Y - EXP_BAR_H / 2 + 2, P(3), EXP_BAR_H - P(4));
       }
       lvLabel.setText(`Lv.${PlayerStore.getLevel()}`);
     };
@@ -416,7 +420,7 @@ export class PrepScene extends Phaser.Scene {
   // ── Bottom navigation bar ──────────────────────────────
 
   private drawBottomNav(W: number, H: number): void {
-    const BAR_H = 78;
+    const BAR_H = P(78);
     const barY  = H - BAR_H;
     const gfx   = this.add.graphics().setDepth(20);
 
@@ -424,7 +428,7 @@ export class PrepScene extends Phaser.Scene {
     gfx.fillStyle(0x0e0806, 1);
     gfx.fillRect(0, barY, W, BAR_H);
     gfx.fillStyle(0x1c1008, 1);
-    gfx.fillRect(0, barY, W, 14);
+    gfx.fillRect(0, barY, W, P(14));
 
     // Gold top border (2 lines: bright + dark)
     gfx.fillStyle(0xffd060, 0.7);
@@ -434,34 +438,34 @@ export class PrepScene extends Phaser.Scene {
 
     // Bottom fade-out hint
     gfx.fillStyle(0x000000, 0.3);
-    gfx.fillRect(0, barY + BAR_H - 6, W, 6);
+    gfx.fillRect(0, barY + BAR_H - P(6), W, P(6));
 
     // ── Battle button constants (needed for gap calc) ─────
-    const BTN_W    = 100;
-    const BTN_H    = 68;
+    const BTN_W    = P(100);
+    const BTN_H    = P(68);
     const cx       = W / 2;
-    const bcy      = barY - 18;   // rises above bar
-    const CENTER_R = BTN_W / 2 + 28;   // half of no-draw zone on each side
+    const bcy      = barY - P(18);   // rises above bar
+    const CENTER_R = BTN_W / 2 + P(28);   // half of no-draw zone on each side
 
     // ── Platform arch under battle button ─────────────────
     const archGfx = this.add.graphics().setDepth(21);
-    const archW = (CENTER_R + 2) * 2;
-    const archX = cx - CENTER_R - 2;
+    const archW = (CENTER_R + P(2)) * 2;
+    const archX = cx - CENTER_R - P(2);
     // Outer shadow
     archGfx.fillStyle(0x000000, 0.4);
-    archGfx.fillRoundedRect(archX + 2, barY, archW, BAR_H + 4, { tl: 20, tr: 20, bl: 0, br: 0 });
+    archGfx.fillRoundedRect(archX + P(2), barY, archW, BAR_H + P(4), { tl: P(20), tr: P(20), bl: 0, br: 0 });
     // Body
     archGfx.fillStyle(0x1c0e04, 1);
-    archGfx.fillRoundedRect(archX, barY - 2, archW, BAR_H + 4, { tl: 20, tr: 20, bl: 0, br: 0 });
+    archGfx.fillRoundedRect(archX, barY - P(2), archW, BAR_H + P(4), { tl: P(20), tr: P(20), bl: 0, br: 0 });
     // Inner top highlight
     archGfx.fillStyle(0xffffff, 0.04);
-    archGfx.fillRoundedRect(archX + 2, barY - 2, archW - 4, 10, { tl: 18, tr: 18, bl: 0, br: 0 });
+    archGfx.fillRoundedRect(archX + P(2), barY - P(2), archW - P(4), P(10), { tl: P(18), tr: P(18), bl: 0, br: 0 });
     // Gold arc top
     archGfx.fillStyle(GOLD, 0.75);
-    archGfx.fillRoundedRect(archX, barY - 2, archW, 2, { tl: 20, tr: 20, bl: 0, br: 0 });
+    archGfx.fillRoundedRect(archX, barY - P(2), archW, P(2), { tl: P(20), tr: P(20), bl: 0, br: 0 });
     // Gold border sides
     archGfx.lineStyle(1.5, GOLD, 0.45);
-    archGfx.strokeRoundedRect(archX, barY - 2, archW, BAR_H + 4, { tl: 20, tr: 20, bl: 0, br: 0 });
+    archGfx.strokeRoundedRect(archX, barY - P(2), archW, BAR_H + P(4), { tl: P(20), tr: P(20), bl: 0, br: 0 });
 
     // ── Nav buttons ──────────────────────────────────────
     const navItems: { label: string; icon: string; accent: number; onClick: () => void }[] = [
@@ -474,7 +478,7 @@ export class PrepScene extends Phaser.Scene {
     // Each side has two buttons occupying the space outside CENTER_R
     const sideW  = cx - CENTER_R;           // available width per side
     const slotW  = sideW / 2;
-    const btnH   = BAR_H - 8;
+    const btnH   = BAR_H - P(8);
     const btnSlots = [
       slotW * 0.5,
       slotW * 1.5,
@@ -484,8 +488,8 @@ export class PrepScene extends Phaser.Scene {
 
     navItems.forEach((item, pos) => {
       const bx = btnSlots[pos];
-      const by = barY + btnH / 2 + 4;
-      this.addNavBtn(gfx, bx, by, slotW - 6, btnH, item.icon, item.label, item.accent, item.onClick);
+      const by = barY + btnH / 2 + P(4);
+      this.addNavBtn(gfx, bx, by, slotW - P(6), btnH, item.icon, item.label, item.accent, item.onClick);
     });
 
     // ── Battle button (center, elevated) ──────────────────
@@ -494,31 +498,31 @@ export class PrepScene extends Phaser.Scene {
     // Edge glow — single thin outward stroke
     const EX = cx - BTN_W / 2, EY = bcy - BTN_H / 2;
     btng.lineStyle(4, 0xffcc44, 0.6);
-    btng.strokeRoundedRect(EX - 3, EY - 3, BTN_W + 6, BTN_H + 6, 17);
+    btng.strokeRoundedRect(EX - P(3), EY - P(3), BTN_W + P(6), BTN_H + P(6), P(17));
 
     // Button drop shadow
     btng.fillStyle(0x000000, 0.5);
-    btng.fillRoundedRect(cx - BTN_W / 2 + 4, bcy - BTN_H / 2 + 6, BTN_W, BTN_H, 14);
+    btng.fillRoundedRect(cx - BTN_W / 2 + P(4), bcy - BTN_H / 2 + P(6), BTN_W, BTN_H, P(14));
 
     // Main body
     btng.fillStyle(0xb83800, 1);
-    btng.fillRoundedRect(cx - BTN_W / 2, bcy - BTN_H / 2, BTN_W, BTN_H, 14);
+    btng.fillRoundedRect(cx - BTN_W / 2, bcy - BTN_H / 2, BTN_W, BTN_H, P(14));
 
     // Top highlight (lighter gradient band)
     btng.fillStyle(0xff7722, 1);
-    btng.fillRoundedRect(cx - BTN_W / 2 + 2, bcy - BTN_H / 2 + 2, BTN_W - 4, BTN_H * 0.5, 12);
+    btng.fillRoundedRect(cx - BTN_W / 2 + P(2), bcy - BTN_H / 2 + P(2), BTN_W - P(4), BTN_H * 0.5, P(12));
 
     // Specular gleam top-left
     btng.fillStyle(0xffffff, 0.10);
-    btng.fillRoundedRect(cx - BTN_W / 2 + 6, bcy - BTN_H / 2 + 5, BTN_W * 0.4, 8, 4);
+    btng.fillRoundedRect(cx - BTN_W / 2 + P(6), bcy - BTN_H / 2 + P(5), BTN_W * 0.4, P(8), P(4));
 
     // Outer gold border
     btng.lineStyle(3, 0xffcc44, 1);
-    btng.strokeRoundedRect(cx - BTN_W / 2, bcy - BTN_H / 2, BTN_W, BTN_H, 14);
+    btng.strokeRoundedRect(cx - BTN_W / 2, bcy - BTN_H / 2, BTN_W, BTN_H, P(14));
 
     // Inner bright ring
     btng.lineStyle(1, 0xffee88, 0.55);
-    btng.strokeRoundedRect(cx - BTN_W / 2 + 3, bcy - BTN_H / 2 + 3, BTN_W - 6, BTN_H - 6, 11);
+    btng.strokeRoundedRect(cx - BTN_W / 2 + P(3), bcy - BTN_H / 2 + P(3), BTN_W - P(6), BTN_H - P(6), P(11));
 
     // Shimmer scan bar — masked to button shape
     const maskShape = this.add.graphics().setVisible(false);
@@ -536,20 +540,20 @@ export class PrepScene extends Phaser.Scene {
         shimmerGfx.clear();
         const sx = EX + sh.p * BTN_W;
         shimmerGfx.fillStyle(0xffffff, 0.04);
-        shimmerGfx.fillRect(sx - 14, EY, 14, BTN_H);
+        shimmerGfx.fillRect(sx - P(14), EY, P(14), BTN_H);
         shimmerGfx.fillStyle(0xffffff, 0.16);
-        shimmerGfx.fillRect(sx,      EY, 14, BTN_H);
+        shimmerGfx.fillRect(sx,         EY, P(14), BTN_H);
         shimmerGfx.fillStyle(0xffffff, 0.04);
-        shimmerGfx.fillRect(sx + 14, EY, 14, BTN_H);
+        shimmerGfx.fillRect(sx + P(14), EY, P(14), BTN_H);
       },
     });
 
     // Container at button center — safe to scale (scales from its own origin)
     const btnCnt = this.add.container(cx, bcy).setDepth(23);
 
-    const fightIcon = this.add.image(0, -10, 'icon_fight').setDisplaySize(36, 36);
-    const battleTxt = this.add.text(0, 20, '出  戰', {
-      fontSize: '17px', fontStyle: 'bold',
+    const fightIcon = this.add.image(0, -P(10), 'icon_fight').setDisplaySize(P(36), P(36));
+    const battleTxt = this.add.text(0, P(20), '出  戰', {
+      fontSize: F(17), fontStyle: 'bold',
       color: '#fff8e0', stroke: '#6b1800', strokeThickness: 3,
     }).setOrigin(0.5);
     btnCnt.add([fightIcon, battleTxt]);
@@ -605,37 +609,37 @@ export class PrepScene extends Phaser.Scene {
 
     // Drop shadow
     gfx.fillStyle(0x000000, 0.4);
-    gfx.fillRoundedRect(x - halfW + 2, y - halfH + 3, w, h, 8);
+    gfx.fillRoundedRect(x - halfW + P(2), y - halfH + P(3), w, h, P(8));
 
     // Wood base
     gfx.fillStyle(0x1e0e06, 1);
-    gfx.fillRoundedRect(x - halfW, y - halfH, w, h, 8);
+    gfx.fillRoundedRect(x - halfW, y - halfH, w, h, P(8));
 
     // Wood grain — inner lighter panel
     gfx.fillStyle(0x2e1a0a, 1);
-    gfx.fillRoundedRect(x - halfW + 1, y - halfH + 1, w - 2, h - 2, 7);
+    gfx.fillRoundedRect(x - halfW + P(1), y - halfH + P(1), w - P(2), h - P(2), P(7));
 
     // Top edge highlight
     gfx.fillStyle(0x4a2e14, 0.7);
-    gfx.fillRoundedRect(x - halfW + 2, y - halfH + 2, w - 4, h * 0.42, { tl: 6, tr: 6, bl: 0, br: 0 });
+    gfx.fillRoundedRect(x - halfW + P(2), y - halfH + P(2), w - P(4), h * 0.42, { tl: P(6), tr: P(6), bl: 0, br: 0 });
 
     // Outer aged-gold border
     gfx.lineStyle(1.5, GOLD, 0.75);
-    gfx.strokeRoundedRect(x - halfW, y - halfH, w, h, 8);
+    gfx.strokeRoundedRect(x - halfW, y - halfH, w, h, P(8));
 
     // Inner highlight border
     gfx.lineStyle(0.5, 0xffd080, 0.22);
-    gfx.strokeRoundedRect(x - halfW + 2, y - halfH + 2, w - 4, h - 4, 6);
+    gfx.strokeRoundedRect(x - halfW + P(2), y - halfH + P(2), w - P(4), h - P(4), P(6));
 
     // Icon glyph — warm gold
-    this.add.text(x, y - 10, icon, {
-      fontSize: '18px', color: '#ffd060',
+    this.add.text(x, y - P(10), icon, {
+      fontSize: F(18), fontStyle: 'bold', color: '#ffd060',
       stroke: '#1a0800', strokeThickness: 2,
     }).setOrigin(0.5).setDepth(21);
 
     // Label — parchment
-    this.add.text(x, y + 13, label, {
-      fontSize: '15px', fontStyle: 'bold',
+    this.add.text(x, y + P(13), label, {
+      fontSize: F(15), fontStyle: 'bold',
       color: '#e8cc90', stroke: '#1a0800', strokeThickness: 2,
     }).setOrigin(0.5).setDepth(21);
 
@@ -659,8 +663,8 @@ export class PrepScene extends Phaser.Scene {
   // ── Quest panel (wanted posters, horizontal scroll) ────
 
   private showQuestPanel(W: number, H: number): void {
-    const PW = Math.min(W - 16, 500);
-    const PH = Math.min(H - 20, 370);
+    const PW = Math.min(W - P(16), P(500));
+    const PH = Math.min(H - P(20), P(370));
     const D  = 500;
 
     const panelX = (W - PW) / 2;
@@ -684,15 +688,15 @@ export class PrepScene extends Phaser.Scene {
 
     // Drop shadow
     bg.fillStyle(0x000000, 0.55);
-    bg.fillRect(panelX + 5, panelY + 5, PW, PH);
+    bg.fillRect(panelX + P(5), panelY + P(5), PW, PH);
 
     // Outer gold border
     bg.fillStyle(0xa06810, 1);
-    bg.fillRect(panelX - 3, panelY - 3, PW + 6, PH + 6);
+    bg.fillRect(panelX - P(3), panelY - P(3), PW + P(6), PH + P(6));
     bg.fillStyle(0xffd060, 0.7);
-    bg.fillRect(panelX - 3, panelY - 3, PW + 6, 2);
+    bg.fillRect(panelX - P(3), panelY - P(3), PW + P(6), P(2));
     bg.fillStyle(0xffd060, 0.3);
-    bg.fillRect(panelX - 3, panelY - 1, 2, PH + 4);
+    bg.fillRect(panelX - P(3), panelY - P(1), P(2), PH + P(4));
 
     // Panel body
     bg.fillStyle(0x160e04, 1);
@@ -700,66 +704,66 @@ export class PrepScene extends Phaser.Scene {
 
     // Subtle wood grain
     for (let i = 0; i < 14; i++) {
-      const gy = panelY + 8 + i * (PH / 14);
+      const gy = panelY + P(8) + i * (PH / 14);
       bg.fillStyle(0xffffff, i % 4 === 0 ? 0.025 : 0.01);
-      bg.fillRect(panelX + 4, gy, PW - 8, 1);
+      bg.fillRect(panelX + P(4), gy, PW - P(8), P(1));
     }
 
     // Header bar
     bg.fillStyle(0x241408, 1);
-    bg.fillRect(panelX, panelY, PW, 44);
+    bg.fillRect(panelX, panelY, PW, P(44));
     bg.fillStyle(0x3a2010, 1);
-    bg.fillRect(panelX, panelY, PW, 18);
+    bg.fillRect(panelX, panelY, PW, P(18));
 
     // Gold divider under header
     bg.fillStyle(0xc88020, 1);
-    bg.fillRect(panelX, panelY + 44, PW, 2);
+    bg.fillRect(panelX, panelY + P(44), PW, P(2));
     bg.fillStyle(0xffe080, 0.35);
-    bg.fillRect(panelX, panelY + 44, PW, 1);
+    bg.fillRect(panelX, panelY + P(44), PW, P(1));
 
     // Corner rivets
     ([
-      [panelX - 3, panelY - 3], [panelX + PW - 7, panelY - 3],
-      [panelX - 3, panelY + PH - 7], [panelX + PW - 7, panelY + PH - 7],
+      [panelX - P(3), panelY - P(3)], [panelX + PW - P(7), panelY - P(3)],
+      [panelX - P(3), panelY + PH - P(7)], [panelX + PW - P(7), panelY + PH - P(7)],
     ] as [number, number][]).forEach(([rx, ry]) => {
-      bg.fillStyle(0xffe080, 1); bg.fillRect(rx, ry, 10, 10);
-      bg.fillStyle(0x7a4a08, 1); bg.fillRect(rx + 2, ry + 2, 6, 6);
-      bg.fillStyle(0xffe080, 0.5); bg.fillRect(rx + 3, ry + 3, 2, 2);
+      bg.fillStyle(0xffe080, 1); bg.fillRect(rx, ry, P(10), P(10));
+      bg.fillStyle(0x7a4a08, 1); bg.fillRect(rx + P(2), ry + P(2), P(6), P(6));
+      bg.fillStyle(0xffe080, 0.5); bg.fillRect(rx + P(3), ry + P(3), P(2), P(2));
     });
 
     // Panel title
-    objs.push(this.add.text(W / 2, panelY + 22, '✦  懸 賞 告 示  ✦', {
-      fontSize: '16px', fontStyle: 'bold',
+    objs.push(this.add.text(W / 2, panelY + P(22), '✦  懸 賞 告 示  ✦', {
+      fontSize: F(16), fontStyle: 'bold',
       color: '#ffe080', stroke: '#2a1000', strokeThickness: 3,
     }).setOrigin(0.5).setDepth(D + 2));
 
-    const closeBtn = this.add.text(panelX + PW - 18, panelY + 22, '✕', {
-      fontSize: '16px', color: '#ff6644', stroke: '#1a0800', strokeThickness: 2,
+    const closeBtn = this.add.text(panelX + PW - P(18), panelY + P(22), '✕', {
+      fontSize: F(16), fontStyle: 'bold', color: '#ff6644', stroke: '#1a0800', strokeThickness: 2,
     }).setOrigin(0.5).setInteractive({ useHandCursor: true }).setDepth(D + 2);
     objs.push(closeBtn);
     closeBtn.on('pointerdown', closeAll);
 
     // Reroll stone count — 左側 header，不壓到右邊叉叉
     const ticketQty = InventoryStore.getItemQty('quest_reroll');
-    const rerollY   = panelY + 22;
-    const rerollX   = panelX + 12;
+    const rerollY   = panelY + P(22);
+    const rerollX   = panelX + P(12);
     if (this.textures.exists('icon_quest_reroll')) {
-      objs.push(this.add.image(rerollX + 14, rerollY, 'icon_quest_reroll')
-        .setDisplaySize(28, 28).setDepth(D + 2));
+      objs.push(this.add.image(rerollX + P(14), rerollY, 'icon_quest_reroll')
+        .setDisplaySize(P(28), P(28)).setDepth(D + 2));
     }
-    objs.push(this.add.text(rerollX + 30, rerollY, `×${ticketQty}`, {
-      fontSize: '14px', color: ticketQty > 0 ? '#ffdd44' : '#665533',
+    objs.push(this.add.text(rerollX + P(30), rerollY, `×${ticketQty}`, {
+      fontSize: F(15), fontStyle: 'bold', color: ticketQty > 0 ? '#ffdd44' : '#665533',
       stroke: '#1a0800', strokeThickness: 2,
     }).setOrigin(0, 0.5).setDepth(D + 2));
 
     // ── 3 Bounty cards ───────────────────────────────────
     const quests    = QuestStore.getQuests();
-    const GAP       = 12;
-    const cardAreaX = panelX + 12;
-    const cardAreaY = panelY + 52;
-    const cardAreaW = PW - 24;
+    const GAP       = P(12);
+    const cardAreaX = panelX + P(12);
+    const cardAreaY = panelY + P(52);
+    const cardAreaW = PW - P(24);
     const CARD_W    = Math.floor((cardAreaW - GAP * 2) / 3);
-    const CARD_H    = PH - 64;
+    const CARD_H    = PH - P(64);
 
     const renderCard = (quest: Quest, idx: number) => {
       const cx     = cardAreaX + idx * (CARD_W + GAP);
@@ -769,53 +773,53 @@ export class PrepScene extends Phaser.Scene {
       const canDismiss = status !== 'completed';
 
       // Layout
-      const BANNER_H   = 32;
-      const CIRCLE_Y   = cardAreaY + BANNER_H + 50;
-      const CIRCLE_R   = 38;
-      const NAME_Y     = CIRCLE_Y + CIRCLE_R + 14;
-      const DIV_Y      = NAME_Y + 17;
-      const FLAVOR_TOP = DIV_Y + 7;
-      const FLAVOR_H   = CARD_H - (FLAVOR_TOP - cardAreaY) - 76;
-      const GOLD_Y     = cardAreaY + CARD_H - 52;
-      const BTN_Y      = cardAreaY + CARD_H - 22;
-      const BTN_H      = 24;
+      const BANNER_H   = P(32);
+      const CIRCLE_Y   = cardAreaY + BANNER_H + P(50);
+      const CIRCLE_R = P(38);
+      const NAME_Y     = CIRCLE_Y + CIRCLE_R + P(14);
+      const DIV_Y      = NAME_Y + P(17);
+      const FLAVOR_TOP = DIV_Y + P(7);
+      const FLAVOR_H   = CARD_H - (FLAVOR_TOP - cardAreaY) - P(76);
+      const GOLD_Y     = cardAreaY + CARD_H - P(52);
+      const BTN_Y      = cardAreaY + CARD_H - P(22);
+      const BTN_H      = P(24);
 
       const cg = this.add.graphics().setDepth(D + 2);
       objs.push(cg);
 
       // Card shadow
       cg.fillStyle(0x000000, 0.4);
-      cg.fillRect(cx + 3, cardAreaY + 3, CARD_W, CARD_H);
+      cg.fillRect(cx + P(3), cardAreaY + P(3), CARD_W, CARD_H);
 
       // Parchment body
       cg.fillStyle(dimmed ? 0xb0946a : 0xf0dcac, 1);
       cg.fillRect(cx, cardAreaY, CARD_W, CARD_H);
       // Edge darkening
       cg.fillStyle(0x000000, 0.08);
-      cg.fillRect(cx, cardAreaY, CARD_W, 4);
-      cg.fillRect(cx, cardAreaY + CARD_H - 4, CARD_W, 4);
-      cg.fillRect(cx, cardAreaY, 4, CARD_H);
-      cg.fillRect(cx + CARD_W - 4, cardAreaY, 4, CARD_H);
+      cg.fillRect(cx, cardAreaY, CARD_W, P(4));
+      cg.fillRect(cx, cardAreaY + CARD_H - P(4), CARD_W, P(4));
+      cg.fillRect(cx, cardAreaY, P(4), CARD_H);
+      cg.fillRect(cx + CARD_W - P(4), cardAreaY, P(4), CARD_H);
 
       // Card outer border (double-line)
       cg.lineStyle(2.5, dimmed ? 0x664422 : 0x7a3200, 1);
-      cg.strokeRect(cx + 1, cardAreaY + 1, CARD_W - 2, CARD_H - 2);
+      cg.strokeRect(cx + P(1), cardAreaY + P(1), CARD_W - P(2), CARD_H - P(2));
       cg.lineStyle(1, dimmed ? 0x997744 : 0xdd8844, 0.4);
-      cg.strokeRect(cx + 4, cardAreaY + 4, CARD_W - 8, CARD_H - 8);
+      cg.strokeRect(cx + P(4), cardAreaY + P(4), CARD_W - P(8), CARD_H - P(8));
 
       // ── Red banner ──
       cg.fillStyle(dimmed ? 0x3a1212 : 0x780606, 1);
       cg.fillRect(cx, cardAreaY, CARD_W, BANNER_H);
       cg.fillStyle(dimmed ? 0x552222 : 0xaa1010, 1);
-      cg.fillRect(cx, cardAreaY, CARD_W, 5);
+      cg.fillRect(cx, cardAreaY, CARD_W, P(5));
       cg.fillStyle(0x000000, 0.25);
-      cg.fillRect(cx, cardAreaY + BANNER_H - 4, CARD_W, 4);
+      cg.fillRect(cx, cardAreaY + BANNER_H - P(4), CARD_W, P(4));
       cg.lineStyle(1, dimmed ? 0x886644 : 0xffcc44, 0.65);
-      cg.lineBetween(cx + 5, cardAreaY + 1.5, cx + CARD_W - 5, cardAreaY + 1.5);
-      cg.lineBetween(cx + 5, cardAreaY + BANNER_H - 2, cx + CARD_W - 5, cardAreaY + BANNER_H - 2);
+      cg.lineBetween(cx + P(5), cardAreaY + P(1), cx + CARD_W - P(5), cardAreaY + P(1));
+      cg.lineBetween(cx + P(5), cardAreaY + BANNER_H - P(2), cx + CARD_W - P(5), cardAreaY + BANNER_H - P(2));
 
-      objs.push(this.add.text(cx + CARD_W / 2, cardAreaY + 10, '懸  賞', {
-        fontSize: '13px', fontStyle: 'bold',
+      objs.push(this.add.text(cx + CARD_W / 2, cardAreaY + P(10), '懸  賞', {
+        fontSize: F(15), fontStyle: 'bold',
         color: dimmed ? '#aa8866' : '#ffe090',
         stroke: dimmed ? '#1a0800' : '#3a0000', strokeThickness: 2,
         padding: { top: 2, bottom: 1 },
@@ -824,8 +828,8 @@ export class PrepScene extends Phaser.Scene {
       // Star rating row
       const starStr = '★'.repeat(quest.star) + '☆'.repeat(5 - quest.star);
       const starColors: Record<number, string> = { 1: '#aabbcc', 2: '#88ccff', 3: '#88ff88', 4: '#ffdd44', 5: '#ff8844' };
-      objs.push(this.add.text(cx + CARD_W / 2, cardAreaY + BANNER_H - 10, starStr, {
-        fontSize: '11px',
+      objs.push(this.add.text(cx + CARD_W / 2, cardAreaY + BANNER_H - P(10), starStr, {
+        fontSize: F(15), fontStyle: 'bold',
         color: dimmed ? '#776655' : (starColors[quest.star] ?? '#ffffff'),
         stroke: '#1a0800', strokeThickness: 1,
       }).setOrigin(0.5).setDepth(D + 3));
@@ -834,8 +838,8 @@ export class PrepScene extends Phaser.Scene {
       if (canDismiss) {
         const hasTicket = InventoryStore.getItemQty('quest_reroll') > 0;
         const xColor    = hasTicket ? '#ff6666' : '#554433';
-        const xTxt = this.add.text(cx + CARD_W - 6, cardAreaY + 6, '✕', {
-          fontSize: '13px', color: xColor, stroke: '#000000', strokeThickness: 2,
+        const xTxt = this.add.text(cx + CARD_W - P(6), cardAreaY + P(6), '✕', {
+          fontSize: F(15), fontStyle: 'bold', color: xColor, stroke: '#000000', strokeThickness: 2,
         }).setOrigin(1, 0).setDepth(D + 5);
         objs.push(xTxt);
         if (hasTicket) {
@@ -855,15 +859,15 @@ export class PrepScene extends Phaser.Scene {
 
       // ── Portrait circle ──
       cg.fillStyle(0x000000, 0.2);
-      cg.fillCircle(cx + CARD_W / 2 + 2, CIRCLE_Y + 2, CIRCLE_R);
+      cg.fillCircle(cx + CARD_W / 2 + P(2), CIRCLE_Y + P(2), CIRCLE_R);
       cg.fillStyle(dimmed ? 0x8a6030 : 0xb87820, 1);
       cg.fillCircle(cx + CARD_W / 2, CIRCLE_Y, CIRCLE_R);
       cg.fillStyle(dimmed ? 0xa07840 : 0xf0d898, 0.5);
-      cg.fillCircle(cx + CARD_W / 2, CIRCLE_Y, CIRCLE_R - 4);
+      cg.fillCircle(cx + CARD_W / 2, CIRCLE_Y, CIRCLE_R - P(4));
       cg.lineStyle(2.5, dimmed ? 0xb09060 : 0xffe080, 0.9);
       cg.strokeCircle(cx + CARD_W / 2, CIRCLE_Y, CIRCLE_R);
       cg.lineStyle(1, dimmed ? 0x886644 : 0xc89030, 0.4);
-      cg.strokeCircle(cx + CARD_W / 2, CIRCLE_Y, CIRCLE_R - 5);
+      cg.strokeCircle(cx + CARD_W / 2, CIRCLE_Y, CIRCLE_R - P(5));
 
       // Boss sprite
       const spriteKey = def ? `${def.spriteKey}_idle` : 'slime_idle';
@@ -877,7 +881,7 @@ export class PrepScene extends Phaser.Scene {
       }
       if (this.textures.exists(spriteKey)) {
         const sp = this.add.sprite(cx + CARD_W / 2, CIRCLE_Y, spriteKey, 0)
-          .setScale(3.0).setDepth(D + 3);
+          .setScale(3.0 * DPR).setDepth(D + 3);
         if (def?.tint) def.fillTint ? sp.setTintFill(def.tint) : sp.setTint(def.tint);
         if (this.anims.exists(animKey)) sp.play(animKey);
         if (dimmed) sp.setAlpha(0.4);
@@ -886,7 +890,7 @@ export class PrepScene extends Phaser.Scene {
 
       // ── Boss name ──
       objs.push(this.add.text(cx + CARD_W / 2, NAME_Y, def?.name ?? '???', {
-        fontSize: '13px', fontStyle: 'bold',
+        fontSize: F(15), fontStyle: 'bold',
         color: dimmed ? '#7a5030' : '#1e0c00',
         stroke: dimmed ? '#00000000' : '#e8c070', strokeThickness: 1,
         padding: { top: 4, bottom: 2 },
@@ -894,48 +898,48 @@ export class PrepScene extends Phaser.Scene {
 
       // Name underline
       cg.lineStyle(1.5, dimmed ? 0xaa7744 : 0xcc7722, 0.7);
-      cg.lineBetween(cx + 10, DIV_Y, cx + CARD_W - 10, DIV_Y);
+      cg.lineBetween(cx + P(10), DIV_Y, cx + CARD_W - P(10), DIV_Y);
 
       // ── Flavor text box ──
-      const flavorClipX = cx + 7;
-      const flavorClipW = CARD_W - 14;
+      const flavorClipX = cx + P(7);
+      const flavorClipW = CARD_W - P(14);
 
       cg.fillStyle(0x000000, 0.06);
-      cg.fillRect(flavorClipX + 1, FLAVOR_TOP + 1, flavorClipW, FLAVOR_H);
+      cg.fillRect(flavorClipX + P(1), FLAVOR_TOP + P(1), flavorClipW, FLAVOR_H);
       cg.fillStyle(dimmed ? 0x7a5a28 : 0xcc9840, 0.22);
       cg.fillRect(flavorClipX, FLAVOR_TOP, flavorClipW, FLAVOR_H);
       cg.fillStyle(0xffffff, 0.1);
-      cg.fillRect(flavorClipX, FLAVOR_TOP, flavorClipW, 2);
+      cg.fillRect(flavorClipX, FLAVOR_TOP, flavorClipW, P(2));
       cg.lineStyle(1.5, dimmed ? 0x664422 : 0x7a3400, 0.85);
       cg.strokeRect(flavorClipX, FLAVOR_TOP, flavorClipW, FLAVOR_H);
       cg.lineStyle(1, dimmed ? 0x886644 : 0xdd7722, 0.35);
-      cg.strokeRect(flavorClipX + 2, FLAVOR_TOP + 2, flavorClipW - 4, FLAVOR_H - 4);
+      cg.strokeRect(flavorClipX + P(2), FLAVOR_TOP + P(2), flavorClipW - P(4), FLAVOR_H - P(4));
 
       const flavorTxt = this.add.text(
-        cx + CARD_W / 2, FLAVOR_TOP + 5, quest.flavorText, {
-        fontSize: '13px', lineSpacing: 3,
+        cx + CARD_W / 2, FLAVOR_TOP + P(5), quest.flavorText, {
+        fontSize: F(15), fontStyle: 'bold', lineSpacing: 3,
         color: dimmed ? '#6a5030' : '#3a1c04',
-        wordWrap: { width: flavorClipW - 12, useAdvancedWrap: true }, align: 'center',
+        wordWrap: { width: flavorClipW - P(12), useAdvancedWrap: true }, align: 'center',
         padding: { top: 4, bottom: 4 },
       }).setOrigin(0.5, 0).setDepth(D + 3);
       objs.push(flavorTxt);
 
       const maskGfx = this.make.graphics({ add: false } as any);
       maskGfx.fillStyle(0xffffff);
-      maskGfx.fillRect(flavorClipX + 1, FLAVOR_TOP - 3, flavorClipW - 2, FLAVOR_H + 3);
+      maskGfx.fillRect(flavorClipX + P(1), FLAVOR_TOP - P(3), flavorClipW - P(2), FLAVOR_H + P(3));
       flavorTxt.setMask(maskGfx.createGeometryMask());
       objs.push(maskGfx);
 
-      if (flavorTxt.height > FLAVOR_H - 8) {
-        const arrow = this.add.text(cx + CARD_W / 2, FLAVOR_TOP + FLAVOR_H - 8, '▼', {
-          fontSize: '8px', color: '#aa6622',
+      if (flavorTxt.height > FLAVOR_H - P(8)) {
+        const arrow = this.add.text(cx + CARD_W / 2, FLAVOR_TOP + FLAVOR_H - P(8), '▼', {
+          fontSize: F(15), fontStyle: 'bold', color: '#aa6622',
         }).setOrigin(0.5).setDepth(D + 4);
         objs.push(arrow);
         const dz = this.add.zone(
           cx + CARD_W / 2, FLAVOR_TOP + FLAVOR_H / 2, flavorClipW, FLAVOR_H,
         ).setInteractive().setDepth(D + 5);
         objs.push(dz);
-        const minY = FLAVOR_TOP + 5 - (flavorTxt.height - (FLAVOR_H - 10));
+        const minY = FLAVOR_TOP + P(5) - (flavorTxt.height - (FLAVOR_H - P(10)));
         const maxY = FLAVOR_TOP + 5;
         let ds = 0, ts = 0;
         dz.on('pointerdown', (p: Phaser.Input.Pointer) => { ds = p.y; ts = flavorTxt.y; });
@@ -948,24 +952,24 @@ export class PrepScene extends Phaser.Scene {
 
       // ── Gold row ──
       cg.fillStyle(dimmed ? 0x442200 : 0x6a3800, 0.25);
-      cg.fillRect(cx + 6, GOLD_Y - 12, CARD_W - 12, 23);
+      cg.fillRect(cx + P(6), GOLD_Y - P(12), CARD_W - P(12), P(23));
       cg.lineStyle(1, dimmed ? 0x886644 : 0xcc8822, 0.6);
-      cg.strokeRect(cx + 6, GOLD_Y - 12, CARD_W - 12, 23);
+      cg.strokeRect(cx + P(6), GOLD_Y - P(12), CARD_W - P(12), P(23));
 
       if (quest.isEquipReward) {
         objs.push(this.add.text(cx + CARD_W / 2, GOLD_Y, '裝備獎勵', {
-          fontSize: '16px', fontStyle: 'bold',
+          fontSize: F(16), fontStyle: 'bold',
           color: dimmed ? '#776655' : '#ffe8a0',
           strokeThickness: 0,
           padding: { top: 4, bottom: 2 },
         }).setOrigin(0.5).setDepth(D + 3));
       } else {
-        const coinImg = this.add.image(cx + CARD_W / 2 - 18, GOLD_Y, 'icon_coin')
-          .setDisplaySize(18, 18).setDepth(D + 3);
+        const coinImg = this.add.image(cx + CARD_W / 2 - P(18), GOLD_Y, 'icon_coin')
+          .setDisplaySize(P(18), P(18)).setDepth(D + 3);
         if (dimmed) coinImg.setAlpha(0.5);
         objs.push(coinImg);
-        objs.push(this.add.text(cx + CARD_W / 2 - 7, GOLD_Y, `${quest.reward}`, {
-          fontSize: '16px', fontStyle: 'bold',
+        objs.push(this.add.text(cx + CARD_W / 2 - P(7), GOLD_Y, `${quest.reward}`, {
+          fontSize: F(16), fontStyle: 'bold',
           color: dimmed ? '#776644' : '#e8c060',
           stroke: '#1a0800', strokeThickness: 2,
         }).setOrigin(0, 0.5).setDepth(D + 3));
@@ -977,19 +981,19 @@ export class PrepScene extends Phaser.Scene {
 
       if (status === 'accepted') {
         // 繼續出征 button (centred at BTN_Y)
-        const resumeBtnH = 24;
+        const resumeBtnH = P(24);
         const bg2 = this.add.graphics().setDepth(D + 3);
         objs.push(bg2);
         bg2.fillStyle(0x000000, 0.35);
-        bg2.fillRect(btnX - btnW / 2 + 2, BTN_Y - resumeBtnH / 2 + 2, btnW, resumeBtnH);
+        bg2.fillRect(btnX - btnW / 2 + P(2), BTN_Y - resumeBtnH / 2 + P(2), btnW, resumeBtnH);
         bg2.fillStyle(0x0e1638, 1);
         bg2.fillRect(btnX - btnW / 2, BTN_Y - resumeBtnH / 2, btnW, resumeBtnH);
         bg2.fillStyle(0xffffff, 0.12);
-        bg2.fillRect(btnX - btnW / 2, BTN_Y - resumeBtnH / 2, btnW, 3);
+        bg2.fillRect(btnX - btnW / 2, BTN_Y - resumeBtnH / 2, btnW, P(3));
         bg2.lineStyle(1.5, 0x3355cc, 0.9);
         bg2.strokeRect(btnX - btnW / 2, BTN_Y - resumeBtnH / 2, btnW, resumeBtnH);
         objs.push(this.add.text(btnX, BTN_Y, '繼續出征', {
-          fontSize: '12px', fontStyle: 'bold',
+          fontSize: F(15), fontStyle: 'bold',
           color: '#6699ff', stroke: '#000000', strokeThickness: 2,
         }).setOrigin(0.5).setDepth(D + 4));
         const resumeHit = this.add.rectangle(btnX, BTN_Y, btnW, resumeBtnH)
@@ -1004,16 +1008,16 @@ export class PrepScene extends Phaser.Scene {
         const bg2 = this.add.graphics().setDepth(D + 3);
         objs.push(bg2);
         bg2.fillStyle(0x000000, 0.35);
-        bg2.fillRect(btnX - btnW / 2 + 2, BTN_Y - BTN_H / 2 + 2, btnW, BTN_H);
+        bg2.fillRect(btnX - btnW / 2 + P(2), BTN_Y - BTN_H / 2 + P(2), btnW, BTN_H);
         bg2.fillStyle(bgC, 1);
         bg2.fillRect(btnX - btnW / 2, BTN_Y - BTN_H / 2, btnW, BTN_H);
         bg2.fillStyle(0xffffff, 0.12);
-        bg2.fillRect(btnX - btnW / 2, BTN_Y - BTN_H / 2, btnW, 3);
+        bg2.fillRect(btnX - btnW / 2, BTN_Y - BTN_H / 2, btnW, P(3));
         bg2.lineStyle(1.5, ltC, 0.9);
         bg2.strokeRect(btnX - btnW / 2, BTN_Y - BTN_H / 2, btnW, BTN_H);
 
         objs.push(this.add.text(btnX, BTN_Y, label, {
-          fontSize: '13px', fontStyle: 'bold',
+          fontSize: F(15), fontStyle: 'bold',
           color: txtC, stroke: '#000000', strokeThickness: 2,
           padding: { top: 4, bottom: 2 },
         }).setOrigin(0.5).setDepth(D + 4));
@@ -1035,7 +1039,7 @@ export class PrepScene extends Phaser.Scene {
 
     // ── Confirm dialog ────────────────────────────────────
     const showConfirm = (quest: Quest) => {
-      const cW = 240, cH = 96;
+      const cW = P(240), cH = P(96);
       const cX = W / 2 - cW / 2, cY = H / 2 - cH / 2;
       const co: Phaser.GameObjects.GameObject[] = [];
       const closeCo = () => co.forEach(o => o.destroy());
@@ -1043,23 +1047,23 @@ export class PrepScene extends Phaser.Scene {
       const cbg = this.add.graphics().setDepth(D + 10);
       co.push(cbg);
       cbg.fillStyle(0x000000, 0.5);
-      cbg.fillRect(cX + 4, cY + 4, cW, cH);
+      cbg.fillRect(cX + P(4), cY + P(4), cW, cH);
       cbg.fillStyle(0xa06810, 1);
-      cbg.fillRect(cX - 3, cY - 3, cW + 6, cH + 6);
+      cbg.fillRect(cX - P(3), cY - P(3), cW + P(6), cH + P(6));
       cbg.fillStyle(0xffe080, 0.6);
-      cbg.fillRect(cX - 3, cY - 3, cW + 6, 2);
+      cbg.fillRect(cX - P(3), cY - P(3), cW + P(6), P(2));
       cbg.fillStyle(0x160e04, 1);
       cbg.fillRect(cX, cY, cW, cH);
       ([
-        [cX - 3, cY - 3], [cX + cW - 7, cY - 3],
-        [cX - 3, cY + cH - 7], [cX + cW - 7, cY + cH - 7],
+        [cX - P(3), cY - P(3)], [cX + cW - P(7), cY - P(3)],
+        [cX - P(3), cY + cH - P(7)], [cX + cW - P(7), cY + cH - P(7)],
       ] as [number, number][]).forEach(([rx, ry]) => {
-        cbg.fillStyle(0xffe080, 1); cbg.fillRect(rx, ry, 10, 10);
-        cbg.fillStyle(0x7a4a08, 1); cbg.fillRect(rx + 2, ry + 2, 6, 6);
+        cbg.fillStyle(0xffe080, 1); cbg.fillRect(rx, ry, P(10), P(10));
+        cbg.fillStyle(0x7a4a08, 1); cbg.fillRect(rx + P(2), ry + P(2), P(6), P(6));
       });
 
-      co.push(this.add.text(W / 2, cY + 28, '確定接受這份懸賞？', {
-        fontSize: '14px', fontStyle: 'bold',
+      co.push(this.add.text(W / 2, cY + P(28), '確定接受這份懸賞？', {
+        fontSize: F(15), fontStyle: 'bold',
         color: '#ffe080', stroke: '#2a1000', strokeThickness: 2,
         padding: { top: 4, bottom: 2 },
       }).setOrigin(0.5).setDepth(D + 11));
@@ -1069,21 +1073,21 @@ export class PrepScene extends Phaser.Scene {
         bx: number, by: number, bw: number, bh: number,
         bgCol: number, ltCol: number,
       ) => {
-        gfx.fillStyle(0x000000, 0.35); gfx.fillRect(bx + 2, by + 2, bw, bh);
+        gfx.fillStyle(0x000000, 0.35); gfx.fillRect(bx + P(2), by + P(2), bw, bh);
         gfx.fillStyle(bgCol, 1);       gfx.fillRect(bx, by, bw, bh);
-        gfx.fillStyle(0xffffff, 0.14); gfx.fillRect(bx, by, bw, 3);
+        gfx.fillStyle(0xffffff, 0.14); gfx.fillRect(bx, by, bw, P(3));
         gfx.lineStyle(1.5, ltCol, 0.9); gfx.strokeRect(bx, by, bw, bh);
       };
 
       const yg = this.add.graphics().setDepth(D + 11);
       co.push(yg);
-      drawBtn(yg, cX + 14, cY + 58, 96, 26, 0x1a3a0c, 0x44cc22);
-      co.push(this.add.text(cX + 62, cY + 71, '出  發', {
-        fontSize: '13px', fontStyle: 'bold',
+      drawBtn(yg, cX + P(14), cY + P(58), P(96), P(26), 0x1a3a0c, 0x44cc22);
+      co.push(this.add.text(cX + P(62), cY + P(71), '出  發', {
+        fontSize: F(15), fontStyle: 'bold',
         color: '#88ee44', stroke: '#000', strokeThickness: 2,
         padding: { top: 4, bottom: 2 },
       }).setOrigin(0.5).setDepth(D + 11));
-      const yHit = this.add.rectangle(cX + 62, cY + 71, 96, 26)
+      const yHit = this.add.rectangle(cX + P(62), cY + P(71), P(96), P(26))
         .setDepth(D + 12).setInteractive({ useHandCursor: true });
       co.push(yHit);
       yHit.on('pointerdown', () => {
@@ -1094,13 +1098,13 @@ export class PrepScene extends Phaser.Scene {
 
       const ng = this.add.graphics().setDepth(D + 11);
       co.push(ng);
-      drawBtn(ng, cX + 130, cY + 58, 96, 26, 0x3a0808, 0xcc2222);
-      co.push(this.add.text(cX + 178, cY + 71, '取  消', {
-        fontSize: '13px', fontStyle: 'bold',
+      drawBtn(ng, cX + P(130), cY + P(58), P(96), P(26), 0x3a0808, 0xcc2222);
+      co.push(this.add.text(cX + P(178), cY + P(71), '取  消', {
+        fontSize: F(15), fontStyle: 'bold',
         color: '#ff6644', stroke: '#000', strokeThickness: 2,
         padding: { top: 4, bottom: 2 },
       }).setOrigin(0.5).setDepth(D + 11));
-      const nHit = this.add.rectangle(cX + 178, cY + 71, 96, 26)
+      const nHit = this.add.rectangle(cX + P(178), cY + P(71), P(96), P(26))
         .setDepth(D + 12).setInteractive({ useHandCursor: true });
       co.push(nHit);
       nHit.on('pointerdown', closeCo);
@@ -1110,11 +1114,11 @@ export class PrepScene extends Phaser.Scene {
     const showEquipRewardModal = (quest: Quest, afterClose: () => void) => {
       const items = QuestStore.getEquipOptions(quest.id);
 
-      const CARD_W = 138;
-      const CARD_H = 230;
-      const GAP    = 10;
+      const CARD_W = P(155);
+      const CARD_H = P(255);
+      const GAP    = P(10);
       const MW = CARD_W * 3 + GAP * 4;
-      const MH = CARD_H + 44 + GAP * 2;
+      const MH = CARD_H + P(44) + GAP * 2;
       const mx = W / 2 - MW / 2;
       const my = H / 2 - MH / 2;
       const MD = D + 10;
@@ -1132,24 +1136,24 @@ export class PrepScene extends Phaser.Scene {
       mo.push(mg);
       mg.fillStyle(WD, 1); mg.fillRect(mx, my, MW, MH);
       mg.lineStyle(2, GOLD, 0.9); mg.strokeRect(mx, my, MW, MH);
-      mg.fillStyle(WB, 1); mg.fillRect(mx, my, MW, 44);
-      mg.lineStyle(1, GOLD, 0.4); mg.lineBetween(mx, my + 44, mx + MW, my + 44);
+      mg.fillStyle(WB, 1); mg.fillRect(mx, my, MW, P(44));
+      mg.lineStyle(1, GOLD, 0.4); mg.lineBetween(mx, my + P(44), mx + MW, my + P(44));
 
-      mo.push(this.add.text(W / 2, my + 22, '選擇獎勵裝備', {
-        fontSize: '16px', fontStyle: 'bold',
+      mo.push(this.add.text(W / 2, my + P(22), '選擇獎勵裝備', {
+        fontSize: F(16), fontStyle: 'bold',
         color: '#e8c070', stroke: '#1a0800', strokeThickness: 2,
       }).setOrigin(0.5).setDepth(MD + 2));
 
       // 右上角叉叉（可晚點再選）
-      const xBtn = this.add.text(mx + MW - 14, my + 22, '✕', {
-        fontSize: '15px', color: '#cc4444', stroke: '#1a0800', strokeThickness: 2,
+      const xBtn = this.add.text(mx + MW - P(14), my + P(22), '✕', {
+        fontSize: F(15), fontStyle: 'bold', color: '#cc4444', stroke: '#1a0800', strokeThickness: 2,
       }).setOrigin(0.5).setInteractive({ useHandCursor: true }).setDepth(MD + 3);
       xBtn.on('pointerdown', closeMo);
       mo.push(xBtn);
 
       items.forEach((item, idx) => {
         const cx = mx + GAP + idx * (CARD_W + GAP);
-        const cy = my + 44 + GAP;
+        const cy = my + P(44) + GAP;
         const qColor = QUALITY_COLORS[item.quality];
         const qHex   = '#' + qColor.toString(16).padStart(6, '0');
 
@@ -1159,11 +1163,11 @@ export class PrepScene extends Phaser.Scene {
         const drawCard = (hover: boolean) => {
           rg.clear();
           rg.fillStyle(hover ? WL : WM, 1);
-          rg.fillRoundedRect(cx, cy, CARD_W, CARD_H, 7);
+          rg.fillRoundedRect(cx, cy, CARD_W, CARD_H, P(7));
           rg.lineStyle(hover ? 2.5 : 1.5, qColor, hover ? 1 : 0.75);
-          rg.strokeRoundedRect(cx, cy, CARD_W, CARD_H, 7);
+          rg.strokeRoundedRect(cx, cy, CARD_W, CARD_H, P(7));
           rg.fillStyle(qColor, 0.35);
-          rg.fillRoundedRect(cx, cy, CARD_W, 5, { tl: 7, tr: 7, bl: 0, br: 0 });
+          rg.fillRoundedRect(cx, cy, CARD_W, P(5), { tl: P(7), tr: P(7), bl: 0, br: 0 });
         };
         drawCard(false);
 
@@ -1171,23 +1175,23 @@ export class PrepScene extends Phaser.Scene {
         const imgBg = this.add.graphics().setDepth(MD + 3);
         mo.push(imgBg);
         imgBg.fillStyle(0x0a0600, 0.7);
-        imgBg.fillRoundedRect(cx + (CARD_W - 80) / 2, cy + 14, 80, 80, 5);
+        imgBg.fillRoundedRect(cx + (CARD_W - P(90)) / 2, cy + P(14), P(90), P(90), P(5));
         imgBg.lineStyle(1.5, qColor, 0.5);
-        imgBg.strokeRoundedRect(cx + (CARD_W - 80) / 2, cy + 14, 80, 80, 5);
+        imgBg.strokeRoundedRect(cx + (CARD_W - P(90)) / 2, cy + P(14), P(90), P(90), P(5));
 
         if (this.textures.exists(item.texture))
-          mo.push(this.add.image(cx + CARD_W / 2, cy + 54, item.texture)
-            .setDisplaySize(68, 68).setDepth(MD + 4));
+          mo.push(this.add.image(cx + CARD_W / 2, cy + P(59), item.texture)
+            .setDisplaySize(P(76), P(76)).setDepth(MD + 4));
 
         // Slot name
-        mo.push(this.add.text(cx + CARD_W / 2, cy + 100, SLOT_NAMES[item.slot], {
-          fontSize: '13px', fontStyle: 'bold',
+        mo.push(this.add.text(cx + CARD_W / 2, cy + P(106), SLOT_NAMES[item.slot], {
+          fontSize: F(15), fontStyle: 'bold',
           color: '#e8c070', stroke: '#0a0600', strokeThickness: 2,
         }).setOrigin(0.5, 0).setDepth(MD + 3));
 
         // Quality badge
-        mo.push(this.add.text(cx + CARD_W / 2, cy + 118, QUALITY_NAMES[item.quality], {
-          fontSize: '12px', fontStyle: 'bold',
+        mo.push(this.add.text(cx + CARD_W / 2, cy + P(126), QUALITY_NAMES[item.quality], {
+          fontSize: F(15), fontStyle: 'bold',
           color: qHex, stroke: '#0a0600', strokeThickness: 2,
         }).setOrigin(0.5, 0).setDepth(MD + 3));
 
@@ -1197,11 +1201,11 @@ export class PrepScene extends Phaser.Scene {
           return `${STAT_NAMES[a.stat]} +${isPct ? (a.value*100).toFixed(1)+'%' : a.value}`;
         });
         if (item.behavior) affixLines.push(BEHAVIOR_NAMES[item.behavior]);
-        mo.push(this.add.text(cx + CARD_W / 2, cy + 136, affixLines.join('\n'), {
-          fontSize: '11px', color: '#88cc88',
-          stroke: '#0a0600', strokeThickness: 1,
-          align: 'center', lineSpacing: 3,
-          wordWrap: { width: CARD_W - 12 },
+        mo.push(this.add.text(cx + CARD_W / 2, cy + P(146), affixLines.join('\n'), {
+          fontSize: F(15), fontStyle: 'bold', color: '#88cc88',
+          stroke: '#0a0600', strokeThickness: 2,
+          align: 'center', lineSpacing: 4,
+          wordWrap: { width: CARD_W - P(12) },
         }).setOrigin(0.5, 0).setDepth(MD + 3));
 
         // Hit zone
@@ -1236,8 +1240,8 @@ export class PrepScene extends Phaser.Scene {
   // ── Equipment panel (wooden cabinet) ───────────────────
 
   private showEquipmentPanel(W: number, H: number): void {
-    const PW = Math.min(W - 16, 640);
-    const PH = Math.min(H - 16, 560);
+    const PW = Math.min(W - P(16), P(640));
+    const PH = Math.min(H - P(16), P(560));
     const D  = 500;
 
     const container = this.add.container(W / 2, H / 2).setDepth(D);
@@ -1257,32 +1261,32 @@ export class PrepScene extends Phaser.Scene {
 
     // Panel shell
     const bg = this.add.graphics();
-    bg.fillStyle(IRON, 1); bg.fillRect(px - 3, py - 3, PW + 6, PH + 6);
-    bg.fillStyle(WL,   1); bg.fillRect(px - 2, py - 2, PW + 4, PH + 4);
+    bg.fillStyle(IRON, 1); bg.fillRect(px - P(3), py - P(3), PW + P(6), PH + P(6));
+    bg.fillStyle(WL,   1); bg.fillRect(px - P(2), py - P(2), PW + P(4), PH + P(4));
     bg.fillStyle(WD,   1); bg.fillRect(px, py, PW, PH);
-    for (let row = 1; row < Math.ceil(PH / 24); row++) {
-      const ry = py + row * 24;
-      bg.lineStyle(1, WB, 0.5);  bg.lineBetween(px + 2, ry, px + PW - 2, ry);
-      bg.lineStyle(1, WH, 0.08); bg.lineBetween(px + 2, ry + 1, px + PW - 2, ry + 1);
+    for (let row = 1; row < Math.ceil(PH / P(24)); row++) {
+      const ry = py + row * P(24);
+      bg.lineStyle(1, WB, 0.5);  bg.lineBetween(px + P(2), ry, px + PW - P(2), ry);
+      bg.lineStyle(1, WH, 0.08); bg.lineBetween(px + P(2), ry + 1, px + PW - P(2), ry + 1);
     }
-    [[px, py], [px + PW - 8, py], [px, py + PH - 8], [px + PW - 8, py + PH - 8]]
+    [[px, py], [px + PW - P(8), py], [px, py + PH - P(8)], [px + PW - P(8), py + PH - P(8)]]
       .forEach(([rx, ry]) => {
-        bg.fillStyle(IRON, 1); bg.fillRect(rx, ry, 8, 8);
-        bg.fillStyle(0x6a7580, 1); bg.fillRect(rx + 2, ry + 2, 4, 4);
+        bg.fillStyle(IRON, 1); bg.fillRect(rx, ry, P(8), P(8));
+        bg.fillStyle(0x6a7580, 1); bg.fillRect(rx + P(2), ry + P(2), P(4), P(4));
       });
-    bg.fillStyle(WB, 0.9); bg.fillRect(px, py, PW, 42);
-    bg.fillStyle(WH, 0.4); bg.fillRect(px, py + 40, PW, 2);
-    bg.fillStyle(WB, 1);   bg.fillRect(px, py + 42, PW, 1);
+    bg.fillStyle(WB, 0.9); bg.fillRect(px, py, PW, P(42));
+    bg.fillStyle(WH, 0.4); bg.fillRect(px, py + P(40), PW, P(2));
+    bg.fillStyle(WB, 1);   bg.fillRect(px, py + P(42), PW, 1);
     container.add(bg);
 
-    container.add(this.add.text(0, py + 21, '裝  備', {
-      fontSize: '17px', color: '#e8c070', stroke: '#1a0800', strokeThickness: 2,
+    container.add(this.add.text(0, py + P(21), '裝  備', {
+      fontSize: F(17), fontStyle: 'bold', color: '#e8c070', stroke: '#1a0800', strokeThickness: 2,
     }).setOrigin(0.5));
 
     // Close button lives OUTSIDE the container at depth D+1 so it is always the
     // topmost interactive object regardless of container child ordering.
-    const closeBtn = this.add.text(W / 2 + px + PW - 22, H / 2 + py + 21, '✕', {
-      fontSize: '16px', color: '#cc4444', stroke: '#1a0800', strokeThickness: 2,
+    const closeBtn = this.add.text(W / 2 + px + PW - P(22), H / 2 + py + P(21), '✕', {
+      fontSize: F(16), fontStyle: 'bold', color: '#cc4444', stroke: '#1a0800', strokeThickness: 2,
     }).setOrigin(0.5).setInteractive({ useHandCursor: true }).setDepth(D + 1).setScrollFactor(0);
     const closePanelFn = () => {
       if (closeBtn.active) closeBtn.destroy();
@@ -1310,25 +1314,25 @@ export class PrepScene extends Phaser.Scene {
     ];
 
     // ── 裝備格子：3 欄 × 2 列 ────────────────────────────
-    const slotSz  = 76;
-    const slotGap = 8;
-    const ECOLS   = 3;
-    const EROWS   = 2;
-    const eGridX  = px + 12;
-    const eGridY  = py + 50;
-    const eGridH  = EROWS * slotSz + (EROWS - 1) * slotGap;   // 160
+    const slotSz   = P(76);
+    const slotGap  = P(8);
+    const ECOLS    = 3;
+    const EROWS    = 2;
+    const eGridX  = px + P(12);
+    const eGridY  = py + P(50);
+    const eGridH  = EROWS * slotSz + (EROWS - 1) * slotGap;
 
     // ── 人物屬性區（裝備格下方，左欄同寬）───────────────
-    const eGridW  = ECOLS * slotSz + (ECOLS - 1) * slotGap;   // 244
+    const eGridW  = ECOLS * slotSz + (ECOLS - 1) * slotGap;
     const statsX  = eGridX;
-    const statsY  = eGridY + eGridH + 10;
+    const statsY  = eGridY + eGridH + P(10);
     const statsW  = eGridW;
-    const statsH  = 140;
+    const statsH  = P(140);
 
     // ── 右欄（清單區）────────────────────────────────────
-    const rightColX = eGridX + eGridW + 26;   // left edge of right column
-    const rightColW = px + PW - 10 - rightColX;  // remaining width
-    const rightColTop = py + 50;              // top of right column (below title)
+    const rightColX = eGridX + eGridW + P(26);
+    const rightColW = px + PW - P(10) - rightColX;
+    const rightColTop = py + P(50);
 
     // ── Top equipped slots (reactive) ─────────────────────
     const topSlotsLayer = this.add.container(0, 0);
@@ -1353,7 +1357,7 @@ export class PrepScene extends Phaser.Scene {
       g.fillStyle(borderClr, 0.35);  g.fillRect(cx - bw / 2, cy - bh / 2, bw, 2);
       det.add(g);
       const t = this.add.text(cx, cy, label, {
-        fontSize: '15px', color: txtClr, stroke: '#1a0800', strokeThickness: 2,
+        fontSize: F(15), fontStyle: 'bold', color: txtClr, stroke: '#1a0800', strokeThickness: 2,
       }).setOrigin(0.5);
       det.add(t);
       const hit = this.add.rectangle(cx, cy, bw, bh).setInteractive({ useHandCursor: true });
@@ -1367,7 +1371,7 @@ export class PrepScene extends Phaser.Scene {
       const mw = 280;
 
       const probe = this.add.text(-9999, -9999, info.desc, {
-        fontSize: '12px', wordWrap: { width: mw - 32, useAdvancedWrap: true }, lineSpacing: 3,
+        fontSize: F(15), fontStyle: 'bold', wordWrap: { width: mw - 32, useAdvancedWrap: true }, lineSpacing: 3,
       });
       const descH = probe.height;
       probe.destroy();
@@ -1403,11 +1407,11 @@ export class PrepScene extends Phaser.Scene {
       bg.fillStyle(0xc49050, 0.35); bg.fillRect(mx, my, mw, 3);
 
       s(this.add.text(mx + mw / 2, my + 20, BEHAVIOR_NAMES[behavior], {
-        fontSize: '17px', color: '#ffe066', stroke: '#1a0800', strokeThickness: 2, fontStyle: 'bold',
+        fontSize: F(17), fontStyle: 'bold', color: '#ffe066', stroke: '#1a0800', strokeThickness: 2, 
       }).setOrigin(0.5, 0).setDepth(D + 2));
 
       s(this.add.text(mx + 16, my + titleH, info.desc, {
-        fontSize: '12px', color: '#ccbbaa', wordWrap: { width: mw - 32, useAdvancedWrap: true }, lineSpacing: 3,
+        fontSize: F(15), fontStyle: 'bold', color: '#ccbbaa', wordWrap: { width: mw - 32, useAdvancedWrap: true }, lineSpacing: 3,
       }).setOrigin(0, 0).setDepth(D + 2));
 
       const sepY = my + titleH + descH + sepGap;
@@ -1415,12 +1419,12 @@ export class PrepScene extends Phaser.Scene {
       sepG.fillStyle(0xc49050, 0.3); sepG.fillRect(mx + 12, sepY, mw - 24, 1);
 
       s(this.add.text(mx + 16, sepY + 8, '傷害公式', {
-        fontSize: '11px', color: '#c49050', fontStyle: 'bold',
+        fontSize: F(15), fontStyle: 'bold', color: '#c49050', 
       }).setOrigin(0, 0).setDepth(D + 2));
 
       info.formula.forEach((line, i) => {
         s(this.add.text(mx + 16, sepY + 26 + i * 20, `• ${line}`, {
-          fontSize: '12px', color: '#aaddaa',
+          fontSize: F(15), fontStyle: 'bold', color: '#aaddaa',
         }).setOrigin(0, 0).setDepth(D + 2));
       });
 
@@ -1430,7 +1434,7 @@ export class PrepScene extends Phaser.Scene {
       statsG.fillStyle(0xc49050, 0.3); statsG.fillRect(mx + 12, statsY, mw - 24, 1);
 
       s(this.add.text(mx + 16, statsY + 8, '影響數值', {
-        fontSize: '11px', color: '#c49050', fontStyle: 'bold',
+        fontSize: F(15), fontStyle: 'bold', color: '#c49050', 
       }).setOrigin(0, 0).setDepth(D + 2));
 
       const STAT_TAG_COLORS: Partial<Record<import('../data/equipment-data').StatKey, number>> = {
@@ -1449,7 +1453,7 @@ export class PrepScene extends Phaser.Scene {
         tagG.fillStyle(c, 0.25); tagG.fillRoundedRect(tx, ty, tagW, tagH, 4);
         tagG.lineStyle(1, c, 0.6); tagG.strokeRoundedRect(tx, ty, tagW, tagH, 4);
         s(this.add.text(tx + tagW / 2, ty + tagH / 2, `${STAT_NAMES[stat]}  ${note}`, {
-          fontSize: '10px', color: '#ddd8cc',
+          fontSize: F(15), fontStyle: 'bold', color: '#ddd8cc',
         }).setOrigin(0.5, 0.5).setDepth(D + 3));
       });
 
@@ -1459,7 +1463,7 @@ export class PrepScene extends Phaser.Scene {
       closeG.lineStyle(1.5, 0xc49050, 0.7); closeG.strokeRect(mx + mw / 2 - 40, closeY - 14, 80, 28);
 
       const closeT = s(this.add.text(mx + mw / 2, closeY, '關  閉', {
-        fontSize: '13px', color: '#e8c070', stroke: '#1a0800', strokeThickness: 2,
+        fontSize: F(15), fontStyle: 'bold', color: '#e8c070', stroke: '#1a0800', strokeThickness: 2,
       }).setOrigin(0.5).setInteractive({ useHandCursor: true }).setDepth(D + 3));
       closeT.on('pointerdown', () => closeModal());
     };
@@ -1479,17 +1483,17 @@ export class PrepScene extends Phaser.Scene {
       let useComplete = false;
       let useGuard    = false;
 
-      const TITLE_H    = 44;
-      const LEVEL_H    = 38;
-      const AFFIX_ROW  = 24;
+      const TITLE_H    = P(44);
+      const LEVEL_H    = P(38);
+      const AFFIX_ROW  = P(24);
       const BEH_ROW    = item.behavior ? 24 : 0;
-      const STONE_IN_H = 22;   // 破損強化石持有行
-      const INFO_H     = 24;   // 成功率 + 消耗行
-      const STONE_ROW  = 26;
-      const HINT_H     = 18;   // 按鈕上方提示
-      const BTN_H      = 42;
-      const RESULT_H   = 28;
-      const PAD        = 10;
+      const STONE_IN_H = P(22);   // 破損強化石持有行
+      const INFO_H     = P(24);   // 成功率 + 消耗行
+      const STONE_ROW  = P(26);
+      const HINT_H     = P(18);   // 按鈕上方提示
+      const BTN_H      = P(42);
+      const RESULT_H   = P(28);
+      const PAD        = P(10);
       const mh = TITLE_H + LEVEL_H + PAD + item.affixes.length * AFFIX_ROW + BEH_ROW +
                  PAD + STONE_IN_H + INFO_H + STONE_ROW * 2 + PAD + HINT_H + BTN_H + RESULT_H + PAD;
       const mx = W / 2 - mw / 2;
@@ -1504,15 +1508,15 @@ export class PrepScene extends Phaser.Scene {
       bg.lineStyle(1, GOLD, 0.4); bg.lineBetween(mx, my + TITLE_H, mx + mw, my + TITLE_H);
 
       es(this.add.text(W / 2, my + TITLE_H / 2, '強 化 裝 備', {
-        fontSize: '15px', fontStyle: 'bold', color: '#e8c070', stroke: '#1a0800', strokeThickness: 2,
+        fontSize: F(15), fontStyle: 'bold', color: '#e8c070', stroke: '#1a0800', strokeThickness: 2,
       }).setOrigin(0.5).setDepth(ED + 2));
       es(this.add.text(mx + mw - 16, my + TITLE_H / 2, '✕', {
-        fontSize: '14px', color: '#cc4444', stroke: '#1a0800', strokeThickness: 2,
+        fontSize: F(15), fontStyle: 'bold', color: '#cc4444', stroke: '#1a0800', strokeThickness: 2,
       }).setOrigin(0.5).setInteractive({ useHandCursor: true }).setDepth(ED + 3))
         .on('pointerdown', closeEnhance);
 
       const levelTxt = es(this.add.text(W / 2, my + TITLE_H + LEVEL_H / 2, '', {
-        fontSize: '19px', fontStyle: 'bold', color: '#ffe066', stroke: '#1a0800', strokeThickness: 3,
+        fontSize: F(19), fontStyle: 'bold', color: '#ffe066', stroke: '#1a0800', strokeThickness: 3,
       }).setOrigin(0.5).setDepth(ED + 2));
 
       // ── 詞綴列（移除「必定↑/隨機↑」，改到按鈕上方提示）────────
@@ -1521,20 +1525,20 @@ export class PrepScene extends Phaser.Scene {
       item.affixes.forEach((a, i) => {
         const ay = affixStartY + i * AFFIX_ROW + AFFIX_ROW / 2;
         es(this.add.text(mx + 10, ay, STAT_NAMES[a.stat], {
-          fontSize: '12px', color: '#ccbbaa', stroke: '#1a0800', strokeThickness: 1,
+          fontSize: F(15), fontStyle: 'bold', color: '#ccbbaa', stroke: '#1a0800', strokeThickness: 1,
         }).setOrigin(0, 0.5).setDepth(ED + 2));
         valTexts.push(es(this.add.text(mx + mw - 10, ay, '', {
-          fontSize: '12px', color: '#ffe8a0', stroke: '#1a0800', strokeThickness: 1,
+          fontSize: F(15), fontStyle: 'bold', color: '#ffe8a0', stroke: '#1a0800', strokeThickness: 1,
         }).setOrigin(1, 0.5).setDepth(ED + 2)));
       });
 
       if (item.behavior) {
         const by = affixStartY + item.affixes.length * AFFIX_ROW + BEH_ROW / 2;
         es(this.add.text(mx + 10, by, '攻擊模式', {
-          fontSize: '12px', color: '#aaaaaa', stroke: '#1a0800', strokeThickness: 1,
+          fontSize: F(15), fontStyle: 'bold', color: '#aaaaaa', stroke: '#1a0800', strokeThickness: 1,
         }).setOrigin(0, 0.5).setDepth(ED + 2));
         es(this.add.text(mx + mw - 10, by, BEHAVIOR_NAMES[item.behavior], {
-          fontSize: '12px', color: '#ffe066', stroke: '#1a0800', strokeThickness: 1,
+          fontSize: F(15), fontStyle: 'bold', color: '#ffe066', stroke: '#1a0800', strokeThickness: 1,
         }).setOrigin(1, 0.5).setDepth(ED + 2));
       }
 
@@ -1544,16 +1548,16 @@ export class PrepScene extends Phaser.Scene {
       // 列1：破損強化石持有數（左側 ◆ 圖示 + 顏色提示）
       const stoneInY  = infoBase + STONE_IN_H / 2;
       const stoneTxt  = es(this.add.text(mx + 10, stoneInY, '', {
-        fontSize: '11px', color: '#ffcc66', stroke: '#1a0800', strokeThickness: 1,
+        fontSize: F(15), fontStyle: 'bold', color: '#ffcc66', stroke: '#1a0800', strokeThickness: 1,
       }).setOrigin(0, 0.5).setDepth(ED + 2));
 
       // 列2：成功率 | 消耗 N 顆
       const infoY    = infoBase + STONE_IN_H + INFO_H / 2;
       const rateTxt  = es(this.add.text(mx + 10, infoY, '', {
-        fontSize: '12px', color: '#aaccff', stroke: '#1a0800', strokeThickness: 1,
+        fontSize: F(15), fontStyle: 'bold', color: '#aaccff', stroke: '#1a0800', strokeThickness: 1,
       }).setOrigin(0, 0.5).setDepth(ED + 2));
       const costTxt  = es(this.add.text(mx + mw - 10, infoY, '', {
-        fontSize: '12px', color: '#ffdd66', stroke: '#1a0800', strokeThickness: 1,
+        fontSize: F(15), fontStyle: 'bold', color: '#ffdd66', stroke: '#1a0800', strokeThickness: 1,
       }).setOrigin(1, 0.5).setDepth(ED + 2));
 
       // ── 石頭 toggle 行 ──────────────────────────────────
@@ -1562,27 +1566,27 @@ export class PrepScene extends Phaser.Scene {
       const cmpY    = stoneBase + STONE_ROW / 2;
       const cmpChkG = es(this.add.graphics().setDepth(ED + 2));
       const cmpChkT = es(this.add.text(mx + 15, cmpY, '', {
-        fontSize: '11px', fontStyle: 'bold', color: '#44ff88', stroke: '#000', strokeThickness: 1,
+        fontSize: F(15), fontStyle: 'bold', color: '#44ff88', stroke: '#000', strokeThickness: 1,
       }).setOrigin(0.5).setDepth(ED + 3));
       const cmpLbl  = es(this.add.text(mx + 28, cmpY, '', {
-        fontSize: '11px', color: '#ccbbaa', stroke: '#1a0800', strokeThickness: 1,
+        fontSize: F(15), fontStyle: 'bold', color: '#ccbbaa', stroke: '#1a0800', strokeThickness: 1,
       }).setOrigin(0, 0.5).setDepth(ED + 2));
       const cmpHit  = es(this.add.rectangle(W / 2, cmpY, mw - 20, STONE_ROW - 4).setDepth(ED + 4));
 
       const grdY    = stoneBase + STONE_ROW + STONE_ROW / 2;
       const grdChkG = es(this.add.graphics().setDepth(ED + 2));
       const grdChkT = es(this.add.text(mx + 15, grdY, '', {
-        fontSize: '11px', fontStyle: 'bold', color: '#ffaa44', stroke: '#000', strokeThickness: 1,
+        fontSize: F(15), fontStyle: 'bold', color: '#ffaa44', stroke: '#000', strokeThickness: 1,
       }).setOrigin(0.5).setDepth(ED + 3));
       const grdLbl  = es(this.add.text(mx + 28, grdY, '', {
-        fontSize: '11px', color: '#ccbbaa', stroke: '#1a0800', strokeThickness: 1,
+        fontSize: F(15), fontStyle: 'bold', color: '#ccbbaa', stroke: '#1a0800', strokeThickness: 1,
       }).setOrigin(0, 0.5).setDepth(ED + 2));
       const grdHit  = es(this.add.rectangle(W / 2, grdY, mw - 20, STONE_ROW - 4).setDepth(ED + 4));
 
       // ── 按鈕上方提示 ──────────────────────────────────
       const hintY   = stoneBase + STONE_ROW * 2 + PAD + HINT_H / 2;
       const hintTxt = es(this.add.text(W / 2, hintY, '', {
-        fontSize: '13px', fontStyle: 'bold', color: '#e8c070', stroke: '#1a0800', strokeThickness: 2,
+        fontSize: F(15), fontStyle: 'bold', color: '#e8c070', stroke: '#1a0800', strokeThickness: 2,
       }).setOrigin(0.5).setDepth(ED + 2));
 
       // ── 強化按鈕 ──────────────────────────────────────
@@ -1598,13 +1602,13 @@ export class PrepScene extends Phaser.Scene {
         if (enabled) { btnG.fillStyle(GOLD, 0.3); btnG.fillRect(bx, btnY, bw, 2); }
       };
       const btnLbl = es(this.add.text(W / 2, btnY + BTN_H / 2, '強  化', {
-        fontSize: '15px', fontStyle: 'bold', color: '#ffe066', stroke: '#1a0800', strokeThickness: 2,
+        fontSize: F(15), fontStyle: 'bold', color: '#ffe066', stroke: '#1a0800', strokeThickness: 2,
       }).setOrigin(0.5).setDepth(ED + 3));
       const btnHit = es(this.add.rectangle(W / 2, btnY + BTN_H / 2, bw, BTN_H)
         .setInteractive({ useHandCursor: true }).setDepth(ED + 4));
 
       const resultTxt = es(this.add.text(W / 2, btnY + BTN_H + RESULT_H / 2, '', {
-        fontSize: '12px', stroke: '#1a0800', strokeThickness: 1,
+        fontSize: F(15), fontStyle: 'bold', stroke: '#1a0800', strokeThickness: 1,
       }).setOrigin(0.5).setDepth(ED + 2));
 
       // ── 畫面特效 ──────────────────────────────────────
@@ -1728,7 +1732,7 @@ export class PrepScene extends Phaser.Scene {
             const gy   = affixStartY + idx * AFFIX_ROW + AFFIX_ROW / 2;
             // 浮動文字：從詞綴上方飄起消失
             const ft = es(this.add.text(W / 2, gy, fmtGain(item.affixes[idx].stat, gain), {
-              fontSize: '14px', fontStyle: 'bold', color: '#aaffcc',
+              fontSize: F(15), fontStyle: 'bold', color: '#aaffcc',
               stroke: '#002200', strokeThickness: 2,
             }).setOrigin(0.5, 1).setDepth(ED + 10));
             this.tweens.add({
@@ -1738,7 +1742,7 @@ export class PrepScene extends Phaser.Scene {
             // 持久顯示：數字往左移，右側放綠色加成
             valTexts[idx].setX(mx + mw - 52);
             const gt = es(this.add.text(mx + mw - 10, gy, fmtGain(item.affixes[idx].stat, gain), {
-              fontSize: '11px', fontStyle: 'bold', color: '#44ff88',
+              fontSize: F(15), fontStyle: 'bold', color: '#44ff88',
               stroke: '#003300', strokeThickness: 2,
             }).setOrigin(1, 0.5).setDepth(ED + 10));
             gainTexts[idx] = gt;
@@ -1776,61 +1780,61 @@ export class PrepScene extends Phaser.Scene {
       container.add(det);
 
       const areaTop = rightColTop;
-      const areaH   = py + PH - areaTop - 6;
+      const areaH   = py + PH - areaTop - P(6);
       const rcx     = rightColX + rightColW / 2;   // centre of right column
 
       const detBg = this.add.graphics();
-      detBg.fillStyle(WD, 0.98); detBg.fillRect(rightColX - 4, areaTop, rightColW + 8, areaH);
+      detBg.fillStyle(WD, 0.98); detBg.fillRect(rightColX - P(4), areaTop, rightColW + P(8), areaH);
       det.add(detBg);
       // 只擋右欄，讓左欄裝備格可直接點擊切換
-      det.add(this.add.rectangle(rcx, areaTop + areaH / 2, rightColW + 8, areaH, 0, 0).setInteractive());
+      det.add(this.add.rectangle(rcx, areaTop + areaH / 2, rightColW + P(8), areaH, 0, 0).setInteractive());
 
-      const backBtn = this.add.text(rightColX + 8, areaTop + 16, '← 返回', {
-        fontSize: '14px', color: '#c49050', stroke: '#1a0800', strokeThickness: 1,
+      const backBtn = this.add.text(rightColX + P(8), areaTop + P(16), '← 返回', {
+        fontSize: F(15), fontStyle: 'bold', color: '#c49050', stroke: '#1a0800', strokeThickness: 1,
       }).setOrigin(0, 0.5).setInteractive({ useHandCursor: true });
       const closeEquipped = () => { activeDetail = null; det.destroy(); };
       backBtn.on('pointerdown', () => closeEquipped());
       det.add(backBtn);
 
       if (this.textures.exists(item.texture))
-        det.add(this.add.image(rightColX + 32, areaTop + 60, item.texture).setDisplaySize(56, 56));
+        det.add(this.add.image(rightColX + P(32), areaTop + P(60), item.texture).setDisplaySize(P(56), P(56)));
 
-      det.add(this.add.text(rightColX + 72, areaTop + 38, item.name, {
-        fontSize: '16px', color: '#e8c070', stroke: '#1a0800', strokeThickness: 2,
+      det.add(this.add.text(rightColX + P(72), areaTop + P(38), item.name, {
+        fontSize: F(16), fontStyle: 'bold', color: '#e8c070', stroke: '#1a0800', strokeThickness: 2,
       }).setOrigin(0, 0.5));
 
-      let statOffsetY = areaTop + 58;
+      let statOffsetY = areaTop + P(58);
       if (item.behavior) {
-        det.add(this.add.text(rightColX + 72, statOffsetY, `攻擊模式：${BEHAVIOR_NAMES[item.behavior]}`, {
-          fontSize: '12px', color: '#88cc88', stroke: '#1a0800', strokeThickness: 1,
+        det.add(this.add.text(rightColX + P(72), statOffsetY, `攻擊模式：${BEHAVIOR_NAMES[item.behavior]}`, {
+          fontSize: F(15), fontStyle: 'bold', color: '#88cc88', stroke: '#1a0800', strokeThickness: 1,
         }).setOrigin(0, 0));
-        const viewBtn = this.add.text(rightColX + rightColW - 8, statOffsetY, '查看', {
-          fontSize: '11px', color: '#ffe066', stroke: '#1a0800', strokeThickness: 1,
+        const viewBtn = this.add.text(rightColX + rightColW - P(8), statOffsetY, '查看', {
+          fontSize: F(15), fontStyle: 'bold', color: '#ffe066', stroke: '#1a0800', strokeThickness: 1,
           backgroundColor: '#3a2000', padding: { x: 5, y: 2 },
         }).setOrigin(1, 0).setInteractive({ useHandCursor: true });
         viewBtn.on('pointerdown', () => showBehaviorModal(item.behavior!));
         det.add(viewBtn);
-        statOffsetY += 18;
+        statOffsetY += P(18);
       }
       const statParts: string[] = [];
       item.affixes.forEach(a => {
         const isPct = ['crit','atkSpeed','lifesteal','evasion'].includes(a.stat);
         statParts.push(`${STAT_NAMES[a.stat]} +${isPct ? (a.value * 100).toFixed(1) + '%' : a.value}`);
       });
-      det.add(this.add.text(rightColX + 72, statOffsetY, statParts.join('\n'), {
-        fontSize: '12px', color: '#88cc88', stroke: '#1a0800', strokeThickness: 1,
+      det.add(this.add.text(rightColX + P(72), statOffsetY, statParts.join('\n'), {
+        fontSize: F(15), fontStyle: 'bold', color: '#88cc88', stroke: '#1a0800', strokeThickness: 1,
         lineSpacing: 4,
       }).setOrigin(0, 0));
 
       const dg = this.add.graphics();
-      const statBlockH = (item.behavior ? 1 : 0) * 18 + statParts.length * 18 + 12;
-      dg.fillStyle(WB, 1);   dg.fillRect(rightColX, areaTop + 50 + statBlockH, rightColW, 1);
-      dg.fillStyle(WH, 0.3); dg.fillRect(rightColX, areaTop + 51 + statBlockH, rightColW, 1);
+      const statBlockH = (item.behavior ? 1 : 0) * P(18) + statParts.length * P(18) + P(12);
+      dg.fillStyle(WB, 1);   dg.fillRect(rightColX, areaTop + P(50) + statBlockH, rightColW, 1);
+      dg.fillStyle(WH, 0.3); dg.fillRect(rightColX, areaTop + P(51) + statBlockH, rightColW, 1);
       det.add(dg);
 
       // 脫下 | 強化
-      const btnH = 38, btnW = 136, btnGap = 8;
-      const btnY = areaTop + areaH - 28;
+      const btnH = P(38), btnW = P(136), btnGap = P(8);
+      const btnY = areaTop + areaH - P(28);
       drawBtn(det, rcx - btnW / 2 - btnGap / 2, btnY, btnW, btnH,
         '脫  下', 0x3a1a1a, 0xcc4444, '#ee8888',
         () => { PlayerStore.unequip(equipSlot); closeEquipped(); });
@@ -1852,20 +1856,20 @@ export class PrepScene extends Phaser.Scene {
 
         const sg = this.add.graphics();
         sg.fillStyle(WB, 1); sg.fillRect(sx, sy, slotSz, slotSz);
-        sg.fillStyle(item ? WMI : WM, 1); sg.fillRect(sx + 2, sy + 2, slotSz - 4, slotSz - 4);
+        sg.fillStyle(item ? WMI : WM, 1); sg.fillRect(sx + P(2), sy + P(2), slotSz - P(4), slotSz - P(4));
         sg.lineStyle(1.5, item ? GOLD : WL, item ? 0.5 : 0.4);
         sg.strokeRect(sx, sy, slotSz, slotSz);
-        sg.fillStyle(s.color, 0.55); sg.fillRect(sx, sy, slotSz, 3);
+        sg.fillStyle(s.color, 0.55); sg.fillRect(sx, sy, slotSz, P(3));
         topSlotsLayer.add(sg);
 
         if (item && this.textures.exists(item.texture)) {
           topSlotsLayer.add(
-            this.add.image(sx + slotSz / 2, sy + slotSz / 2 - 8, item.texture)
-              .setDisplaySize(48, 48),
+            this.add.image(sx + slotSz / 2, sy + slotSz / 2 - P(8), item.texture)
+              .setDisplaySize(P(48), P(48)),
           );
-          sg.fillStyle(0x000000, 0.5); sg.fillRect(sx, sy + slotSz - 18, slotSz, 18);
-          topSlotsLayer.add(this.add.text(sx + slotSz / 2, sy + slotSz - 10, item.name, {
-            fontSize: '11px', color: '#ffe8a0', stroke: '#000000', strokeThickness: 2,
+          sg.fillStyle(0x000000, 0.5); sg.fillRect(sx, sy + slotSz - P(18), slotSz, P(18));
+          topSlotsLayer.add(this.add.text(sx + slotSz / 2, sy + slotSz - P(10), item.name, {
+            fontSize: F(15), fontStyle: 'bold', color: '#ffe8a0', stroke: '#000000', strokeThickness: 2,
           }).setOrigin(0.5));
 
           const tap = this.add.rectangle(sx + slotSz / 2, sy + slotSz / 2, slotSz, slotSz)
@@ -1873,8 +1877,8 @@ export class PrepScene extends Phaser.Scene {
           tap.on('pointerdown', () => showEquippedDetail(item, s.slotKey));
           topSlotsLayer.add(tap);
         } else {
-          topSlotsLayer.add(this.add.text(sx + slotSz / 2, sy + slotSz / 2 - 4, s.label, {
-            fontSize: '14px', color: '#b08040', stroke: '#000000', strokeThickness: 2,
+          topSlotsLayer.add(this.add.text(sx + slotSz / 2, sy + slotSz / 2 - P(4), s.label, {
+            fontSize: F(15), fontStyle: 'bold', color: '#b08040', stroke: '#000000', strokeThickness: 2,
           }).setOrigin(0.5));
         }
       });
@@ -1890,11 +1894,11 @@ export class PrepScene extends Phaser.Scene {
       const sg = this.add.graphics();
       sg.fillStyle(WD, 0.55); sg.fillRect(statsX, statsY, statsW, statsH);
       sg.lineStyle(1, WL, 0.25); sg.strokeRect(statsX, statsY, statsW, statsH);
-      sg.fillStyle(WB, 0.6); sg.fillRect(statsX, statsY, statsW, 20);
+      sg.fillStyle(WB, 0.6); sg.fillRect(statsX, statsY, statsW, P(20));
       statsLayer.add(sg);
 
-      statsLayer.add(this.add.text(statsX + statsW / 2, statsY + 10, '人 物 屬 性', {
-        fontSize: '12px', color: '#d4a044', stroke: '#1a0800', strokeThickness: 1,
+      statsLayer.add(this.add.text(statsX + statsW / 2, statsY + P(10), '人 物 屬 性', {
+        fontSize: F(15), fontStyle: 'bold', color: '#d4a044', stroke: '#1a0800', strokeThickness: 1,
       }).setOrigin(0.5));
 
       const allRows = [
@@ -1906,14 +1910,14 @@ export class PrepScene extends Phaser.Scene {
         [{ label: '持續傷害', value: `+${(s.dotBonus * 100).toFixed(0)}%`, color: '#cc88ff' }, { label: '穿甲', value: `${s.penetration}`, color: '#ff9944' }],
       ];
       const colW2 = statsW / 2;
-      const rowH  = (statsH - 20) / 6;
+      const rowH  = (statsH - P(20)) / 6;
 
       allRows.forEach((row, ri) => {
         row.forEach((cell, ci) => {
           const cx = statsX + ci * colW2;
-          const ry = statsY + 20 + ri * rowH + rowH / 2;
-          statsLayer.add(this.add.text(cx + 6, ry, cell.label, { fontSize: '11px', color: '#888888', stroke: '#000', strokeThickness: 1 }).setOrigin(0, 0.5));
-          statsLayer.add(this.add.text(cx + colW2 - 6, ry, cell.value, { fontSize: '13px', fontStyle: 'bold', color: cell.color, stroke: '#000', strokeThickness: 1 }).setOrigin(1, 0.5));
+          const ry = statsY + P(20) + ri * rowH + rowH / 2;
+          statsLayer.add(this.add.text(cx + P(6), ry, cell.label, { fontSize: F(15), fontStyle: 'bold', color: '#888888', stroke: '#000', strokeThickness: 1 }).setOrigin(0, 0.5));
+          statsLayer.add(this.add.text(cx + colW2 - P(6), ry, cell.value, { fontSize: F(15), fontStyle: 'bold', color: cell.color, stroke: '#000', strokeThickness: 1 }).setOrigin(1, 0.5));
         });
       });
     };
@@ -1921,13 +1925,13 @@ export class PrepScene extends Phaser.Scene {
 
     // ── 垂直分隔線 ────────────────────────────────────────
     const divGfx = this.add.graphics();
-    const divX   = rightColX - 13;
-    divGfx.fillStyle(WB, 1);   divGfx.fillRect(divX, py + 44, 2, PH - 52);
-    divGfx.fillStyle(WH, 0.3); divGfx.fillRect(divX + 2, py + 44, 1, PH - 52);
+    const divX   = rightColX - P(13);
+    divGfx.fillStyle(WB, 1);   divGfx.fillRect(divX, py + P(44), 2, PH - P(52));
+    divGfx.fillStyle(WH, 0.3); divGfx.fillRect(divX + P(2), py + P(44), 1, PH - P(52));
     container.add(divGfx);
 
     // ── Tabs（右欄頂部）──────────────────────────────────
-    const tabH    = 30;
+    const tabH     = P(30);
     const tabY    = rightColTop;
     const tabW    = rightColW / tabDefs.length;
     let activeTab = 0;
@@ -1950,12 +1954,12 @@ export class PrepScene extends Phaser.Scene {
     container.add(tabGfx);
 
     // ── Grid（右欄）─────────────────────────────────────
-    const gridY    = tabY + tabH + 6;
-    const cellSz   = 68;
-    const cellGap  = 7;
+    const gridY    = tabY + tabH + P(6);
+    const cellSz   = P(68);
+    const cellGap  = P(7);
     const gridLeft = rightColX;
     const cols     = Math.floor((rightColW + cellGap) / (cellSz + cellGap));
-    const gridH    = PH / 2 - 10 - gridY;   // visible height of grid area
+    const gridH    = PH / 2 - P(10) - gridY;
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let gridWheelHandler: ((...args: any[]) => void) | null = null;
@@ -1981,14 +1985,14 @@ export class PrepScene extends Phaser.Scene {
         .setInteractive().setDepth(compD))
         .on('pointerdown', closeComp);
 
-      const PDW = 380, PDH = 320;
-      const CW  = 158, CH  = 200, GAP = 24;
+      const PDW = P(380), PDH = P(320);
+      const CW  = P(158), CH  = P(200), GAP = P(24);
       const mx  = W / 2 - PDW / 2;   // popup 左上角 x
       const my  = H / 2 - PDH / 2;   // popup 左上角 y
       const pcx = W / 2;             // popup 中心 x
-      const TITLE_H = 28;
-      const CARD_CY = my + TITLE_H + CH / 2 + 10;   // card 中心 y
-      const BTN_Y   = my + PDH - 26;
+      const TITLE_H = P(28);
+      const CARD_CY = my + TITLE_H + CH / 2 + P(10);
+      const BTN_Y   = my + PDH - P(26);
 
       const bg = s(this.add.graphics().setDepth(compD + 1));
       bg.fillStyle(WD, 0.97); bg.fillRect(mx, my, PDW, PDH);
@@ -1998,11 +2002,11 @@ export class PrepScene extends Phaser.Scene {
       bg.lineStyle(1, GOLD, 0.4); bg.lineBetween(mx, my + TITLE_H, mx + PDW, my + TITLE_H);
 
       s(this.add.text(pcx, my + TITLE_H / 2, '替換裝備', {
-        fontSize: '13px', fontStyle: 'bold', color: '#e8c070', stroke: '#1a0800', strokeThickness: 2,
+        fontSize: F(15), fontStyle: 'bold', color: '#e8c070', stroke: '#1a0800', strokeThickness: 2,
       }).setOrigin(0.5).setDepth(compD + 2));
 
       s(this.add.text(pcx, CARD_CY, '→', {
-        fontSize: '20px', color: '#ffee88', stroke: '#000', strokeThickness: 2,
+        fontSize: F(20), fontStyle: 'bold', color: '#ffee88', stroke: '#000', strokeThickness: 2,
       }).setOrigin(0.5).setDepth(compD + 2));
 
       const isPct = (stat: string) => ['crit','atkSpeed','lifesteal','evasion','critDmg','dotBonus'].includes(stat);
@@ -2020,30 +2024,30 @@ export class PrepScene extends Phaser.Scene {
         mg.fillStyle(0x1a0e06, 1);   mg.fillRect(cx - CW / 2, cy - CH / 2, CW, CH);
         mg.lineStyle(2, qColorNum, 0.8); mg.strokeRect(cx - CW / 2, cy - CH / 2, CW, CH);
 
-        s(this.add.text(cx, cy - CH / 2 + 8, labelTxt, {
-          fontSize: '10px', fontStyle: 'bold', color: labelColor, stroke: '#000', strokeThickness: 1,
+        s(this.add.text(cx, cy - CH / 2 + P(8), labelTxt, {
+          fontSize: F(15), fontStyle: 'bold', color: labelColor, stroke: '#000', strokeThickness: 1,
         }).setOrigin(0.5, 0).setDepth(compD + 3));
 
-        s(this.add.text(cx, cy - CH / 2 + 24, item.name, {
-          fontSize: '12px', fontStyle: 'bold', color: qColorStr, stroke: '#1a0800', strokeThickness: 2,
-          wordWrap: { width: CW - 12 }, align: 'center',
+        s(this.add.text(cx, cy - CH / 2 + P(24), item.name, {
+          fontSize: F(15), fontStyle: 'bold', color: qColorStr, stroke: '#1a0800', strokeThickness: 2,
+          wordWrap: { width: CW - P(12) }, align: 'center',
         }).setOrigin(0.5, 0).setDepth(compD + 3));
 
-        s(this.add.text(cx, cy - CH / 2 + 44, item.enhancement > 0 ? `+${item.enhancement} 強化` : '未強化', {
-          fontSize: '10px', color: item.enhancement > 0 ? '#ffd060' : '#667766', stroke: '#000', strokeThickness: 1,
+        s(this.add.text(cx, cy - CH / 2 + P(44), item.enhancement > 0 ? `+${item.enhancement} 強化` : '未強化', {
+          fontSize: F(15), fontStyle: 'bold', color: item.enhancement > 0 ? '#ffd060' : '#667766', stroke: '#000', strokeThickness: 1,
         }).setOrigin(0.5, 0).setDepth(compD + 3));
 
-        let ay = cy - CH / 2 + 62;
+        let ay = cy - CH / 2 + P(62);
         item.affixes.forEach(a => {
           s(this.add.text(cx, ay, `${STAT_NAMES[a.stat]}  +${fmtV(a.stat, a.value)}`, {
-            fontSize: '11px', color: '#88cc88', stroke: '#000', strokeThickness: 1,
+            fontSize: F(15), fontStyle: 'bold', color: '#88cc88', stroke: '#000', strokeThickness: 1,
           }).setOrigin(0.5, 0).setDepth(compD + 3));
-          ay += 18;
+          ay += P(18);
         });
 
         if (item.behavior) {
-          s(this.add.text(cx, cy + CH / 2 - 8, BEHAVIOR_NAMES[item.behavior], {
-            fontSize: '10px', color: '#ffe066', stroke: '#000', strokeThickness: 1,
+          s(this.add.text(cx, cy + CH / 2 - P(8), BEHAVIOR_NAMES[item.behavior], {
+            fontSize: F(15), fontStyle: 'bold', color: '#ffe066', stroke: '#000', strokeThickness: 1,
           }).setOrigin(0.5, 1).setDepth(compD + 3));
         }
       };
@@ -2053,13 +2057,13 @@ export class PrepScene extends Phaser.Scene {
       drawItemCard(newItem,     pcx + cardCX, '新增', '#99ff99');
 
       // ── Buttons ─────────────────────────────────────────
-      const BW = 118, BH = 30;
+      const BW = P(118), BH = P(30);
 
       const confirmBg = s(this.add.graphics().setDepth(compD + 2));
       confirmBg.fillStyle(0x0e2a0e, 1); confirmBg.fillRect(pcx - BW - 4, BTN_Y - BH / 2, BW, BH);
       confirmBg.lineStyle(1.5, 0x44cc44, 0.9); confirmBg.strokeRect(pcx - BW - 4, BTN_Y - BH / 2, BW, BH);
       s(this.add.text(pcx - BW / 2 - 4, BTN_Y, '確認替換', {
-        fontSize: '13px', fontStyle: 'bold', color: '#88ff88', stroke: '#000', strokeThickness: 2,
+        fontSize: F(15), fontStyle: 'bold', color: '#88ff88', stroke: '#000', strokeThickness: 2,
       }).setOrigin(0.5).setDepth(compD + 3));
       s(this.add.rectangle(pcx - BW / 2 - 4, BTN_Y, BW, BH).setInteractive({ useHandCursor: true }).setDepth(compD + 4))
         .on('pointerdown', (ptr: Phaser.Input.Pointer) => { ptr.event.stopPropagation(); closeComp(); onConfirm(); });
@@ -2068,7 +2072,7 @@ export class PrepScene extends Phaser.Scene {
       cancelBg.fillStyle(0x1a1a1a, 1); cancelBg.fillRect(pcx + 4, BTN_Y - BH / 2, BW, BH);
       cancelBg.lineStyle(1.5, 0x666666, 0.9); cancelBg.strokeRect(pcx + 4, BTN_Y - BH / 2, BW, BH);
       s(this.add.text(pcx + BW / 2 + 4, BTN_Y, '取  消', {
-        fontSize: '13px', fontStyle: 'bold', color: '#aaaaaa', stroke: '#000', strokeThickness: 2,
+        fontSize: F(15), fontStyle: 'bold', color: '#aaaaaa', stroke: '#000', strokeThickness: 2,
       }).setOrigin(0.5).setDepth(compD + 3));
       s(this.add.rectangle(pcx + BW / 2 + 4, BTN_Y, BW, BH).setInteractive({ useHandCursor: true }).setDepth(compD + 4))
         .on('pointerdown', (ptr: Phaser.Input.Pointer) => { ptr.event.stopPropagation(); closeComp(); });
@@ -2082,60 +2086,60 @@ export class PrepScene extends Phaser.Scene {
       container.add(det);
 
       const areaTop = rightColTop;
-      const areaH   = py + PH - areaTop - 6;
+      const areaH   = py + PH - areaTop - P(6);
       const rcx     = rightColX + rightColW / 2;
 
       const detBg = this.add.graphics();
-      detBg.fillStyle(WD, 0.98); detBg.fillRect(rightColX - 4, areaTop, rightColW + 8, areaH);
+      detBg.fillStyle(WD, 0.98); detBg.fillRect(rightColX - P(4), areaTop, rightColW + P(8), areaH);
       det.add(detBg);
       // 只擋右欄，讓左欄裝備格可直接點擊切換
-      det.add(this.add.rectangle(rcx, areaTop + areaH / 2, rightColW + 8, areaH, 0, 0).setInteractive());
+      det.add(this.add.rectangle(rcx, areaTop + areaH / 2, rightColW + P(8), areaH, 0, 0).setInteractive());
 
-      const backBtn = this.add.text(rightColX + 8, areaTop + 16, '← 返回', {
-        fontSize: '14px', color: '#c49050', stroke: '#1a0800', strokeThickness: 1,
+      const backBtn = this.add.text(rightColX + P(8), areaTop + P(16), '← 返回', {
+        fontSize: F(15), fontStyle: 'bold', color: '#c49050', stroke: '#1a0800', strokeThickness: 1,
       }).setOrigin(0, 0.5).setInteractive({ useHandCursor: true });
       const closeItem = () => { activeDetail = null; det.destroy(); };
       backBtn.on('pointerdown', () => closeItem());
       det.add(backBtn);
 
       if (this.textures.exists(item.texture))
-        det.add(this.add.image(rightColX + 32, areaTop + 60, item.texture).setDisplaySize(56, 56));
+        det.add(this.add.image(rightColX + P(32), areaTop + P(60), item.texture).setDisplaySize(P(56), P(56)));
 
-      det.add(this.add.text(rightColX + 72, areaTop + 38, item.name, {
-        fontSize: '16px', color: '#e8c070', stroke: '#1a0800', strokeThickness: 2,
+      det.add(this.add.text(rightColX + P(72), areaTop + P(38), item.name, {
+        fontSize: F(16), fontStyle: 'bold', color: '#e8c070', stroke: '#1a0800', strokeThickness: 2,
       }).setOrigin(0, 0.5));
 
-      let statOffsetY2 = areaTop + 58;
+      let statOffsetY2 = areaTop + P(58);
       if (item.behavior) {
-        det.add(this.add.text(rightColX + 72, statOffsetY2, `攻擊模式：${BEHAVIOR_NAMES[item.behavior]}`, {
-          fontSize: '12px', color: '#88cc88', stroke: '#1a0800', strokeThickness: 1,
+        det.add(this.add.text(rightColX + P(72), statOffsetY2, `攻擊模式：${BEHAVIOR_NAMES[item.behavior]}`, {
+          fontSize: F(15), fontStyle: 'bold', color: '#88cc88', stroke: '#1a0800', strokeThickness: 1,
         }).setOrigin(0, 0));
-        const viewBtn = this.add.text(rightColX + rightColW - 8, statOffsetY2, '查看', {
-          fontSize: '11px', color: '#ffe066', stroke: '#1a0800', strokeThickness: 1,
+        const viewBtn = this.add.text(rightColX + rightColW - P(8), statOffsetY2, '查看', {
+          fontSize: F(15), fontStyle: 'bold', color: '#ffe066', stroke: '#1a0800', strokeThickness: 1,
           backgroundColor: '#3a2000', padding: { x: 5, y: 2 },
         }).setOrigin(1, 0).setInteractive({ useHandCursor: true });
         viewBtn.on('pointerdown', () => showBehaviorModal(item.behavior!));
         det.add(viewBtn);
-        statOffsetY2 += 18;
+        statOffsetY2 += P(18);
       }
       const statParts: string[] = [];
       item.affixes.forEach(a => {
         const isPct = ['crit','atkSpeed','lifesteal','evasion'].includes(a.stat);
         statParts.push(`${STAT_NAMES[a.stat]} +${isPct ? (a.value * 100).toFixed(1) + '%' : a.value}`);
       });
-      det.add(this.add.text(rightColX + 72, statOffsetY2, statParts.join('\n'), {
-        fontSize: '12px', color: '#88cc88', stroke: '#1a0800', strokeThickness: 1,
+      det.add(this.add.text(rightColX + P(72), statOffsetY2, statParts.join('\n'), {
+        fontSize: F(15), fontStyle: 'bold', color: '#88cc88', stroke: '#1a0800', strokeThickness: 1,
         lineSpacing: 4,
       }).setOrigin(0, 0));
 
       const dg = this.add.graphics();
-      const statBlockH = (item.behavior ? 1 : 0) * 18 + statParts.length * 18 + 12;
-      dg.fillStyle(WB, 1);   dg.fillRect(rightColX, areaTop + 50 + statBlockH, rightColW, 1);
-      dg.fillStyle(WH, 0.3); dg.fillRect(rightColX, areaTop + 51 + statBlockH, rightColW, 1);
+      const statBlockH = (item.behavior ? 1 : 0) * P(18) + statParts.length * P(18) + P(12);
+      dg.fillStyle(WB, 1);   dg.fillRect(rightColX, areaTop + P(50) + statBlockH, rightColW, 1);
+      dg.fillStyle(WH, 0.3); dg.fillRect(rightColX, areaTop + P(51) + statBlockH, rightColW, 1);
       det.add(dg);
 
-      const btnH = 38, btnW = 136, btnGap = 8;
-      const btnY = areaTop + areaH - 28;
+      const btnH = P(38), btnW = P(136), btnGap = P(8);
+      const btnY = areaTop + areaH - P(28);
 
       if (item.slot === 'ring1') {
         // ── 飾品：飾品1/2 兩個槽位按鈕，靠底部 ──────────────
@@ -2157,10 +2161,10 @@ export class PrepScene extends Phaser.Scene {
         drawSlotBtn(slotBtnGfx, cx2, !!eq2);
         det.add(slotBtnGfx);
 
-        det.add(this.add.text(cx1, btnY - 7, '飾品 1', { fontSize: '13px', color: '#e8c070', stroke: '#1a0800', strokeThickness: 2 }).setOrigin(0.5));
-        det.add(this.add.text(cx1, btnY + 9, eq1 ? eq1.name.slice(0, 6) : '空', { fontSize: '10px', color: eq1 ? '#cc8888' : '#558855' }).setOrigin(0.5));
-        det.add(this.add.text(cx2, btnY - 7, '飾品 2', { fontSize: '13px', color: '#e8c070', stroke: '#1a0800', strokeThickness: 2 }).setOrigin(0.5));
-        det.add(this.add.text(cx2, btnY + 9, eq2 ? eq2.name.slice(0, 6) : '空', { fontSize: '10px', color: eq2 ? '#cc8888' : '#558855' }).setOrigin(0.5));
+        det.add(this.add.text(cx1, btnY - P(7), '飾品 1', { fontSize: F(15), fontStyle: 'bold', color: '#e8c070', stroke: '#1a0800', strokeThickness: 2 }).setOrigin(0.5));
+        det.add(this.add.text(cx1, btnY + P(9), eq1 ? eq1.name.slice(0, 6) : '空', { fontSize: F(15), fontStyle: 'bold', color: eq1 ? '#cc8888' : '#558855' }).setOrigin(0.5));
+        det.add(this.add.text(cx2, btnY - P(7), '飾品 2', { fontSize: F(15), fontStyle: 'bold', color: '#e8c070', stroke: '#1a0800', strokeThickness: 2 }).setOrigin(0.5));
+        det.add(this.add.text(cx2, btnY + P(9), eq2 ? eq2.name.slice(0, 6) : '空', { fontSize: F(15), fontStyle: 'bold', color: eq2 ? '#cc8888' : '#558855' }).setOrigin(0.5));
 
         const hit1 = this.add.rectangle(cx1, btnY, hW, btnH).setInteractive({ useHandCursor: true });
         hit1.on('pointerdown', () => {
@@ -2202,7 +2206,7 @@ export class PrepScene extends Phaser.Scene {
 
       if (items.length === 0) {
         gridLayer.add(this.add.text(rightColX + rightColW / 2, gridY + 32, '尚無裝備', {
-          fontSize: '14px', color: '#5a3820', stroke: '#1a0800', strokeThickness: 1,
+          fontSize: F(15), fontStyle: 'bold', color: '#5a3820', stroke: '#1a0800', strokeThickness: 1,
         }).setOrigin(0.5));
         return;
       }
@@ -2237,18 +2241,18 @@ export class PrepScene extends Phaser.Scene {
         const col2 = slotDefs[activeTab].color;
 
         gg.fillStyle(WB, 1); gg.fillRect(cx2, cy2, cellSz, cellSz);
-        gg.fillStyle(WM, 0.8); gg.fillRect(cx2 + 2, cy2 + 2, cellSz - 4, cellSz - 4);
-        gg.fillStyle(col2, 0.5); gg.fillRect(cx2, cy2, cellSz, 3);
+        gg.fillStyle(WM, 0.8); gg.fillRect(cx2 + P(2), cy2 + P(2), cellSz - P(4), cellSz - P(4));
+        gg.fillStyle(col2, 0.5); gg.fillRect(cx2, cy2, cellSz, P(3));
         gg.lineStyle(1.5, WL, 0.35); gg.strokeRect(cx2, cy2, cellSz, cellSz);
 
         if (this.textures.exists(item.texture))
           scrollCnt.add(
-            this.add.image(cx2 + cellSz / 2, cy2 + cellSz / 2 - 8, item.texture).setDisplaySize(42, 42),
+            this.add.image(cx2 + cellSz / 2, cy2 + cellSz / 2 - P(8), item.texture).setDisplaySize(P(42), P(42)),
           );
 
-        gg.fillStyle(0x000000, 0.5); gg.fillRect(cx2, cy2 + cellSz - 18, cellSz, 18);
-        scrollCnt.add(this.add.text(cx2 + cellSz / 2, cy2 + cellSz - 10, item.name, {
-          fontSize: '11px', color: '#ffe8a0', stroke: '#000000', strokeThickness: 2,
+        gg.fillStyle(0x000000, 0.5); gg.fillRect(cx2, cy2 + cellSz - P(18), cellSz, P(18));
+        scrollCnt.add(this.add.text(cx2 + cellSz / 2, cy2 + cellSz - P(10), item.name, {
+          fontSize: F(15), fontStyle: 'bold', color: '#ffe8a0', stroke: '#000000', strokeThickness: 2,
         }).setOrigin(0.5));
 
         const tap = this.add.rectangle(cx2 + cellSz / 2, cy2 + cellSz / 2, cellSz, cellSz)
@@ -2285,7 +2289,7 @@ export class PrepScene extends Phaser.Scene {
     // ── Tab bar ───────────────────────────────────────────
     tabDefs.forEach((t, i) => {
       const lbl = this.add.text(rightColX + i * tabW + tabW / 2, tabY + tabH / 2, t.label, {
-        fontSize: '14px', color: i === 0 ? '#e8c070' : '#7a5830',
+        fontSize: F(15), fontStyle: 'bold', color: i === 0 ? '#e8c070' : '#7a5830',
         stroke: '#1a0800', strokeThickness: 1,
       }).setOrigin(0.5);
       tabLabels.push(lbl);
@@ -2325,8 +2329,8 @@ export class PrepScene extends Phaser.Scene {
   // ── Item panel ──────────────────────────────────────────
 
   private showItemPanel(W: number, H: number): void {
-    const PW = Math.min(480, W - 20);
-    const PH = Math.min(380, H - 40);
+    const PW = Math.min(P(480), W - P(20));
+    const PH = Math.min(P(380), H - P(40));
     const D  = 500;
 
     const container = this.add.container(W / 2, H / 2).setDepth(D);
@@ -2348,37 +2352,37 @@ export class PrepScene extends Phaser.Scene {
     // Panel shell
     const bg = this.add.graphics();
     bg.fillStyle(IRON, 1);
-    bg.fillRect(px - 3, py - 3, PW + 6, PH + 6);
+    bg.fillRect(px - P(3), py - P(3), PW + P(6), PH + P(6));
     bg.fillStyle(WL, 1);
-    bg.fillRect(px - 2, py - 2, PW + 4, PH + 4);
+    bg.fillRect(px - P(2), py - P(2), PW + P(4), PH + P(4));
     bg.fillStyle(WD, 1);
     bg.fillRect(px, py, PW, PH);
-    for (let row = 1; row < Math.ceil(PH / 24); row++) {
-      const ry = py + row * 24;
+    for (let row = 1; row < Math.ceil(PH / P(24)); row++) {
+      const ry = py + row * P(24);
       bg.lineStyle(1, WB, 0.5);
-      bg.lineBetween(px + 2, ry, px + PW - 2, ry);
+      bg.lineBetween(px + P(2), ry, px + PW - P(2), ry);
       bg.lineStyle(1, WH, 0.08);
-      bg.lineBetween(px + 2, ry + 1, px + PW - 2, ry + 1);
+      bg.lineBetween(px + P(2), ry + P(1), px + PW - P(2), ry + P(1));
     }
-    [[px, py], [px + PW - 8, py], [px, py + PH - 8], [px + PW - 8, py + PH - 8]]
+    [[px, py], [px + PW - P(8), py], [px, py + PH - P(8)], [px + PW - P(8), py + PH - P(8)]]
       .forEach(([rx, ry]) => {
-        bg.fillStyle(IRON, 1); bg.fillRect(rx, ry, 8, 8);
-        bg.fillStyle(0x6a7580, 1); bg.fillRect(rx + 2, ry + 2, 4, 4);
+        bg.fillStyle(IRON, 1); bg.fillRect(rx, ry, P(8), P(8));
+        bg.fillStyle(0x6a7580, 1); bg.fillRect(rx + P(2), ry + P(2), P(4), P(4));
       });
     bg.fillStyle(WB, 0.9);
-    bg.fillRect(px, py, PW, 36);
+    bg.fillRect(px, py, PW, P(36));
     bg.fillStyle(WH, 0.4);
-    bg.fillRect(px, py + 34, PW, 2);
+    bg.fillRect(px, py + P(34), PW, P(2));
     bg.fillStyle(WB, 1);
-    bg.fillRect(px, py + 36, PW, 1);
+    bg.fillRect(px, py + P(36), PW, P(1));
     container.add(bg);
 
-    container.add(this.add.text(0, py + 18, '物  品', {
-      fontSize: '15px', color: '#e8c070', stroke: '#1a0800', strokeThickness: 2,
+    container.add(this.add.text(0, py + P(18), '物  品', {
+      fontSize: F(15), fontStyle: 'bold', color: '#e8c070', stroke: '#1a0800', strokeThickness: 2,
     }).setOrigin(0.5));
 
-    const closeBtn = this.add.text(px + PW - 20, py + 18, '✕', {
-      fontSize: '15px', color: '#cc4444', stroke: '#1a0800', strokeThickness: 2,
+    const closeBtn = this.add.text(px + PW - P(20), py + P(18), '✕', {
+      fontSize: F(15), fontStyle: 'bold', color: '#cc4444', stroke: '#1a0800', strokeThickness: 2,
     }).setOrigin(0.5).setInteractive({ useHandCursor: true });
     closeBtn.on('pointerdown', () => {
       InventoryStore.offChange(onItemChange);
@@ -2387,11 +2391,11 @@ export class PrepScene extends Phaser.Scene {
     container.add(closeBtn);
 
     // ── Item grid ─────────────────────────────────────────
-    const gridY    = py + 44;
-    const cellSz   = 80;
-    const cellGap  = 8;
-    const gridLeft = px + 10;
-    const cols     = Math.floor((PW - 20 + cellGap) / (cellSz + cellGap));
+    const gridY    = py + P(44);
+    const cellSz   = P(80);
+    const cellGap  = P(8);
+    const gridLeft = px + P(10);
+    const cols     = Math.floor((PW - P(20) + cellGap) / (cellSz + cellGap));
 
     const gridContainer = this.add.container(0, 0);
     container.add(gridContainer);
@@ -2402,11 +2406,11 @@ export class PrepScene extends Phaser.Scene {
       container.add(det);
 
       const detBg = this.add.graphics();
-      detBg.fillStyle(WD, 0.97); detBg.fillRect(px + 4, py + 37, PW - 8, PH - 41);
+      detBg.fillStyle(WD, 0.97); detBg.fillRect(px + P(4), py + P(37), PW - P(8), PH - P(41));
       det.add(detBg);
 
-      const backBtn = this.add.text(px + 16, py + 51, '← 返回', {
-        fontSize: '11px', color: '#c49050', stroke: '#1a0800', strokeThickness: 1,
+      const backBtn = this.add.text(px + P(16), py + P(51), '← 返回', {
+        fontSize: F(15), fontStyle: 'bold', color: '#c49050', stroke: '#1a0800', strokeThickness: 1,
       }).setOrigin(0, 0.5).setInteractive({ useHandCursor: true });
       backBtn.on('pointerdown', () => det.destroy());
       det.add(backBtn);
@@ -2414,31 +2418,31 @@ export class PrepScene extends Phaser.Scene {
       const iconKey = `icon_${item.id}`;
       if (this.textures.exists(iconKey)) {
         const iconBg = this.add.graphics();
-        iconBg.fillStyle(WM, 1); iconBg.fillRect(-36, py + 76, 72, 72);
-        iconBg.lineStyle(2, WL, 0.6); iconBg.strokeRect(-36, py + 76, 72, 72);
+        iconBg.fillStyle(WM, 1); iconBg.fillRect(-P(36), py + P(76), P(72), P(72));
+        iconBg.lineStyle(2, WL, 0.6); iconBg.strokeRect(-P(36), py + P(76), P(72), P(72));
         det.add(iconBg);
-        det.add(this.add.image(0, py + 112, iconKey).setDisplaySize(56, 56));
+        det.add(this.add.image(0, py + P(112), iconKey).setDisplaySize(P(56), P(56)));
       }
 
-      det.add(this.add.text(0, py + 160, item.name, {
-        fontSize: '16px', fontStyle: 'bold', color: '#ffe090', stroke: '#1a0800', strokeThickness: 3,
+      det.add(this.add.text(0, py + P(160), item.name, {
+        fontSize: F(16), fontStyle: 'bold', color: '#ffe090', stroke: '#1a0800', strokeThickness: 3,
       }).setOrigin(0.5));
 
       const qtyBg = this.add.graphics();
-      qtyBg.fillStyle(WM, 1); qtyBg.fillRect(-40, py + 182, 80, 26);
-      qtyBg.lineStyle(1, WL, 0.4); qtyBg.strokeRect(-40, py + 182, 80, 26);
+      qtyBg.fillStyle(WM, 1); qtyBg.fillRect(-P(40), py + P(182), P(80), P(26));
+      qtyBg.lineStyle(1, WL, 0.4); qtyBg.strokeRect(-P(40), py + P(182), P(80), P(26));
       det.add(qtyBg);
-      det.add(this.add.text(0, py + 195, `數量：${item.qty}`, {
-        fontSize: '12px', color: '#e8e070', stroke: '#1a0800', strokeThickness: 2,
+      det.add(this.add.text(0, py + P(195), `數量：${item.qty}`, {
+        fontSize: F(15), fontStyle: 'bold', color: '#e8e070', stroke: '#1a0800', strokeThickness: 2,
       }).setOrigin(0.5));
 
       const dg = this.add.graphics();
-      dg.fillStyle(WB, 1);  dg.fillRect(px + 16, py + 218, PW - 32, 1);
-      dg.fillStyle(WH, 0.3); dg.fillRect(px + 16, py + 219, PW - 32, 1);
+      dg.fillStyle(WB, 1);  dg.fillRect(px + P(16), py + P(218), PW - P(32), P(1));
+      dg.fillStyle(WH, 0.3); dg.fillRect(px + P(16), py + P(219), PW - P(32), P(1));
       det.add(dg);
 
-      det.add(this.add.text(0, py + 232, '消耗材料・可用於製作裝備', {
-        fontSize: '10px', color: '#8aaa88', stroke: '#1a0800', strokeThickness: 1,
+      det.add(this.add.text(0, py + P(232), '消耗材料・可用於製作裝備', {
+        fontSize: F(15), fontStyle: 'bold', color: '#8aaa88', stroke: '#1a0800', strokeThickness: 1,
       }).setOrigin(0.5));
     };
 
@@ -2448,7 +2452,7 @@ export class PrepScene extends Phaser.Scene {
 
       if (allItems.length === 0) {
         gridContainer.add(this.add.text(0, gridY + 40, '背包是空的', {
-          fontSize: '13px', color: '#7a5830', stroke: '#1a0800', strokeThickness: 1,
+          fontSize: F(15), fontStyle: 'bold', color: '#7a5830', stroke: '#1a0800', strokeThickness: 1,
         }).setOrigin(0.5));
         return;
       }
@@ -2462,24 +2466,24 @@ export class PrepScene extends Phaser.Scene {
         const cy2 = gridY    + row * (cellSz + cellGap);
 
         gg.fillStyle(WB, 1); gg.fillRect(cx2, cy2, cellSz, cellSz);
-        gg.fillStyle(WM, 0.8); gg.fillRect(cx2 + 2, cy2 + 2, cellSz - 4, cellSz - 4);
-        gg.fillStyle(0x70b858, 0.6); gg.fillRect(cx2, cy2, cellSz, 3);
+        gg.fillStyle(WM, 0.8); gg.fillRect(cx2 + P(2), cy2 + P(2), cellSz - P(4), cellSz - P(4));
+        gg.fillStyle(0x70b858, 0.6); gg.fillRect(cx2, cy2, cellSz, P(3));
         gg.lineStyle(1.5, WL, 0.4); gg.strokeRect(cx2, cy2, cellSz, cellSz);
 
         const iconKey = `icon_${item.id}`;
         if (this.textures.exists(iconKey)) {
           gridContainer.add(
-            this.add.image(cx2 + cellSz / 2, cy2 + 34, iconKey).setDisplaySize(44, 44),
+            this.add.image(cx2 + cellSz / 2, cy2 + P(34), iconKey).setDisplaySize(P(44), P(44)),
           );
         }
 
-        gridContainer.add(this.add.text(cx2 + cellSz / 2, cy2 + cellSz - 4, item.name, {
-          fontSize: '11px', color: '#ffe090', stroke: '#1a0800', strokeThickness: 2,
-          wordWrap: { width: cellSz - 6 }, align: 'center',
+        gridContainer.add(this.add.text(cx2 + cellSz / 2, cy2 + cellSz - P(4), item.name, {
+          fontSize: F(15), fontStyle: 'bold', color: '#ffe090', stroke: '#1a0800', strokeThickness: 2,
+          wordWrap: { width: cellSz - P(6) }, align: 'center',
         }).setOrigin(0.5, 1));
 
-        gridContainer.add(this.add.text(cx2 + cellSz - 3, cy2 + 4, `×${item.qty}`, {
-          fontSize: '12px', fontStyle: 'bold', color: '#ffe866', stroke: '#1a0800', strokeThickness: 2,
+        gridContainer.add(this.add.text(cx2 + cellSz - P(3), cy2 + P(4), `×${item.qty}`, {
+          fontSize: F(15), fontStyle: 'bold', color: '#ffe866', stroke: '#1a0800', strokeThickness: 2,
         }).setOrigin(1, 0));
 
         const tap = this.add.rectangle(cx2 + cellSz / 2, cy2 + cellSz / 2, cellSz, cellSz)
@@ -2504,8 +2508,8 @@ export class PrepScene extends Phaser.Scene {
   // ── Card Window ─────────────────────────────────────────
 
   private openCardWindow(W: number, H: number): void {
-    const PW = Math.min(W - 16, 480);
-    const PH = Math.min(H - 20, 560);
+    const PW = Math.min(W - P(16), P(480));
+    const PH = Math.min(H - P(20), P(560));
     const D  = 500;
 
     const container = this.add.container(W / 2, H / 2).setDepth(D);
@@ -2527,55 +2531,55 @@ export class PrepScene extends Phaser.Scene {
     // Panel shell (same wood style)
     const bg = this.add.graphics();
     bg.fillStyle(IRON, 1);
-    bg.fillRect(px - 3, py - 3, PW + 6, PH + 6);
+    bg.fillRect(px - P(3), py - P(3), PW + P(6), PH + P(6));
     bg.fillStyle(WL, 1);
-    bg.fillRect(px - 2, py - 2, PW + 4, PH + 4);
+    bg.fillRect(px - P(2), py - P(2), PW + P(4), PH + P(4));
     bg.fillStyle(WD, 1);
     bg.fillRect(px, py, PW, PH);
-    for (let row = 1; row < Math.ceil(PH / 24); row++) {
-      const ry = py + row * 24;
+    for (let row = 1; row < Math.ceil(PH / P(24)); row++) {
+      const ry = py + row * P(24);
       bg.lineStyle(1, WB, 0.5);
-      bg.lineBetween(px + 2, ry, px + PW - 2, ry);
+      bg.lineBetween(px + P(2), ry, px + PW - P(2), ry);
       bg.lineStyle(1, WH, 0.08);
-      bg.lineBetween(px + 2, ry + 1, px + PW - 2, ry + 1);
+      bg.lineBetween(px + P(2), ry + 1, px + PW - P(2), ry + 1);
     }
-    [[px, py], [px + PW - 8, py], [px, py + PH - 8], [px + PW - 8, py + PH - 8]]
+    [[px, py], [px + PW - P(8), py], [px, py + PH - P(8)], [px + PW - P(8), py + PH - P(8)]]
       .forEach(([rx, ry]) => {
-        bg.fillStyle(IRON, 1); bg.fillRect(rx, ry, 8, 8);
-        bg.fillStyle(0x6a7580, 1); bg.fillRect(rx + 2, ry + 2, 4, 4);
+        bg.fillStyle(IRON, 1); bg.fillRect(rx, ry, P(8), P(8));
+        bg.fillStyle(0x6a7580, 1); bg.fillRect(rx + P(2), ry + P(2), P(4), P(4));
       });
-    bg.fillStyle(WB, 0.9); bg.fillRect(px, py, PW, 36);
-    bg.fillStyle(WH, 0.4); bg.fillRect(px, py + 34, PW, 2);
-    bg.fillStyle(WB, 1);   bg.fillRect(px, py + 36, PW, 1);
+    bg.fillStyle(WB, 0.9); bg.fillRect(px, py, PW, P(36));
+    bg.fillStyle(WH, 0.4); bg.fillRect(px, py + P(34), PW, P(2));
+    bg.fillStyle(WB, 1);   bg.fillRect(px, py + P(36), PW, 1);
     container.add(bg);
 
-    container.add(this.add.text(0, py + 18, '卡  片', {
-      fontSize: '15px', color: '#e8c070', stroke: '#1a0800', strokeThickness: 2,
+    container.add(this.add.text(0, py + P(18), '卡  片', {
+      fontSize: F(15), fontStyle: 'bold', color: '#e8c070', stroke: '#1a0800', strokeThickness: 2,
     }).setOrigin(0.5));
 
-    const closeBtn = this.add.text(px + PW - 20, py + 18, '✕', {
-      fontSize: '15px', color: '#cc4444', stroke: '#1a0800', strokeThickness: 2,
+    const closeBtn = this.add.text(px + PW - P(20), py + P(18), '✕', {
+      fontSize: F(15), fontStyle: 'bold', color: '#cc4444', stroke: '#1a0800', strokeThickness: 2,
     }).setOrigin(0.5).setInteractive({ useHandCursor: true });
     closeBtn.on('pointerdown', () => { cleanup(); container.destroy(); });
     container.add(closeBtn);
 
     // Layout constants
-    const CARD_W   = 72;
-    const CARD_H   = 96;
-    const SLOT_GAP = 8;
+    const CARD_W   = P(72);
+    const CARD_H   = P(96);
+    const SLOT_GAP = P(8);
     const slotsTotW = CARD_SLOT_COUNT * CARD_W + (CARD_SLOT_COUNT - 1) * SLOT_GAP;
     const slotsX0   = -slotsTotW / 2;
-    const slotsY    = py + 58;   // top of equipped row
-    const INV_TOP   = slotsY + CARD_H + 24;
-    const INV_H     = py + PH - INV_TOP - 8;
-    const INV_COLS  = 5;
-    const INV_GAP   = 10;
+    const slotsY    = py + P(58);
+    const INV_TOP   = slotsY + CARD_H + P(24);
+    const INV_H     = py + PH - INV_TOP - P(8);
+    const INV_COLS = 5;
+    const INV_GAP   = P(10);
     const invTotW   = INV_COLS * CARD_W + (INV_COLS - 1) * INV_GAP;
     const invX0     = -invTotW / 2;
 
     // ── Equipped slots label ──────────────────────────────
-    container.add(this.add.text(0, slotsY - 14, '裝備中', {
-      fontSize: '13px', color: '#b07030', stroke: '#1a0800', strokeThickness: 1,
+    container.add(this.add.text(0, slotsY - P(14), '裝備中', {
+      fontSize: F(15), fontStyle: 'bold', color: '#b07030', stroke: '#1a0800', strokeThickness: 1,
     }).setOrigin(0.5));
 
     // ── Content sub-container (rebuilt on change) ──────────
@@ -2591,7 +2595,7 @@ export class PrepScene extends Phaser.Scene {
       const SILV = 0xb87333;   // 銅色框
       // 陰影
       g.fillStyle(0x000000, 0.35);
-      g.fillRect(x + 2, y + 2, w, h);
+      g.fillRect(x + P(2), y + P(2), w, h);
       // 底色
       g.fillStyle(WMI, 1);
       g.fillRect(x, y, w, h);
@@ -2600,18 +2604,18 @@ export class PrepScene extends Phaser.Scene {
       g.strokeRect(x, y, w, h);
       // 內框
       g.lineStyle(1, SILV, 0.4);
-      g.strokeRect(x + 3, y + 3, w - 6, h - 6);
+      g.strokeRect(x + P(3), y + P(3), w - P(6), h - P(6));
       // 四角裝飾點
-      const cr = 3;
+      const cr = P(3);
       g.fillStyle(SILV, 0.85);
-      g.fillCircle(x + cr + 1,     y + cr + 1,     cr);
-      g.fillCircle(x + w - cr - 1, y + cr + 1,     cr);
-      g.fillCircle(x + cr + 1,     y + h - cr - 1, cr);
-      g.fillCircle(x + w - cr - 1, y + h - cr - 1, cr);
+      g.fillCircle(x + cr + P(1),     y + cr + P(1),     cr);
+      g.fillCircle(x + w - cr - P(1), y + cr + P(1),     cr);
+      g.fillCircle(x + cr + P(1),     y + h - cr - P(1), cr);
+      g.fillCircle(x + w - cr - P(1), y + h - cr - P(1), cr);
       // 上下橫紋
       g.lineStyle(1.5, SILV, 0.45);
-      g.lineBetween(x + 10, y + 8,     x + w - 10, y + 8);
-      g.lineBetween(x + 10, y + h - 8, x + w - 10, y + h - 8);
+      g.lineBetween(x + P(10), y + P(8),     x + w - P(10), y + P(8));
+      g.lineBetween(x + P(10), y + h - P(8), x + w - P(10), y + h - P(8));
     };
 
     // ── Helper: 菁英卡片（銀框質感）─────────────────────────
@@ -2655,7 +2659,7 @@ export class PrepScene extends Phaser.Scene {
       const GOLD = 0xf0c040;
       // 陰影
       g.fillStyle(0x000000, 0.5);
-      g.fillRect(x + 3, y + 3, w, h);
+      g.fillRect(x + P(3), y + P(3), w, h);
       // 底色（同小怪卡）
       g.fillStyle(WMI, 1);
       g.fillRect(x, y, w, h);
@@ -2664,18 +2668,18 @@ export class PrepScene extends Phaser.Scene {
       g.strokeRect(x, y, w, h);
       // 內框
       g.lineStyle(1, GOLD, 0.45);
-      g.strokeRect(x + 3, y + 3, w - 6, h - 6);
+      g.strokeRect(x + P(3), y + P(3), w - P(6), h - P(6));
       // 四角裝飾點
-      const cr = 3;
+      const cr = P(3);
       g.fillStyle(GOLD, 0.9);
-      g.fillCircle(x + cr + 1,     y + cr + 1,     cr);
-      g.fillCircle(x + w - cr - 1, y + cr + 1,     cr);
-      g.fillCircle(x + cr + 1,     y + h - cr - 1, cr);
-      g.fillCircle(x + w - cr - 1, y + h - cr - 1, cr);
+      g.fillCircle(x + cr + P(1),     y + cr + P(1),     cr);
+      g.fillCircle(x + w - cr - P(1), y + cr + P(1),     cr);
+      g.fillCircle(x + cr + P(1),     y + h - cr - P(1), cr);
+      g.fillCircle(x + w - cr - P(1), y + h - cr - P(1), cr);
       // 上下橫紋
       g.lineStyle(1.5, GOLD, 0.55);
-      g.lineBetween(x + 10, y + 8,     x + w - 10, y + 8);
-      g.lineBetween(x + 10, y + h - 8, x + w - 10, y + h - 8);
+      g.lineBetween(x + P(10), y + P(8),     x + w - P(10), y + P(8));
+      g.lineBetween(x + P(10), y + h - P(8), x + w - P(10), y + h - P(8));
     };
 
     // ── Slot-pick overlay ─────────────────────────────────
@@ -2700,11 +2704,11 @@ export class PrepScene extends Phaser.Scene {
       const oldDef = getCardDef(oldCardId)!;
 
       // ── fixed layout ──────────────────────────────────────
-      const PDW    = 340, PDH = 310;
-      const CW     = 130, CH  = 175;
-      const GAP    = 20;
-      const CARD_Y = -20;           // card center y (relative to popup center)
-      const BTN_Y  = PDH / 2 - 24; // button center y (inside frame)
+      const PDW    = P(340), PDH = P(310);
+      const CW     = P(130), CH  = P(175);
+      const GAP    = P(20);
+      const CARD_Y = -P(20);
+      const BTN_Y  = PDH / 2 - P(24);
       const popY   = 0;
 
       // backdrop
@@ -2714,21 +2718,21 @@ export class PrepScene extends Phaser.Scene {
       pbg.lineStyle(2, 0xc89040, 0.8);
       pbg.strokeRect(-PDW / 2, popY - PDH / 2, PDW, PDH);
       pbg.lineStyle(1, 0xc89040, 0.3);
-      pbg.strokeRect(-PDW / 2 + 4, popY - PDH / 2 + 4, PDW - 8, PDH - 8);
+      pbg.strokeRect(-PDW / 2 + P(4), popY - PDH / 2 + P(4), PDW - P(8), PDH - P(8));
       // title bar
       pbg.fillStyle(0x2a1608, 1);
-      pbg.fillRect(-PDW / 2, popY - PDH / 2, PDW, 26);
+      pbg.fillRect(-PDW / 2, popY - PDH / 2, PDW, P(26));
       pbg.lineStyle(1, 0xc89040, 0.4);
-      pbg.lineBetween(-PDW / 2, popY - PDH / 2 + 26, PDW / 2, popY - PDH / 2 + 26);
+      pbg.lineBetween(-PDW / 2, popY - PDH / 2 + P(26), PDW / 2, popY - PDH / 2 + P(26));
       slotPickLayer.add(pbg);
 
-      slotPickLayer.add(this.add.text(0, popY - PDH / 2 + 13, '替換卡片', {
-        fontSize: '13px', fontStyle: 'bold', color: '#e8c070', stroke: '#000', strokeThickness: 2,
+      slotPickLayer.add(this.add.text(0, popY - PDH / 2 + P(13), '替換卡片', {
+        fontSize: F(15), fontStyle: 'bold', color: '#e8c070', stroke: '#000', strokeThickness: 2,
       }).setOrigin(0.5));
 
       // arrow
       slotPickLayer.add(this.add.text(0, popY + CARD_Y, '→', {
-        fontSize: '20px', color: '#ffee88', stroke: '#000', strokeThickness: 2,
+        fontSize: F(20), fontStyle: 'bold', color: '#ffee88', stroke: '#000', strokeThickness: 2,
       }).setOrigin(0.5));
 
       // mini card
@@ -2744,14 +2748,14 @@ export class PrepScene extends Phaser.Scene {
         slotPickLayer!.add(mg);
 
         // label (現有 / 新增)
-        slotPickLayer!.add(this.add.text(cx, cy - CH / 2 + 8, label, {
-          fontSize: '10px', fontStyle: 'bold', color: labelColor, stroke: '#000', strokeThickness: 1,
+        slotPickLayer!.add(this.add.text(cx, cy - CH / 2 + P(8), label, {
+          fontSize: F(15), fontStyle: 'bold', color: labelColor, stroke: '#000', strokeThickness: 1,
         }).setOrigin(0.5, 0));
 
         // card name
-        slotPickLayer!.add(this.add.text(cx, cy - CH / 2 + 24, def.name, {
-          fontSize: '11px', fontStyle: 'bold', color: '#f0d080', stroke: '#000', strokeThickness: 2,
-          wordWrap: { width: CW - 12 }, align: 'center',
+        slotPickLayer!.add(this.add.text(cx, cy - CH / 2 + P(24), def.name, {
+          fontSize: F(15), fontStyle: 'bold', color: '#f0d080', stroke: '#000', strokeThickness: 2,
+          wordWrap: { width: CW - P(12) }, align: 'center',
         }).setOrigin(0.5, 0));
 
         // monster sprite — same scale logic as detail popup
@@ -2759,16 +2763,16 @@ export class PrepScene extends Phaser.Scene {
         if (monDef) {
           try {
             const sprScale = monsterCardScale(monTier);
-            const sp = this.add.sprite(cx, cy - 8, `${monDef.spriteKey}_idle`, 0).setScale(sprScale);
+            const sp = this.add.sprite(cx, cy - P(8), `${monDef.spriteKey}_idle`, 0).setScale(sprScale);
             if (monDef.tint !== 0xffffff) sp.setTint(monDef.tint);
             slotPickLayer!.add(sp);
           } catch { /* */ }
         }
 
         // effect desc
-        slotPickLayer!.add(this.add.text(cx, cy + CH / 2 - 8, def.desc, {
-          fontSize: '10px', color: '#c8a060', stroke: '#000', strokeThickness: 1,
-          wordWrap: { width: CW - 12, useAdvancedWrap: true }, align: 'center', maxLines: 3,
+        slotPickLayer!.add(this.add.text(cx, cy + CH / 2 - P(8), def.desc, {
+          fontSize: F(15), fontStyle: 'bold', color: '#c8a060', stroke: '#000', strokeThickness: 1,
+          wordWrap: { width: CW - P(12), useAdvancedWrap: true }, align: 'center', maxLines: 3,
         }).setOrigin(0.5, 1));
       };
 
@@ -2777,17 +2781,17 @@ export class PrepScene extends Phaser.Scene {
       drawMiniCard(newDef,   cardCX, '新增', '#99ff99');
 
       // ── Buttons (inside frame) ──────────────────────────
-      const BW = 118, BH = 30;
+      const BW = P(118), BH = P(30);
       const btnY = popY + BTN_Y;
 
       const confirmBg = this.add.graphics();
-      confirmBg.fillStyle(0x0e2a0e, 1); confirmBg.fillRect(-BW - 4, btnY - BH / 2, BW, BH);
-      confirmBg.lineStyle(1.5, 0x44cc44, 0.9); confirmBg.strokeRect(-BW - 4, btnY - BH / 2, BW, BH);
+      confirmBg.fillStyle(0x0e2a0e, 1); confirmBg.fillRect(-BW - P(4), btnY - BH / 2, BW, BH);
+      confirmBg.lineStyle(1.5, 0x44cc44, 0.9); confirmBg.strokeRect(-BW - P(4), btnY - BH / 2, BW, BH);
       slotPickLayer.add(confirmBg);
-      slotPickLayer.add(this.add.text(-BW / 2 - 4, btnY, '確認替換', {
-        fontSize: '13px', fontStyle: 'bold', color: '#88ff88', stroke: '#000', strokeThickness: 2,
+      slotPickLayer.add(this.add.text(-BW / 2 - P(4), btnY, '確認替換', {
+        fontSize: F(15), fontStyle: 'bold', color: '#88ff88', stroke: '#000', strokeThickness: 2,
       }).setOrigin(0.5));
-      const confirmHit = this.add.rectangle(-BW / 2 - 4, btnY, BW, BH).setInteractive({ useHandCursor: true });
+      const confirmHit = this.add.rectangle(-BW / 2 - P(4), btnY, BW, BH).setInteractive({ useHandCursor: true });
       confirmHit.on('pointerdown', (ptr: Phaser.Input.Pointer) => {
         ptr.event.stopPropagation();
         CardStore.equip(newCardId, slot);
@@ -2797,13 +2801,13 @@ export class PrepScene extends Phaser.Scene {
       slotPickLayer.add(confirmHit);
 
       const cancelBg = this.add.graphics();
-      cancelBg.fillStyle(0x1a1a1a, 1); cancelBg.fillRect(4, btnY - BH / 2, BW, BH);
-      cancelBg.lineStyle(1.5, 0x666666, 0.9); cancelBg.strokeRect(4, btnY - BH / 2, BW, BH);
+      cancelBg.fillStyle(0x1a1a1a, 1); cancelBg.fillRect(P(4), btnY - BH / 2, BW, BH);
+      cancelBg.lineStyle(1.5, 0x666666, 0.9); cancelBg.strokeRect(P(4), btnY - BH / 2, BW, BH);
       slotPickLayer.add(cancelBg);
-      slotPickLayer.add(this.add.text(BW / 2 + 4, btnY, '取  消', {
-        fontSize: '13px', fontStyle: 'bold', color: '#aaaaaa', stroke: '#000', strokeThickness: 2,
+      slotPickLayer.add(this.add.text(BW / 2 + P(4), btnY, '取  消', {
+        fontSize: F(15), fontStyle: 'bold', color: '#aaaaaa', stroke: '#000', strokeThickness: 2,
       }).setOrigin(0.5));
-      const cancelHit = this.add.rectangle(BW / 2 + 4, btnY, BW, BH).setInteractive({ useHandCursor: true });
+      const cancelHit = this.add.rectangle(BW / 2 + P(4), btnY, BW, BH).setInteractive({ useHandCursor: true });
       cancelHit.on('pointerdown', (ptr: Phaser.Input.Pointer) => { ptr.event.stopPropagation(); clearSlotPick(); });
       slotPickLayer.add(cancelHit);
     };
@@ -2818,8 +2822,8 @@ export class PrepScene extends Phaser.Scene {
       dim.on('pointerdown', clearSlotPick);
       slotPickLayer.add(dim);
 
-      slotPickLayer.add(this.add.text(0, slotsY - 18, '請選擇要替換進來的卡片　（點擊空白處取消）', {
-        fontSize: '11px', color: '#ffee88', stroke: '#000', strokeThickness: 2,
+      slotPickLayer.add(this.add.text(0, slotsY - P(18), '請選擇要替換進來的卡片　（點擊空白處取消）', {
+        fontSize: F(15), fontStyle: 'bold', color: '#ffee88', stroke: '#000', strokeThickness: 2,
       }).setOrigin(0.5, 1));
 
       const invItems = CardStore.getInventory();
@@ -2847,7 +2851,7 @@ export class PrepScene extends Phaser.Scene {
         if (canEquip) {
           const hg = this.add.graphics();
           hg.lineStyle(2.5, 0x44ff88, 1);
-          hg.strokeRect(cx - CARD_W / 2 - 3, cy - CARD_H / 2 - 3, CARD_W + 6, CARD_H + 6);
+          hg.strokeRect(cx - CARD_W / 2 - P(3), cy - CARD_H / 2 - P(3), CARD_W + P(6), CARD_H + P(6));
           hg.fillStyle(0x44ff88, 0.12);
           hg.fillRect(cx - CARD_W / 2, cy - CARD_H / 2, CARD_W, CARD_H);
           slotPickLayer!.add(hg);
@@ -2876,8 +2880,8 @@ export class PrepScene extends Phaser.Scene {
       dim.on('pointerdown', clearSlotPick);
       slotPickLayer.add(dim);
 
-      slotPickLayer.add(this.add.text(0, slotsY - 18, '請選擇要配置的格子　（點擊空白處取消）', {
-        fontSize: '11px', color: '#ffee88', stroke: '#000', strokeThickness: 2,
+      slotPickLayer.add(this.add.text(0, slotsY - P(18), '請選擇要配置的格子　（點擊空白處取消）', {
+        fontSize: F(15), fontStyle: 'bold', color: '#ffee88', stroke: '#000', strokeThickness: 2,
       }).setOrigin(0.5, 1));
 
       const eq = CardStore.getEquipped();
@@ -2891,12 +2895,12 @@ export class PrepScene extends Phaser.Scene {
         const hg = this.add.graphics();
         if (canEquip) {
           hg.lineStyle(2.5, 0x44ff88, 1);
-          hg.strokeRect(cx - CARD_W / 2 - 3, cy - CARD_H / 2 - 3, CARD_W + 6, CARD_H + 6);
+          hg.strokeRect(cx - CARD_W / 2 - P(3), cy - CARD_H / 2 - P(3), CARD_W + P(6), CARD_H + P(6));
           hg.fillStyle(0x44ff88, 0.18);
           hg.fillRect(cx - CARD_W / 2, cy - CARD_H / 2, CARD_W, CARD_H);
         } else {
           hg.lineStyle(2, 0x666666, 0.5);
-          hg.strokeRect(cx - CARD_W / 2 - 3, cy - CARD_H / 2 - 3, CARD_W + 6, CARD_H + 6);
+          hg.strokeRect(cx - CARD_W / 2 - P(3), cy - CARD_H / 2 - P(3), CARD_W + P(6), CARD_H + P(6));
         }
         slotPickLayer.add(hg);
 
@@ -2928,9 +2932,9 @@ export class PrepScene extends Phaser.Scene {
       cardId: string,
     ) => {
       detailPopup?.destroy();
-      const PDW      = 200;
-      const PDH      = 310;
-      const BANNER_H = 52;
+      const PDW      = P(200);
+      const PDH      = P(310);
+      const BANNER_H = P(52);
       const D2       = D + 10;
 
       const pop = this.add.container(0, 0).setDepth(D2);
@@ -2954,7 +2958,7 @@ export class PrepScene extends Phaser.Scene {
 
       // 陰影
       cg.fillStyle(0x000000, 0.5);
-      cg.fillRect(-PDW / 2 + 4, -PDH / 2 + 4, PDW, PDH);
+      cg.fillRect(-PDW / 2 + P(4), -PDH / 2 + P(4), PDW, PDH);
 
       // 底色（亮木色）
       cg.fillStyle(WMI, 1);
@@ -2962,21 +2966,21 @@ export class PrepScene extends Phaser.Scene {
 
       // 外框粗線（加外發光層）
       cg.lineStyle(6, FRAME_CLR, 0.2);
-      cg.strokeRect(-PDW / 2 - 2, -PDH / 2 - 2, PDW + 4, PDH + 4);
+      cg.strokeRect(-PDW / 2 - P(2), -PDH / 2 - P(2), PDW + P(4), PDH + P(4));
       cg.lineStyle(4, FRAME_CLR, 0.95);
       cg.strokeRect(-PDW / 2, -PDH / 2, PDW, PDH);
 
       // 內框細線
       cg.lineStyle(1.5, FRAME_CLR2, 0.6);
-      cg.strokeRect(-PDW / 2 + 5, -PDH / 2 + 5, PDW - 10, PDH - 10);
+      cg.strokeRect(-PDW / 2 + P(5), -PDH / 2 + P(5), PDW - P(10), PDH - P(10));
 
       // 四角裝飾點
-      const PCR = 4;
+      const PCR = P(4);
       cg.fillStyle(FRAME_CLR, 0.9);
-      cg.fillCircle(-PDW / 2 + PCR + 1, -PDH / 2 + PCR + 1, PCR);
-      cg.fillCircle( PDW / 2 - PCR - 1, -PDH / 2 + PCR + 1, PCR);
-      cg.fillCircle(-PDW / 2 + PCR + 1,  PDH / 2 - PCR - 1, PCR);
-      cg.fillCircle( PDW / 2 - PCR - 1,  PDH / 2 - PCR - 1, PCR);
+      cg.fillCircle(-PDW / 2 + PCR + P(1), -PDH / 2 + PCR + P(1), PCR);
+      cg.fillCircle( PDW / 2 - PCR - P(1), -PDH / 2 + PCR + P(1), PCR);
+      cg.fillCircle(-PDW / 2 + PCR + P(1),  PDH / 2 - PCR - P(1), PCR);
+      cg.fillCircle( PDW / 2 - PCR - P(1),  PDH / 2 - PCR - P(1), PCR);
 
       // Banner（標題區）
       cg.fillStyle(WM, 1);
@@ -2984,25 +2988,25 @@ export class PrepScene extends Phaser.Scene {
 
       // Banner 上下橫紋
       cg.lineStyle(1.5, FRAME_CLR, 0.6);
-      cg.lineBetween(-PDW / 2 + 14, -PDH / 2 + 6,        PDW / 2 - 14, -PDH / 2 + 6);
-      cg.lineBetween(-PDW / 2 + 14, -PDH / 2 + BANNER_H - 6, PDW / 2 - 14, -PDH / 2 + BANNER_H - 6);
+      cg.lineBetween(-PDW / 2 + P(14), -PDH / 2 + P(6),          PDW / 2 - P(14), -PDH / 2 + P(6));
+      cg.lineBetween(-PDW / 2 + P(14), -PDH / 2 + BANNER_H - P(6), PDW / 2 - P(14), -PDH / 2 + BANNER_H - P(6));
 
       // 底部橫紋
       cg.lineStyle(1.5, FRAME_CLR2, 0.4);
-      cg.lineBetween(-PDW / 2 + 14, PDH / 2 - 10, PDW / 2 - 14, PDH / 2 - 10);
+      cg.lineBetween(-PDW / 2 + P(14), PDH / 2 - P(10), PDW / 2 - P(14), PDH / 2 - P(10));
       pop.add(cg);
 
       // ── Banner: card name (vertically centered) ───────
       pop.add(this.add.text(0, -PDH / 2 + BANNER_H / 2, def.name, {
-        fontSize: '14px', fontStyle: 'bold',
+        fontSize: F(15), fontStyle: 'bold',
         color: '#f0d080',
         stroke: '#1a0800', strokeThickness: 2,
-        wordWrap: { width: PDW - 20, useAdvancedWrap: true }, align: 'center',
+        wordWrap: { width: PDW - P(20), useAdvancedWrap: true }, align: 'center',
         maxLines: 2,
       }).setOrigin(0.5, 0.5));
 
       // ── Monster sprite (animated) ─────────────────────
-      const SPRITE_Y = -PDH / 2 + BANNER_H + 62;
+      const SPRITE_Y = -PDH / 2 + BANNER_H + P(62);
       const monDef = getMonsterDef(def.monsterId);
       if (monDef) {
         const spriteKey  = `${monDef.spriteKey}_idle`;
@@ -3024,17 +3028,17 @@ export class PrepScene extends Phaser.Scene {
       }
 
       // ── Divider ──────────────────────────────────────
-      const DIVIDER_Y = SPRITE_Y + 56;
+      const DIVIDER_Y = SPRITE_Y + P(56);
       const dg = this.add.graphics();
       dg.lineStyle(1, WH, 0.4);
-      dg.lineBetween(-PDW / 2 + 16, DIVIDER_Y, PDW / 2 - 16, DIVIDER_Y);
+      dg.lineBetween(-PDW / 2 + P(16), DIVIDER_Y, PDW / 2 - P(16), DIVIDER_Y);
       pop.add(dg);
 
       // ── Effect description ────────────────────────────
-      pop.add(this.add.text(0, DIVIDER_Y + 10, def.desc, {
-        fontSize: '12px', color: '#c8a060',
+      pop.add(this.add.text(0, DIVIDER_Y + P(10), def.desc, {
+        fontSize: F(15), fontStyle: 'bold', color: '#c8a060',
         stroke: '#1a0800', strokeThickness: 1,
-        wordWrap: { width: PDW - 24, useAdvancedWrap: true }, align: 'center',
+        wordWrap: { width: PDW - P(24), useAdvancedWrap: true }, align: 'center',
         maxLines: 3,
       }).setOrigin(0.5, 0));
 
@@ -3044,32 +3048,32 @@ export class PrepScene extends Phaser.Scene {
       const detLimit     = CardStore.getStackLimit(cardId);
       const detEquipped  = CardStore.getEquipped().filter(s => s === cardId).length;
       const detTierColor = detMonTier >= 5 ? '#ffd060' : detMonTier === 3 ? '#80c8ff' : '#88dd88';
-      pop.add(this.add.text(0, PDH / 2 - 56, `${detTierName}怪物卡 · 裝備上限 ${detLimit}  (已裝 ${detEquipped})`, {
-        fontSize: '10px', color: detTierColor,
+      pop.add(this.add.text(0, PDH / 2 - P(56), `裝備上限 ${detEquipped}/${detLimit}`, {
+        fontSize: F(15), fontStyle: 'bold', color: detTierColor,
         stroke: '#1a0800', strokeThickness: 1, align: 'center',
       }).setOrigin(0.5, 0.5));
 
       // ── Action buttons ────────────────────────────────
       const isEquipped = equippedSlot !== null;
       const atDetLimit = !isEquipped && detEquipped >= detLimit;
-      const BH = 32, btnY = PDH / 2 - 28;
+      const BH = P(32), btnY = PDH / 2 - P(28);
 
       if (isEquipped) {
         // 裝備中：「取下」左、「替換」右
-        const HBW = (PDW - 48) / 2;
+        const HBW = (PDW - P(48)) / 2;
         const makeBtn = (ox: number, label: string, bgC: number, borderC: number, txtC: string, cb: () => void) => {
           const bg = this.add.graphics();
           bg.fillStyle(bgC, 1);    bg.fillRect(ox - HBW / 2, btnY - BH / 2, HBW, BH);
           bg.lineStyle(1.5, borderC, 0.9); bg.strokeRect(ox - HBW / 2, btnY - BH / 2, HBW, BH);
           pop.add(bg);
           pop.add(this.add.text(ox, btnY, label, {
-            fontSize: '13px', fontStyle: 'bold', color: txtC, stroke: '#000', strokeThickness: 2,
+            fontSize: F(15), fontStyle: 'bold', color: txtC, stroke: '#000', strokeThickness: 2,
           }).setOrigin(0.5));
           const hit = this.add.rectangle(ox, btnY, HBW, BH).setInteractive({ useHandCursor: true });
           hit.on('pointerdown', (ptr: Phaser.Input.Pointer) => { ptr.event.stopPropagation(); cb(); });
           pop.add(hit);
         };
-        const ox0 = -(HBW / 2 + 4), ox1 = HBW / 2 + 4;
+        const ox0 = -(HBW / 2 + P(4)), ox1 = HBW / 2 + P(4);
         makeBtn(ox0, '取  下', 0x3a1010, 0xcc4444, '#ff8888', () => {
           CardStore.unequip(equippedSlot!);
           SaveStore.save();
@@ -3087,7 +3091,7 @@ export class PrepScene extends Phaser.Scene {
         }
       } else {
         // 庫存中：「配置」或「已達上限」
-        const BW = PDW - 40;
+        const BW = PDW - P(40);
         const btnBg = this.add.graphics();
         btnBg.fillStyle(atDetLimit ? 0x2a2a2a : 0x0e2a0e, 1);
         btnBg.fillRect(-BW / 2, btnY - BH / 2, BW, BH);
@@ -3095,7 +3099,7 @@ export class PrepScene extends Phaser.Scene {
         btnBg.strokeRect(-BW / 2, btnY - BH / 2, BW, BH);
         pop.add(btnBg);
         pop.add(this.add.text(0, btnY, atDetLimit ? '已達上限' : '配  置', {
-          fontSize: '14px', fontStyle: 'bold',
+          fontSize: F(15), fontStyle: 'bold',
           color: atDetLimit ? '#666666' : '#88ff88', stroke: '#000000', strokeThickness: 2,
         }).setOrigin(0.5));
         if (!atDetLimit) {
@@ -3123,14 +3127,14 @@ export class PrepScene extends Phaser.Scene {
       if (variant === 'A' || variant === 'B' || variant === 'C') {
         const vColor = '#ffffff';
         target.add(this.add.text(cx, cy, variant, {
-          fontSize: '88px', fontStyle: 'bold', color: vColor,
+          fontSize: F(88), fontStyle: 'bold', color: vColor,
         }).setOrigin(0.5).setAlpha(0.15));
       }
 
       // 數量標籤（右上角）
       if (qty !== undefined && qty > 1) {
-        target.add(this.add.text(cx + CARD_W / 2 - 2, cy - CARD_H / 2 + 3, `×${qty}`, {
-          fontSize: '10px', fontStyle: 'bold', color: '#ffee88', stroke: '#000000', strokeThickness: 1,
+        target.add(this.add.text(cx + CARD_W / 2 - P(2), cy - CARD_H / 2 + P(3), `×${qty}`, {
+          fontSize: F(15), fontStyle: 'bold', color: '#ffee88', stroke: '#000000', strokeThickness: 1,
         }).setOrigin(1, 0));
       }
       // 怪物精靈圖，播放 idle 動畫
@@ -3193,24 +3197,24 @@ export class PrepScene extends Phaser.Scene {
           contentCnt.add(hit);
         } else {
           contentCnt.add(this.add.text(cx, cy, `${i + 1}`, {
-            fontSize: '13px', color: '#5a3818', stroke: '#1a0800', strokeThickness: 1,
+            fontSize: F(15), fontStyle: 'bold', color: '#5a3818', stroke: '#1a0800', strokeThickness: 1,
           }).setOrigin(0.5));
         }
       }
 
       // Separator
       const sepGfx = this.add.graphics();
-      sepGfx.fillStyle(WB, 1);   sepGfx.fillRect(px + 8, INV_TOP - 10, PW - 16, 1);
-      sepGfx.fillStyle(WH, 0.2); sepGfx.fillRect(px + 8, INV_TOP - 9,  PW - 16, 1);
+      sepGfx.fillStyle(WB, 1);   sepGfx.fillRect(px + P(8), INV_TOP - P(10), PW - P(16), 1);
+      sepGfx.fillStyle(WH, 0.2); sepGfx.fillRect(px + P(8), INV_TOP - P(9),  PW - P(16), 1);
       contentCnt.add(sepGfx);
-      contentCnt.add(this.add.text(0, INV_TOP - 5, '持有卡片', {
-        fontSize: '13px', color: '#b07030', stroke: '#1a0800', strokeThickness: 1,
+      contentCnt.add(this.add.text(0, INV_TOP - P(5), '持有卡片', {
+        fontSize: F(15), fontStyle: 'bold', color: '#b07030', stroke: '#1a0800', strokeThickness: 1,
       }).setOrigin(0.5, 1));
 
       // ── Inventory scroll area ──────────────────────────
       if (invItems.length === 0) {
         contentCnt.add(this.add.text(0, INV_TOP + INV_H / 2, '尚未獲得任何卡片', {
-          fontSize: '11px', color: '#5a3818', stroke: '#1a0800', strokeThickness: 1,
+          fontSize: F(15), fontStyle: 'bold', color: '#5a3818', stroke: '#1a0800', strokeThickness: 1,
         }).setOrigin(0.5));
         return;
       }
@@ -3227,7 +3231,7 @@ export class PrepScene extends Phaser.Scene {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const maskShape = (this.make.graphics as any)({ x: 0, y: 0, add: false }) as Phaser.GameObjects.Graphics;
       maskShape.fillStyle(0xffffff);
-      maskShape.fillRect(W / 2 + px + 4, H / 2 + INV_TOP, PW - 8, INV_H);
+      maskShape.fillRect(W / 2 + px + P(4), H / 2 + INV_TOP, PW - P(8), INV_H);
       scrollCnt.setMask(maskShape.createGeometryMask());
 
       const applyScroll = (dy: number) => {
@@ -3256,8 +3260,8 @@ export class PrepScene extends Phaser.Scene {
         const stackLimit    = CardStore.getStackLimit(cardId);
         const atLimit       = equippedCount >= stackLimit;
         const badgeColor    = atLimit ? '#cc2222' : equippedCount > 0 ? '#cc8800' : '#226622';
-        scrollCnt.add(this.add.text(cx - CARD_W / 2 + 2, cy + CARD_H / 2 - 2, `${equippedCount}/${stackLimit}`, {
-          fontSize: '9px', fontStyle: 'bold', color: '#ffffff',
+        scrollCnt.add(this.add.text(cx - CARD_W / 2 + P(2), cy + CARD_H / 2 - P(2), `${equippedCount}/${stackLimit}`, {
+          fontSize: F(15), fontStyle: 'bold', color: '#ffffff',
           stroke: '#000000', strokeThickness: 1,
           backgroundColor: badgeColor, padding: { x: 2, y: 1 },
         }).setOrigin(0, 1));
@@ -3273,7 +3277,7 @@ export class PrepScene extends Phaser.Scene {
       });
 
       // Single hit zone covering the inventory area — avoids overlapping equipped-slot hits
-      const invZone = this.add.rectangle(0, INV_TOP + INV_H / 2, PW - 16, INV_H)
+      const invZone = this.add.rectangle(0, INV_TOP + INV_H / 2, PW - P(16), INV_H)
         .setInteractive({ useHandCursor: true });
       contentCnt.add(invZone);
       invZone.on('pointerdown', (ptr: Phaser.Input.Pointer) => {
@@ -3326,18 +3330,18 @@ export class PrepScene extends Phaser.Scene {
     box.fillStyle(0x1a1208, 0.97); box.fillRect(W / 2 - bw / 2, H / 2 - bh / 2, bw, bh);
     box.lineStyle(2, 0xd4a044, 0.8); box.strokeRect(W / 2 - bw / 2, H / 2 - bh / 2, bw, bh);
     const txt = this.add.text(W / 2, H / 2 - 14, `${label}`, {
-      fontSize: '15px', fontStyle: 'bold', color: '#e8c070', stroke: '#1a0800', strokeThickness: 2,
+      fontSize: F(15), fontStyle: 'bold', color: '#e8c070', stroke: '#1a0800', strokeThickness: 2,
     }).setOrigin(0.5).setDepth(D + 2);
     const sub = this.add.text(W / 2, H / 2 + 14, '功能待開發', {
-      fontSize: '12px', color: '#886644', stroke: '#1a0800', strokeThickness: 1,
+      fontSize: F(15), fontStyle: 'bold', color: '#886644', stroke: '#1a0800', strokeThickness: 1,
     }).setOrigin(0.5).setDepth(D + 2);
     const close = () => { bk.destroy(); box.destroy(); txt.destroy(); sub.destroy(); };
     bk.on('pointerdown', close);
   }
 
   private showShopPanel(W: number, H: number): void {
-    const PW = Math.min(320, W - 20);
-    const PH = Math.min(400, H - 40);
+    const PW = Math.min(P(320), W - P(20));
+    const PH = Math.min(P(400), H - P(40));
     const D  = 500;
 
     const container = this.add.container(W / 2, H / 2).setDepth(D);
@@ -3381,11 +3385,11 @@ export class PrepScene extends Phaser.Scene {
     container.add(bg);
 
     container.add(this.add.text(0, py + 18, '商  店', {
-      fontSize: '15px', color: '#e8c070', stroke: '#1a0800', strokeThickness: 2,
+      fontSize: F(15), fontStyle: 'bold', color: '#e8c070', stroke: '#1a0800', strokeThickness: 2,
     }).setOrigin(0.5));
 
     const closeBtn = this.add.text(px + PW - 20, py + 18, '✕', {
-      fontSize: '15px', color: '#cc4444', stroke: '#1a0800', strokeThickness: 2,
+      fontSize: F(15), fontStyle: 'bold', color: '#cc4444', stroke: '#1a0800', strokeThickness: 2,
     }).setOrigin(0.5).setInteractive({ useHandCursor: true });
     closeBtn.on('pointerdown', () => container.destroy());
     container.add(closeBtn);
@@ -3398,8 +3402,8 @@ export class PrepScene extends Phaser.Scene {
       { id: 'enhance_charm', name: '裝備保護符', price: 500, desc: '強化失敗時保護詞墜',  color: 0xff88cc },
     ];
 
-    const ROW_H   = 68;
-    const ROW_PAD = 8;
+    const ROW_H    = P(68);
+    const ROW_PAD  = P(8);
     const startY  = py + 50;
 
     // Gold display
@@ -3409,7 +3413,7 @@ export class PrepScene extends Phaser.Scene {
     };
 
     goldLabel = this.add.text(0, py + 38, '', {
-      fontSize: '11px', color: '#d4a044', stroke: '#1a0800', strokeThickness: 1,
+      fontSize: F(15), fontStyle: 'bold', color: '#d4a044', stroke: '#1a0800', strokeThickness: 1,
     }).setOrigin(0.5, 0);
     refreshGold();
     container.add(goldLabel);
@@ -3434,22 +3438,22 @@ export class PrepScene extends Phaser.Scene {
 
       // Item name
       container.add(this.add.text(px + 22, ry + 10, item.name, {
-        fontSize: '13px', color: `#${item.color.toString(16).padStart(6, '0')}`,
+        fontSize: F(15), fontStyle: 'bold', color: `#${item.color.toString(16).padStart(6, '0')}`,
         stroke: '#1a0800', strokeThickness: 2,
       }).setOrigin(0, 0));
 
       // Description
       container.add(this.add.text(px + 22, ry + 28, item.desc, {
-        fontSize: '10px', color: '#a08060', stroke: '#1a0800', strokeThickness: 1,
+        fontSize: F(15), fontStyle: 'bold', color: '#a08060', stroke: '#1a0800', strokeThickness: 1,
       }).setOrigin(0, 0));
 
       // Price
       container.add(this.add.text(px + 22, ry + 46, `${item.price} 金幣`, {
-        fontSize: '11px', color: '#d4a044', stroke: '#1a0800', strokeThickness: 1,
+        fontSize: F(15), fontStyle: 'bold', color: '#d4a044', stroke: '#1a0800', strokeThickness: 1,
       }).setOrigin(0, 0));
 
       // Buy button
-      const BW = 60; const BH = 26;
+      const BW = P(60); const BH = P(26);
       const bx  = px + PW - 16 - BW / 2;
       const by  = ry + ROW_H / 2;
 
@@ -3465,7 +3469,7 @@ export class PrepScene extends Phaser.Scene {
       container.add(btnGfx);
 
       const btnTxt = this.add.text(bx, by, '購買', {
-        fontSize: '12px', color: '#e8c870', stroke: '#1a0800', strokeThickness: 2,
+        fontSize: F(15), fontStyle: 'bold', color: '#e8c870', stroke: '#1a0800', strokeThickness: 2,
       }).setOrigin(0.5);
       container.add(btnTxt);
 
@@ -3494,10 +3498,10 @@ export class PrepScene extends Phaser.Scene {
 
   private drawCenterHero(W: number, H: number): void {
     const cx       = W / 2;
-    const BOTTOM_H = 78;
+    const BOTTOM_H = P(78);
     const availH   = H - TOP_H - BOTTOM_H;
     const heroY    = TOP_H + availH * 0.50;
-    const scale    = 3.5;
+    const scale    = 1.75 * DPR;
 
 
     // ── Animated hero sprite ───────────────────────────────
@@ -3520,9 +3524,9 @@ export class PrepScene extends Phaser.Scene {
 
 
   private drawAmbientParticles(W: number, H: number): void {
-    const BOTTOM_H  = 78;
-    const zoneTop   = TOP_H + 40;
-    const zoneBot   = H - BOTTOM_H - 20;
+    const BOTTOM_H  = P(78);
+    const zoneTop   = TOP_H + P(40);
+    const zoneBot   = H - BOTTOM_H - P(20);
     const colors    = [0xffd060, 0x88ddff, 0xffaa44, 0xaaffcc, 0xff88cc];
 
     for (let i = 0; i < 22; i++) {

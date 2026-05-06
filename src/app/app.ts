@@ -39,12 +39,13 @@ export class App implements AfterViewInit {
       });
     }
 
+    const dpr = Math.min(window.devicePixelRatio || 1, 3);
     const game = new Phaser.Game({
       type: Phaser.AUTO,
       parent: 'game-container',
       backgroundColor: '#0d0d1a',
-      width:  gameW,
-      height: gameH,
+      width:  Math.round(gameW * dpr),
+      height: Math.round(gameH * dpr),
       scene: [PrepScene, GameScene],
       scale: { mode: Phaser.Scale.NONE },
       render: { roundPixels: true },
@@ -54,7 +55,14 @@ export class App implements AfterViewInit {
       },
     });
 
-    game.events.once('ready', () => this.patchRotationInput(game, isPortrait));
+    game.events.once('ready', () => {
+      game.canvas.style.width  = `${gameW}px`;
+      game.canvas.style.height = `${gameH}px`;
+      // Force Phaser to recompute canvasBounds and displayScale after CSS override,
+      // otherwise pointer coordinates won't be DPR-scaled and hit testing fails.
+      game.scale.refresh();
+      this.patchRotationInput(game, isPortrait);
+    });
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (window as any).addRerollStone = (n = 1) => {

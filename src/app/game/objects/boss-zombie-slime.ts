@@ -2,15 +2,17 @@ import Phaser from 'phaser';
 import { Boss, BossState } from './boss';
 import { MONSTER_SCALE_BOSS } from '../data/monster-data';
 
-const SUMMON_DIST  = 85;
+const DPR = Math.min(window.devicePixelRatio || 1, 3);
+
+const SUMMON_DIST  = Math.round(85 * DPR);
 const SUMMON_COUNT = 3;
 
-const FAN_RANGE      = 380;
-const FAN_SPEED      = 230;       // px/s
+const FAN_RANGE      = Math.round(380 * DPR);
+const FAN_SPEED      = 230 * DPR;       // px/s
 const FAN_HALF_DEG   = 15;        // 每個扇形半角 → 全扇 30°
 const FAN_PROJS      = 4;         // 每扇投射物數
 const FAN_SIDE_DEG   = 55;        // 中心扇與側扇的夾角
-const FAN_HIT_R      = 16;
+const FAN_HIT_R      = Math.round(16 * DPR);
 const FAN_DMG        = 30;
 
 export class BossZombieSlime extends Boss {
@@ -84,7 +86,7 @@ export class BossZombieSlime extends Boss {
     });
 
     this.zombieScaleTween = this.scene.tweens.add({
-      targets: this, scaleX: 2.22, scaleY: 2.22,
+      targets: this, scaleX: 2.22 * DPR, scaleY: 2.22 * DPR,
       duration: 260, yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
     });
     const scaleTween = this.zombieScaleTween;

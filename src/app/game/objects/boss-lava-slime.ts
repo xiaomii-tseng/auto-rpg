@@ -1,12 +1,14 @@
 import Phaser from 'phaser';
 import { Boss, BossState } from './boss';
 
+const DPR = Math.min(window.devicePixelRatio || 1, 3);
+
 // ── 岩漿彈幕常數 ──────────────────────────────────────────
 const BARRAGE_DIRS_P1    = 8;
 const BARRAGE_DIRS_P2    = 10;
-const BARRAGE_SPEED      = 210;   // px/s
-const BARRAGE_RANGE      = 360;
-const BARRAGE_HIT_R      = 15;
+const BARRAGE_SPEED      = 210 * DPR;   // px/s
+const BARRAGE_RANGE      = Math.round(360 * DPR);
+const BARRAGE_HIT_R      = Math.round(15 * DPR);
 const BARRAGE_DMG        = 28;
 const BARRAGE_WAVES      = 3;
 const BARRAGE_WAVE_DELAY = 450;   // ms 波與波之間的間隔
@@ -16,10 +18,10 @@ const BARRAGE_FAN_PROJS  = 3;     // 每扇投射物數
 // ── 熔岩柱常數 ────────────────────────────────────────────
 const PILLAR_COUNT_P1 = 5;
 const PILLAR_COUNT_P2 = 7;
-const PILLAR_RADIUS   = 20;       // 原始 58 × 0.7 × 0.5（再縮小 50%）
+const PILLAR_RADIUS   = Math.round(20 * DPR);   // 原始 58 × 0.7 × 0.5（再縮小 50%）
 const PILLAR_DMG      = 50;
-const PILLAR_NEAR_MIN = 35;       // 玩家附近最小距離
-const PILLAR_NEAR_MAX = 110;      // 玩家附近最大距離
+const PILLAR_NEAR_MIN = Math.round(35 * DPR);   // 玩家附近最小距離
+const PILLAR_NEAR_MAX = Math.round(110 * DPR);  // 玩家附近最大距離
 
 export class BossLavaSlime extends Boss {
   onBarrageHit?:    (dmg: number) => void;
@@ -39,7 +41,7 @@ export class BossLavaSlime extends Boss {
   }
 
   private triggerPhase2(): void {
-    this.idleChaseSpeed = 110;
+    this.idleChaseSpeed = Math.round(110 * DPR);
     this.scene.cameras.main.shake(500, 0.030);
 
     const W = this.scene.scale.width, H = this.scene.scale.height;
@@ -52,11 +54,11 @@ export class BossLavaSlime extends Boss {
     });
 
     this.scene.tweens.add({
-      targets: this, scaleX: 2.85, scaleY: 2.85,
+      targets: this, scaleX: 2.85 * DPR, scaleY: 2.85 * DPR,
       duration: 280, ease: 'Back.Out',
       onComplete: () => {
         this.scene.tweens.add({
-          targets: this, scaleX: 2.3, scaleY: 2.3,
+          targets: this, scaleX: 2.3 * DPR, scaleY: 2.3 * DPR,
           duration: 320, ease: 'Quad.Out',
         });
       },

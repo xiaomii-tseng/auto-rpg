@@ -2,11 +2,13 @@ import Phaser from 'phaser';
 import { Boss, BossState } from './boss';
 import { MONSTER_SCALE_BOSS } from '../data/monster-data';
 
-const PUDDLE_RADIUS = 31;   // 原 52 × 0.6
+const DPR = Math.min(window.devicePixelRatio || 1, 3);
+
+const PUDDLE_RADIUS = Math.round(31 * DPR);   // 原 52 × 0.6
 const PUDDLE_MS     = 3000;
 const PUDDLE_TICK   = 500;
 const PUDDLE_DMG    = 20;
-const SUMMON_DIST   = 90;
+const SUMMON_DIST   = Math.round(90 * DPR);
 const ORB_COUNT     = 3;
 
 export class BossGreenSlime extends Boss {
@@ -63,7 +65,7 @@ export class BossGreenSlime extends Boss {
 
     // ── Boss 脈動縮放 ───────────────────────────────────
     const scaleTween = this.scene.tweens.add({
-      targets: this, scaleX: 2.22, scaleY: 2.22,
+      targets: this, scaleX: 2.22 * DPR, scaleY: 2.22 * DPR,
       duration: 260, yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
     });
 

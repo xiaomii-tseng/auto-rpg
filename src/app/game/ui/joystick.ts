@@ -1,5 +1,7 @@
 import Phaser from 'phaser';
 
+const DPR = Math.min(window.devicePixelRatio || 1, 3);
+
 export interface JoystickOutput {
   x: number; // -1 to 1
   y: number; // -1 to 1
@@ -10,15 +12,15 @@ export class VirtualJoystick {
   private thumb!: Phaser.GameObjects.Arc;
   private baseX = 0;
   private baseY = 0;
-  private radius = 55;
-  private thumbRadius = 24;
+  private radius = Math.round(55 * DPR);
+  private thumbRadius = Math.round(24 * DPR);
   private active = false;
   private pointerId = -1;
   private output: JoystickOutput = { x: 0, y: 0 };
 
   constructor(scene: Phaser.Scene) {
-    this.baseX = 100;
-    this.baseY = scene.scale.height - 120;
+    this.baseX = Math.round(100 * DPR);
+    this.baseY = scene.scale.height - Math.round(120 * DPR);
 
     this.base = scene.add
       .circle(this.baseX, this.baseY, this.radius, 0xffffff, 0.15)
@@ -36,7 +38,7 @@ export class VirtualJoystick {
     scene.input.on('pointerup', this.onUp, this);
 
     scene.scale.on('resize', () => {
-      this.baseY = scene.scale.height - 120;
+      this.baseY = scene.scale.height - Math.round(120 * DPR);
       this.base.setPosition(this.baseX, this.baseY);
       this.thumb.setPosition(this.baseX, this.baseY);
     });
@@ -46,7 +48,7 @@ export class VirtualJoystick {
     if (this.active) return;
     const dx = pointer.x - this.baseX;
     const dy = pointer.y - this.baseY;
-    if (dx * dx + dy * dy > (this.radius + 20) * (this.radius + 20)) return;
+    if (dx * dx + dy * dy > (this.radius + Math.round(20 * DPR)) * (this.radius + Math.round(20 * DPR))) return;
     this.active = true;
     this.pointerId = pointer.id;
     this.base.setAlpha(0.3);

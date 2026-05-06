@@ -2,13 +2,15 @@ import Phaser from 'phaser';
 import { Boss, BossState } from './boss';
 import { MONSTER_SCALE_BOSS } from '../data/monster-data';
 
-const SPIKE_RANGE   = 400;
+const DPR = Math.min(window.devicePixelRatio || 1, 3);
+
+const SPIKE_RANGE   = Math.round(400 * DPR);
 const SPIKE_DMG     = 25;
 const SPIKE_SPEED_MS = 700;
-const SPIKE_HIT_R   = 18;
+const SPIKE_HIT_R   = Math.round(18 * DPR);
 
-const MINE_SCATTER  = 60;
-const MINE_RADIUS   = 65;
+const MINE_SCATTER  = Math.round(60 * DPR);
+const MINE_RADIUS   = Math.round(65 * DPR);
 const MINE_DMG      = 45;
 const MINE_FUSE_MS  = 2000;
 

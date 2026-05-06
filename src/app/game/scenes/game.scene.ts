@@ -18,7 +18,11 @@ import { getElementMultiplier, ELEMENT_NAMES, ELEMENT_COLORS } from '../data/equ
 import { QuestStore, STAR_HP_MULT, STAR_DROP_MULT, STAR_DEF_MULT } from '../data/quest-store';
 import { ELITE_HP_MULT, ELITE_SCALE_MOD } from '../data/monster-data';
 
-const MELEE_RANGE = 60;
+const DPR = Math.min(window.devicePixelRatio || 1, 3);
+const F = (n: number): string => `${Math.round(n * DPR)}px`;
+const P = (n: number): number => Math.round(n * DPR);
+
+const MELEE_RANGE = P(60);
 
 interface LootDrop {
   obj:      Phaser.GameObjects.Image | Phaser.GameObjects.Container;
@@ -59,7 +63,7 @@ export class GameScene extends Phaser.Scene {
   private waypoints: Phaser.Math.Vector2[] = [];
   private corridorSegs: { x1: number; y1: number; x2: number; y2: number }[] = [];
   private cornerPts: { x: number; y: number }[] = [];
-  private readonly BOSS_ARENA_RADIUS = 400;
+  private readonly BOSS_ARENA_RADIUS = P(400);
   private bossArenaCenter  = new Phaser.Math.Vector2(0, 0);
   private bossArenaShape   = 0;   // 0=圓, 1=八角, 2=菱形, 3=圓角矩形
   private bossMonsterId    = 'boss_slime_white';
@@ -180,12 +184,12 @@ export class GameScene extends Phaser.Scene {
 
     this.bossHpGfx = this.add.graphics().setScrollFactor(0).setDepth(5).setVisible(false);
     this.bossHpLabel = this.add.text(W / 2, 6, '', {
-      fontSize: '11px', color: '#ffcccc', stroke: '#000', strokeThickness: 2,
+      fontSize: F(15), color: '#ffcccc', stroke: '#000', strokeThickness: 2,
     }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(6).setVisible(false);
     this.bossDebuffGfx = this.add.graphics().setScrollFactor(0).setDepth(7).setVisible(false);
     // Pre-create debuff stack labels (lazy creation inside physics callbacks causes canvas null errors)
     this.bossDebuffTexts.set('burn', this.add.text(0, 0, '', {
-      fontSize: '8px', color: '#ffffff', stroke: '#000000', strokeThickness: 2, fontStyle: 'bold',
+      fontSize: F(15), color: '#ffffff', stroke: '#000000', strokeThickness: 2, fontStyle: 'bold',
     }).setScrollFactor(0).setDepth(8).setOrigin(0.5, 0.5).setVisible(false));
 
     const kb = this.input.keyboard!;
@@ -849,7 +853,7 @@ export class GameScene extends Phaser.Scene {
       onUpdate: () => {
         for (const t of this.getHittableTargets()) {
           if (hitTargets.has(t)) continue;
-          if (Phaser.Math.Distance.Between(this.player.x, this.player.y, t.x, t.y) > 28) continue;
+          if (Phaser.Math.Distance.Between(this.player.x, this.player.y, t.x, t.y) > P(28)) continue;
           hitTargets.add(t);
           this.dealDamage(t, 0.91, this.player.x, this.player.y, dir);
         }
@@ -1915,7 +1919,7 @@ export class GameScene extends Phaser.Scene {
 
         // Keep clear around waypoints so combat space is unobstructed
         const tooClose = this.waypoints.some(
-          wp => Phaser.Math.Distance.Between(jx, jy, wp.x, wp.y) < 120,
+          wp => Phaser.Math.Distance.Between(jx, jy, wp.x, wp.y) < P(120),
         );
         if (tooClose) continue;
 
@@ -1991,7 +1995,7 @@ export class GameScene extends Phaser.Scene {
       b.onSpikeHit = (x, y, dmg) => {
         if (!this.bossActive) return;
         const dSq = Phaser.Math.Distance.BetweenPointsSquared({ x, y }, this.player);
-        if (dSq <= 18 * 18) this.player.takeDamage(dmg);
+        if (dSq <= P(18) * P(18)) this.player.takeDamage(dmg);
       };
       b.onMineExplode = (x, y, r, dmg) => {
         if (!this.bossActive) return;
@@ -2177,7 +2181,7 @@ export class GameScene extends Phaser.Scene {
 
     // 浮動標籤
     const label = this.add.text(px, py - 30, '⚡ BOSS ⚡', {
-      fontSize: '11px', color: '#dd88ff', stroke: '#220033', strokeThickness: 3,
+      fontSize: F(15), color: '#dd88ff', stroke: '#220033', strokeThickness: 3,
     }).setOrigin(0.5).setDepth(8);
     this.tweens.add({ targets: label, y: py - 36, alpha: { from: 0.7, to: 1.0 }, duration: 1000, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
 
@@ -2538,7 +2542,7 @@ export class GameScene extends Phaser.Scene {
 
     if (isCrit) {
       const crit = this.add.text(x + ox + 2, y - 38, '暴擊！', {
-        fontSize: '9px', color: '#ffcc44', stroke: '#4a1800', strokeThickness: 2,
+        fontSize: F(15), color: '#ffcc44', stroke: '#4a1800', strokeThickness: 2,
       }).setOrigin(0.5, 1).setDepth(300);
       this.tweens.add({
         targets: crit,
@@ -2560,7 +2564,7 @@ export class GameScene extends Phaser.Scene {
 
   private spawnEvadeText(x: number, y: number): void {
     const label = this.add.text(x, y - 24, '閃避', {
-      fontSize: '16px', fontStyle: 'bold',
+      fontSize: F(16), fontStyle: 'bold',
       color: '#aaddff', stroke: '#001133', strokeThickness: 3,
     }).setOrigin(0.5, 1).setDepth(300);
     this.tweens.add({
@@ -2600,7 +2604,7 @@ export class GameScene extends Phaser.Scene {
     const W = this.scale.width;
     const line1 = questCompleted ? '任務完成！返回大廳領取賞金' : 'Boss 討伐成功！';
     const msg = this.add.text(W / 2, 54, line1, {
-      fontSize: '14px', color: '#ffe066', stroke: '#000000', strokeThickness: 3,
+      fontSize: F(15), color: '#ffe066', stroke: '#000000', strokeThickness: 3,
     }).setScrollFactor(0).setDepth(300).setOrigin(0.5);
     this.tweens.add({
       targets: msg, alpha: 0, delay: 3000, duration: 800,
@@ -2635,7 +2639,7 @@ export class GameScene extends Phaser.Scene {
     this.exitBtnGfx = g;
 
     this.exitBtnTxt = this.add.text(cx, cy, '✕ 退出', {
-      fontSize: '11px', color: '#ee4444', stroke: '#000', strokeThickness: 2,
+      fontSize: F(15), color: '#ee4444', stroke: '#000', strokeThickness: 2,
     }).setOrigin(0.5).setScrollFactor(0).setDepth(201);
 
     const hit = this.add.rectangle(cx, cy, bw, bh)
@@ -2711,7 +2715,7 @@ export class GameScene extends Phaser.Scene {
       const ty  = cy + oy + 18;
       const iconKey = `icon_${drop.itemId}`;
       const img = this.add.image(tx, cy - 24, iconKey)
-        .setDisplaySize(28, 28).setDepth(ty + 4);
+        .setDisplaySize(P(28), P(28)).setDepth(ty + 4);
       this.tweens.add({
         targets: img, y: ty,
         duration: 420, ease: 'Bounce.Out',
@@ -2733,7 +2737,7 @@ export class GameScene extends Phaser.Scene {
       const d = Phaser.Math.Distance.Between(
         this.player.x, this.player.y, loot.obj.x, loot.obj.y,
       );
-      if (d > 48 || Date.now() < loot.readyAt) return true;
+      if (d > P(48) || Date.now() < loot.readyAt) return true;
       if (loot.cardId) {
         CardStore.addCard(loot.cardId);
         this.showPickupText(loot.obj.x, loot.obj.y, loot.itemName, 1);
@@ -2776,7 +2780,7 @@ export class GameScene extends Phaser.Scene {
       ? targetY(this.pickupLog.length, this.pickupLog.length + 1)
       : BASE_Y;
     const txt = this.add.text(W / 2, startY, `+${qty} ${name}`, {
-      fontSize: '13px', color: '#ffffff',
+      fontSize: F(15), color: '#ffffff',
       stroke: '#000000', strokeThickness: 3,
     }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(240);
     this.pickupLog.push(txt);
@@ -2804,11 +2808,11 @@ export class GameScene extends Phaser.Scene {
     bg.strokeRoundedRect(W / 2 - 120, H / 2 - 38, 240, 76, 10);
 
     const line1 = this.add.text(W / 2, H / 2 - 14, '⬆  等級提升！', {
-      fontSize: '20px', color: '#f0c040', stroke: '#000', strokeThickness: 3,
+      fontSize: F(20), color: '#f0c040', stroke: '#000', strokeThickness: 3,
     }).setOrigin(0.5).setScrollFactor(0).setDepth(291);
 
     const line2 = this.add.text(W / 2, H / 2 + 16, `Lv. ${newLevel}   ATK +1   HP +10`, {
-      fontSize: '13px', color: '#ffffff', stroke: '#000', strokeThickness: 2,
+      fontSize: F(15), color: '#ffffff', stroke: '#000', strokeThickness: 2,
     }).setOrigin(0.5).setScrollFactor(0).setDepth(291);
 
     this.tweens.add({
@@ -2847,7 +2851,7 @@ export class GameScene extends Phaser.Scene {
 
     // ── 標題 ────────────────────────────────────────────
     this.add.text(W / 2, py + 32, '冒險者倒下了', {
-      fontSize: '24px', color: '#ff4444',
+      fontSize: F(24), color: '#ff4444',
       stroke: '#000', strokeThickness: 6,
     }).setOrigin(0.5).setScrollFactor(0).setDepth(D + 2);
 
@@ -2870,7 +2874,7 @@ export class GameScene extends Phaser.Scene {
     g.fillRoundedRect(cx - BW / 2, cy - BH / 2, BW, 2, { tl: 7, tr: 7, bl: 0, br: 0 });
 
     const txt = this.add.text(cx, cy, '返回村莊', {
-      fontSize: '16px', color: '#ff8888', stroke: '#000', strokeThickness: 3,
+      fontSize: F(16), color: '#ff8888', stroke: '#000', strokeThickness: 3,
     }).setOrigin(0.5).setScrollFactor(0).setDepth(D + 3);
 
     const hit = this.add.rectangle(cx, cy, BW, BH)
@@ -2892,7 +2896,7 @@ export class GameScene extends Phaser.Scene {
     const STRIP_H = 22, EXP_H = 4;
 
     this.levelText = this.add.text(10, 0, '', {
-      fontSize: '12px', color: '#e8d090', stroke: '#1a0800', strokeThickness: 2,
+      fontSize: F(15), color: '#e8d090', stroke: '#1a0800', strokeThickness: 2,
     }).setScrollFactor(0).setDepth(102).setOrigin(0, 0.5);
 
     this.expBarGfx = this.add.graphics().setScrollFactor(0).setDepth(101);

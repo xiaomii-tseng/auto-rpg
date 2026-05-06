@@ -2,6 +2,8 @@ import Phaser from 'phaser';
 import { Element } from '../data/equipment-data';
 import { MONSTER_SCALE_BOSS } from '../data/monster-data';
 
+const DPR = Math.min(window.devicePixelRatio || 1, 3);
+
 export enum BossState {
   IDLE        = 'IDLE',
   AOE_WARN    = 'AOE_WARN',
@@ -42,11 +44,11 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
   private atkY = 0;
   private dashAngle = 0;
 
-  static readonly AOE_RADIUS = 95;
-  static readonly DASH_SPEED = 460;
+  static readonly AOE_RADIUS = Math.round(95 * DPR);
+  static readonly DASH_SPEED = Math.round(460 * DPR);
   static readonly DASH_MS    = 620;
 
-  protected idleChaseSpeed = 80;
+  protected idleChaseSpeed = Math.round(80 * DPR);
   protected readonly animPrefix: string;
   protected baseTint = 0xffffff;
 
@@ -560,7 +562,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     // Instant flash — brief, bright
     const flash = this.scene.add.graphics().setDepth(22).setPosition(cx, cy);
     flash.fillStyle(0xffffff, 0.9);
-    flash.fillCircle(0, 0, 30);
+    flash.fillCircle(0, 0, 30 * DPR);
     this.scene.tweens.add({
       targets: flash,
       alpha: 0, scaleX: 2.0, scaleY: 1.4,
@@ -571,7 +573,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     // Shockwave ring
     const shock = this.scene.add.graphics().setDepth(20).setPosition(cx, cy);
     shock.lineStyle(2, 0xff8800, 0.85);
-    shock.strokeCircle(0, 0, 22);
+    shock.strokeCircle(0, 0, 22 * DPR);
     this.scene.tweens.add({
       targets: shock,
       alpha: 0, scaleX: 3.0, scaleY: 3.0,

@@ -2,9 +2,11 @@ import Phaser from 'phaser';
 import { Boss, BossState } from './boss';
 import { MONSTER_SCALE_BOSS } from '../data/monster-data';
 
-const JUMP_RADIUS = 78;
+const DPR = Math.min(window.devicePixelRatio || 1, 3);
+
+const JUMP_RADIUS = Math.round(78 * DPR);
 const JUMP_DMG    = 40;
-const FAN_RANGE   = 180;
+const FAN_RANGE   = Math.round(180 * DPR);
 const FAN_HALF    = 35 * (Math.PI / 180);  // ±35°
 const FAN_DMG     = 35;
 const FAN_STEPS   = 14;
@@ -27,7 +29,7 @@ export class BossRedSlime extends Boss {
   }
 
   private triggerPhase2(): void {
-    this.idleChaseSpeed = 110;
+    this.idleChaseSpeed = Math.round(110 * DPR);
     this.scene.cameras.main.shake(450, 0.028);
 
     // 全螢幕紅閃
@@ -42,11 +44,11 @@ export class BossRedSlime extends Boss {
 
     // Boss 爆發膨脹 → 縮到 2.2（永久變大）
     this.scene.tweens.add({
-      targets: this, scaleX: 2.75, scaleY: 2.75,
+      targets: this, scaleX: 2.75 * DPR, scaleY: 2.75 * DPR,
       duration: 250, ease: 'Back.Out',
       onComplete: () => {
         this.scene.tweens.add({
-          targets: this, scaleX: 2.2, scaleY: 2.2,
+          targets: this, scaleX: 2.2 * DPR, scaleY: 2.2 * DPR,
           duration: 300, ease: 'Quad.Out',
         });
       },
@@ -152,14 +154,14 @@ export class BossRedSlime extends Boss {
     });
 
     this.scene.tweens.add({
-      targets: this, scaleX: 2.3, scaleY: 1.65,
+      targets: this, scaleX: 2.3 * DPR, scaleY: 1.65 * DPR,
       duration: 500, ease: 'Quad.Out',
     });
 
     this.stateTimer = this.scene.time.delayedCall(900, () => {
       this.pulseTween?.stop();
       warnG.destroy();
-      this.setScale(this.belowHalf ? MONSTER_SCALE_BOSS + 0.2 : MONSTER_SCALE_BOSS);
+      this.setScale(this.belowHalf ? MONSTER_SCALE_BOSS + 0.2 * DPR : MONSTER_SCALE_BOSS);
       this.doJump(tx, ty);
     });
   }
@@ -169,11 +171,11 @@ export class BossRedSlime extends Boss {
     const jumpMs = Phaser.Math.Clamp(Math.round(dist / 480 * 1000), 220, 420);
 
     this.scene.tweens.add({
-      targets: this, scaleX: 1.7, scaleY: 2.5,
+      targets: this, scaleX: 1.7 * DPR, scaleY: 2.5 * DPR,
       duration: jumpMs * 0.45, ease: 'Quad.Out',
       onComplete: () => {
         this.scene.tweens.add({
-          targets: this, scaleX: this.belowHalf ? 2.2 : 2.0, scaleY: this.belowHalf ? 2.2 : 2.0,
+          targets: this, scaleX: this.belowHalf ? 2.2 * DPR : 2.0 * DPR, scaleY: this.belowHalf ? 2.2 * DPR : 2.0 * DPR,
           duration: jumpMs * 0.55, ease: 'Quad.In',
         });
       },
@@ -191,7 +193,7 @@ export class BossRedSlime extends Boss {
         this.y = startY * (1 - t) * (1 - t) + peakY * 2 * t * (1 - t) + ty * t * t;
       },
       onComplete: () => {
-        this.setScale(this.belowHalf ? MONSTER_SCALE_BOSS + 0.2 : MONSTER_SCALE_BOSS);
+        this.setScale(this.belowHalf ? MONSTER_SCALE_BOSS + 0.2 * DPR : MONSTER_SCALE_BOSS);
         this.setPosition(tx, ty);
         (this.body as Phaser.Physics.Arcade.Body).reset(tx, ty);
         this.spawnLandingImpact(tx, ty);

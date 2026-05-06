@@ -1,6 +1,8 @@
 import Phaser from 'phaser';
 import { MONSTER_SCALE_SMALL } from '../data/monster-data';
 
+const DPR = Math.min(window.devicePixelRatio || 1, 3);
+
 enum MinionState {
   PATROL    = 'PATROL',
   IDLE      = 'IDLE',
@@ -27,14 +29,14 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
   private patrolTargetX  = 0;
   private patrolTargetY  = 0;
   private isReturning    = false;
-  private readonly patrolRadius  = 75;
-  private readonly aggroRange    = 230;
-  private readonly deaggroRange  = 400;
-  private readonly leashRange    = 310;
+  private readonly patrolRadius  = Math.round(75 * DPR);
+  private readonly aggroRange    = Math.round(230 * DPR);
+  private readonly deaggroRange  = Math.round(400 * DPR);
+  private readonly leashRange    = Math.round(310 * DPR);
 
-  static readonly CHASE_SPEED = 90;
-  static readonly STOP_RANGE  = 55;
-  static readonly DASH_SPEED  = 310;
+  static readonly CHASE_SPEED = Math.round(90 * DPR);
+  static readonly STOP_RANGE  = Math.round(55 * DPR);
+  static readonly DASH_SPEED  = Math.round(310 * DPR);
   static readonly DASH_MS     = 260;
 
   getTargetPos: () => [number, number] = () => [0, 0];
