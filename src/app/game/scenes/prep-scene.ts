@@ -10,7 +10,6 @@ import { QuestStore, Quest, STAR_EQUIP_QUALITY } from '../data/quest-store';
 
 
 const TOP_H  = 52;
-const SIDE_W = 76;
 
 // Wood palette
 const WB  = 0x140a02; // base (near-black)
@@ -25,6 +24,12 @@ const IRON = 0x4a5560;
 export class PrepScene extends Phaser.Scene {
   private goldText!: Phaser.GameObjects.Text;
 
+  static fmtGold(n: number): string {
+    if (n >= 100_000_000) return `${(n / 100_000_000).toFixed(1)}億`;
+    if (n >= 10_000)      return `${(n / 10_000).toFixed(1)}萬`;
+    return n.toLocaleString();
+  }
+
   constructor() {
     super({ key: 'PrepScene' });
   }
@@ -34,7 +39,9 @@ export class PrepScene extends Phaser.Scene {
     if (!this.textures.exists('player_idle_shadow'))
       this.load.spritesheet('player_idle_shadow', 'sprite/hero/PNG/Swordsman_lvl1/With_shadow/Swordsman_lvl1_Idle_with_shadow.png', cfg);
     if (!this.textures.exists('bg_prep'))
-      this.load.image('bg_prep', 'other/leader.webp');
+      this.load.image('bg_prep', 'other/battle.webp');
+    if (!this.textures.exists('icon_fight'))
+      this.load.image('icon_fight', 'other/fight.webp');
     if (!this.textures.exists('icon_coin'))
       this.load.image('icon_coin', 'other/coin.webp');
     ['hat','outfit','shoes','ring','sword'].forEach(cat => {
@@ -163,8 +170,9 @@ export class PrepScene extends Phaser.Scene {
 
     this.drawBackground(W, H);
     this.drawTopBar(W);
-    this.drawSidebars(W, H);
     this.drawCenterHero(W, H);
+    this.drawBottomNav(W, H);
+    this.drawAmbientParticles(W, H);
 
     const onGoldChange = () => {
       this.goldText?.setText(InventoryStore.getGold().toLocaleString());
@@ -233,109 +241,149 @@ export class PrepScene extends Phaser.Scene {
     ov.fillStyle(0x000000, 0.3);
     ov.fillRect(0, 0, W, H);
 
-    // Vignette
+    // Vignette — top, bottom, left, right edges
     const vig = this.add.graphics();
-    vig.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0.55, 0.55, 0, 0);
+    vig.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0.65, 0.65, 0, 0);
     vig.fillRect(0, 0, W, H / 3);
-    vig.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0, 0, 0.45, 0.45);
-    vig.fillRect(0, H * 0.67, W, H * 0.33);
+    vig.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0, 0, 0.55, 0.55);
+    vig.fillRect(0, H * 0.65, W, H * 0.35);
+    // Side vignettes
+    vig.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0.45, 0, 0.45, 0);
+    vig.fillRect(0, 0, W * 0.18, H);
+    vig.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0, 0.45, 0, 0.45);
+    vig.fillRect(W * 0.82, 0, W * 0.18, H);
+
+    // Warm ground light pool — where the hero stands
+    const heroPoolY = H * 0.58;
+    const pool = this.add.graphics().setDepth(2);
+    pool.fillStyle(0xff6622, 0.07);
+    pool.fillEllipse(W / 2, heroPoolY, W * 0.55, H * 0.22);
+    pool.fillStyle(0xff9944, 0.04);
+    pool.fillEllipse(W / 2, heroPoolY, W * 0.75, H * 0.30);
+    this.tweens.add({
+      targets: pool, alpha: { from: 0.8, to: 1.15 },
+      duration: 2800, yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
+    });
   }
 
   // ── Top bar (wooden beam) ───────────────────────────────
 
   private drawTopBar(W: number): void {
+    const CY    = TOP_H / 2;
+    const AV_R  = 19;   // avatar radius
+    const AV_CX = 8 + AV_R;
+    const AV_CY = CY;
+    const SET_W = 36;
+    const SET_X = W - SET_W - 5;
+
+    // Name block width ~90px, then EXP bar fills to settings
+    const nameBlockW = 90;
+    const EXP_X0     = AV_CX + AV_R + 10 + nameBlockW + 8;
+    const EXP_X1     = SET_X - 8;
+    const EXP_BAR_H  = 9;
+    const EXP_BAR_Y  = CY + 9;
+
+    // ── Bar background ────────────────────────────────────
     const gfx = this.add.graphics();
-
-    // Beam bg
-    gfx.fillStyle(0x1e0c04, 1);
+    gfx.fillStyle(0x180a02, 1);
     gfx.fillRect(0, 0, W, TOP_H);
-
-    // Grain lines
-    for (let y = 5; y < TOP_H - 4; y += 7) {
-      gfx.lineStyle(1, WD, 0.4);
-      gfx.lineBetween(0, y, W, y);
-    }
-
-    // Bottom carved ledge
-    gfx.fillStyle(WH, 0.5);
-    gfx.fillRect(0, TOP_H - 3, W, 1);
+    // Subtle top highlight
+    gfx.fillStyle(0xffd060, 0.12);
+    gfx.fillRect(0, 0, W, 2);
+    // Bottom gold ledge
+    gfx.fillStyle(GOLD, 0.7);
+    gfx.fillRect(0, TOP_H - 2, W, 1);
     gfx.fillStyle(WB, 1);
-    gfx.fillRect(0, TOP_H - 2, W, 2);
+    gfx.fillRect(0, TOP_H - 1, W, 1);
 
-    // Iron corner bolts
-    [0, W - 6].forEach(bx => {
-      gfx.fillStyle(IRON, 1);
-      gfx.fillRect(bx, 0, 6, 6);
-      gfx.fillRect(bx, TOP_H - 6, 6, 6);
-    });
-
-    // ── Layout constants ──────────────────────────────────
-    const CY     = TOP_H / 2;
-    const AV_X   = 8;
-    const AV_SZ  = 36;
-    const INFO_X = AV_X + AV_SZ + 8;   // x = 52
-    const BH     = 24;                  // badge height
-    const SET_W  = 30;
-    const GAP    = 5;
-    const GOLD_W = 180;
-    const EXP_W  = 180;
-    const SET_X  = W - SET_W - 6;
-    const GOLD_X = SET_X - GAP - GOLD_W;
-    const EXPB_X = GOLD_X - GAP - EXP_W;
-
-    // ── Avatar ────────────────────────────────────────────
+    // ── Avatar (circle) ───────────────────────────────────
     const avG = this.add.graphics();
-    avG.fillStyle(WM, 1);      avG.fillRect(AV_X, 8, AV_SZ, AV_SZ);
-    avG.lineStyle(2, WH, 0.8); avG.strokeRect(AV_X, 8, AV_SZ, AV_SZ);
-    avG.fillStyle(WD, 0.5);    avG.fillRect(AV_X, 8, AV_SZ, 3);
-    this.add.text(AV_X + AV_SZ / 2, CY, '勇', {
-      fontSize: '14px', color: '#d4a870', stroke: '#1a0800', strokeThickness: 2,
+    // Outer gold ring glow
+    avG.fillStyle(GOLD, 0.25);
+    avG.fillCircle(AV_CX, AV_CY, AV_R + 4);
+    // Body
+    avG.fillStyle(WM, 1);
+    avG.fillCircle(AV_CX, AV_CY, AV_R);
+    // Inner top highlight
+    avG.fillStyle(0xffffff, 0.08);
+    avG.fillCircle(AV_CX - 3, AV_CY - 5, AV_R * 0.55);
+    // Gold ring border
+    avG.lineStyle(2.5, GOLD, 0.9);
+    avG.strokeCircle(AV_CX, AV_CY, AV_R);
+    avG.lineStyle(1, 0xffe8a0, 0.3);
+    avG.strokeCircle(AV_CX, AV_CY, AV_R - 4);
+
+    this.add.text(AV_CX, AV_CY + 1, '勇', {
+      fontSize: '15px', fontStyle: 'bold',
+      color: '#ffe0a0', stroke: '#1a0800', strokeThickness: 2,
     }).setOrigin(0.5);
 
-    // ── Name (left info area, centred & larger) ───────────
-    this.add.text(INFO_X, CY, '玩家一號', {
-      fontSize: '14px', color: '#ffe8b0', stroke: '#1a0800', strokeThickness: 3,
+    // ── Name + Lv stacked ─────────────────────────────────
+    const nameX = AV_CX + AV_R + 10;
+    this.add.text(nameX, CY - 8, '玩家一號', {
+      fontSize: '15px', fontStyle: 'bold',
+      color: '#ffe8b0', stroke: '#1a0800', strokeThickness: 3,
     }).setOrigin(0, 0.5);
 
-    // ── EXP badge (Lv section + bar) ──────────────────────
-    const LV_W  = 40;  // left "Lv.N" column width
-    const expBg = this.add.graphics();
-    // Badge background
-    expBg.fillStyle(WD, 0.95); expBg.fillRect(EXPB_X, CY - BH / 2, EXP_W, BH);
-    expBg.lineStyle(1, 0x3a6a8a, 0.6); expBg.strokeRect(EXPB_X, CY - BH / 2, EXP_W, BH);
-    expBg.fillStyle(WH, 0.12); expBg.fillRect(EXPB_X, CY - BH / 2, EXP_W, 2);
-    // Lv section tinted bg
-    expBg.fillStyle(WM, 0.5); expBg.fillRect(EXPB_X, CY - BH / 2, LV_W, BH);
-    // Separator
-    expBg.lineStyle(1, 0x3a6a8a, 0.4);
-    expBg.lineBetween(EXPB_X + LV_W, CY - BH / 2 + 2, EXPB_X + LV_W, CY + BH / 2 - 2);
-
-    // Lv text (reactive, inside Lv section)
-    const lvLabel = this.add.text(EXPB_X + LV_W / 2, CY, '', {
-      fontSize: '11px', color: '#5cc8a0', stroke: '#1a0800', strokeThickness: 2,
-    }).setOrigin(0.5);
-
-    // Progress bar (reactive)
-    const expBarGfx = this.add.graphics();
-    const expValText = this.add.text(0, 0, '', { fontSize: '1px' }); // unused, kept for drawExpBar ref
-
-    // ── Gold badge ────────────────────────────────────────
-    const goldBg = this.add.graphics();
-    goldBg.fillStyle(WD, 0.95); goldBg.fillRect(GOLD_X, CY - BH / 2, GOLD_W, BH);
-    goldBg.lineStyle(1, WL, 0.3); goldBg.strokeRect(GOLD_X, CY - BH / 2, GOLD_W, BH);
-    goldBg.fillStyle(WH, 0.15);  goldBg.fillRect(GOLD_X, CY - BH / 2, GOLD_W, 2);
-    this.add.image(GOLD_X + 13, CY, 'icon_coin').setDisplaySize(22, 22);
-    this.goldText = this.add.text(GOLD_X + 26, CY, InventoryStore.getGold().toLocaleString(), {
-      fontSize: '11px', color: '#e8c890', stroke: '#1a0800', strokeThickness: 2,
+    const lvLabel = this.add.text(nameX, CY + 9, '', {
+      fontSize: '12px', color: '#5cc8a0', stroke: '#1a0800', strokeThickness: 2,
     }).setOrigin(0, 0.5);
 
-    // ── Settings ──────────────────────────────────────────
+    // Thin separator after name block
+    gfx.fillStyle(GOLD, 0.25);
+    gfx.fillRect(EXP_X0 - 6, 10, 1, TOP_H - 20);
+
+    // ── EXP bar ───────────────────────────────────────────
+    const expBarW   = EXP_X1 - EXP_X0;
+    const expTrack  = this.add.graphics();
+    // Track shadow
+    expTrack.fillStyle(0x000000, 0.5);
+    expTrack.fillRoundedRect(EXP_X0, EXP_BAR_Y - EXP_BAR_H / 2 + 1, expBarW, EXP_BAR_H, 4);
+    // Track bg
+    expTrack.fillStyle(0x06101a, 1);
+    expTrack.fillRoundedRect(EXP_X0, EXP_BAR_Y - EXP_BAR_H / 2, expBarW, EXP_BAR_H, 4);
+    expTrack.lineStyle(1, 0x2a5a7a, 0.5);
+    expTrack.strokeRoundedRect(EXP_X0, EXP_BAR_Y - EXP_BAR_H / 2, expBarW, EXP_BAR_H, 4);
+    // EXP label above bar
+    this.add.text(EXP_X0 + expBarW / 2, EXP_BAR_Y - EXP_BAR_H / 2 - 5, 'EXP', {
+      fontSize: '9px', color: '#3a7a9a', stroke: '#000', strokeThickness: 1,
+    }).setOrigin(0.5, 1);
+
+    const expFillGfx = this.add.graphics();
+
+    // ── Gold badge (below topbar, right-aligned, fixed width) ──
+    const BADGE_W  = 154;
+    const BADGE_H  = 28;
+    const BADGE_Y  = TOP_H + 4;
+    const BADGE_X  = W - BADGE_W - 4;   // left edge
+
+    const goldBg = this.add.graphics().setDepth(5);
+    goldBg.fillStyle(0x0e0600, 0.9);
+    goldBg.fillRoundedRect(BADGE_X, BADGE_Y, BADGE_W, BADGE_H, { tl: 0, tr: 0, bl: 10, br: 10 });
+    goldBg.lineStyle(1.5, GOLD, 0.55);
+    goldBg.strokeRoundedRect(BADGE_X, BADGE_Y, BADGE_W, BADGE_H, { tl: 0, tr: 0, bl: 10, br: 10 });
+    goldBg.fillStyle(GOLD, 0.18);
+    goldBg.fillRect(BADGE_X, BADGE_Y, BADGE_W, 2);
+
+    const ICON_X = BADGE_X + 16;
+    const TXT_CY = BADGE_Y + BADGE_H / 2;
+    this.add.image(ICON_X, TXT_CY, 'icon_coin').setDisplaySize(20, 20).setDepth(6);
+    this.goldText = this.add.text(ICON_X + 14, TXT_CY,
+      InventoryStore.getGold().toLocaleString(), {
+        fontSize: '14px', fontStyle: 'bold',
+        color: '#f0d090', stroke: '#1a0800', strokeThickness: 2,
+      }).setOrigin(0, 0.5).setDepth(6);
+
+    // ── Settings button ───────────────────────────────────
     const sg = this.add.graphics();
-    sg.fillStyle(WM, 1);       sg.fillRect(SET_X, CY - 14, SET_W, 28);
-    sg.lineStyle(1.5, WL, 0.5); sg.strokeRect(SET_X, CY - 14, SET_W, 28);
-    sg.fillStyle(WH, 0.25);    sg.fillRect(SET_X, CY - 14, SET_W, 3);
-    this.add.text(SET_X + SET_W / 2, CY, '≡', {
-      fontSize: '20px', color: '#c49050', stroke: '#1a0800', strokeThickness: 1,
+    sg.fillStyle(WM, 1);
+    sg.fillRoundedRect(SET_X, CY - 15, SET_W, 30, 6);
+    sg.lineStyle(1.5, WL, 0.6);
+    sg.strokeRoundedRect(SET_X, CY - 15, SET_W, 30, 6);
+    sg.fillStyle(GOLD, 0.18);
+    sg.fillRoundedRect(SET_X, CY - 15, SET_W, 8, { tl: 6, tr: 6, bl: 0, br: 0 });
+    this.add.text(SET_X + SET_W / 2, CY + 1, '≡', {
+      fontSize: '22px', color: '#d4a050', stroke: '#1a0800', strokeThickness: 1,
     }).setOrigin(0.5);
 
     // ── Reactive update ───────────────────────────────────
@@ -344,116 +392,264 @@ export class PrepScene extends Phaser.Scene {
       const need = PlayerStore.expToNext();
       const pct  = Phaser.Math.Clamp(cur / need, 0, 1);
 
-      const barPad = 5;
-      const barX = EXPB_X + LV_W + barPad;
-      const barW = EXP_W - LV_W - barPad * 2;
-      const barH = BH - 8;
-      const barY = CY - barH / 2;
-
-      expBarGfx.clear();
-      expBarGfx.fillStyle(0x081420, 1);
-      expBarGfx.fillRect(barX, barY, barW, barH);
+      expFillGfx.clear();
       if (pct > 0) {
-        expBarGfx.fillStyle(0x1a88cc, 1);
-        expBarGfx.fillRect(barX, barY, Math.max(2, barW * pct), barH);
-        expBarGfx.fillStyle(0x66ccff, 0.45);
-        expBarGfx.fillRect(barX, barY, Math.max(2, barW * pct), 3);
+        // Main fill
+        expFillGfx.fillStyle(0x1a88cc, 1);
+        expFillGfx.fillRoundedRect(EXP_X0 + 1, EXP_BAR_Y - EXP_BAR_H / 2 + 1,
+          Math.max(5, (expBarW - 2) * pct), EXP_BAR_H - 2, 3);
+        // Top gloss
+        expFillGfx.fillStyle(0x88ddff, 0.45);
+        expFillGfx.fillRoundedRect(EXP_X0 + 1, EXP_BAR_Y - EXP_BAR_H / 2 + 1,
+          Math.max(5, (expBarW - 2) * pct), 4, { tl: 3, tr: 3, bl: 0, br: 0 });
+        // Edge glow
+        expFillGfx.fillStyle(0x44bbff, 0.6);
+        const fillW = Math.max(5, (expBarW - 2) * pct);
+        expFillGfx.fillRect(EXP_X0 + fillW - 2, EXP_BAR_Y - EXP_BAR_H / 2 + 2, 3, EXP_BAR_H - 4);
       }
-      expBarGfx.lineStyle(0.5, 0x3a6a8a, 0.5);
-      expBarGfx.strokeRect(barX, barY, barW, barH);
-
       lvLabel.setText(`Lv.${PlayerStore.getLevel()}`);
-      expValText.setText('');
     };
     drawExpBar();
 
-    const onPlayerChange = () => {
-      drawExpBar();
-    };
-    PlayerStore.onChange(onPlayerChange);
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => PlayerStore.offChange(onPlayerChange));
+    PlayerStore.onChange(drawExpBar);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => PlayerStore.offChange(drawExpBar));
   }
 
-  // ── Sidebars ────────────────────────────────────────────
+  // ── Bottom navigation bar ──────────────────────────────
 
-  private drawSidebars(W: number, H: number): void {
-    const midH  = H - TOP_H;
-    const btnSz = 66;
-    const gap   = 10;
+  private drawBottomNav(W: number, H: number): void {
+    const BAR_H = 78;
+    const barY  = H - BAR_H;
+    const gfx   = this.add.graphics().setDepth(20);
 
-    // Left: 任務 / 裝備 / 物品
-    const leftDefs: { label: string; accent: number; badge: number; onClick?: () => void }[] = [
-      { label: '任務', accent: GOLD,      badge: 0, onClick: () => this.showQuestPanel(W, H) },
-      { label: '裝備', accent: 0xaa88cc,  badge: 0, onClick: () => this.showEquipmentPanel(W, H) },
-      { label: '物品', accent: 0x70b858,  badge: 0, onClick: () => this.showItemPanel(W, H) },
+    // Bar background — two-tone: slightly lighter strip at top
+    gfx.fillStyle(0x0e0806, 1);
+    gfx.fillRect(0, barY, W, BAR_H);
+    gfx.fillStyle(0x1c1008, 1);
+    gfx.fillRect(0, barY, W, 14);
+
+    // Gold top border (2 lines: bright + dark)
+    gfx.fillStyle(0xffd060, 0.7);
+    gfx.fillRect(0, barY, W, 1);
+    gfx.fillStyle(0x8b5010, 0.5);
+    gfx.fillRect(0, barY + 1, W, 2);
+
+    // Bottom fade-out hint
+    gfx.fillStyle(0x000000, 0.3);
+    gfx.fillRect(0, barY + BAR_H - 6, W, 6);
+
+    // ── Battle button constants (needed for gap calc) ─────
+    const BTN_W    = 100;
+    const BTN_H    = 68;
+    const cx       = W / 2;
+    const bcy      = barY - 18;   // rises above bar
+    const CENTER_R = BTN_W / 2 + 28;   // half of no-draw zone on each side
+
+    // ── Platform arch under battle button ─────────────────
+    const archGfx = this.add.graphics().setDepth(21);
+    const archW = (CENTER_R + 2) * 2;
+    const archX = cx - CENTER_R - 2;
+    // Outer shadow
+    archGfx.fillStyle(0x000000, 0.4);
+    archGfx.fillRoundedRect(archX + 2, barY, archW, BAR_H + 4, { tl: 20, tr: 20, bl: 0, br: 0 });
+    // Body
+    archGfx.fillStyle(0x1c0e04, 1);
+    archGfx.fillRoundedRect(archX, barY - 2, archW, BAR_H + 4, { tl: 20, tr: 20, bl: 0, br: 0 });
+    // Inner top highlight
+    archGfx.fillStyle(0xffffff, 0.04);
+    archGfx.fillRoundedRect(archX + 2, barY - 2, archW - 4, 10, { tl: 18, tr: 18, bl: 0, br: 0 });
+    // Gold arc top
+    archGfx.fillStyle(GOLD, 0.75);
+    archGfx.fillRoundedRect(archX, barY - 2, archW, 2, { tl: 20, tr: 20, bl: 0, br: 0 });
+    // Gold border sides
+    archGfx.lineStyle(1.5, GOLD, 0.45);
+    archGfx.strokeRoundedRect(archX, barY - 2, archW, BAR_H + 4, { tl: 20, tr: 20, bl: 0, br: 0 });
+
+    // ── Nav buttons ──────────────────────────────────────
+    const navItems: { label: string; icon: string; accent: number; onClick: () => void }[] = [
+      { label: '裝備', icon: '⚔',  accent: 0xaa88cc,  onClick: () => this.showEquipmentPanel(W, H) },
+      { label: '卡片', icon: '♦',  accent: 0xcc6688,  onClick: () => this.openCardWindow(W, H) },
+      { label: '物品', icon: '⊕',  accent: 0x70b858,  onClick: () => this.showItemPanel(W, H) },
+      { label: '商店', icon: '✦',  accent: 0xd47820,  onClick: () => this.showComingSoon(W, H, '商店') },
     ];
-    const leftTotalH = leftDefs.length * btnSz + (leftDefs.length - 1) * gap;
-    const leftY0     = TOP_H + (midH - leftTotalH) / 2;
-    leftDefs.forEach((b, i) => {
-      const by = leftY0 + i * (btnSz + gap) + btnSz / 2;
-      this.addSideBtn(SIDE_W / 2, by, btnSz, b.label, b.accent, b.badge, b.onClick);
+
+    // Each side has two buttons occupying the space outside CENTER_R
+    const sideW  = cx - CENTER_R;           // available width per side
+    const slotW  = sideW / 2;
+    const btnH   = BAR_H - 8;
+    const btnSlots = [
+      slotW * 0.5,
+      slotW * 1.5,
+      W - slotW * 1.5,
+      W - slotW * 0.5,
+    ];
+
+    navItems.forEach((item, pos) => {
+      const bx = btnSlots[pos];
+      const by = barY + btnH / 2 + 4;
+      this.addNavBtn(gfx, bx, by, slotW - 6, btnH, item.icon, item.label, item.accent, item.onClick);
     });
 
-    // Right: 卡片 / 商店
-    const rightDefs: { label: string; accent: number; badge: number; onClick?: () => void }[] = [
-      { label: '卡片', accent: 0xcc6688, badge: 0, onClick: () => this.openCardWindow(W, H) },
-      { label: '商店', accent: 0xd47820, badge: 0, onClick: () => this.showComingSoon(W, H, '商店') },
-    ];
-    const rightTotalH = rightDefs.length * btnSz + (rightDefs.length - 1) * gap;
-    const rightY0     = TOP_H + (midH - rightTotalH) / 2;
-    rightDefs.forEach((b, i) => {
-      const by = rightY0 + i * (btnSz + gap) + btnSz / 2;
-      this.addSideBtn(W - SIDE_W / 2, by, btnSz, b.label, b.accent, b.badge, b.onClick);
+    // ── Battle button (center, elevated) ──────────────────
+    const btng = this.add.graphics().setDepth(22);
+
+    // Edge glow — single thin outward stroke
+    const EX = cx - BTN_W / 2, EY = bcy - BTN_H / 2;
+    btng.lineStyle(4, 0xffcc44, 0.6);
+    btng.strokeRoundedRect(EX - 3, EY - 3, BTN_W + 6, BTN_H + 6, 17);
+
+    // Button drop shadow
+    btng.fillStyle(0x000000, 0.5);
+    btng.fillRoundedRect(cx - BTN_W / 2 + 4, bcy - BTN_H / 2 + 6, BTN_W, BTN_H, 14);
+
+    // Main body
+    btng.fillStyle(0xb83800, 1);
+    btng.fillRoundedRect(cx - BTN_W / 2, bcy - BTN_H / 2, BTN_W, BTN_H, 14);
+
+    // Top highlight (lighter gradient band)
+    btng.fillStyle(0xff7722, 1);
+    btng.fillRoundedRect(cx - BTN_W / 2 + 2, bcy - BTN_H / 2 + 2, BTN_W - 4, BTN_H * 0.5, 12);
+
+    // Specular gleam top-left
+    btng.fillStyle(0xffffff, 0.10);
+    btng.fillRoundedRect(cx - BTN_W / 2 + 6, bcy - BTN_H / 2 + 5, BTN_W * 0.4, 8, 4);
+
+    // Outer gold border
+    btng.lineStyle(3, 0xffcc44, 1);
+    btng.strokeRoundedRect(cx - BTN_W / 2, bcy - BTN_H / 2, BTN_W, BTN_H, 14);
+
+    // Inner bright ring
+    btng.lineStyle(1, 0xffee88, 0.55);
+    btng.strokeRoundedRect(cx - BTN_W / 2 + 3, bcy - BTN_H / 2 + 3, BTN_W - 6, BTN_H - 6, 11);
+
+    // Shimmer scan bar — masked to button shape
+    const maskShape = this.add.graphics().setVisible(false);
+    maskShape.fillStyle(0xffffff, 1);
+    maskShape.fillRoundedRect(EX, EY, BTN_W, BTN_H, 14);
+
+    const shimmerGfx = this.add.graphics().setDepth(22.5);
+    shimmerGfx.setMask(maskShape.createGeometryMask());
+
+    const sh = { p: -0.25 };
+    this.tweens.add({
+      targets: sh, p: 1.25,
+      duration: 1600, repeat: -1, repeatDelay: 1200, ease: 'Sine.easeIn',
+      onUpdate: () => {
+        shimmerGfx.clear();
+        const sx = EX + sh.p * BTN_W;
+        shimmerGfx.fillStyle(0xffffff, 0.04);
+        shimmerGfx.fillRect(sx - 14, EY, 14, BTN_H);
+        shimmerGfx.fillStyle(0xffffff, 0.16);
+        shimmerGfx.fillRect(sx,      EY, 14, BTN_H);
+        shimmerGfx.fillStyle(0xffffff, 0.04);
+        shimmerGfx.fillRect(sx + 14, EY, 14, BTN_H);
+      },
     });
-  }
 
-  private addSideBtn(x: number, y: number, sz: number, label: string, accent: number, badge = 0, onClick?: () => void): void {
-    const gfx = this.add.graphics();
+    // Container at button center — safe to scale (scales from its own origin)
+    const btnCnt = this.add.container(cx, bcy).setDepth(23);
 
-    // Wood body
-    gfx.fillStyle(WM, 1);
-    gfx.fillRect(x - sz / 2, y - sz / 2, sz, sz);
-
-    // Grain lines
-    for (let g = 1; g <= 3; g++) {
-      const gy = y - sz / 2 + sz * g / 4;
-      gfx.lineStyle(1, WD, 0.3);
-      gfx.lineBetween(x - sz / 2 + 2, gy, x + sz / 2 - 2, gy);
-    }
-
-    // Carved border
-    gfx.lineStyle(2, WL, 0.55);
-    gfx.strokeRect(x - sz / 2, y - sz / 2, sz, sz);
-    gfx.lineStyle(1, WB, 0.5);
-    gfx.strokeRect(x - sz / 2 + 2, y - sz / 2 + 2, sz - 4, sz - 4);
-
-    // Color accent strip
-    gfx.fillStyle(accent, 0.7);
-    gfx.fillRect(x - sz / 2, y - sz / 2, sz, 4);
-
-    // Inner shadow below strip
-    gfx.fillStyle(WB, 0.35);
-    gfx.fillRect(x - sz / 2 + 2, y - sz / 2 + 4, sz - 4, 3);
-
-    this.add.text(x, y + 5, label, {
-      fontSize: '13px', color: '#d4a870', stroke: '#1a0800', strokeThickness: 2,
+    const fightIcon = this.add.image(0, -10, 'icon_fight').setDisplaySize(36, 36);
+    const battleTxt = this.add.text(0, 20, '出  戰', {
+      fontSize: '17px', fontStyle: 'bold',
+      color: '#fff8e0', stroke: '#6b1800', strokeThickness: 3,
     }).setOrigin(0.5);
+    btnCnt.add([fightIcon, battleTxt]);
 
-    if (onClick) {
-      const hit = this.add.rectangle(x, y, sz, sz).setInteractive({ useHandCursor: true });
-      hit.on('pointerdown', onClick);
-    }
+    // Idle alpha pulse (btng separately — Graphics must NOT be scaled)
+    this.tweens.add({
+      targets: [btng, btnCnt],
+      alpha: { from: 1, to: 0.82 },
+      duration: 900, yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
+    });
 
-    if (badge > 0) {
-      const bg2 = this.add.graphics();
-      bg2.fillStyle(0xcc2020, 1);
-      bg2.fillRect(x + sz / 2 - 14, y - sz / 2 + 2, 14, 14);
-      bg2.lineStyle(1, 0xff4444, 0.6);
-      bg2.strokeRect(x + sz / 2 - 14, y - sz / 2 + 2, 14, 14);
-      this.add.text(x + sz / 2 - 7, y - sz / 2 + 9, String(badge), {
-        fontSize: '10px', color: '#ffffff', stroke: '#000', strokeThickness: 1,
-      }).setOrigin(0.5);
-    }
+    const battleHit = this.add.rectangle(cx, bcy, BTN_W, BTN_H)
+      .setInteractive({ useHandCursor: true })
+      .setDepth(24);
+
+    battleHit.on('pointerdown', () => {
+      this.tweens.killTweensOf([btng, btnCnt]);
+      this.tweens.add({ targets: btnCnt, scaleX: 0.88, scaleY: 0.88, alpha: 0.85, duration: 80, ease: 'Sine.easeOut' });
+      this.tweens.add({ targets: btng,   alpha: 0.85, duration: 80 });
+      this.showQuestPanel(W, H);
+    });
+
+    battleHit.on('pointerup', () => {
+      this.tweens.killTweensOf([btng, btnCnt]);
+      this.tweens.add({ targets: btnCnt, scaleX: 1, scaleY: 1, alpha: 1, duration: 120, ease: 'Back.easeOut' });
+      this.tweens.add({ targets: btng,   alpha: 1, duration: 120 });
+    });
+
+    battleHit.on('pointerover', () => {
+      this.tweens.killTweensOf([btng, btnCnt]);
+      this.tweens.add({ targets: btnCnt, scaleX: 1.08, scaleY: 1.08, alpha: 1, duration: 150, ease: 'Back.easeOut' });
+      this.tweens.add({ targets: btng,   alpha: 1, duration: 150 });
+    });
+
+    battleHit.on('pointerout', () => {
+      this.tweens.killTweensOf([btng, btnCnt]);
+      this.tweens.add({
+        targets: btnCnt, scaleX: 1, scaleY: 1, duration: 120, ease: 'Sine.easeOut',
+        onComplete: () => {
+          this.tweens.add({ targets: [btng, btnCnt], alpha: { from: 1, to: 0.82 }, duration: 900, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+        },
+      });
+    });
+  }
+
+  private addNavBtn(
+    gfx: Phaser.GameObjects.Graphics,
+    x: number, y: number, w: number, h: number,
+    icon: string, label: string, accent: number, onClick: () => void,
+  ): void {
+    const halfW = w / 2;
+    const halfH = h / 2;
+    const accentHex = '#' + accent.toString(16).padStart(6, '0');
+
+    // Drop shadow
+    gfx.fillStyle(0x000000, 0.35);
+    gfx.fillRoundedRect(x - halfW + 2, y - halfH + 3, w, h, 9);
+
+    // Button bg
+    gfx.fillStyle(0x120a04, 1);
+    gfx.fillRoundedRect(x - halfW, y - halfH, w, h, 9);
+
+    // Accent top strip (colored per button)
+    gfx.fillStyle(accent, 0.8);
+    gfx.fillRoundedRect(x - halfW + 1, y - halfH + 1, w - 2, 4, { tl: 9, tr: 9, bl: 0, br: 0 });
+
+    // Inner body highlight
+    gfx.fillStyle(0xffffff, 0.05);
+    gfx.fillRoundedRect(x - halfW + 2, y - halfH + 6, w - 4, h * 0.45, { tl: 7, tr: 7, bl: 0, br: 0 });
+
+    // Outer border (accent tinted)
+    gfx.lineStyle(1.5, accent, 0.6);
+    gfx.strokeRoundedRect(x - halfW, y - halfH, w, h, 9);
+
+    // Inner subtle border
+    gfx.lineStyle(0.5, 0xffffff, 0.06);
+    gfx.strokeRoundedRect(x - halfW + 2, y - halfH + 2, w - 4, h - 4, 7);
+
+    // Icon glyph (top half)
+    this.add.text(x, y - 10, icon, {
+      fontSize: '18px', color: accentHex,
+      stroke: '#000000', strokeThickness: 2,
+    }).setOrigin(0.5).setDepth(21);
+
+    // Label (bottom half)
+    this.add.text(x, y + 13, label, {
+      fontSize: '15px', fontStyle: 'bold',
+      color: '#c8aa78', stroke: '#0d0400', strokeThickness: 2,
+    }).setOrigin(0.5).setDepth(21);
+
+    const hit = this.add.rectangle(x, y, w, h)
+      .setInteractive({ useHandCursor: true })
+      .setDepth(22);
+
+    hit.on('pointerdown', () => {
+      this.tweens.add({ targets: hit, scaleX: 0.93, scaleY: 0.93, duration: 60, yoyo: true, ease: 'Sine.easeOut' });
+      onClick();
+    });
   }
 
   // ── Craft panel ─────────────────────────────────────────
@@ -760,9 +956,9 @@ export class PrepScene extends Phaser.Scene {
       cg.strokeRect(cx + 6, GOLD_Y - 12, CARD_W - 12, 23);
 
       if (quest.isEquipReward) {
-        objs.push(this.add.text(cx + CARD_W / 2, GOLD_Y, '★ 裝備獎勵', {
+        objs.push(this.add.text(cx + CARD_W / 2, GOLD_Y, '裝備獎勵', {
           fontSize: '16px', fontStyle: 'bold',
-          color: dimmed ? '#665544' : '#44ccff',
+          color: dimmed ? '#776655' : '#ffe8a0',
           strokeThickness: 0,
           padding: { top: 4, bottom: 2 },
         }).setOrigin(0.5).setDepth(D + 3));
@@ -3300,31 +3496,95 @@ export class PrepScene extends Phaser.Scene {
   }
 
   private drawCenterHero(W: number, H: number): void {
-    const cx    = W / 2;
-    const midH  = H - TOP_H;
-    const cy    = TOP_H + midH * 0.58;
-    const scale = 3.3;
+    const cx       = W / 2;
+    const BOTTOM_H = 78;
+    const availH   = H - TOP_H - BOTTOM_H;
+    const heroY    = TOP_H + availH * 0.42;
+    const scale    = 4.2;
 
-    // Warm wood platform glow
-    const platformGfx = this.add.graphics();
-    platformGfx.fillStyle(0x8b5010, 0.12);
-    platformGfx.fillEllipse(cx, cy + 130, 200, 40);
+    // Ground shadow — soft concentric ellipses beneath feet
+    const footY = heroY + 52;
+    const shadowGfx = this.add.graphics().setDepth(10);
+    [[100, 26, 0.30], [70, 18, 0.20], [40, 11, 0.14]].forEach(([w, h, a]) => {
+      shadowGfx.fillStyle(0x000000, a);
+      shadowGfx.fillEllipse(cx, footY, w, h);
+    });
 
-    const shadowGfx = this.add.graphics();
-    shadowGfx.fillStyle(0x000000, 0.28);
-    shadowGfx.fillEllipse(cx, cy + 134, 130, 18);
+    // Warm bounce light from the ground pool
+    const envGlow = this.add.graphics().setDepth(9);
+    envGlow.fillStyle(0xff7722, 0.11);
+    envGlow.fillEllipse(cx, footY + 2, 150, 46);
+    envGlow.fillStyle(0xff5500, 0.06);
+    envGlow.fillEllipse(cx, footY + 2, 220, 70);
+    this.tweens.add({
+      targets: envGlow, alpha: { from: 0.75, to: 1.0 },
+      duration: 2400, yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
+    });
 
-    const hero = this.add.sprite(cx, cy, 'player_idle_shadow', 0)
+    // ── Animated hero sprite ───────────────────────────────
+    this.textures.get('player_idle_shadow').setFilter(Phaser.Textures.FilterMode.NEAREST);
+    const hero = this.add.sprite(cx, heroY, 'player_idle_shadow', 0)
       .setScale(scale)
-      .setDepth(10);
+      .setDepth(11);
+
     const playIdle = () => {
       hero.play('player_idle_shadow');
       hero.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => {
         hero.setFrame(0);
-        this.time.delayedCall(Phaser.Math.Between(2000, 3500), playIdle);
+        this.time.delayedCall(Phaser.Math.Between(2200, 4000), playIdle);
       });
     };
     playIdle();
 
+    // Gentle float tween
+    this.tweens.add({
+      targets: hero,
+      y: heroY - 8,
+      duration: 2000,
+      yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
+    });
+  }
+
+
+  private drawAmbientParticles(W: number, H: number): void {
+    const BOTTOM_H  = 78;
+    const zoneTop   = TOP_H + 40;
+    const zoneBot   = H - BOTTOM_H - 20;
+    const colors    = [0xffd060, 0x88ddff, 0xffaa44, 0xaaffcc, 0xff88cc];
+
+    for (let i = 0; i < 22; i++) {
+      const g     = this.add.graphics().setDepth(7);
+      const size  = Phaser.Math.FloatBetween(1.2, 3.2);
+      const x     = Phaser.Math.Between(10, W - 10);
+      const y     = Phaser.Math.Between(zoneTop, zoneBot);
+      const alpha = Phaser.Math.FloatBetween(0.18, 0.55);
+      const color = Phaser.Utils.Array.GetRandom(colors);
+
+      // Star shape: cross of 2 rects
+      g.fillStyle(color, 1);
+      g.fillRect(-size, -size * 0.35, size * 2, size * 0.7);
+      g.fillRect(-size * 0.35, -size, size * 0.7, size * 2);
+
+      g.setPosition(x, y).setAlpha(0);
+
+      this.tweens.add({
+        targets: g,
+        alpha:   { from: 0, to: alpha },
+        duration: Phaser.Math.Between(700, 1600),
+        yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
+        delay: Phaser.Math.Between(0, 2500),
+      });
+
+      this.tweens.add({
+        targets: g,
+        x: x + Phaser.Math.Between(-40, 40),
+        y: y - Phaser.Math.Between(50, 130),
+        angle: Phaser.Math.Between(-45, 45),
+        duration: Phaser.Math.Between(3500, 8000),
+        ease: 'Sine.easeInOut',
+        repeat: -1, yoyo: true,
+        delay: Phaser.Math.Between(0, 3000),
+      });
+    }
   }
 }
