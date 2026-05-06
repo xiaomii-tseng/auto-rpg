@@ -39,7 +39,7 @@ export class PrepScene extends Phaser.Scene {
     if (!this.textures.exists('player_idle_shadow'))
       this.load.spritesheet('player_idle_shadow', 'sprite/hero/PNG/Swordsman_lvl1/With_shadow/Swordsman_lvl1_Idle_with_shadow.png', cfg);
     if (!this.textures.exists('bg_prep'))
-      this.load.image('bg_prep', 'other/battle.webp');
+      this.load.image('bg_prep', 'other/bg1.png');
     if (!this.textures.exists('icon_fight'))
       this.load.image('icon_fight', 'other/fight.webp');
     if (!this.textures.exists('icon_coin'))
@@ -221,7 +221,7 @@ export class PrepScene extends Phaser.Scene {
 
   private drawBackground(W: number, H: number): void {
     // Render at low resolution then scale up → pixel art look
-    const PDIV = 3;                          // 1 pixel = 5×5 screen pixels
+    const PDIV = 3;                          // pixelate to match character's ~3.5x pixel scale
     const rtW  = Math.round(W / PDIV);
     const rtH  = Math.round(H / PDIV);
 
@@ -238,7 +238,7 @@ export class PrepScene extends Phaser.Scene {
 
     // Dark overlay
     const ov = this.add.graphics();
-    ov.fillStyle(0x000000, 0.3);
+    ov.fillStyle(0x000000, 0.15);
     ov.fillRect(0, 0, W, H);
 
     // Vignette — top, bottom, left, right edges
@@ -326,7 +326,7 @@ export class PrepScene extends Phaser.Scene {
     }).setOrigin(0, 0.5);
 
     const lvLabel = this.add.text(nameX, CY + 9, '', {
-      fontSize: '12px', color: '#5cc8a0', stroke: '#1a0800', strokeThickness: 2,
+      fontSize: '12px', color: '#c8a050', stroke: '#1a0800', strokeThickness: 2,
     }).setOrigin(0, 0.5);
 
     // Thin separator after name block
@@ -339,14 +339,14 @@ export class PrepScene extends Phaser.Scene {
     // Track shadow
     expTrack.fillStyle(0x000000, 0.5);
     expTrack.fillRoundedRect(EXP_X0, EXP_BAR_Y - EXP_BAR_H / 2 + 1, expBarW, EXP_BAR_H, 4);
-    // Track bg
-    expTrack.fillStyle(0x06101a, 1);
+    // Track bg — dark wood
+    expTrack.fillStyle(0x160c02, 1);
     expTrack.fillRoundedRect(EXP_X0, EXP_BAR_Y - EXP_BAR_H / 2, expBarW, EXP_BAR_H, 4);
-    expTrack.lineStyle(1, 0x2a5a7a, 0.5);
+    expTrack.lineStyle(1, GOLD, 0.35);
     expTrack.strokeRoundedRect(EXP_X0, EXP_BAR_Y - EXP_BAR_H / 2, expBarW, EXP_BAR_H, 4);
     // EXP label above bar
     this.add.text(EXP_X0 + expBarW / 2, EXP_BAR_Y - EXP_BAR_H / 2 - 5, 'EXP', {
-      fontSize: '9px', color: '#3a7a9a', stroke: '#000', strokeThickness: 1,
+      fontSize: '9px', color: '#a07830', stroke: '#000', strokeThickness: 1,
     }).setOrigin(0.5, 1);
 
     const expFillGfx = this.add.graphics();
@@ -394,17 +394,15 @@ export class PrepScene extends Phaser.Scene {
 
       expFillGfx.clear();
       if (pct > 0) {
-        // Main fill
-        expFillGfx.fillStyle(0x1a88cc, 1);
-        expFillGfx.fillRoundedRect(EXP_X0 + 1, EXP_BAR_Y - EXP_BAR_H / 2 + 1,
-          Math.max(5, (expBarW - 2) * pct), EXP_BAR_H - 2, 3);
-        // Top gloss
-        expFillGfx.fillStyle(0x88ddff, 0.45);
-        expFillGfx.fillRoundedRect(EXP_X0 + 1, EXP_BAR_Y - EXP_BAR_H / 2 + 1,
-          Math.max(5, (expBarW - 2) * pct), 4, { tl: 3, tr: 3, bl: 0, br: 0 });
-        // Edge glow
-        expFillGfx.fillStyle(0x44bbff, 0.6);
         const fillW = Math.max(5, (expBarW - 2) * pct);
+        // Main fill — amber
+        expFillGfx.fillStyle(0xc87020, 1);
+        expFillGfx.fillRoundedRect(EXP_X0 + 1, EXP_BAR_Y - EXP_BAR_H / 2 + 1, fillW, EXP_BAR_H - 2, 3);
+        // Top gloss — bright gold
+        expFillGfx.fillStyle(0xffcc44, 0.45);
+        expFillGfx.fillRoundedRect(EXP_X0 + 1, EXP_BAR_Y - EXP_BAR_H / 2 + 1, fillW, 4, { tl: 3, tr: 3, bl: 0, br: 0 });
+        // Edge glow — amber
+        expFillGfx.fillStyle(0xffaa22, 0.6);
         expFillGfx.fillRect(EXP_X0 + fillW - 2, EXP_BAR_Y - EXP_BAR_H / 2 + 2, 3, EXP_BAR_H - 4);
       }
       lvLabel.setText(`Lv.${PlayerStore.getLevel()}`);
@@ -600,46 +598,45 @@ export class PrepScene extends Phaser.Scene {
   private addNavBtn(
     gfx: Phaser.GameObjects.Graphics,
     x: number, y: number, w: number, h: number,
-    icon: string, label: string, accent: number, onClick: () => void,
+    icon: string, label: string, _accent: number, onClick: () => void,
   ): void {
     const halfW = w / 2;
     const halfH = h / 2;
-    const accentHex = '#' + accent.toString(16).padStart(6, '0');
 
     // Drop shadow
-    gfx.fillStyle(0x000000, 0.35);
-    gfx.fillRoundedRect(x - halfW + 2, y - halfH + 3, w, h, 9);
+    gfx.fillStyle(0x000000, 0.4);
+    gfx.fillRoundedRect(x - halfW + 2, y - halfH + 3, w, h, 8);
 
-    // Button bg
-    gfx.fillStyle(0x120a04, 1);
-    gfx.fillRoundedRect(x - halfW, y - halfH, w, h, 9);
+    // Wood base
+    gfx.fillStyle(0x1e0e06, 1);
+    gfx.fillRoundedRect(x - halfW, y - halfH, w, h, 8);
 
-    // Accent top strip (colored per button)
-    gfx.fillStyle(accent, 0.8);
-    gfx.fillRoundedRect(x - halfW + 1, y - halfH + 1, w - 2, 4, { tl: 9, tr: 9, bl: 0, br: 0 });
+    // Wood grain — inner lighter panel
+    gfx.fillStyle(0x2e1a0a, 1);
+    gfx.fillRoundedRect(x - halfW + 1, y - halfH + 1, w - 2, h - 2, 7);
 
-    // Inner body highlight
-    gfx.fillStyle(0xffffff, 0.05);
-    gfx.fillRoundedRect(x - halfW + 2, y - halfH + 6, w - 4, h * 0.45, { tl: 7, tr: 7, bl: 0, br: 0 });
+    // Top edge highlight
+    gfx.fillStyle(0x4a2e14, 0.7);
+    gfx.fillRoundedRect(x - halfW + 2, y - halfH + 2, w - 4, h * 0.42, { tl: 6, tr: 6, bl: 0, br: 0 });
 
-    // Outer border (accent tinted)
-    gfx.lineStyle(1.5, accent, 0.6);
-    gfx.strokeRoundedRect(x - halfW, y - halfH, w, h, 9);
+    // Outer aged-gold border
+    gfx.lineStyle(1.5, GOLD, 0.75);
+    gfx.strokeRoundedRect(x - halfW, y - halfH, w, h, 8);
 
-    // Inner subtle border
-    gfx.lineStyle(0.5, 0xffffff, 0.06);
-    gfx.strokeRoundedRect(x - halfW + 2, y - halfH + 2, w - 4, h - 4, 7);
+    // Inner highlight border
+    gfx.lineStyle(0.5, 0xffd080, 0.22);
+    gfx.strokeRoundedRect(x - halfW + 2, y - halfH + 2, w - 4, h - 4, 6);
 
-    // Icon glyph (top half)
+    // Icon glyph — warm gold
     this.add.text(x, y - 10, icon, {
-      fontSize: '18px', color: accentHex,
-      stroke: '#000000', strokeThickness: 2,
+      fontSize: '18px', color: '#ffd060',
+      stroke: '#1a0800', strokeThickness: 2,
     }).setOrigin(0.5).setDepth(21);
 
-    // Label (bottom half)
+    // Label — parchment
     this.add.text(x, y + 13, label, {
       fontSize: '15px', fontStyle: 'bold',
-      color: '#c8aa78', stroke: '#0d0400', strokeThickness: 2,
+      color: '#e8cc90', stroke: '#1a0800', strokeThickness: 2,
     }).setOrigin(0.5).setDepth(21);
 
     const hit = this.add.rectangle(x, y, w, h)
@@ -3499,32 +3496,15 @@ export class PrepScene extends Phaser.Scene {
     const cx       = W / 2;
     const BOTTOM_H = 78;
     const availH   = H - TOP_H - BOTTOM_H;
-    const heroY    = TOP_H + availH * 0.42;
-    const scale    = 4.2;
+    const heroY    = TOP_H + availH * 0.50;
+    const scale    = 3.5;
 
-    // Ground shadow — soft concentric ellipses beneath feet
-    const footY = heroY + 52;
-    const shadowGfx = this.add.graphics().setDepth(10);
-    [[100, 26, 0.30], [70, 18, 0.20], [40, 11, 0.14]].forEach(([w, h, a]) => {
-      shadowGfx.fillStyle(0x000000, a);
-      shadowGfx.fillEllipse(cx, footY, w, h);
-    });
-
-    // Warm bounce light from the ground pool
-    const envGlow = this.add.graphics().setDepth(9);
-    envGlow.fillStyle(0xff7722, 0.11);
-    envGlow.fillEllipse(cx, footY + 2, 150, 46);
-    envGlow.fillStyle(0xff5500, 0.06);
-    envGlow.fillEllipse(cx, footY + 2, 220, 70);
-    this.tweens.add({
-      targets: envGlow, alpha: { from: 0.75, to: 1.0 },
-      duration: 2400, yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
-    });
 
     // ── Animated hero sprite ───────────────────────────────
     this.textures.get('player_idle_shadow').setFilter(Phaser.Textures.FilterMode.NEAREST);
     const hero = this.add.sprite(cx, heroY, 'player_idle_shadow', 0)
       .setScale(scale)
+      .setTint(0xffddaa)
       .setDepth(11);
 
     const playIdle = () => {
@@ -3536,13 +3516,6 @@ export class PrepScene extends Phaser.Scene {
     };
     playIdle();
 
-    // Gentle float tween
-    this.tweens.add({
-      targets: hero,
-      y: heroY - 8,
-      duration: 2000,
-      yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
-    });
   }
 
 
