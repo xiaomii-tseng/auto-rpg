@@ -175,6 +175,13 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     }
   }
 
+  applyServerHp(hp: number, isDead: boolean): void {
+    if (this.bossState === BossState.DEAD) return;
+    this.hp = hp;
+    this.onHpChanged?.(this.hp, this.maxHp);
+    if (isDead) this.die();
+  }
+
   get currentState(): BossState { return this.bossState; }
   get currentHp(): number { return this.hp; }
   get maxHpValue(): number { return this.maxHp; }

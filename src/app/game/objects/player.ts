@@ -23,6 +23,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   onHpChanged?: (hp: number, maxHp: number) => void;
   onDead?: () => void;
   onEvade?: (x: number, y: number) => void;
+  onAttackAnim?: (key: string) => void;
 
   constructor(scene: Phaser.Scene, x: number, y: number) {
     super(scene, x, y, 'player_idle_shadow', 0);
@@ -81,6 +82,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
   // 播放攻擊動畫並自動管理 isAttacking，完成後自動恢復移動動畫
   startAttackAnim(key: string): void {
+    this.onAttackAnim?.(key);
     this.isAttacking = true;
     this.play(key, true);
     this.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => {
@@ -98,6 +100,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
   playWhirlwind(onHit?: () => void): void {
     if (this.playingHurt || this.isAttacking) return;
+    this.onAttackAnim?.('player_whirlwind');
     this.isAttacking = true;
     this.play('player_whirlwind', true);
     if (onHit) this.scene.time.delayedCall(150, () => { if (this.isAttacking) onHit(); });
@@ -118,6 +121,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.lastDir    = dir;
     this.isAttacking = true;
     const key = this.isMoving ? `player_run_attack_${dir}` : `player_attack_${dir}`;
+    this.onAttackAnim?.(key);
     this.play(key, true);
     if (onHit) this.scene.time.delayedCall(150, () => { if (this.isAttacking) onHit(); });
     this.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => {

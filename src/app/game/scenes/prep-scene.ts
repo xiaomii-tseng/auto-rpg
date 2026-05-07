@@ -7,6 +7,7 @@ import { CardStore, CARD_SLOT_COUNT } from '../data/card-store';
 
 import { getCardDef, getMonsterDef, monsterCardScale, monsterDetailScale } from '../data/monster-data';
 import { QuestStore, Quest, STAR_EQUIP_QUALITY, getStarWeights } from '../data/quest-store';
+import { NetworkService } from '../network/network.service';
 
 
 const DPR = (window as any).__gameDpr as number;
@@ -27,6 +28,8 @@ const IRON = 0x4a5560;
 
 export class PrepScene extends Phaser.Scene {
   private goldText!: Phaser.GameObjects.Text;
+  private multiMode     = false;
+  private multiRoomNick = '';
 
   static fmtGold(n: number): string {
     if (n >= 100_000_000) return `${(n / 100_000_000).toFixed(1)}億`;
@@ -573,7 +576,11 @@ export class PrepScene extends Phaser.Scene {
       this.tweens.killTweensOf([btng, btnCnt]);
       this.tweens.add({ targets: btnCnt, scaleX: 0.88, scaleY: 0.88, alpha: 0.85, duration: 80, ease: 'Sine.easeOut' });
       this.tweens.add({ targets: btng,   alpha: 0.85, duration: 80 });
-      this.showQuestPanel(W, H);
+      if (this.multiMode) {
+        this.showRoomPanel(W, H);
+      } else {
+        this.showQuestPanel(W, H);
+      }
     });
 
     battleHit.on('pointerup', () => {
@@ -581,6 +588,46 @@ export class PrepScene extends Phaser.Scene {
       this.tweens.add({ targets: btnCnt, scaleX: 1, scaleY: 1, alpha: 1, duration: 120, ease: 'Back.easeOut' });
       this.tweens.add({ targets: btng,   alpha: 1, duration: 120 });
     });
+
+    // ── Single / Multi toggle above battle button ─────────
+    const toggleY  = barY - P(24);
+    const halfTW   = P(64);
+    const tH       = P(30);
+    const tGap     = P(8);
+    const toggleGfx = this.add.graphics().setDepth(25);
+
+    const drawToggle = () => {
+      toggleGfx.clear();
+      const colors  = [0x1e0e06, 0x1e0e06] as const;
+      const active  = [!this.multiMode, this.multiMode];
+      for (let i = 0; i < 2; i++) {
+        const tx = cx - tGap / 2 - halfTW + i * (halfTW * 2 + tGap);
+        toggleGfx.fillStyle(active[i] ? 0xb83800 : colors[i], 1);
+        toggleGfx.fillRoundedRect(tx - halfTW, toggleY - tH / 2, halfTW * 2, tH, P(6));
+        toggleGfx.lineStyle(1.5, active[i] ? 0xffcc44 : 0x4a2e14, 1);
+        toggleGfx.strokeRoundedRect(tx - halfTW, toggleY - tH / 2, halfTW * 2, tH, P(6));
+      }
+    };
+    drawToggle();
+
+    const toggleTexts = ['⚔ 單人', '⚑ 雙人'].map((label, i) => {
+      const tx = cx - tGap / 2 - halfTW + i * (halfTW * 2 + tGap);
+      return this.add.text(tx, toggleY, label, {
+        fontSize: F(15), fontStyle: 'bold',
+        color: '#e8cc90', stroke: '#1a0800', strokeThickness: 2,
+      }).setOrigin(0.5).setDepth(26);
+    });
+
+    for (let i = 0; i < 2; i++) {
+      const tx = cx - tGap / 2 - halfTW + i * (halfTW * 2 + tGap);
+      this.add.rectangle(tx, toggleY, halfTW * 2, tH)
+        .setInteractive({ useHandCursor: true }).setDepth(27)
+        .on('pointerdown', () => {
+          this.multiMode = i === 1;
+          drawToggle();
+          toggleTexts.forEach((t, j) => t.setColor(this.multiMode === (j === 1) ? '#ffffff' : '#e8cc90'));
+        });
+    }
 
     battleHit.on('pointerover', () => {
       this.tweens.killTweensOf([btng, btnCnt]);
@@ -662,10 +709,10 @@ export class PrepScene extends Phaser.Scene {
 
   // ── Quest panel (wanted posters, horizontal scroll) ────
 
-  private showQuestPanel(W: number, H: number): void {
+  private showQuestPanel(W: number, H: number, baseDepth = 500): void {
     const PW = Math.min(W - P(16), P(500));
     const PH = Math.min(H - P(20), P(370));
-    const D  = 500;
+    const D  = baseDepth;
 
     const panelX = (W - PW) / 2;
     const panelY = (H - PH) / 2;
@@ -1151,7 +1198,13 @@ export class PrepScene extends Phaser.Scene {
       yHit.on('pointerdown', () => {
         QuestStore.acceptQuest(quest.id);
         closeCo(); closeAll();
-        this.scene.start('GameScene');
+        if (this.multiRoomNick) {
+          // Co-op: host sends ready with quest + boss info, server broadcasts gameStart
+          NetworkService.sendReady(this.multiRoomNick, quest.id, quest.star, quest.bossId);
+          this.multiRoomNick = '';
+        } else {
+          this.scene.start('GameScene');
+        }
       });
 
       const ng = this.add.graphics().setDepth(D + 11);
@@ -3369,6 +3422,151 @@ export class PrepScene extends Phaser.Scene {
       this.input.off('wheel');
     };
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, cleanup);
+  }
+
+  private showRoomPanel(W: number, H: number): void {
+    const D   = 600;
+    const PW  = Math.min(W - P(32), P(320));
+    const PH  = P(295);
+    const px  = W / 2 - PW / 2;
+    const py  = H / 2 - PH / 2;
+    const objs: Phaser.GameObjects.GameObject[] = [];
+    const close = () => { objs.forEach(o => o.destroy()); this.cleanDomInputs(); };
+
+    const bk = this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.82)
+      .setInteractive().setDepth(D);
+    objs.push(bk);
+
+    const bg = this.add.graphics().setDepth(D + 1);
+    objs.push(bg);
+    bg.fillStyle(0x000000, 0.5); bg.fillRect(px + P(4), py + P(4), PW, PH);
+    bg.fillStyle(0x1a0e04, 1);   bg.fillRect(px, py, PW, PH);
+    bg.lineStyle(P(2), 0xd4a044, 0.9); bg.strokeRect(px, py, PW, PH);
+    bg.fillStyle(0xffe080, 0.6); bg.fillRect(px, py, PW, P(2));
+
+    objs.push(this.add.text(W / 2, py + P(24), '⚑  多人連線', {
+      fontSize: F(18), fontStyle: 'bold', color: '#ffe080', stroke: '#2a1000', strokeThickness: 2,
+    }).setOrigin(0.5).setDepth(D + 2));
+
+    // status text (updated dynamically)
+    const statusTxt = this.add.text(W / 2, py + P(54), '請輸入暱稱並選擇模式', {
+      fontSize: F(15), color: '#aaaaaa',
+    }).setOrigin(0.5).setDepth(D + 2);
+    objs.push(statusTxt);
+
+    // nickname input — full panel width, h=P(32) for F(15) text
+    const nicknameInput = this.makeTextInput(objs, px + P(16), py + P(72), PW - P(32), P(32), '暱稱（最多8字）', D + 2);
+
+    const BH = P(32); // button height
+    const makeBtn = (label: string, x: number, y: number, bw: number, col: number, cb: () => void) => {
+      const g = this.add.graphics().setDepth(D + 2);
+      objs.push(g);
+      g.fillStyle(0x000000, 0.35); g.fillRect(x - bw/2 + P(2), y - BH/2 + P(2), bw, BH);
+      g.fillStyle(col, 1);         g.fillRect(x - bw/2, y - BH/2, bw, BH);
+      g.fillStyle(0xffffff, 0.12); g.fillRect(x - bw/2, y - BH/2, bw, P(4));
+      g.lineStyle(1.5, 0xffcc44, 0.8); g.strokeRect(x - bw/2, y - BH/2, bw, BH);
+      objs.push(this.add.text(x, y, label, {
+        fontSize: F(15), fontStyle: 'bold', color: '#fff8e0', stroke: '#1a0800', strokeThickness: 2,
+      }).setOrigin(0.5).setDepth(D + 3));
+      const hit = this.add.rectangle(x, y, bw, BH).setInteractive({ useHandCursor: true }).setDepth(D + 4);
+      objs.push(hit);
+      hit.on('pointerdown', cb);
+      return hit;
+    };
+
+    // ── 建立房間 ─────────────────────────────────────────
+    makeBtn('建立房間', W / 2, py + P(126), P(150), 0x1a3a0c, async () => {
+      const nick = nicknameInput.getValue();
+      if (!nick) { statusTxt.setText('請先輸入暱稱').setColor('#ff6644'); return; }
+      statusTxt.setText('連線中…').setColor('#ffdd44');
+      try {
+        const payload = await NetworkService.createRoom(nick);
+        statusTxt.setText(`房間代碼：${payload.roomCode}\n等待對方加入…`).setColor('#88ee44');
+        // Wait for partner to join → then show quest board for host
+        NetworkService.onPartnerJoined(() => {
+          statusTxt.setText('對方已加入！請選擇任務').setColor('#aaffaa');
+          this.multiRoomNick = nick;
+          this.showQuestPanel(W, H, 700);
+        });
+        // Once host sends ready with questId, server broadcasts gameStart to both
+        NetworkService.onGameStart(p => { close(); this.scene.start('GameScene', { seed: p.seed, questStar: p.questStar, bossMonsterId: p.bossMonsterId, mapParams: p.mapParams }); });
+      } catch {
+        statusTxt.setText('連線失敗，請確認 server 是否運行').setColor('#ff4444');
+      }
+    });
+
+    // ── 加入房間（代碼 P(116) + gap P(8) + 加入 P(76) = P(200)，從 W/2-P(100) 開始）────
+    const codeInput = this.makeTextInput(objs, W / 2 - P(100), py + P(168), P(116), P(32), '4位代碼', D + 2);
+
+    makeBtn('加入', W / 2 + P(62), py + P(184), P(76), 0x1a2a4a, async () => {
+      const nick = nicknameInput.getValue();
+      const code = codeInput.getValue();
+      if (!nick) { statusTxt.setText('請先輸入暱稱').setColor('#ff6644'); return; }
+      if (!code) { statusTxt.setText('請輸入房間代碼').setColor('#ff6644'); return; }
+      statusTxt.setText('加入中…').setColor('#ffdd44');
+      try {
+        await NetworkService.joinRoom(code, nick);
+        statusTxt.setText('已加入，等待房主選擇任務…').setColor('#88ee44');
+        // Guest: accept quest from host's selection, then start game
+        NetworkService.onGameStart(payload => {
+          try { if (payload.questId) QuestStore.acceptQuest(payload.questId); } catch { /* quest may not exist on guest */ }
+          close();
+          this.scene.start('GameScene', { seed: payload.seed, questStar: payload.questStar, bossMonsterId: payload.bossMonsterId, mapParams: payload.mapParams });
+        });
+      } catch {
+        statusTxt.setText('加入失敗，代碼錯誤或房間不存在').setColor('#ff4444');
+      }
+    });
+
+    // 取消
+    makeBtn('取消', W / 2, py + PH - P(22), P(90), 0x3a0808, () => { NetworkService.disconnect(); close(); });
+  }
+
+  private makeTextInput(
+    objs: Phaser.GameObjects.GameObject[],
+    x: number, y: number, w: number, h: number,
+    placeholder: string, depth: number,
+  ): { getValue(): string } {
+    // Hidden real input for keyboard — positioned off-screen to avoid DPR issues
+    const el = document.createElement('input');
+    el.type = 'text'; el.maxLength = 12;
+    Object.assign(el.style, {
+      position: 'fixed', top: '0', left: '0',
+      width: '1px', height: '1px', opacity: '0',
+      pointerEvents: 'none', fontSize: '16px',
+    });
+    document.body.appendChild(el);
+    (this as any)._domInputs = (this as any)._domInputs ?? [];
+    (this as any)._domInputs.push(el);
+
+    // Visual box
+    const gfx = this.add.graphics().setDepth(depth);
+    objs.push(gfx);
+    gfx.fillStyle(0x1a1208, 1); gfx.fillRect(x, y, w, h);
+    gfx.lineStyle(P(2), 0x886622, 1); gfx.strokeRect(x, y, w, h);
+
+    const txt = this.add.text(x + P(8), y + h / 2, placeholder, {
+      fontSize: F(15), color: '#886644',
+    }).setOrigin(0, 0.5).setDepth(depth + 1);
+    objs.push(txt);
+
+    // Invisible hit area — click to focus hidden input
+    const hit = this.add.rectangle(x + w / 2, y + h / 2, w, h)
+      .setInteractive({ useHandCursor: true }).setDepth(depth + 2);
+    objs.push(hit);
+    hit.on('pointerdown', () => el.focus());
+
+    el.addEventListener('input', () => {
+      const val = el.value.slice(0, 8); el.value = val;
+      txt.setText(val || placeholder).setColor(val ? '#ffe0a0' : '#886644');
+    });
+
+    return { getValue: () => el.value.trim().slice(0, 8) };
+  }
+
+  private cleanDomInputs(): void {
+    ((this as any)._domInputs ?? []).forEach((el: HTMLElement) => el.remove());
+    (this as any)._domInputs = [];
   }
 
   private showComingSoon(W: number, H: number, label: string): void {

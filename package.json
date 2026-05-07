@@ -7,6 +7,8 @@
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
+    "kill": "npx kill-port 3001",
+    "server":"ng serve --host 0.0.0.0",
     "deploy": "ng build --base-href /auto-rpg/ && node deploy.mjs"
   },
   "private": true,
@@ -19,6 +21,7 @@
     "@angular/platform-browser": "^21.2.0",
     "@angular/router": "^21.2.0",
     "@angular/service-worker": "^21.2.0",
+    "colyseus.js": "^0.16.22",
     "phaser": "^3.90.0",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0"

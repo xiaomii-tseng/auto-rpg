@@ -49,6 +49,7 @@ export class App implements AfterViewInit {
       scene: [PrepScene, GameScene],
       scale: { mode: Phaser.Scale.NONE },
       render: { roundPixels: true },
+      dom: { createContainer: true },
       physics: {
         default: 'arcade',
         arcade: { gravity: { x: 0, y: 0 }, debug: false },

@@ -44,6 +44,7 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
   getTargetPos: () => [number, number] = () => [0, 0];
   onDead?: () => void;
 
+  minionId      = '';
   isElite       = false;
   atk           = 10;
   burnStacks    = 0;
@@ -116,6 +117,13 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
       if (this.mState !== MinionState.DEAD) this.applyBaseTint();
     });
     if (this.hp <= 0) this.die();
+  }
+
+  applyServerHp(hp: number, isDead: boolean): void {
+    if (this.mState === MinionState.DEAD) return;
+    this.hp = hp;
+    if (isDead) { this.die(); return; }
+    this.drawHpBar();
   }
 
   knockback(fromX: number, fromY: number, power = 80): void {

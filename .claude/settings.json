@@ -23,7 +23,19 @@
       "WebFetch(domain:ragnarok.fandom.com)",
       "Bash(xargs sed -i \"s/const DPR = Math\\\\.min\\(window\\\\.devicePixelRatio || 1, 3\\);/const DPR = \\(window as any\\).__gameDpr as number;/g\")",
       "Bash(Get-ChildItem -Path \"c:\\\\MyCode\\\\auto-rpg\\\\src\" -Recurse -Directory)",
-      "Bash(Get-ChildItem -Path \"c:\\\\MyCode\\\\auto-rpg\\\\src\\\\app\\\\game\\\\data\\\\\" -File | Select-Object -First 20)"
+      "Bash(Get-ChildItem -Path \"c:\\\\MyCode\\\\auto-rpg\\\\src\\\\app\\\\game\\\\data\\\\\" -File | Select-Object -First 20)",
+      "Bash(curl -s http://localhost:3001/health)",
+      "Bash(node -e \"require\\('./src/index.ts'\\)\")",
+      "PowerShell(Stop-Process -Id \\(Get-NetTCPConnection -LocalPort 3001 -ErrorAction SilentlyContinue\\).OwningProcess -Force -ErrorAction SilentlyContinue; Write-Host \"done\")",
+      "PowerShell(Stop-Process -Id \\(Get-NetTCPConnection -LocalPort 3001 -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty OwningProcess\\) -Force -ErrorAction SilentlyContinue; Start-Sleep 1; Write-Host \"done\")",
+      "PowerShell(Stop-Process -Id \\(Get-NetTCPConnection -LocalPort 3001 -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty OwningProcess\\) -Force -ErrorAction SilentlyContinue; Write-Host \"killed\")",
+      "PowerShell(Stop-Process -Id \\(Get-NetTCPConnection -LocalPort 3001 -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty OwningProcess\\) -Force -ErrorAction SilentlyContinue; Start-Sleep 1; Set-Location c:\\\\MyCode\\\\auto-rpg\\\\server; Start-Process -NoNewWindow -FilePath \"npx\" -ArgumentList \"ts-node\",\"src/index.ts\"; Start-Sleep 3; Write-Host \"server started\")",
+      "PowerShell(Stop-Process -Id \\(Get-NetTCPConnection -LocalPort 3001 -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty OwningProcess\\) -Force -ErrorAction SilentlyContinue; Start-Sleep 1; Write-Host \"port cleared\")",
+      "Bash(npx ts-node *)",
+      "Read(//tmp/**)",
+      "Bash(netstat -ano)",
+      "Bash(ipconfig)",
+      "Bash(findstr \"IPv4\")"
     ]
   }
 }

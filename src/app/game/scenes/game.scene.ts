@@ -17,6 +17,19 @@ import { getMonsterDef, getCardDef, DropEntry, MonsterDef } from '../data/monste
 import { getElementMultiplier, ELEMENT_NAMES, ELEMENT_COLORS } from '../data/equipment-data';
 import { QuestStore, STAR_HP_MULT, STAR_DROP_MULT, STAR_DEF_MULT, STAR_EXP_MULT } from '../data/quest-store';
 import { ELITE_HP_MULT, ELITE_SCALE_MOD } from '../data/monster-data';
+import { NetworkService } from '../network/network.service';
+import type { MapParams } from '../../../../shared/types';
+
+const CO_OP_HP_MULT = 1.6;
+
+/** Deterministic seeded RNG (Park-Miller LCG) — not affected by Phaser or JS RNG state */
+class SeededRNG {
+  private s: number;
+  constructor(seed: number) { this.s = (Math.abs(seed) % 2_147_483_646) + 1; }
+  private next(): number { return (this.s = (this.s * 16807) % 2_147_483_647); }
+  between(min: number, max: number): number { return Math.floor(min + (this.next() / 2_147_483_647) * (max - min + 1)); }
+  float(min: number, max: number): number    { return min + (this.next() / 2_147_483_647) * (max - min); }
+}
 
 const DPR = (window as any).__gameDpr as number;
 const F = (n: number): string => `${Math.round(n * DPR)}px`;
@@ -68,6 +81,18 @@ export class GameScene extends Phaser.Scene {
   private bossArenaShape   = 0;   // 0=圓, 1=八角, 2=菱形, 3=圓角矩形
   private bossMonsterId    = 'boss_slime_white';
   private questStar        = 1;
+  private _mapSeed         = 0;
+  private _initBossId?:    string;
+  private _initQuestStar?: number;
+  private _mapParams?:     MapParams;
+  private partnerSprite?:  Phaser.GameObjects.Sprite;
+  private partnerLabel?:   Phaser.GameObjects.Text;
+  private _partnerPrevX    = 0;
+  private _partnerPrevY    = 0;
+  private _partnerPrevDir:     'down' | 'left' | 'right' | 'up' = 'down';
+  private _partnerBehavior   = 'slash180';
+  private partnerAuraRing?:  Phaser.GameObjects.Graphics;
+  private _minionTargets     = new Map<string, { x: number; y: number }>();
   private bossActive       = false;
   private lootDrops:       LootDrop[] = [];
   private exitBtnGfx!:     Phaser.GameObjects.Graphics;
@@ -127,6 +152,13 @@ export class GameScene extends Phaser.Scene {
     this.generateTextures();
   }
 
+  init(data: { seed?: number; questStar?: number; bossMonsterId?: string; mapParams?: MapParams }): void {
+    this._mapSeed       = data?.seed         ?? Math.floor(Math.random() * 1_000_000);
+    this._initQuestStar = data?.questStar;
+    this._initBossId    = data?.bossMonsterId;
+    this._mapParams     = data?.mapParams;
+  }
+
   create(): void {
     const W = this.scale.width;
     this.gameOver = false;
@@ -154,11 +186,123 @@ export class GameScene extends Phaser.Scene {
     this.player.onDead  = () => this.handlePlayerDead();
     this.player.onEvade = (x, y) => this.spawnEvadeText(x, y);
 
+    // ── Co-op: partner sprite + position sync ─────────────
+    if (NetworkService.connected) {
+      const pScale = 1.5 * DPR;
+      this.partnerSprite = this.add.sprite(this.playerStartX, this.playerStartY, 'player_idle_shadow')
+        .setScale(pScale).setDepth(9).setTint(0x44aaff);
+      this.partnerSprite.play('player_idle_down');
+
+      this.partnerAuraRing = this.add.graphics().setDepth(8).setVisible(false);
+      this.tweens.add({
+        targets: this.partnerAuraRing, alpha: { from: 0.25, to: 0.55 },
+        duration: 900, yoyo: true, repeat: -1, ease: 'Sine.InOut',
+      });
+
+      // Send our sword behavior once so partner can show the correct ring/VFX
+      this.time.delayedCall(800, () => {
+        NetworkService.sendAttack('__behavior_init__', 0, 0, 'down',
+          PlayerStore.getEquipped().sword?.behavior ?? 'slash180');
+      });
+
+      this.partnerLabel = this.add.text(this.playerStartX, this.playerStartY - P(40), '夥伴', {
+        fontSize: F(11), color: '#88ccff', stroke: '#000', strokeThickness: 2,
+      }).setOrigin(0.5, 1).setDepth(11);
+
+      NetworkService.onPartnerPos(({ x, y, lastDir }) => {
+        if (!this.partnerSprite) return;
+        const moved   = Math.abs(x - this._partnerPrevX) > 0.5 || Math.abs(y - this._partnerPrevY) > 0.5;
+        // Don't override a playing attack animation
+        if (!this.partnerSprite.anims.currentAnim?.key.includes('attack') &&
+            !this.partnerSprite.anims.currentAnim?.key.includes('whirlwind') &&
+            !this.partnerSprite.anims.currentAnim?.key.includes('multihit')) {
+          const animKey = moved ? `player_run_${lastDir}` : `player_idle_${lastDir}`;
+          if (this.partnerSprite.anims.currentAnim?.key !== animKey) this.partnerSprite.play(animKey, true);
+        }
+        this.partnerSprite.setPosition(x, y);
+        this.partnerLabel?.setPosition(x, y - P(40));
+        this._partnerPrevX   = x;
+        this._partnerPrevY   = y;
+        this._partnerPrevDir = lastDir as 'down' | 'left' | 'right' | 'up';
+      });
+
+      NetworkService.onPartnerAttack(({ animKey, x, y, dir, behavior }) => {
+        // Behavior handshake — no animation, just store partner's weapon type
+        if (animKey === '__behavior_init__') {
+          this._partnerBehavior = behavior;
+          return;
+        }
+        if (!this.partnerSprite) return;
+        this.partnerSprite.play(animKey, true);
+        this.partnerSprite.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => {
+          if (!this.partnerSprite) return;
+          this.partnerSprite.play(`player_idle_${this._partnerPrevDir}`, true);
+        });
+        this.showPartnerAttackFX(behavior, x, y, dir);
+      });
+
+      // Send local attack info to partner
+      this.player.onAttackAnim = (key) => {
+        const behavior = PlayerStore.getEquipped().sword?.behavior ?? 'slash180';
+        NetworkService.sendAttack(key, this.player.x, this.player.y, this.player.lastDir, behavior);
+      };
+
+      NetworkService.onPartnerLeft(() => {
+        this.partnerSprite?.setVisible(false);
+        this.partnerLabel?.setVisible(false);
+      });
+
+      // Sync minion HP from server (either player's hit gets broadcast back)
+      NetworkService.onMinionHit(({ minionId, hp, isDead }) => {
+        const m = this.allMinions.find(mn => mn.minionId === minionId);
+        if (m) m.applyServerHp(hp, isDead);
+      });
+
+      // Sync boss HP from server
+      NetworkService.onBossHit(({ hp, isDead }) => {
+        if (!this.bossActive || !this.boss?.active) return;
+        this.boss.applyServerHp(hp, isDead);
+        this.refreshBossBar();
+      });
+
+      if (NetworkService.isHost) {
+        // Host broadcasts all alive minion positions every 100 ms
+        this.time.addEvent({
+          delay: 100, loop: true,
+          callback: () => {
+            const alive = this.allMinions.filter(m => !m.isDead);
+            if (alive.length === 0) return;
+            NetworkService.sendMinionSync(alive.map(m => ({
+              id: m.minionId, x: m.x, y: m.y,
+              hp: m.currentHp, maxHp: m.currentHp, isDead: false,
+            })));
+          },
+        });
+      } else {
+        // Guest stores lerp targets; actual movement happens in update()
+        NetworkService.onMinionSync(({ minions }) => {
+          for (const data of minions) {
+            this._minionTargets.set(data.id, { x: data.x, y: data.y });
+          }
+        });
+      }
+
+      // Send our own position to server every 50 ms
+      this.time.addEvent({
+        delay: 50, loop: true,
+        callback: () => NetworkService.sendMove(this.player.x, this.player.y, this.player.lastDir),
+      });
+    }
 
     const bossWp = this.waypoints[this.waypoints.length - 1];
     const bossDef = getMonsterDef(this.bossMonsterId)!;
     const hpMult = STAR_HP_MULT[this.questStar] ?? 1;
-    this.boss = this.createBoss(bossDef, Math.round(bossDef.hp * hpMult));
+    const coopMult = NetworkService.connected ? CO_OP_HP_MULT : 1;
+    const bossInitHp = Math.round(bossDef.hp * hpMult * coopMult);
+    this.boss = this.createBoss(bossDef, bossInitHp);
+    if (NetworkService.connected && NetworkService.isHost) {
+      NetworkService.sendBossInit(bossInitHp);
+    }
     this.boss.arenaRadius = this.BOSS_ARENA_RADIUS;
     this.boss.arenaShape  = this.bossArenaShape;
     this.boss.def         = Math.round((bossDef.def ?? 0) * (STAR_DEF_MULT[this.questStar] ?? 0));
@@ -264,6 +408,17 @@ export class GameScene extends Phaser.Scene {
 
   override update(): void {
     if (this.gameOver || this.teleporting) return;
+
+    // Guest: lerp all minions toward host-provided positions
+    if (NetworkService.connected && !NetworkService.isHost) {
+      for (const m of this.allMinions) {
+        if (m.isDead) continue;
+        const t = this._minionTargets.get(m.minionId);
+        if (!t) continue;
+        m.setPosition(m.x + (t.x - m.x) * 0.2, m.y + (t.y - m.y) * 0.2);
+      }
+    }
+
     this.checkLootPickup();
 
     const joy = this.joystick.value;
@@ -391,6 +546,54 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
+    // 夥伴血環（僅在對方裝備 aura 時顯示）
+    if (this.partnerAuraRing && this.partnerSprite?.active) {
+      const isPartnerAura = this._partnerBehavior === 'aura';
+      this.partnerAuraRing.setVisible(isPartnerAura && !this.gameOver);
+      if (isPartnerAura) {
+        const g = this.partnerAuraRing;
+        const R = this.AURA_RANGE;
+        const t = this.time.now / 1000;
+        const px = this.partnerSprite.x, py = this.partnerSprite.y;
+        g.setPosition(px, py + 10);
+        g.setRotation(t * 0.4);
+        g.clear();
+        g.fillStyle(0xdd0000, 0.28); g.fillCircle(0, 0, R);
+        g.fillStyle(0xff2200, 0.22); g.fillCircle(0, 0, R * 0.7);
+        g.fillStyle(0xff4400, 0.16); g.fillCircle(0, 0, R * 0.4);
+        for (let i = 0; i < 6; i++) {
+          const a = (i / 6) * Math.PI * 2;
+          g.lineStyle(2.5, 0xff3300, 0.65);
+          g.beginPath();
+          g.moveTo(Math.cos(a) * R * 0.08, Math.sin(a) * R * 0.08);
+          g.lineTo(Math.cos(a) * R * 0.88, Math.sin(a) * R * 0.88);
+          g.strokePath();
+        }
+        const hexPts: { x: number; y: number }[] = [];
+        const hex2 = -t * 0.95;
+        for (let i = 0; i <= 6; i++) {
+          const a = (i / 6) * Math.PI * 2 + hex2;
+          hexPts.push({ x: Math.cos(a) * R * 0.48, y: Math.sin(a) * R * 0.48 });
+        }
+        g.lineStyle(2, 0xff6600, 0.70); g.strokePoints(hexPts, true);
+        const pulse = R * 0.28 + Math.sin(t * 4) * 4;
+        g.lineStyle(2, 0xff8800, 0.75 + Math.sin(t * 4) * 0.15);
+        g.strokeCircle(0, 0, pulse);
+        g.lineStyle(2.5, 0xff4400, 0.90); g.strokeCircle(0, 0, R);
+        for (let i = 0; i < 18; i++) {
+          const a = (i / 18) * Math.PI * 2;
+          const phase = (i / 18) * Math.PI * 4;
+          const h = 9 + Math.sin(t * 5 + phase) * 4;
+          g.fillStyle(0xff4400, 0.55 + Math.sin(t * 7 + phase) * 0.2);
+          g.fillTriangle(
+            Math.cos(a - 0.13) * R, Math.sin(a - 0.13) * R,
+            Math.cos(a + 0.13) * R, Math.sin(a + 0.13) * R,
+            Math.cos(a) * (R + h),  Math.sin(a) * (R + h),
+          );
+        }
+      }
+    }
+
     // Reveal minions when player walks within range (AI already running since 400ms after spawn)
     const SHOW_DIST = P(500);
     for (const m of this.allMinions) {
@@ -473,6 +676,10 @@ export class GameScene extends Phaser.Scene {
     target.knockback(srcX, srcY);
     if (stats.lifesteal > 0) this.player.heal(Math.round(dmg * stats.lifesteal));
     this.spawnDamageNumber(target.x, target.y, dmg, isCrit, elemMult * targetMult);
+    if (NetworkService.connected) {
+      if (isBoss) NetworkService.sendBossHit(dmg);
+      else        NetworkService.sendMinionHit((target as MinionSlime).minionId, dmg);
+    }
   }
 
   private hitInArea(
@@ -1554,6 +1761,7 @@ export class GameScene extends Phaser.Scene {
       const dmg = Math.round(stats.atk * 0.030 * m.burnStacks * dotMult);
       m.takeDamage(dmg);
       this.spawnDamageNumber(m.x, m.y, dmg, false, 1);
+      if (NetworkService.connected) NetworkService.sendMinionHit(m.minionId, dmg);
     }
     if (this.bossActive && this.boss.active && this.boss.burnStacks > 0) {
       if (now >= this.boss.burnExpiresAt) { this.boss.burnStacks = 0; this.refreshBossBar(); return; }
@@ -1564,6 +1772,7 @@ export class GameScene extends Phaser.Scene {
       this.boss.takeDamage(dmg, stats.penetration);
       this.spawnDamageNumber(this.boss.x, this.boss.y, dmg, false, elemMult);
       this.refreshBossBar();
+      if (NetworkService.connected) NetworkService.sendBossHit(dmg);
     }
   }
 
@@ -1584,6 +1793,7 @@ export class GameScene extends Phaser.Scene {
       m.takeDamage(dmg);
       if (stats.lifesteal > 0) this.player.heal(Math.round(dmg * stats.lifesteal));
       this.spawnDamageNumber(m.x, m.y, dmg, isCrit, 1);
+      if (NetworkService.connected) NetworkService.sendMinionHit(m.minionId, dmg);
     }
     if (this.bossActive && this.boss.active &&
         Phaser.Math.Distance.Between(px, py, this.boss.x, this.boss.y) <= RANGE) {
@@ -1593,6 +1803,7 @@ export class GameScene extends Phaser.Scene {
       this.boss.takeDamage(dmg, stats.penetration);
       if (stats.lifesteal > 0) this.player.heal(Math.round(dmg * stats.lifesteal));
       this.spawnDamageNumber(this.boss.x, this.boss.y, dmg, isCrit, elemMult);
+      if (NetworkService.connected) NetworkService.sendBossHit(dmg);
     }
   }
 
@@ -1748,17 +1959,31 @@ export class GameScene extends Phaser.Scene {
   }
 
   private generateWaypoints(): void {
+    // In co-op: use server-generated params so both players get identical maps.
+    // In solo:  fall back to local SeededRNG.
+    const mp  = this._mapParams;
+    const rng = new SeededRNG(this._mapSeed);
+
     const PAD = P(500);
     let cx = 0, cy = 0;
-    let dir = Phaser.Math.FloatBetween(0, Math.PI * 2);
+    let dir = mp ? mp.angle0 : rng.float(0, Math.PI * 2);
+    const count = mp ? mp.segments.length : rng.between(3, 5);
     const raw: Phaser.Math.Vector2[] = [new Phaser.Math.Vector2(cx, cy)];
-    for (let i = 0; i < Phaser.Math.Between(3, 5); i++) {
-      dir += Phaser.Math.FloatBetween(-Math.PI * 0.5, Math.PI * 0.5);
-      const dist = Phaser.Math.Between(P(600), P(800));
-      cx += Math.cos(dir) * dist;
-      cy += Math.sin(dir) * dist;
+
+    for (let i = 0; i < count; i++) {
+      if (mp) {
+        dir += mp.segments[i].angleDelta;
+        const dist = Math.round(P(600) + mp.segments[i].distRatio * P(200));
+        cx += Math.cos(dir) * dist;
+        cy += Math.sin(dir) * dist;
+      } else {
+        dir += rng.float(-Math.PI * 0.5, Math.PI * 0.5);
+        cx += Math.cos(dir) * rng.between(P(600), P(800));
+        cy += Math.sin(dir) * rng.between(P(600), P(800));
+      }
       raw.push(new Phaser.Math.Vector2(cx, cy));
     }
+
     const xs = raw.map(p => p.x), ys = raw.map(p => p.y);
     const offX = Math.min(...xs) - PAD, offY = Math.min(...ys) - PAD;
     this.waypoints = raw.map(p => new Phaser.Math.Vector2(p.x - offX, p.y - offY));
@@ -1769,15 +1994,15 @@ export class GameScene extends Phaser.Scene {
     this.worldW += ar * 2 + P(700);
     this.worldH = Math.max(baseH, ar * 2 + P(600));
     this.bossArenaCenter.set(this.worldW - ar - P(200), this.worldH / 2);
-    this.bossArenaShape = Phaser.Math.Between(0, 3);
-    // Use accepted quest boss; fall back to random
+    this.bossArenaShape = mp ? mp.bossArenaShape : rng.between(0, 3);
+
     const questBossId = QuestStore.getAcceptedQuest()?.bossId;
     const BOSS_POOL = [
       'boss_slime_green', 'boss_slime_red', 'boss_slime_blue', 'boss_slime_white',
       'boss_zombie_slime', 'boss_lava_slime',
     ];
-    this.bossMonsterId = questBossId ?? BOSS_POOL[Phaser.Math.Between(0, BOSS_POOL.length - 1)];
-    this.questStar     = QuestStore.getAcceptedQuest()?.star ?? 1;
+    this.bossMonsterId = this._initBossId ?? questBossId ?? BOSS_POOL[rng.between(0, BOSS_POOL.length - 1)];
+    this.questStar     = this._initQuestStar ?? QuestStore.getAcceptedQuest()?.star ?? 1;
   }
 
   private generateAndDrawMap(): void {
@@ -1899,11 +2124,11 @@ export class GameScene extends Phaser.Scene {
   private buildCorridorSegs(): void {
     this.corridorSegs = [];
     this.cornerPts = [];
+    const crng = new SeededRNG(this._mapSeed + 3333);
     for (let i = 0; i < this.waypoints.length - 1; i++) {
       const p1 = this.waypoints[i];
       const p2 = this.waypoints[i + 1];
-      // Randomly choose horizontal-first or vertical-first L-shape
-      const hFirst = Phaser.Math.Between(0, 1) === 0;
+      const hFirst = crng.between(0, 1) === 0;
       const cx = hFirst ? p2.x : p1.x;
       const cy = hFirst ? p1.y : p2.y;
       this.cornerPts.push({ x: cx, y: cy });
@@ -2110,8 +2335,9 @@ export class GameScene extends Phaser.Scene {
   private spawnMinionAt(defId: string, wx: number, wy: number, isElite: boolean): void {
     const def = getMonsterDef(defId);
     if (!def) return;
-    const hpMult = STAR_HP_MULT[this.questStar] ?? 1;
-    const hp  = Math.round(def.hp * hpMult * (isElite ? ELITE_HP_MULT : 1));
+    const hpMult   = STAR_HP_MULT[this.questStar] ?? 1;
+    const coopMult = NetworkService.connected ? CO_OP_HP_MULT : 1;
+    const hp  = Math.round(def.hp * hpMult * coopMult * (isElite ? ELITE_HP_MULT : 1));
     const atk = Math.round(def.atk * hpMult * (isElite ? 1.5 : 1));
     const a   = Phaser.Math.FloatBetween(0, Math.PI * 2);
     const r   = Phaser.Math.FloatBetween(20, 60);
@@ -2158,23 +2384,28 @@ export class GameScene extends Phaser.Scene {
     const mainMinionId = BOSS_TO_MINION[this.bossMonsterId];
     const otherPool    = GENERAL_POOL.filter(id => id !== mainMinionId);
     const hpMult       = STAR_HP_MULT[this.questStar] ?? 1;
+    const coopMult     = NetworkService.connected ? CO_OP_HP_MULT : 1;
 
     // 每星級數量 × 1.3^(star-1)
     const countMult = Math.pow(1.15, this.questStar - 1);
 
+    // Seeded RNG for spawn randomness — offset from map seed so sequences differ
+    const srng = new SeededRNG(this._mapSeed + 7777);
+
     const spawnMinion = (defId: string, wx: number, wy: number, isElite: boolean) => {
       const def = getMonsterDef(defId);
       if (!def) return;
-      const hp  = Math.round(def.hp * hpMult * (isElite ? ELITE_HP_MULT : 1));
+      const hp  = Math.round(def.hp * hpMult * coopMult * (isElite ? ELITE_HP_MULT : 1));
       const atk = Math.round(def.atk * hpMult * (isElite ? 1.5 : 1));
-      const a   = Phaser.Math.FloatBetween(0, Math.PI * 2);
-      const r   = Phaser.Math.FloatBetween(P(20), P(180));
+      const a   = srng.float(0, Math.PI * 2);
+      const r   = srng.float(P(20), P(180));
       const m   = new MinionSlime(this, wx + Math.cos(a) * r, wy + Math.sin(a) * r, hp, def.spriteKey, def.tint);
+      m.minionId = `m${this.allMinions.length}`;
       m.atk = atk;
       if (isElite) {
         m.isElite = true;
         m.setScale(m.scaleX * ELITE_SCALE_MOD, m.scaleY * ELITE_SCALE_MOD);
-        m.setTintFill(def.tint);   // 填色讓菁英外觀更突出
+        m.setTintFill(def.tint);
       }
       m.setPatrolCenter(wx, wy);
       m.getTargetPos = () => [this.player.x, this.player.y];
@@ -2187,35 +2418,49 @@ export class GameScene extends Phaser.Scene {
     };
 
     const spawnAt = (wx: number, wy: number) => {
-      const baseCount = Phaser.Math.Between(8, 15);
+      const baseCount = srng.between(8, 15);
       const count     = Math.round(baseCount * countMult);
       for (let j = 0; j < count; j++) {
-        const minionId = (mainMinionId && Math.random() < 0.7)
+        const minionId = (mainMinionId && srng.float(0, 1) < 0.7)
           ? mainMinionId
-          : otherPool[Phaser.Math.Between(0, otherPool.length - 1)];
+          : otherPool[srng.between(0, otherPool.length - 1)];
         const eliteId  = mainMinionId ? MINION_TO_ELITE[minionId] : undefined;
-        const goElite  = !!eliteId && Math.random() < 0.12;
+        const goElite  = !!eliteId && srng.float(0, 1) < 0.12;
         spawnMinion(goElite ? eliteId! : minionId, wx, wy, goElite);
       }
     };
 
-    // waypoints：跳過第一個（出生點）和最後一個（Boss 傳送門）
     for (let i = 1; i < this.waypoints.length - 1; i++) {
       spawnAt(this.waypoints[i].x, this.waypoints[i].y);
     }
 
-    // 轉角點：40% 機率生怪，製造偶爾的重疊感，跳過首尾
     for (let i = 1; i < this.cornerPts.length - 1; i++) {
-      if (Math.random() < 0.4) {
+      if (srng.float(0, 1) < 0.4) {
         const c = this.cornerPts[i];
         spawnAt(c.x, c.y);
       }
     }
 
-
-    // Start AI for all minions immediately so they reach natural positions,
-    // but visibility is controlled in update() when player walks near.
-    this.time.delayedCall(400, () => { for (const m of this.allMinions) m.start(); });
+    this.time.delayedCall(400, () => {
+      if (!NetworkService.connected || NetworkService.isHost) {
+        // Solo / host: run full AI
+        for (const m of this.allMinions) m.start();
+      } else {
+        // Guest: mark started so visibility check works, but skip AI
+        for (const m of this.allMinions) m.started = true;
+      }
+      // Host sends initial minion state to server for HP tracking
+      if (NetworkService.connected && NetworkService.isHost) {
+        NetworkService.sendMinionSync(this.allMinions.map(m => ({
+          id:     m.minionId,
+          x:      m.x,
+          y:      m.y,
+          hp:     m.currentHp,
+          maxHp:  m.currentHp,
+          isDead: false,
+        })));
+      }
+    });
   }
 
   private setupPortal(px: number, py: number): void {
@@ -3116,6 +3361,134 @@ export class GameScene extends Phaser.Scene {
       this.input.off('pointerup', onUp);
       this.scale.off('resize', onResize);
     });
+  }
+
+  // ── Partner attack VFX ───────────────────────────────────────
+  private showPartnerAttackFX(behavior: string, x: number, y: number, dir: string): void {
+    const D = 20;
+    const dirRad = ({ down: Math.PI / 2, up: -Math.PI / 2, left: Math.PI, right: 0 } as Record<string, number>)[dir] ?? 0;
+
+    const crescent = (cx: number, cy: number, outerR: number, arcRad: number, color: number, dur: number) => {
+      const sa = dirRad - arcRad / 2, ea = dirRad + arcRad / 2;
+      const R2 = outerR * 0.55, steps = 18;
+      const pts: { x: number; y: number }[] = [];
+      for (let i = 0; i <= steps; i++) { const a = sa + (ea - sa) * (i / steps); pts.push({ x: cx + Math.cos(a) * outerR, y: cy + Math.sin(a) * outerR }); }
+      for (let i = steps; i >= 0; i--) { const a = sa + (ea - sa) * (i / steps); pts.push({ x: cx + Math.cos(a) * R2, y: cy + Math.sin(a) * R2 }); }
+      const s = { a: 0.8 };
+      const g = this.add.graphics().setDepth(D);
+      this.tweens.add({ targets: s, a: 0, duration: dur, onUpdate: () => { g.clear(); g.fillStyle(color, s.a); g.fillPoints(pts, true); }, onComplete: () => g.destroy() });
+    };
+
+    switch (behavior) {
+      case 'slash180':
+        // VFX fires inside onHit callback (~150ms after anim starts); delay to match
+        this.time.delayedCall(100, () => crescent(x, y, P(55), Math.PI, 0xaaddff, 200));
+        break;
+
+      case 'whirlwind':
+        // onHit fires at 150ms into the animation
+        this.time.delayedCall(150, () => {
+          for (let i = 0; i < 3; i++) {
+            const s = { r: P(20 + i * 10), a: 0.85 - i * 0.2 };
+            const g = this.add.graphics().setDepth(D).setPosition(x, y);
+            this.tweens.add({ targets: s, r: P(80 + i * 20), a: 0, duration: 380 + i * 60, delay: i * 50, ease: 'Quad.Out',
+              onUpdate: () => { g.clear(); g.lineStyle(3, i === 0 ? 0xffffff : 0x66aaff, s.a); g.strokeCircle(0, 0, s.r); },
+              onComplete: () => g.destroy() });
+          }
+        });
+        break;
+
+      case 'dashPierce': {
+        const len = P(140);
+        const s = { a: 0.85 };
+        const g = this.add.graphics().setDepth(D);
+        const ex = x - Math.cos(dirRad) * len, ey = y - Math.sin(dirRad) * len;
+        this.tweens.add({ targets: s, a: 0, duration: 280,
+          onUpdate: () => { g.clear(); g.lineStyle(P(6), 0x88ccff, s.a); g.lineBetween(ex, ey, x, y); },
+          onComplete: () => g.destroy() });
+        break;
+      }
+
+      case 'projectile': {
+        // 風刃：快速向前飛出的月牙
+        const dist = P(200);
+        const ex = x + Math.cos(dirRad) * dist, ey = y + Math.sin(dirRad) * dist;
+        const outerR = P(30), arcRad = Math.PI * 0.7;
+        const sa = dirRad - arcRad / 2, ea = dirRad + arcRad / 2;
+        const R2 = outerR * 0.55, steps = 14;
+        const s = { t: 0, a: 0.85 };
+        const g = this.add.graphics().setDepth(D);
+        this.tweens.add({ targets: s, t: 1, a: 0, duration: 280, ease: 'Quad.In',
+          onUpdate: () => {
+            const cx2 = x + (ex - x) * s.t, cy2 = y + (ey - y) * s.t;
+            const pts: { x: number; y: number }[] = [];
+            for (let i = 0; i <= steps; i++) { const a = sa + (ea - sa) * (i / steps); pts.push({ x: cx2 + Math.cos(a) * outerR, y: cy2 + Math.sin(a) * outerR }); }
+            for (let i = steps; i >= 0; i--) { const a = sa + (ea - sa) * (i / steps); pts.push({ x: cx2 + Math.cos(a) * R2, y: cy2 + Math.sin(a) * R2 }); }
+            g.clear(); g.fillStyle(0x88ffcc, s.a); g.fillPoints(pts, true);
+          },
+          onComplete: () => g.destroy() });
+        break;
+      }
+
+      case 'multiHit':
+        for (let i = 0; i < 5; i++) {
+          this.time.delayedCall(i * 70, () => {
+            const g = this.add.graphics().setDepth(D).setPosition(x, y);
+            g.fillStyle(0xffffff, 0.75); g.fillCircle(0, 0, P(18));
+            this.tweens.add({ targets: g, alpha: 0, scaleX: 2.5, scaleY: 2.5, duration: 140, onComplete: () => g.destroy() });
+          });
+        }
+        break;
+
+      case 'chargeSlam':
+        // Actual slam fires 150ms after startAttackAnim is called
+        this.time.delayedCall(150, () => {
+          const s = { r: P(10), a: 1 };
+          const g = this.add.graphics().setDepth(D).setPosition(x, y);
+          this.tweens.add({ targets: s, r: P(200), a: 0, duration: 480, ease: 'Quad.Out',
+            onUpdate: () => { g.clear(); g.lineStyle(P(5), 0xffffff, s.a * 0.9); g.strokeCircle(0, 0, s.r); g.lineStyle(P(2), 0xaaddff, s.a * 0.5); g.strokeCircle(0, 0, s.r * 0.65); },
+            onComplete: () => g.destroy() });
+        });
+        break;
+
+      case 'boomerang':
+        // 迴旋：兩段月牙，延遲後反向回來
+        crescent(x, y, P(50), Math.PI * 0.9, 0xffdd88, 180);
+        this.time.delayedCall(500, () => crescent(x, y, P(50), Math.PI * 0.9, 0xffdd88, 180));
+        break;
+
+      case 'magicFire': {
+        // Orb travels ~670ms before exploding; animate it flying then explode
+        const travelMs = 640;
+        const exX = x + Math.cos(dirRad) * P(200), exY = y + Math.sin(dirRad) * P(200);
+        const ts = { t: 0 };
+        const orbG = this.add.graphics().setDepth(D);
+        this.tweens.add({
+          targets: ts, t: 1, duration: travelMs, ease: 'Linear',
+          onUpdate: () => {
+            const cx = x + (exX - x) * ts.t, cy = y + (exY - y) * ts.t;
+            orbG.clear();
+            orbG.fillStyle(0xff4400, 0.35); orbG.fillCircle(cx, cy, P(11));
+            orbG.fillStyle(0xff6600, 0.90); orbG.fillCircle(cx, cy, P(7));
+            orbG.fillStyle(0xffaa00, 0.80); orbG.fillCircle(cx, cy, P(4));
+          },
+          onComplete: () => {
+            orbG.destroy();
+            const es = { r: P(10), a: 1 };
+            const eG = this.add.graphics().setDepth(D).setPosition(exX, exY);
+            this.tweens.add({ targets: es, r: P(60), a: 0, duration: 380, ease: 'Quad.Out',
+              onUpdate: () => {
+                eG.clear();
+                eG.fillStyle(0xff4400, es.a * 0.5); eG.fillCircle(0, 0, es.r * 1.4);
+                eG.fillStyle(0xff6600, es.a * 0.8); eG.fillCircle(0, 0, es.r);
+                eG.fillStyle(0xffee00, es.a);        eG.fillCircle(0, 0, es.r * 0.5);
+              },
+              onComplete: () => eG.destroy() });
+          },
+        });
+        break;
+      }
+    }
   }
 
   private createPlayerAnims(): void {
