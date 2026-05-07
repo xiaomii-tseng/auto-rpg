@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { Boss, BossState } from './boss';
 
-const DPR = Math.min(window.devicePixelRatio || 1, 3);
+const DPR = (window as any).__gameDpr as number;
 const P = (n: number): number => Math.round(n * DPR);
 
 // ── 岩漿彈幕常數 ──────────────────────────────────────────

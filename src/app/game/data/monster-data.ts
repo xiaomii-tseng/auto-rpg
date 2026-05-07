@@ -1,4 +1,4 @@
-﻿const DPR = Math.min(window.devicePixelRatio || 1, 3);
+﻿const DPR = (window as any).__gameDpr as number;
 import { Element, StatBonus } from './equipment-data';
 
 // ── Interfaces ─────────────────────────────────────────────────────────────
@@ -59,10 +59,10 @@ export const ITEM_STONE_BROKEN = 'stone_broken';  // 破損強化石
 export const ITEM_STONE_INTACT = 'stone_intact';  // 完整強化石
 export const ITEM_STONE_GUARD  = 'stone_guard';   // 防退石
 
-// ── Card drop rates (A=普通 / B=稀有 / C=傳說) ────────────────────────────
-const CA_S = 1, CB_S = 1, CC_S = 1;  // 小怪
-const CA_E = 1, CB_E = 1, CC_E = 1;  // 菁英
-const CA_B = 1, CB_B = 1, CC_B = 1;  // Boss
+// ── Card drop rates (per card, star multiplier applied separately) ─────────
+const CR_S = 0.005;  // 小怪：每張卡 0.5%  → 平均每局約 1.5 張
+const CR_E = 0.006;  // 菁英：每張卡 0.6%  → 平均 4 局掉 1 張
+const CR_B = 0.010;  // Boss：每張卡 1.0%  → 平均 30 局掉 1 張
 
 // ── Sprite scale constants ─────────────────────────────────────────────────
 export const MONSTER_SCALE_SMALL = +(0.78 * DPR).toFixed(4);
@@ -87,19 +87,19 @@ export const ELITE_SCALE_MOD = +(MONSTER_SCALE_ELITE / MONSTER_SCALE_SMALL).toFi
 // 破損石/趟 = 60×0.02×1 + 8×0.04×2.5 + 0.35×4.5 = 1.2+0.8+1.575 ≈ 3.58
 
 const smallDrops: DropEntry[] = [
-  { itemId: ITEM_STONE_BROKEN, itemName: '破損強化石', rate: 1 /* 原本: 0.03 */, qtyMin: 1, qtyMax: 1 },
+  { itemId: ITEM_STONE_BROKEN, itemName: '破損強化石', rate: 0.03, qtyMin: 1, qtyMax: 1 },
 ];
 
 const eliteDrops: DropEntry[] = [
-  { itemId: ITEM_STONE_BROKEN, itemName: '破損強化石', rate: 1 /* 原本: 0.10 */, qtyMin: 1, qtyMax: 1 },
-  { itemId: ITEM_STONE_INTACT, itemName: '完整強化石', rate: 1 /* 原本: 0.02 */, qtyMin: 1, qtyMax: 1 },
-  { itemId: ITEM_STONE_GUARD,  itemName: '防退石',     rate: 1 /* 原本: 0.02 */, qtyMin: 1, qtyMax: 1 },
+  { itemId: ITEM_STONE_BROKEN, itemName: '破損強化石', rate: 0.10, qtyMin: 1, qtyMax: 1 },
+  { itemId: ITEM_STONE_INTACT, itemName: '完整強化石', rate: 0.02, qtyMin: 1, qtyMax: 1 },
+  { itemId: ITEM_STONE_GUARD,  itemName: '防退石',     rate: 0.02, qtyMin: 1, qtyMax: 1 },
 ];
 
 const bossDrops: DropEntry[] = [
-  { itemId: ITEM_STONE_BROKEN, itemName: '破損強化石', rate: 1 /* 原本: 1.00 */, qtyMin: 1, qtyMax: 1 },
-  { itemId: ITEM_STONE_INTACT, itemName: '完整強化石', rate: 1 /* 原本: 0.30 */, qtyMin: 1, qtyMax: 1 },
-  { itemId: ITEM_STONE_GUARD,  itemName: '防退石',     rate: 1 /* 原本: 0.10 */, qtyMin: 1, qtyMax: 1 },
+  { itemId: ITEM_STONE_BROKEN, itemName: '破損強化石', rate: 1.00, qtyMin: 1, qtyMax: 1 },
+  { itemId: ITEM_STONE_INTACT, itemName: '完整強化石', rate: 0.30, qtyMin: 1, qtyMax: 1 },
+  { itemId: ITEM_STONE_GUARD,  itemName: '防退石',     rate: 0.10, qtyMin: 1, qtyMax: 1 },
 ];
 
 // ── Monster definitions ────────────────────────────────────────────────────
@@ -111,28 +111,28 @@ export const MONSTER_DEFS: MonsterDef[] = [
     id: 'slime_green_s', name: '綠史萊姆小', spriteKey: 'slime', frameEnd: 5,
     element: 'grass', tint: 0x44ff44, tier: 1,
     hp: 60, atk: 8, speed: 90, exp: 15, gold: 5,
-    cards: [{ cardId: 'card_slime_green_s_a', rate: CA_S }, { cardId: 'card_slime_green_s_b', rate: CB_S }, { cardId: 'card_slime_green_s_c', rate: CC_S }],
+    cards: [{ cardId: 'card_slime_green_s_a', rate: CR_S}, { cardId: 'card_slime_green_s_b', rate: CR_S}, { cardId: 'card_slime_green_s_c', rate: CR_S}],
     drops: smallDrops,
   },
   {
     id: 'slime_red_s', name: '紅史萊姆小', spriteKey: 'slime', frameEnd: 5,
     element: 'fire', tint: 0xff2020, tier: 1,
     hp: 65, atk: 10, speed: 85, exp: 18, gold: 6,
-    cards: [{ cardId: 'card_slime_red_s_a', rate: CA_S }, { cardId: 'card_slime_red_s_b', rate: CB_S }, { cardId: 'card_slime_red_s_c', rate: CC_S }],
+    cards: [{ cardId: 'card_slime_red_s_a', rate: CR_S}, { cardId: 'card_slime_red_s_b', rate: CR_S}, { cardId: 'card_slime_red_s_c', rate: CR_S}],
     drops: smallDrops,
   },
   {
     id: 'slime_blue_s', name: '藍史萊姆小', spriteKey: 'slime', frameEnd: 5,
     element: 'water', tint: 0x2299ff, tier: 1,
     hp: 55, atk: 8, speed: 100, exp: 15, gold: 5,
-    cards: [{ cardId: 'card_slime_blue_s_a', rate: CA_S }, { cardId: 'card_slime_blue_s_b', rate: CB_S }, { cardId: 'card_slime_blue_s_c', rate: CC_S }],
+    cards: [{ cardId: 'card_slime_blue_s_a', rate: CR_S}, { cardId: 'card_slime_blue_s_b', rate: CR_S}, { cardId: 'card_slime_blue_s_c', rate: CR_S}],
     drops: smallDrops,
   },
   {
     id: 'slime_white_s', name: '白史萊姆小', spriteKey: 'slime', frameEnd: 5,
     element: 'none', tint: 0xccddee, tier: 1,
     hp: 60, atk: 8, speed: 90, exp: 12, gold: 4,
-    cards: [{ cardId: 'card_slime_white_s_a', rate: CA_S }, { cardId: 'card_slime_white_s_b', rate: CB_S }, { cardId: 'card_slime_white_s_c', rate: CC_S }],
+    cards: [{ cardId: 'card_slime_white_s_a', rate: CR_S}, { cardId: 'card_slime_white_s_b', rate: CR_S}, { cardId: 'card_slime_white_s_c', rate: CR_S}],
     drops: smallDrops,
   },
 
@@ -141,14 +141,14 @@ export const MONSTER_DEFS: MonsterDef[] = [
     id: 'slime_zombie_s', name: '殭屍史萊姆小', spriteKey: 'slime2', frameEnd: 5,
     element: 'none', tint: 0x99dd44, tier: 1,
     hp: 80, atk: 10, speed: 70, exp: 20, gold: 7,
-    cards: [{ cardId: 'card_slime_zombie_s_a', rate: CA_S }, { cardId: 'card_slime_zombie_s_b', rate: CB_S }, { cardId: 'card_slime_zombie_s_c', rate: CC_S }],
+    cards: [{ cardId: 'card_slime_zombie_s_a', rate: CR_S}, { cardId: 'card_slime_zombie_s_b', rate: CR_S}, { cardId: 'card_slime_zombie_s_c', rate: CR_S}],
     drops: smallDrops,
   },
   {
     id: 'slime_lava_s', name: '熔岩史萊姆小', spriteKey: 'slime3', frameEnd: 5,
     element: 'fire', tint: 0xffffff, tier: 1,
     hp: 70, atk: 12, speed: 100, exp: 22, gold: 8,
-    cards: [{ cardId: 'card_slime_lava_s_a', rate: CA_S }, { cardId: 'card_slime_lava_s_b', rate: CB_S }, { cardId: 'card_slime_lava_s_c', rate: CC_S }],
+    cards: [{ cardId: 'card_slime_lava_s_a', rate: CR_S}, { cardId: 'card_slime_lava_s_b', rate: CR_S}, { cardId: 'card_slime_lava_s_c', rate: CR_S}],
     drops: smallDrops,
   },
 
@@ -157,42 +157,42 @@ export const MONSTER_DEFS: MonsterDef[] = [
     id: 'elite_slime_green', name: '綠史萊姆菁英', spriteKey: 'slime', frameEnd: 5,
     element: 'grass', tint: 0x00ff88, tier: 3,
     hp: 60, atk: 8, speed: 95, exp: 60, gold: 25,
-    cards: [{ cardId: 'card_elite_slime_green_a', rate: CA_E }, { cardId: 'card_elite_slime_green_b', rate: CB_E }, { cardId: 'card_elite_slime_green_c', rate: CC_E }],
+    cards: [{ cardId: 'card_elite_slime_green_a', rate: CR_E}, { cardId: 'card_elite_slime_green_b', rate: CR_E}, { cardId: 'card_elite_slime_green_c', rate: CR_E}],
     drops: eliteDrops,
   },
   {
     id: 'elite_slime_red', name: '紅史萊姆菁英', spriteKey: 'slime', frameEnd: 5,
     element: 'fire', tint: 0xff6600, tier: 3,
     hp: 65, atk: 10, speed: 90, exp: 65, gold: 28,
-    cards: [{ cardId: 'card_elite_slime_red_a', rate: CA_E }, { cardId: 'card_elite_slime_red_b', rate: CB_E }, { cardId: 'card_elite_slime_red_c', rate: CC_E }],
+    cards: [{ cardId: 'card_elite_slime_red_a', rate: CR_E}, { cardId: 'card_elite_slime_red_b', rate: CR_E}, { cardId: 'card_elite_slime_red_c', rate: CR_E}],
     drops: eliteDrops,
   },
   {
     id: 'elite_slime_blue', name: '藍史萊姆菁英', spriteKey: 'slime', frameEnd: 5,
     element: 'water', tint: 0x00ddff, tier: 3,
     hp: 55, atk: 8, speed: 110, exp: 60, gold: 25,
-    cards: [{ cardId: 'card_elite_slime_blue_a', rate: CA_E }, { cardId: 'card_elite_slime_blue_b', rate: CB_E }, { cardId: 'card_elite_slime_blue_c', rate: CC_E }],
+    cards: [{ cardId: 'card_elite_slime_blue_a', rate: CR_E}, { cardId: 'card_elite_slime_blue_b', rate: CR_E}, { cardId: 'card_elite_slime_blue_c', rate: CR_E}],
     drops: eliteDrops,
   },
   {
     id: 'elite_slime_white', name: '白史萊姆菁英', spriteKey: 'slime', frameEnd: 5,
     element: 'none', tint: 0xeeffff, tier: 3,
     hp: 60, atk: 8, speed: 95, exp: 55, gold: 22,
-    cards: [{ cardId: 'card_elite_slime_white_a', rate: CA_E }, { cardId: 'card_elite_slime_white_b', rate: CB_E }, { cardId: 'card_elite_slime_white_c', rate: CC_E }],
+    cards: [{ cardId: 'card_elite_slime_white_a', rate: CR_E}, { cardId: 'card_elite_slime_white_b', rate: CR_E}, { cardId: 'card_elite_slime_white_c', rate: CR_E}],
     drops: eliteDrops,
   },
   {
     id: 'elite_slime_zombie', name: '殭屍史萊姆菁英', spriteKey: 'slime2', frameEnd: 5,
     element: 'none', tint: 0xccff44, tier: 3,
     hp: 80, atk: 10, speed: 78, exp: 75, gold: 32,
-    cards: [{ cardId: 'card_elite_slime_zombie_a', rate: CA_E }, { cardId: 'card_elite_slime_zombie_b', rate: CB_E }, { cardId: 'card_elite_slime_zombie_c', rate: CC_E }],
+    cards: [{ cardId: 'card_elite_slime_zombie_a', rate: CR_E}, { cardId: 'card_elite_slime_zombie_b', rate: CR_E}, { cardId: 'card_elite_slime_zombie_c', rate: CR_E}],
     drops: eliteDrops,
   },
   {
     id: 'elite_slime_lava', name: '熔岩史萊姆菁英', spriteKey: 'slime3', frameEnd: 5,
     element: 'fire', tint: 0xff4400, tier: 3,
     hp: 70, atk: 12, speed: 110, exp: 80, gold: 36,
-    cards: [{ cardId: 'card_elite_slime_lava_a', rate: CA_E }, { cardId: 'card_elite_slime_lava_b', rate: CB_E }, { cardId: 'card_elite_slime_lava_c', rate: CC_E }],
+    cards: [{ cardId: 'card_elite_slime_lava_a', rate: CR_E}, { cardId: 'card_elite_slime_lava_b', rate: CR_E}, { cardId: 'card_elite_slime_lava_c', rate: CR_E}],
     drops: eliteDrops,
   },
 
@@ -201,28 +201,28 @@ export const MONSTER_DEFS: MonsterDef[] = [
     id: 'boss_slime_green', name: '綠史萊姆王', spriteKey: 'slime', frameEnd: 9,
     element: 'grass', tint: 0x33ff33, tier: 5,
     hp: 750, atk: 25, def: 18, speed: 80, exp: 200, gold: 100,
-    cards: [{ cardId: 'card_boss_slime_green_a', rate: CA_B }, { cardId: 'card_boss_slime_green_b', rate: CB_B }, { cardId: 'card_boss_slime_green_c', rate: CC_B }],
+    cards: [{ cardId: 'card_boss_slime_green_a', rate: CR_B}, { cardId: 'card_boss_slime_green_b', rate: CR_B}, { cardId: 'card_boss_slime_green_c', rate: CR_B}],
     drops: bossDrops,
   },
   {
     id: 'boss_slime_red', name: '紅史萊姆王', spriteKey: 'slime', frameEnd: 9,
     element: 'fire', tint: 0xff1111, tier: 5,
     hp: 750, atk: 30, def: 18, speed: 80, exp: 200, gold: 100,
-    cards: [{ cardId: 'card_boss_slime_red_a', rate: CA_B }, { cardId: 'card_boss_slime_red_b', rate: CB_B }, { cardId: 'card_boss_slime_red_c', rate: CC_B }],
+    cards: [{ cardId: 'card_boss_slime_red_a', rate: CR_B}, { cardId: 'card_boss_slime_red_b', rate: CR_B}, { cardId: 'card_boss_slime_red_c', rate: CR_B}],
     drops: bossDrops,
   },
   {
     id: 'boss_slime_blue', name: '藍史萊姆王', spriteKey: 'slime', frameEnd: 9,
     element: 'water', tint: 0x1188ff, tier: 5,
     hp: 720, atk: 25, def: 18, speed: 80, exp: 200, gold: 100,
-    cards: [{ cardId: 'card_boss_slime_blue_a', rate: CA_B }, { cardId: 'card_boss_slime_blue_b', rate: CB_B }, { cardId: 'card_boss_slime_blue_c', rate: CC_B }],
+    cards: [{ cardId: 'card_boss_slime_blue_a', rate: CR_B}, { cardId: 'card_boss_slime_blue_b', rate: CR_B}, { cardId: 'card_boss_slime_blue_c', rate: CR_B}],
     drops: bossDrops,
   },
   {
     id: 'boss_slime_white', name: '白史萊姆王', spriteKey: 'slime', frameEnd: 9,
     element: 'none', tint: 0xccddee, tier: 5,
     hp: 750, atk: 25, def: 24, speed: 80, exp: 200, gold: 100,
-    cards: [{ cardId: 'card_boss_slime_white_a', rate: CA_B }, { cardId: 'card_boss_slime_white_b', rate: CB_B }, { cardId: 'card_boss_slime_white_c', rate: CC_B }],
+    cards: [{ cardId: 'card_boss_slime_white_a', rate: CR_B}, { cardId: 'card_boss_slime_white_b', rate: CR_B}, { cardId: 'card_boss_slime_white_c', rate: CR_B}],
     drops: bossDrops,
   },
 
@@ -231,7 +231,7 @@ export const MONSTER_DEFS: MonsterDef[] = [
     id: 'boss_zombie_slime', name: '殭屍史萊姆王', spriteKey: 'slime2', frameEnd: 9,
     element: 'none', tint: 0x99dd44, tier: 5,
     hp: 825, atk: 28, def: 20, speed: 80, exp: 220, gold: 120,
-    cards: [{ cardId: 'card_boss_zombie_slime_a', rate: CA_B }, { cardId: 'card_boss_zombie_slime_b', rate: CB_B }, { cardId: 'card_boss_zombie_slime_c', rate: CC_B }],
+    cards: [{ cardId: 'card_boss_zombie_slime_a', rate: CR_B}, { cardId: 'card_boss_zombie_slime_b', rate: CR_B}, { cardId: 'card_boss_zombie_slime_c', rate: CR_B}],
     drops: bossDrops,
   },
 
@@ -240,7 +240,7 @@ export const MONSTER_DEFS: MonsterDef[] = [
     id: 'boss_lava_slime', name: '熔岩史萊姆王', spriteKey: 'slime3', frameEnd: 9,
     element: 'fire', tint: 0xffffff, tier: 5,
     hp: 900, atk: 32, def: 30, speed: 80, exp: 250, gold: 150,
-    cards: [{ cardId: 'card_boss_lava_slime_a', rate: CA_B }, { cardId: 'card_boss_lava_slime_b', rate: CB_B }, { cardId: 'card_boss_lava_slime_c', rate: CC_B }],
+    cards: [{ cardId: 'card_boss_lava_slime_a', rate: CR_B}, { cardId: 'card_boss_lava_slime_b', rate: CR_B}, { cardId: 'card_boss_lava_slime_c', rate: CR_B}],
     drops: bossDrops,
   },
 ];

@@ -6,10 +6,10 @@ import { SaveStore } from '../data/save-store';
 import { CardStore, CARD_SLOT_COUNT } from '../data/card-store';
 
 import { getCardDef, getMonsterDef, monsterCardScale, monsterDetailScale } from '../data/monster-data';
-import { QuestStore, Quest, STAR_EQUIP_QUALITY } from '../data/quest-store';
+import { QuestStore, Quest, STAR_EQUIP_QUALITY, getStarWeights } from '../data/quest-store';
 
 
-const DPR = Math.min(window.devicePixelRatio || 1, 3);
+const DPR = (window as any).__gameDpr as number;
 const F = (n: number): string => `${Math.round(n * DPR)}px`;
 const P = (n: number): number => Math.round(n * DPR);
 
@@ -1036,6 +1036,64 @@ export class PrepScene extends Phaser.Scene {
     };
 
     quests.forEach((q, i) => renderCard(q, i));
+
+    // ── Star probability panel (right of quest board) ─────
+    const spW = (W - PW) / 2 - P(12);
+    if (spW >= P(55)) {
+      const spX  = panelX + PW + P(6);
+      const spY  = panelY;
+      const spH  = PH;
+      const spBg = this.add.graphics().setDepth(D + 1);
+      objs.push(spBg);
+      spBg.fillStyle(0x000000, 0.5);
+      spBg.fillRect(spX + P(3), spY + P(3), spW, spH);
+      spBg.fillStyle(0x1a0e00, 1);
+      spBg.fillRect(spX, spY, spW, spH);
+      spBg.lineStyle(P(1.5), 0x7a5020, 1);
+      spBg.strokeRect(spX, spY, spW, spH);
+
+      objs.push(this.add.text(spX + spW / 2, spY + P(14), '出現率', {
+        fontSize: F(10), fontStyle: 'bold', color: '#ffe080',
+        stroke: '#2a1000', strokeThickness: 2,
+      }).setOrigin(0.5).setDepth(D + 2));
+
+      const weights  = getStarWeights(PlayerStore.getLevel());
+      const total    = Object.values(weights).reduce((s, w) => s + w, 0);
+      const starChar = ['★', '★★', '★★★', '★★★★', '★★★★★'];
+      const rowH     = (spH - P(28)) / 5;
+
+      for (let i = 0; i < 5; i++) {
+        const star = i + 1;
+        const pct  = total > 0 ? weights[star] / total : 0;
+        const ry   = spY + P(26) + i * rowH;
+        const pad  = P(5);
+        const barW = spW - pad * 2;
+        const barH = P(4);
+
+        // star label
+        const starColor = ['#aaffaa', '#ffdd88', '#88ccff', '#ff99ff', '#ffaa44'][i];
+        objs.push(this.add.text(spX + spW / 2, ry, starChar[i], {
+          fontSize: F(8), color: starColor,
+        }).setOrigin(0.5, 0).setDepth(D + 2));
+
+        // percentage text
+        const pctText = pct < 0.005 ? '—' : `${Math.round(pct * 100)}%`;
+        objs.push(this.add.text(spX + spW / 2, ry + P(11), pctText, {
+          fontSize: F(9), fontStyle: 'bold', color: '#ffffff',
+        }).setOrigin(0.5, 0).setDepth(D + 2));
+
+        // bar
+        const barG = this.add.graphics().setDepth(D + 2);
+        objs.push(barG);
+        barG.fillStyle(0x333333, 1);
+        barG.fillRect(spX + pad, ry + P(22), barW, barH);
+        if (pct > 0) {
+          const fillColor = [0x44cc44, 0xddcc22, 0x2299ff, 0xcc44cc, 0xff8822][i];
+          barG.fillStyle(fillColor, 1);
+          barG.fillRect(spX + pad, ry + P(22), Math.round(barW * pct), barH);
+        }
+      }
+    }
 
     // ── Confirm dialog ────────────────────────────────────
     const showConfirm = (quest: Quest) => {

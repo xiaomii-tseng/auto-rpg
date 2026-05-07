@@ -170,7 +170,7 @@ export const BEHAVIOR_INFO: Record<AttackBehavior, BehaviorInfo> = {
   },
   whirlwind: {
     desc:    '原地旋轉揮砍，對周圍所有敵人造成傷害。',
-    formula: ['傷害：攻擊力 × 80%', '冷卻：650ms', '範圍：360° 全向（66px）'],
+    formula: ['傷害：攻擊力 × 80%', '冷卻：650ms', '範圍：360° 全向'],
     relatedStats: [
       { stat: 'atk',      note: '決定傷害' },
       { stat: 'crit',     note: '觸發暴擊' },
@@ -179,7 +179,7 @@ export const BEHAVIOR_INFO: Record<AttackBehavior, BehaviorInfo> = {
   },
   dashPierce: {
     desc:    '瞬間向前衝刺並刺穿路徑上的所有敵人。',
-    formula: ['傷害：攻擊力 × 91%（每個敵人）', '冷卻：650ms', '衝刺距離：78px'],
+    formula: ['傷害：攻擊力 × 91%（每個敵人）', '冷卻：650ms'],
     relatedStats: [
       { stat: 'atk',      note: '決定傷害' },
       { stat: 'crit',     note: '觸發暴擊' },
@@ -188,7 +188,7 @@ export const BEHAVIOR_INFO: Record<AttackBehavior, BehaviorInfo> = {
   },
   projectile: {
     desc:    '射出一道飛行刀風，穿透路徑上所有敵人。',
-    formula: ['傷害：攻擊力 × 55%', '冷卻：650ms', '射程：155px'],
+    formula: ['傷害：攻擊力 × 55%', '冷卻：650ms'],
     relatedStats: [
       { stat: 'atk',      note: '決定傷害' },
       { stat: 'crit',     note: '觸發暴擊' },
@@ -197,7 +197,7 @@ export const BEHAVIOR_INFO: Record<AttackBehavior, BehaviorInfo> = {
   },
   aura: {
     desc:    '持續釋放血氣光環，對範圍內的敵人造成持續傷害，無需手動攻擊。',
-    formula: ['傷害：最大HP × 7.5% / 次', '頻率：每 250ms（攻速越高越快）', '範圍：56px'],
+    formula: ['傷害：最大HP × 7.5% / 次', '頻率：每 250ms（攻速越高越快）'],
     relatedStats: [
       { stat: 'hp',       note: '決定傷害' },
       { stat: 'atkSpeed', note: '提升攻擊頻率' },
@@ -219,12 +219,11 @@ export const BEHAVIOR_INFO: Record<AttackBehavior, BehaviorInfo> = {
       { stat: 'atk',      note: '決定傷害' },
       { stat: 'crit',     note: '觸發暴擊' },
       { stat: 'atkSpeed', note: '縮短冷卻' },
-      { stat: 'speed',    note: '蓄力中移速-60%' },
     ],
   },
   boomerang: {
     desc:    '投出迴旋飛刃，命中敵人後原地旋轉，再自動飛回。去回程皆可造成傷害。',
-    formula: ['飛出：攻擊力 × 60%', '旋轉：攻擊力 × 30% × 4次（範圍：26px）', '飛回：攻擊力 × 60%', '冷卻：1500ms'],
+    formula: ['飛出：攻擊力 × 60%', '旋轉：攻擊力 × 30% × 4次', '飛回：攻擊力 × 60%', '冷卻：1500ms'],
     relatedStats: [
       { stat: 'atk',      note: '決定各段傷害' },
       { stat: 'crit',     note: '每段獨立觸發' },
@@ -236,7 +235,6 @@ export const BEHAVIOR_INFO: Record<AttackBehavior, BehaviorInfo> = {
     formula: ['火球：攻擊力 × 50%', '燃燒：攻擊力 × 3.2% × 層數 / 400ms', '最大層數：15層', '燃燒持續：4秒', '冷卻：1100ms'],
     relatedStats: [
       { stat: 'atk',      note: '決定燃燒傷害' },
-      { stat: 'crit',     note: '觸發暴擊' },
       { stat: 'atkSpeed', note: '縮短冷卻' },
     ],
   },

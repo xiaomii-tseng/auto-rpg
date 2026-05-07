@@ -44,6 +44,10 @@ export const STAR_DEF_MULT: Record<number, number> = {
   1: 0.6, 2: 1.2, 3: 2.2, 4: 3.5, 5: 4.5,
 };
 
+export const STAR_EXP_MULT: Record<number, number> = {
+  1: 1.0, 2: 1.4, 3: 2.0, 4: 2.8, 5: 3.8,
+};
+
 // Equipment quality weights by star (for quest equip rewards)
 export const STAR_EQUIP_QUALITY: Record<number, Record<string, number>> = {
   1: { normal: 0.60, good: 0.30, fine: 0.10, perfect: 0.00 },
@@ -53,10 +57,22 @@ export const STAR_EQUIP_QUALITY: Record<number, Record<string, number>> = {
   5: { normal: 0.00, good: 0.10, fine: 0.50, perfect: 0.40 },
 };
 
-// Weight for each star when picking quest difficulty (higher = more frequent)
-const STAR_WEIGHT: Record<number, number> = {
-  1: 5, 2: 4, 3: 3, 4: 2, 5: 1,
-};
+function smoothStep(a: number, b: number, x: number): number {
+  const t = Math.max(0, Math.min(1, (x - a) / (b - a)));
+  return t * t * (3 - 2 * t);
+}
+
+// Smooth probability weights per star by player level (no hard gates)
+export function getStarWeights(level: number): Record<number, number> {
+  const ss = smoothStep;
+  return {
+    1: Math.max(0.1, 5 - 4 * ss(1, 35, level)),
+    2: Math.max(0,   5 * ss(5, 14, level) - 3 * ss(18, 38, level)),
+    3: Math.max(0,   4 * ss(14, 25, level) - 1 * ss(32, 50, level)),
+    4: Math.max(0,   5 * ss(26, 40, level)),
+    5: Math.max(0,   4 * ss(38, 48, level)),
+  };
+}
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -81,17 +97,15 @@ const FLAVOR_TEMPLATES: Array<(name: string, star: number) => string> = [
 ];
 
 function pickStar(playerLevel: number): number {
-  const available = Object.entries(STAR_UNLOCK_LEVEL)
-    .filter(([, req]) => playerLevel >= req)
-    .map(([star]) => Number(star));
-
-  const totalWeight = available.reduce((s, star) => s + STAR_WEIGHT[star], 0);
-  let roll = Math.random() * totalWeight;
-  for (const star of available) {
-    roll -= STAR_WEIGHT[star];
+  const weights = getStarWeights(playerLevel);
+  const stars   = [1, 2, 3, 4, 5];
+  const total   = stars.reduce((s, star) => s + weights[star], 0);
+  let roll = Math.random() * total;
+  for (const star of stars) {
+    roll -= weights[star];
     if (roll <= 0) return star;
   }
-  return available[available.length - 1];
+  return 5;
 }
 
 function generateQuests(): Quest[] {

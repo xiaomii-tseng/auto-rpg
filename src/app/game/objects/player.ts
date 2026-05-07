@@ -1,4 +1,4 @@
-﻿const DPR = Math.min(window.devicePixelRatio || 1, 3);
+﻿const DPR = (window as any).__gameDpr as number;
 const P = (n: number): number => Math.round(n * DPR);
 import Phaser from 'phaser';
 import { CardStore } from '../data/card-store';

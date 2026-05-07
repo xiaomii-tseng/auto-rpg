@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { WeaponDef, ElementTint } from '../data/weapons';
 
-const DPR = Math.min(window.devicePixelRatio || 1, 3);
+const DPR = (window as any).__gameDpr as number;
 const P = (n: number) => Math.round(n * DPR);
 const F = (n: number) => `${Math.round(n * DPR)}px`;
 

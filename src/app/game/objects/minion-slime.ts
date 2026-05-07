@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { MONSTER_SCALE_SMALL } from '../data/monster-data';
 
-const DPR = Math.min(window.devicePixelRatio || 1, 3);
+const DPR = (window as any).__gameDpr as number;
 const P   = (n: number): number => Math.round(n * DPR);
 const F   = (n: number): string => `${Math.round(n * DPR)}px`;
 
@@ -98,8 +98,8 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
 
   start(): void {
     this.started = true;
-    this.setVisible(true);
     this.enterPatrol();
+    // visibility is controlled externally — scene shows the minion when player is near
   }
 
   setPatrolCenter(x: number, y: number): void {
@@ -328,6 +328,7 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
 
   private drawHpBar(): void {
     this.hpBarGfx.clear();
+    if (!this.visible) return;
     const pct = this.hp / this.maxHp;
 
     if (this.isElite) {

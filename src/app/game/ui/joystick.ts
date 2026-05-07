@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 
-const DPR = Math.min(window.devicePixelRatio || 1, 3);
+const DPR = (window as any).__gameDpr as number;
 
 export interface JoystickOutput {
   x: number; // -1 to 1

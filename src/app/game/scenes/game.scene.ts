@@ -15,10 +15,10 @@ import { SaveStore } from '../data/save-store';
 import { CardStore } from '../data/card-store';
 import { getMonsterDef, getCardDef, DropEntry, MonsterDef } from '../data/monster-data';
 import { getElementMultiplier, ELEMENT_NAMES, ELEMENT_COLORS } from '../data/equipment-data';
-import { QuestStore, STAR_HP_MULT, STAR_DROP_MULT, STAR_DEF_MULT } from '../data/quest-store';
+import { QuestStore, STAR_HP_MULT, STAR_DROP_MULT, STAR_DEF_MULT, STAR_EXP_MULT } from '../data/quest-store';
 import { ELITE_HP_MULT, ELITE_SCALE_MOD } from '../data/monster-data';
 
-const DPR = Math.min(window.devicePixelRatio || 1, 3);
+const DPR = (window as any).__gameDpr as number;
 const F = (n: number): string => `${Math.round(n * DPR)}px`;
 const P = (n: number): number => Math.round(n * DPR);
 
@@ -78,6 +78,8 @@ export class GameScene extends Phaser.Scene {
   private pickupLog:       Phaser.GameObjects.Text[] = [];
   private playerStartX = 0;
   private playerStartY = 0;
+  private lastSafeX    = 0;
+  private lastSafeY    = 0;
   private readonly CORR_HW = P(100);
   private auraTimer?: Phaser.Time.TimerEvent;
   private auraRing?: Phaser.GameObjects.Graphics;
@@ -145,6 +147,8 @@ export class GameScene extends Phaser.Scene {
     const startPt = this.waypoints[0];
     this.playerStartX = startPt.x;
     this.playerStartY = startPt.y;
+    this.lastSafeX    = startPt.x;
+    this.lastSafeY    = startPt.y;
     this.player = new Player(this, this.playerStartX, this.playerStartY);
     this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
     this.player.onDead  = () => this.handlePlayerDead();
@@ -387,12 +391,22 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
-    // Lazy-activate minions when player walks within range
-    const WAKE_DIST = P(500);
+    // Reveal minions when player walks within range (AI already running since 400ms after spawn)
+    const SHOW_DIST = P(500);
     for (const m of this.allMinions) {
-      if (!m.started && Phaser.Math.Distance.Between(this.player.x, this.player.y, m.x, m.y) < WAKE_DIST) {
-        m.start();
+      if (m.started && !m.visible && !m.isDead &&
+          Phaser.Math.Distance.Between(this.player.x, this.player.y, m.x, m.y) < SHOW_DIST) {
+        m.setVisible(true);
       }
+    }
+
+    // Snap player back if they somehow escape the open area (safety net for arena/corridor edges)
+    if (this.isInOpenArea(this.player.x, this.player.y)) {
+      this.lastSafeX = this.player.x;
+      this.lastSafeY = this.player.y;
+    } else {
+      this.player.setPosition(this.lastSafeX, this.lastSafeY);
+      (this.player.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
     }
 
     // Y-sort: use foot position so objects sort at ground level
@@ -1728,7 +1742,8 @@ export class GameScene extends Phaser.Scene {
     for (const card of def.cards) {
       if (Math.random() < card.rate * cardDropMult) this.spawnCardDrop(x, y, card.cardId);
     }
-    const gained = PlayerStore.addExp(def.exp);
+    const expMult = STAR_EXP_MULT[this.questStar] ?? 1;
+    const gained = PlayerStore.addExp(Math.round(def.exp * expMult));
     if (gained > 0) this.showLevelUp(PlayerStore.getLevel());
   }
 
@@ -1820,8 +1835,25 @@ export class GameScene extends Phaser.Scene {
     wallFace.lineStyle(P(6), 0x1a3a08, 0.70); strokeAll(wallFace);
 
     // ── Layer 0: base grass (masked to corridor) ─────────
-    this.add.tileSprite(this.worldW / 2, this.worldH / 2, this.worldW, this.worldH, 'grass')
-      .setTileScale(DPR, DPR).setDepth(0).setMask(sharedMask);
+    // Use Tilemap (not TileSprite which allocates a worldW×worldH canvas).
+    // Scale the 64×64 source texture to P(64)×P(64) so tiles have integer pixel size,
+    // eliminating the sub-pixel gaps that appear when using setScale(fractionalDPR).
+    {
+      const SZ = P(64);
+      if (!this.textures.exists('grass_tile')) {
+        const canvas = document.createElement('canvas');
+        canvas.width = SZ; canvas.height = SZ;
+        const ctx = canvas.getContext('2d')!;
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage((this.textures.get('grass').source[0] as any).image, 0, 0, SZ, SZ);
+        this.textures.addCanvas('grass_tile', canvas);
+      }
+      const gcols = Math.ceil(this.worldW / SZ) + 1, grows = Math.ceil(this.worldH / SZ) + 1;
+      const gMap = this.make.tilemap({ tileWidth: SZ, tileHeight: SZ, width: gcols, height: grows });
+      const gLayer = gMap.createBlankLayer('grass_bg', gMap.addTilesetImage('grass_tile', 'grass_tile', SZ, SZ, 0, 0)!, 0, 0)!;
+      gMap.fill(0, 0, 0, gcols, grows, false, 'grass_bg');
+      gLayer.setDepth(0).setMask(sharedMask);
+    }
 
     // ── Layer 0.3: subtle inner-edge AO (fill, not stroke) ─
     // Fill the walkable area dark at low alpha → then the grass on top is already drawn.
@@ -1917,13 +1949,12 @@ export class GameScene extends Phaser.Scene {
 
     for (let col = 0; col < cols; col++) {
       for (let row = 0; row < rows; row++) {
-        const gx = col * TILE;
-        const gy = row * TILE;
-        const open = this.isInOpenArea(gx, gy) &&
-                     this.isInOpenArea(gx + TILE, gy) &&
-                     this.isInOpenArea(gx, gy + TILE) &&
-                     this.isInOpenArea(gx + TILE, gy + TILE);
-        if (!open) map.putTileAt(0, col, row, false, 'walls');
+        const cx = col * TILE + TILE / 2, cy = row * TILE + TILE / 2;
+        // Boss arena boundary is handled by snap-back in update() — skip it here
+        // to avoid the staircase jagging from square tiles on a curved boundary.
+        if (this.isInBossArena(cx, cy, TILE * 2)) continue; // buffer: snap-back handles exact boundary
+        if (!this.isInOpenArea(cx, cy))
+          map.putTileAt(0, col, row, false, 'walls');
       }
     }
 
@@ -2102,6 +2133,7 @@ export class GameScene extends Phaser.Scene {
       if (!m.isDead && m.isDashing) this.player.takeDamage(m.atk);
     });
     m.start();
+    m.setVisible(true); // boss-summoned: immediately visible
   }
 
   private spawnAllMonsters(): void {
@@ -2136,7 +2168,7 @@ export class GameScene extends Phaser.Scene {
       const hp  = Math.round(def.hp * hpMult * (isElite ? ELITE_HP_MULT : 1));
       const atk = Math.round(def.atk * hpMult * (isElite ? 1.5 : 1));
       const a   = Phaser.Math.FloatBetween(0, Math.PI * 2);
-      const r   = Phaser.Math.FloatBetween(P(150), P(400));
+      const r   = Phaser.Math.FloatBetween(P(20), P(180));
       const m   = new MinionSlime(this, wx + Math.cos(a) * r, wy + Math.sin(a) * r, hp, def.spriteKey, def.tint);
       m.atk = atk;
       if (isElite) {
@@ -2181,7 +2213,9 @@ export class GameScene extends Phaser.Scene {
     }
 
 
-    // minions activate lazily in update() when the player walks near
+    // Start AI for all minions immediately so they reach natural positions,
+    // but visibility is controlled in update() when player walks near.
+    this.time.delayedCall(400, () => { for (const m of this.allMinions) m.start(); });
   }
 
   private setupPortal(px: number, py: number): void {
@@ -2350,15 +2384,15 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  private isInBossArena(px: number, py: number): boolean {
+  private isInBossArena(px: number, py: number, margin = 0): boolean {
     const dx = px - this.bossArenaCenter.x;
     const dy = py - this.bossArenaCenter.y;
-    const R  = this.BOSS_ARENA_RADIUS;
+    const R  = this.BOSS_ARENA_RADIUS + margin;
     switch (this.bossArenaShape) {
       case 0: return dx * dx + dy * dy <= R * R;
       case 1: { const hs = R * 0.875; return Math.abs(dx) <= hs && Math.abs(dy) <= hs && Math.abs(dx) + Math.abs(dy) <= hs * 1.5; }
       case 2: return Math.abs(dx) + Math.abs(dy) <= R;
-      case 3: { const hw = P(380), hh = P(300), cr = P(100); const ex = Math.max(Math.abs(dx) - (hw - cr), 0); const ey = Math.max(Math.abs(dy) - (hh - cr), 0); return ex * ex + ey * ey <= cr * cr; }
+      case 3: { const hw = P(380) + margin, hh = P(300) + margin, cr = P(100) + margin; const ex = Math.max(Math.abs(dx) - (hw - cr), 0); const ey = Math.max(Math.abs(dy) - (hh - cr), 0); return ex * ex + ey * ey <= cr * cr; }
       default: return dx * dx + dy * dy <= R * R;
     }
   }
@@ -2427,7 +2461,23 @@ export class GameScene extends Phaser.Scene {
     maskGfx.fillStyle(0xffffff);
     fillShape(maskGfx);
     const arenaMask = maskGfx.createGeometryMask();
-    this.add.tileSprite(cx, cy, R * 2.2, R * 2.2, 'stone').setTileScale(DPR, DPR).setDepth(0.1).setMask(arenaMask);
+    // Stone floor — same integer-tile approach as grass to avoid sub-pixel gaps.
+    {
+      const SZ = P(64), sw = Math.ceil(R * 2.2), sh = Math.ceil(R * 2.2);
+      if (!this.textures.exists('stone_tile')) {
+        const canvas = document.createElement('canvas');
+        canvas.width = SZ; canvas.height = SZ;
+        const ctx = canvas.getContext('2d')!;
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage((this.textures.get('stone').source[0] as any).image, 0, 0, SZ, SZ);
+        this.textures.addCanvas('stone_tile', canvas);
+      }
+      const scols = Math.ceil(sw / SZ) + 1, srows = Math.ceil(sh / SZ) + 1;
+      const sMap = this.make.tilemap({ tileWidth: SZ, tileHeight: SZ, width: scols, height: srows });
+      const sLayer = sMap.createBlankLayer('stone_bg', sMap.addTilesetImage('stone_tile', 'stone_tile', SZ, SZ, 0, 0)!, cx - sw / 2, cy - sh / 2)!;
+      sMap.fill(0, 0, 0, scols, srows, false, 'stone_bg');
+      sLayer.setDepth(0.1).setMask(arenaMask);
+    }
 
     // AO 邊緣暗化
     const aoGfx = this.add.graphics().setDepth(0.4).setMask(arenaMask);

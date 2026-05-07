@@ -39,7 +39,7 @@ export class App implements AfterViewInit {
       });
     }
 
-    const dpr = Math.min(window.devicePixelRatio || 1, 3);
+    const dpr = (window as any).__gameDpr as number;
     const game = new Phaser.Game({
       type: Phaser.AUTO,
       parent: 'game-container',

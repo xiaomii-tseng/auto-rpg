@@ -7,8 +7,8 @@ export const BASE_DEF        = 0;
 export const BASE_CRIT       = 0;
 export const BASE_ATTACK_ARC = 180;
 
-const LEVEL_ATK = 1;
-const LEVEL_HP  = 10;
+const LEVEL_ATK = 2;
+const LEVEL_HP  = 15;
 
 export interface EffectiveStats {
   atk:       number;
@@ -73,7 +73,7 @@ export const PlayerStore = {
   getLevel(): number { return level; },
   getExp():   number { return exp; },
 
-  expToNext(lv = level): number { return Math.round(1000 * Math.pow(1.05, lv - 1)); },
+  expToNext(lv = level): number { return Math.round(500 * Math.pow(1.08, lv - 1)); },
 
   MAX_LEVEL: 50,
 
