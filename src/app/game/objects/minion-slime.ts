@@ -15,7 +15,7 @@ enum MinionState {
 
 export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
   private mState     = MinionState.IDLE;
-  private started    = false;
+  started            = false;
   private hp:        number;
   private readonly maxHp: number;
   private stateTimer?: Phaser.Time.TimerEvent;
@@ -87,8 +87,8 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
     this.applyBaseTint();
     this.play(`${spriteKey}_idle_down`, true);
     this.setVisible(false);
-    this.hpBarGfx  = scene.add.graphics().setDepth(50);
-    this.debuffGfx = scene.add.graphics().setDepth(51);
+    this.hpBarGfx  = scene.add.graphics().setDepth(100000);
+    this.debuffGfx = scene.add.graphics().setDepth(100001);
   }
 
   private applyBaseTint(): void {

@@ -59,7 +59,7 @@ export class GameScene extends Phaser.Scene {
   private worldH = 0;
 
   private allMinions: MinionSlime[] = [];
-  private wallGroup!: Phaser.Physics.Arcade.StaticGroup;
+  private wallLayer!: Phaser.Tilemaps.TilemapLayer;
   private waypoints: Phaser.Math.Vector2[] = [];
   private corridorSegs: { x1: number; y1: number; x2: number; y2: number }[] = [];
   private cornerPts: { x: number; y: number }[] = [];
@@ -139,8 +139,8 @@ export class GameScene extends Phaser.Scene {
 
     this.createPlayerAnims();
     this.createSlimeAnims();
-    this.wallGroup = this.physics.add.staticGroup();
     this.generateAndDrawMap();
+    this.wallLayer = this.buildWallTilemap();
 
     const startPt = this.waypoints[0];
     this.playerStartX = startPt.x;
@@ -179,8 +179,8 @@ export class GameScene extends Phaser.Scene {
       if (this.boss.currentState === 'DASHING') this.player.takeDamage(25);
     });
 
-    this.physics.add.collider(this.player, this.wallGroup);
-    this.physics.add.collider(this.boss, this.wallGroup);
+    this.physics.add.collider(this.player, this.wallLayer);
+    this.physics.add.collider(this.boss,   this.wallLayer);
 
     this.bossHpGfx = this.add.graphics().setScrollFactor(0).setDepth(5).setVisible(false);
     this.bossHpLabel = this.add.text(W / 2, P(6), '', {
@@ -384,6 +384,14 @@ export class GameScene extends Phaser.Scene {
           g.fillStyle(0xffaa00, 0.4 + Math.sin(t * 10 + phase) * 0.2);
           g.fillTriangle(b1x, b1y, b2x, b2y, tipX, tipY);
         }
+      }
+    }
+
+    // Lazy-activate minions when player walks within range
+    const WAKE_DIST = P(500);
+    for (const m of this.allMinions) {
+      if (!m.started && Phaser.Math.Distance.Between(this.player.x, this.player.y, m.x, m.y) < WAKE_DIST) {
+        m.start();
       }
     }
 
@@ -725,14 +733,9 @@ export class GameScene extends Phaser.Scene {
     const steps = Math.ceil(Phaser.Math.Distance.Between(sx, sy, endX, endY) / STEP);
     const dx = (endX - sx) / steps, dy = (endY - sy) / steps;
     let safeX = sx, safeY = sy;
-    const walls = this.wallGroup.getChildren() as Phaser.Physics.Arcade.Sprite[];
     for (let i = 1; i <= steps; i++) {
       const tx = sx + dx * i, ty = sy + dy * i;
-      if (walls.some(w => {
-        const b = w.body as Phaser.Physics.Arcade.StaticBody;
-        return tx + PW >= b.x && tx - PW <= b.x + b.width &&
-               ty + PH >= b.y && ty - PH <= b.y + b.height;
-      })) break;
+      if (!this.isInOpenArea(tx, ty)) break;
       safeX = tx; safeY = ty;
     }
     return { x: safeX, y: safeY };
@@ -1856,7 +1859,7 @@ export class GameScene extends Phaser.Scene {
       aoGfx.fillRect(c.x + rw2 - P(40), c.y - rw2, P(40), rw2 * 2);
     }
 
-    this.placeWalls();
+    // walls handled by buildWallTilemap() after generateAndDrawMap()
     this.placeInteriorDeco();
     this.drawBossArena();
   }
@@ -1895,26 +1898,38 @@ export class GameScene extends Phaser.Scene {
     return false;
   }
 
-  private placeWalls(): void {
-    const STEP = P(38);
-    for (let gx = 0; gx < this.worldW; gx += STEP) {
-      for (let gy = 0; gy < this.worldH; gy += STEP) {
-        // Cell covers [gx, gx+STEP] × [gy, gy+STEP].
-        // Skip only if ALL four corners of that exact cell area are inside open area.
-        // This guarantees zero gap at corridor boundaries even with diagonal movement.
-        if (this.isInOpenArea(gx,        gy       ) &&
-            this.isInOpenArea(gx + STEP, gy       ) &&
-            this.isInOpenArea(gx,        gy + STEP) &&
-            this.isInOpenArea(gx + STEP, gy + STEP)) continue;
-        const wall = this.wallGroup.create(gx, gy, '__DEFAULT') as Phaser.Physics.Arcade.Sprite;
-        wall.setVisible(false).setActive(true);
-        // setOrigin(0,0) makes sprite position = top-left, so body starts exactly at (gx, gy)
-        // and covers [gx, gx+STEP] × [gy, gy+STEP] — matching the corner check above.
-        wall.setOrigin(0, 0);
-        (wall.body as Phaser.Physics.Arcade.StaticBody).setSize(STEP, STEP);
-        wall.refreshBody();
+  private buildWallTilemap(): Phaser.Tilemaps.TilemapLayer {
+    const TILE = P(16);
+    const cols = Math.ceil(this.worldW / TILE) + 1;
+    const rows = Math.ceil(this.worldH / TILE) + 1;
+
+    // Blank 1×1 white texture used as the tile image
+    if (!this.textures.exists('wall_tile')) {
+      const wg = (this.make.graphics as any)({ x: 0, y: 0, add: false }) as Phaser.GameObjects.Graphics;
+      wg.fillStyle(0xffffff, 1); wg.fillRect(0, 0, TILE, TILE);
+      wg.generateTexture('wall_tile', TILE, TILE);
+      wg.destroy();
+    }
+
+    const map = this.make.tilemap({ tileWidth: TILE, tileHeight: TILE, width: cols, height: rows });
+    const tileset = map.addTilesetImage('wall_tile', 'wall_tile', TILE, TILE, 0, 0)!;
+    const layer   = map.createBlankLayer('walls', tileset, 0, 0)!;
+
+    for (let col = 0; col < cols; col++) {
+      for (let row = 0; row < rows; row++) {
+        const gx = col * TILE;
+        const gy = row * TILE;
+        const open = this.isInOpenArea(gx, gy) &&
+                     this.isInOpenArea(gx + TILE, gy) &&
+                     this.isInOpenArea(gx, gy + TILE) &&
+                     this.isInOpenArea(gx + TILE, gy + TILE);
+        if (!open) map.putTileAt(0, col, row, false, 'walls');
       }
     }
+
+    layer.setCollisionBetween(0, 0);
+    layer.setVisible(false);
+    return layer;
   }
 
   private placeInteriorDeco(): void {
@@ -2082,7 +2097,7 @@ export class GameScene extends Phaser.Scene {
     m.getTargetPos = () => [this.player.x, this.player.y];
     m.onDead = () => this.handleMinionDrop(defId, m.x, m.y);
     this.allMinions.push(m);
-    this.physics.add.collider(m, this.wallGroup);
+    this.physics.add.collider(m, this.wallLayer);
     this.physics.add.overlap(m, this.player, () => {
       if (!m.isDead && m.isDashing) this.player.takeDamage(m.atk);
     });
@@ -2133,7 +2148,7 @@ export class GameScene extends Phaser.Scene {
       m.getTargetPos = () => [this.player.x, this.player.y];
       m.onDead = () => this.handleMinionDrop(defId, m.x, m.y);
       this.allMinions.push(m);
-      this.physics.add.collider(m, this.wallGroup);
+      this.physics.add.collider(m, this.wallLayer);
       this.physics.add.overlap(m, this.player, () => {
         if (!m.isDead && m.isDashing) this.player.takeDamage(m.atk);
       });
@@ -2166,7 +2181,7 @@ export class GameScene extends Phaser.Scene {
     }
 
 
-    this.time.delayedCall(400, () => { for (const m of this.allMinions) m.start(); });
+    // minions activate lazily in update() when the player walks near
   }
 
   private setupPortal(px: number, py: number): void {

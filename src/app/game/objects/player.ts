@@ -38,7 +38,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.maxHp = stats.maxHp;
     this.hp    = stats.maxHp;
 
-    this.headGfx = scene.add.graphics().setDepth(1000);
+    this.headGfx = scene.add.graphics().setDepth(100000);
   }
 
   override preUpdate(time: number, delta: number): void {
@@ -51,7 +51,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     if (!this.active) return;
     const bw = P(44), bh = P(5);
     const bx = this.x - bw / 2;
-    const by = this.y - P(52);
+    const by = this.y - P(35);
     this.headGfx.fillStyle(0x220000);
     this.headGfx.fillRect(bx - P(1), by - P(1), bw + P(2), bh + P(2));
     const pct   = this.hp / this.maxHp;
