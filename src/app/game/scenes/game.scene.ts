@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { Player } from '../objects/player';
 import { Boss } from '../objects/boss';
+import { loadSkinTextures } from '../data/skin-store';
 import { BossGreenSlime }  from '../objects/boss-green-slime';
 import { BossRedSlime }    from '../objects/boss-red-slime';
 import { BossBlueSlime }   from '../objects/boss-blue-slime';
@@ -93,6 +94,8 @@ export class GameScene extends Phaser.Scene {
   private _partnerHp       = 100;
   private _partnerMaxHp    = 100;
   private _partnerNickname = '';
+  private _ownSkinId     = 0;
+  private _partnerSkinId = 0;
   private partnerIsDead  = false;
   private _partnerPrevX    = 0;
   private _partnerPrevY    = 0;
@@ -125,16 +128,10 @@ export class GameScene extends Phaser.Scene {
   }
 
   preload(): void {
-    const pBase = 'sprite/hero/PNG/Swordsman_lvl1/Without_shadow/';
     const sBase = 'sprite/slime/PNG/Slime1/With_shadow/';
     const cfg = { frameWidth: 64, frameHeight: 64 };
-    const ws = 'sprite/hero/PNG/Swordsman_lvl1/With_shadow/';
-    if (!this.textures.exists('player_idle_shadow')) this.load.spritesheet('player_idle_shadow', ws + 'Swordsman_lvl1_Idle_with_shadow.png', cfg);
-    if (!this.textures.exists('player_run_shadow')) this.load.spritesheet('player_run_shadow', ws + 'Swordsman_lvl1_Run_with_shadow.png', cfg);
-    if (!this.textures.exists('player_attack_shadow')) this.load.spritesheet('player_attack_shadow', ws + 'Swordsman_lvl1_attack_with_shadow.png', cfg);
-    if (!this.textures.exists('player_run_attack_shadow')) this.load.spritesheet('player_run_attack_shadow', ws + 'Swordsman_lvl1_Run_Attack_with_shadow.png', cfg);
-    if (!this.textures.exists('player_hurt'))  this.load.spritesheet('player_hurt',  pBase + 'Swordsman_lvl1_Hurt_without_shadow.png', cfg);
-    if (!this.textures.exists('player_death_shadow')) this.load.spritesheet('player_death_shadow', ws + 'Swordsman_lvl1_Death_with_shadow.png', cfg);
+    loadSkinTextures(this, this._ownSkinId,     'player');
+    loadSkinTextures(this, this._partnerSkinId, 'partner');
     if (!this.textures.exists('slime_idle'))   this.load.spritesheet('slime_idle',   sBase + 'Slime1_Idle_with_shadow.png',   cfg);
     if (!this.textures.exists('slime_walk'))   this.load.spritesheet('slime_walk',   sBase + 'Slime1_Walk_with_shadow.png',   cfg);
     if (!this.textures.exists('slime_run'))    this.load.spritesheet('slime_run',    sBase + 'Slime1_Run_with_shadow.png',    cfg);
@@ -165,12 +162,32 @@ export class GameScene extends Phaser.Scene {
     this.generateTextures();
   }
 
-  init(data: { seed?: number; questStar?: number; bossMonsterId?: string; mapParams?: MapParams; partnerNickname?: string }): void {
+  init(data: { seed?: number; questStar?: number; bossMonsterId?: string; mapParams?: MapParams; partnerNickname?: string; ownSkinId?: number; partnerSkinId?: number }): void {
     this._mapSeed          = data?.seed         ?? Math.floor(Math.random() * 1_000_000);
     this._initQuestStar    = data?.questStar;
     this._initBossId       = data?.bossMonsterId;
     this._mapParams        = data?.mapParams;
     this._partnerNickname  = data?.partnerNickname ?? '';
+    this._ownSkinId        = data?.ownSkinId     ?? 0;
+    this._partnerSkinId    = data?.partnerSkinId ?? 0;
+
+    // Clear cached skin textures/anims so preload can reload with potentially new skin
+    ['player', 'partner'].forEach(prefix => {
+      ['idle_shadow', 'run_shadow', 'attack_shadow', 'run_attack_shadow', 'hurt', 'death_shadow'].forEach(suffix => {
+        const key = `${prefix}_${suffix}`;
+        if (this.textures.exists(key)) this.textures.remove(key);
+      });
+      ['idle_down','idle_up','idle_left','idle_right',
+       'run_down','run_up','run_left','run_right',
+       'attack_down','attack_up','attack_left','attack_right',
+       'run_attack_down','run_attack_up','run_attack_left','run_attack_right',
+       'multihit_down','multihit_up','multihit_left','multihit_right',
+       'hurt','whirlwind',
+      ].forEach(suffix => {
+        const key = `${prefix}_${suffix}`;
+        if (this.anims.exists(key)) this.anims.remove(key);
+      });
+    });
   }
 
   create(): void {
@@ -186,6 +203,7 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.setBounds(0, 0, this.worldW, this.worldH);
 
     this.createPlayerAnims();
+    if (NetworkService.connected) this.createPartnerAnims();
     this.createSlimeAnims();
     this.generateAndDrawMap();
     this.wallLayer = this.buildWallTilemap();
@@ -203,9 +221,9 @@ export class GameScene extends Phaser.Scene {
     // ── Co-op: partner sprite + position sync ─────────────
     if (NetworkService.connected) {
       const pScale = 1.5 * DPR;
-      this.partnerSprite = this.add.sprite(this.playerStartX, this.playerStartY, 'player_idle_shadow')
+      this.partnerSprite = this.add.sprite(this.playerStartX, this.playerStartY, 'partner_idle_shadow')
         .setScale(pScale).setDepth(9).setTint(0x44aaff);
-      this.partnerSprite.play('player_idle_down');
+      this.partnerSprite.play('partner_idle_down');
 
       this.partnerAuraRing = this.add.graphics().setDepth(8).setVisible(false);
       this.tweens.add({
@@ -234,7 +252,7 @@ export class GameScene extends Phaser.Scene {
         if (!this.partnerSprite.anims.currentAnim?.key.includes('attack') &&
             !this.partnerSprite.anims.currentAnim?.key.includes('whirlwind') &&
             !this.partnerSprite.anims.currentAnim?.key.includes('multihit')) {
-          const animKey = moved ? `player_run_${lastDir}` : `player_idle_${lastDir}`;
+          const animKey = moved ? `partner_run_${lastDir}` : `partner_idle_${lastDir}`;
           if (this.partnerSprite.anims.currentAnim?.key !== animKey) this.partnerSprite.play(animKey, true);
         }
         this.partnerSprite.setPosition(wx, wy);
@@ -271,10 +289,11 @@ export class GameScene extends Phaser.Scene {
           return;
         }
         if (!this.partnerSprite) return;
-        this.partnerSprite.play(animKey, true);
+        const partnerAnimKey = animKey.replace(/^player_/, 'partner_');
+        this.partnerSprite.play(partnerAnimKey, true);
         this.partnerSprite.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => {
           if (!this.partnerSprite) return;
-          this.partnerSprite.play(`player_idle_${this._partnerPrevDir}`, true);
+          this.partnerSprite.play(`partner_idle_${this._partnerPrevDir}`, true);
         });
         this.showPartnerAttackFX(behavior, x * DPR, y * DPR, dir);
       });
@@ -295,7 +314,7 @@ export class GameScene extends Phaser.Scene {
         if (!this.partnerSprite) return;
         this.partnerIsDead = true;
         this.partnerSprite.stop();
-        this.partnerSprite.setTexture('player_death_shadow', 6);
+        this.partnerSprite.setTexture('partner_death_shadow', 6);
       });
 
       NetworkService.onPotionEffect(({ type, amount }) => {
@@ -2852,7 +2871,7 @@ export class GameScene extends Phaser.Scene {
         if (d <= range) {
           NetworkService.sendPotionEffect('revive', 30);
           this.partnerIsDead = false;
-          this.partnerSprite.play(`player_idle_${this._partnerPrevDir}`, true);
+          this.partnerSprite.play(`partner_idle_${this._partnerPrevDir}`, true);
         }
       }
     }
@@ -3994,6 +4013,52 @@ export class GameScene extends Phaser.Scene {
         ...this.anims.generateFrameNumbers('player_attack_shadow', { frames: [28, 3, 20] }),
       ];
       this.anims.create({ key: 'player_whirlwind', frames: wf, frameRate: 17, repeat: 1 });
+    }
+  }
+
+  private createPartnerAnims(): void {
+    const mk = (key: string, tex: string, start: number, end: number, fps: number, repeat: number) => {
+      if (!this.anims.exists(key))
+        this.anims.create({ key, frames: this.anims.generateFrameNumbers(tex, { start, end }), frameRate: fps, repeat });
+    };
+    mk('partner_idle_down',  'partner_idle_shadow', 0,  3,  8,  -1);
+    mk('partner_idle_left',  'partner_idle_shadow', 12, 15, 8,  -1);
+    mk('partner_idle_right', 'partner_idle_shadow', 24, 27, 8,  -1);
+    mk('partner_idle_up',    'partner_idle_shadow', 36, 39, 8,  -1);
+    mk('partner_run_down',   'partner_run_shadow',  0,  7,  10, -1);
+    mk('partner_run_left',   'partner_run_shadow',  8,  15, 10, -1);
+    mk('partner_run_right',  'partner_run_shadow',  16, 23, 10, -1);
+    mk('partner_run_up',     'partner_run_shadow',  24, 31, 10, -1);
+    mk('partner_attack_down',  'partner_attack_shadow', 1,  7,  20, 0);
+    mk('partner_attack_left',  'partner_attack_shadow', 9,  15, 20, 0);
+    mk('partner_attack_right', 'partner_attack_shadow', 17, 23, 20, 0);
+    mk('partner_attack_up',    'partner_attack_shadow', 25, 31, 20, 0);
+    mk('partner_run_attack_down',  'partner_run_attack_shadow', 1,  7,  20, 0);
+    mk('partner_run_attack_left',  'partner_run_attack_shadow', 9,  15, 20, 0);
+    mk('partner_run_attack_right', 'partner_run_attack_shadow', 17, 23, 20, 0);
+    mk('partner_run_attack_up',    'partner_run_attack_shadow', 25, 31, 20, 0);
+    const mkMultihit = (key: string, s: number, e: number) => {
+      if (this.anims.exists(key)) return;
+      const all  = Array.from({ length: e - s + 1 }, (_, i) => s + i);
+      const mid  = Math.floor(all.length / 2);
+      const hit1 = [...all.slice(0, mid + 1), ...all.slice(0, mid + 1).reverse()];
+      const hit2 = [...all.slice(0, mid + 2), ...all.slice(0, mid + 2).reverse()];
+      const hit3 = [...all, all[all.length - 1], all[all.length - 1], ...all.reverse()];
+      const frames = [...hit1, ...hit2, ...hit3].map(f =>
+        this.anims.generateFrameNumbers('partner_attack_shadow', { frames: [f] })[0]
+      );
+      this.anims.create({ key, frames, frameRate: 55, repeat: 0 });
+    };
+    mkMultihit('partner_multihit_down',  1,  7);
+    mkMultihit('partner_multihit_left',  9, 15);
+    mkMultihit('partner_multihit_right', 17, 23);
+    mkMultihit('partner_multihit_up',    25, 31);
+    mk('partner_hurt', 'partner_hurt', 0, 4, 14, 0);
+    if (!this.anims.exists('partner_whirlwind')) {
+      const wf = [
+        ...this.anims.generateFrameNumbers('partner_attack_shadow', { frames: [28, 3, 20] }),
+      ];
+      this.anims.create({ key: 'partner_whirlwind', frames: wf, frameRate: 17, repeat: 1 });
     }
   }
 

@@ -53,7 +53,7 @@ export class GameRoom extends Room<GameRoomState> {
       // Guest sends ready right after joining — notify host with name+level
       if (!isHost) {
         const hostClient = this.clients.find(c => c.sessionId === this.state.hostId);
-        hostClient?.send('partnerJoined', { nickname: msg.nickname, level: p.level });
+        hostClient?.send('partnerJoined', { nickname: msg.nickname, level: p.level, skinId: p.skinId });
       }
 
       if (msg.questId)       this.state.questId       = msg.questId;
@@ -81,15 +81,16 @@ export class GameRoom extends Room<GameRoomState> {
       p.maxHp = msg.maxHp;
     });
 
-    this.onMessage<{ nickname: string; level: number }>('playerInfo', (client, msg) => {
+    this.onMessage<{ nickname: string; level: number; skinId?: number }>('playerInfo', (client, msg) => {
       const p = this.state.players.get(client.sessionId);
       if (!p) return;
       p.nickname = msg.nickname;
-      if (msg.level) p.level = msg.level;
+      if (msg.level)                  p.level  = msg.level;
+      if (msg.skinId !== undefined)   p.skinId = msg.skinId;
       // When guest updates info, notify host
       if (client.sessionId !== this.state.hostId) {
         const hostClient = this.clients.find(c => c.sessionId === this.state.hostId);
-        hostClient?.send('partnerJoined', { nickname: msg.nickname, level: msg.level });
+        hostClient?.send('partnerJoined', { nickname: msg.nickname, level: msg.level, skinId: p.skinId });
       }
     });
 
@@ -161,6 +162,7 @@ export class GameRoom extends Room<GameRoomState> {
       roomCode:        this._gameCode,
       hostNickname:    !isHost ? (hostP?.nickname ?? '') : '',
       hostLevel:       !isHost ? (hostP?.level    ?? 1)  : 0,
+      hostSkinId:      !isHost ? (hostP?.skinId   ?? 0)  : 0,
     });
   }
 
@@ -201,6 +203,8 @@ export class GameRoom extends Room<GameRoomState> {
         mapParams,
         hostNickname:  host?.nickname  ?? '',
         guestNickname: guest?.nickname ?? '',
+        hostSkinId:    host?.skinId    ?? 0,
+        guestSkinId:   guest?.skinId   ?? 0,
       });
     }
   }

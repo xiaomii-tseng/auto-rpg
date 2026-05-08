@@ -16,6 +16,7 @@ export interface JoinedPayload {
   roomCode:      string;
   hostNickname?: string;
   hostLevel?:    number;
+  hostSkinId?:   number;
 }
 
 export interface GameStartPayload {
@@ -27,6 +28,8 @@ export interface GameStartPayload {
   mapParams:     MapParams;
   hostNickname:  string;
   guestNickname: string;
+  hostSkinId:    number;
+  guestSkinId:   number;
 }
 
 class NetworkServiceClass {
@@ -121,20 +124,20 @@ class NetworkServiceClass {
     this.room?.send('potionEffect', { type, amount });
   }
 
-  /** Sync local nickname+level into Colyseus schema (no isReady side-effects) */
-  sendPlayerInfo(nickname: string, level: number): void {
-    this.room?.send('playerInfo', { nickname, level });
+  /** Sync local nickname+level+skin into Colyseus schema (no isReady side-effects) */
+  sendPlayerInfo(nickname: string, level: number, skinId: number): void {
+    this.room?.send('playerInfo', { nickname, level, skinId });
   }
 
   // ── Listen ────────────────────────────────────────────────
 
   /** Fires on the host when the 2nd player joins the room */
-  onPartnerJoined(cb: (data: { nickname: string; level: number }) => void): void {
+  onPartnerJoined(cb: (data: { nickname: string; level: number; skinId: number }) => void): void {
     this.room?.onMessage('partnerJoined', cb);
   }
 
-  /** Fires whenever the partner's nickname first appears (or changes) in the Colyseus schema */
-  onPartnerInfoReady(cb: (nickname: string, level: number) => void): void {
+  /** Fires whenever the partner's info first appears (or changes) in the Colyseus schema */
+  onPartnerInfoReady(cb: (nickname: string, level: number, skinId: number) => void): void {
     let lastNick = '';
     this.room?.onStateChange(state => {
       const players = state.players as any;
@@ -142,7 +145,7 @@ class NetworkServiceClass {
       players.forEach((p: any) => {
         if (p.sessionId !== this.sessionId && p.nickname && p.nickname !== lastNick) {
           lastNick = p.nickname;
-          cb(p.nickname, p.level ?? 1);
+          cb(p.nickname, p.level ?? 1, p.skinId ?? 0);
         }
       });
     });

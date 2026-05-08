@@ -10,6 +10,7 @@ import { CardStore, CARD_SLOT_COUNT } from '../data/card-store';
 import { getCardDef, getMonsterDef, monsterCardScale, monsterDetailScale } from '../data/monster-data';
 import { QuestStore, Quest, STAR_EQUIP_QUALITY, getStarWeights } from '../data/quest-store';
 import { NetworkService } from '../network/network.service';
+import { SkinStore, SKINS } from '../data/skin-store';
 
 
 const DPR = (window as any).__gameDpr as number;
@@ -58,8 +59,15 @@ export class PrepScene extends Phaser.Scene {
 
   preload(): void {
     const cfg = { frameWidth: 64, frameHeight: 64 };
+    const _skin = SKINS[SkinStore.get()];
     if (!this.textures.exists('player_idle_shadow'))
-      this.load.spritesheet('player_idle_shadow', 'sprite/hero/PNG/Swordsman_lvl1/With_shadow/Swordsman_lvl1_Idle_with_shadow.png', cfg);
+      this.load.spritesheet('player_idle_shadow', `${_skin.folder}/${_skin.prefix}_Idle_with_shadow.png`, cfg);
+    // Load all skin idle previews for wardrobe panel
+    SKINS.forEach((s, i) => {
+      const key = `skin_preview_${i}`;
+      if (!this.textures.exists(key))
+        this.load.spritesheet(key, `${s.folder}/${s.prefix}_Idle_with_shadow.png`, cfg);
+    });
     if (!this.textures.exists('bg_prep'))
       this.load.image('bg_prep', 'other/bg1.png');
     if (!this.textures.exists('icon_fight'))
@@ -117,14 +125,15 @@ export class PrepScene extends Phaser.Scene {
 
     this.generateItemIcons();
 
-    if (!this.anims.exists('player_idle_shadow')) {
-      this.anims.create({
-        key: 'player_idle_shadow',
-        frames: this.anims.generateFrameNumbers('player_idle_shadow', { start: 0, end: 3 }),
-        frameRate: 5,
-        repeat: 0,
-      });
-    }
+    // Always rebuild so frames reference the currently loaded texture (texture may have been
+    // removed and reloaded by GameScene between visits to PrepScene)
+    if (this.anims.exists('player_idle_shadow')) this.anims.remove('player_idle_shadow');
+    this.anims.create({
+      key: 'player_idle_shadow',
+      frames: this.anims.generateFrameNumbers('player_idle_shadow', { start: 0, end: 3 }),
+      frameRate: 5,
+      repeat: 0,
+    });
 
     this.drawBackground(W, H);
     this.drawTopBar(W);
@@ -566,6 +575,101 @@ export class PrepScene extends Phaser.Scene {
           toggleTexts.forEach((t, j) => t.setColor(this.multiMode === (j === 1) ? '#ffffff' : '#e8cc90'));
         });
     }
+
+    // ── Wardrobe button (bottom-left, above nav bar) ─────────
+    const skinBtnW = P(72);
+    const skinBtnH = P(26);
+    const skinBtnX = P(10) + skinBtnW / 2;
+    const skinBtnY = barY - P(24);
+    const skinGfx  = this.add.graphics().setDepth(25);
+    const drawSkinBtn = () => {
+      skinGfx.clear();
+      skinGfx.fillStyle(0x000000, 0.35);
+      skinGfx.fillRoundedRect(skinBtnX - skinBtnW / 2 + P(2), skinBtnY - skinBtnH / 2 + P(2), skinBtnW, skinBtnH, P(5));
+      skinGfx.fillStyle(0x1a0e04, 1);
+      skinGfx.fillRoundedRect(skinBtnX - skinBtnW / 2, skinBtnY - skinBtnH / 2, skinBtnW, skinBtnH, P(5));
+      skinGfx.lineStyle(1.5, 0x886622, 0.8);
+      skinGfx.strokeRoundedRect(skinBtnX - skinBtnW / 2, skinBtnY - skinBtnH / 2, skinBtnW, skinBtnH, P(5));
+    };
+    drawSkinBtn();
+    const skinLabel = this.add.text(skinBtnX, skinBtnY, '造型', {
+      fontSize: F(13), color: '#d4a044',
+    }).setOrigin(0.5).setDepth(26);
+
+    const openWardrobePanel = () => {
+      const PD    = 30;
+      const COLS  = 2;
+      const CARD_W = P(100), CARD_H = P(110);
+      const GAP   = P(12);
+      const panelW = COLS * CARD_W + (COLS + 1) * GAP;
+      const panelH = Math.ceil(SKINS.length / COLS) * (CARD_H + GAP) + GAP + P(PD);
+      const px = W / 2, py = barY - panelH / 2 - P(8);
+      const wardObjs: Phaser.GameObjects.GameObject[] = [];
+      const bg = this.add.graphics().setDepth(60);
+      bg.fillStyle(0x000000, 0.55);
+      bg.fillRect(0, 0, W, H);
+      bg.fillStyle(0x1a0e04, 1);
+      bg.fillRoundedRect(px - panelW / 2, py - panelH / 2, panelW, panelH, P(12));
+      bg.lineStyle(1.5, 0xffd060, 0.6);
+      bg.strokeRoundedRect(px - panelW / 2, py - panelH / 2, panelW, panelH, P(12));
+      wardObjs.push(bg);
+      const title = this.add.text(px, py - panelH / 2 + P(14), '選擇造型', {
+        fontSize: F(14), color: '#ffd060', fontStyle: 'bold',
+      }).setOrigin(0.5, 0).setDepth(61);
+      wardObjs.push(title);
+      const currentSkin = SkinStore.get();
+      SKINS.forEach((skin, i) => {
+        const col   = i % COLS;
+        const row   = Math.floor(i / COLS);
+        const cx    = px - panelW / 2 + GAP + col * (CARD_W + GAP) + CARD_W / 2;
+        const cy    = py - panelH / 2 + P(PD) + GAP + row * (CARD_H + GAP) + CARD_H / 2;
+        const isSelected = i === currentSkin;
+        const cardGfx = this.add.graphics().setDepth(61);
+        const drawCard = (hover: boolean) => {
+          cardGfx.clear();
+          cardGfx.fillStyle(isSelected ? 0x3a2200 : (hover ? 0x2a1800 : 0x0e0806), 1);
+          cardGfx.fillRoundedRect(cx - CARD_W / 2, cy - CARD_H / 2, CARD_W, CARD_H, P(8));
+          cardGfx.lineStyle(1.5, isSelected ? 0xffd060 : (hover ? 0xaa7722 : 0x554422), isSelected ? 1 : 0.7);
+          cardGfx.strokeRoundedRect(cx - CARD_W / 2, cy - CARD_H / 2, CARD_W, CARD_H, P(8));
+        };
+        drawCard(false);
+        wardObjs.push(cardGfx);
+        const previewKey = `skin_preview_${i}`;
+        const sp = this.add.sprite(cx, cy - P(14), previewKey)
+          .setScale(1.6 * DPR).setDepth(62).setFrame(0);
+        wardObjs.push(sp);
+        const lbl = this.add.text(cx, cy + CARD_H / 2 - P(18), skin.label, {
+          fontSize: F(11), color: isSelected ? '#ffd060' : '#c8a060',
+        }).setOrigin(0.5).setDepth(62);
+        wardObjs.push(lbl);
+        const hit = this.add.rectangle(cx, cy, CARD_W, CARD_H)
+          .setInteractive({ useHandCursor: true }).setDepth(63);
+        wardObjs.push(hit);
+        hit.on('pointerover',  () => { if (!isSelected) drawCard(true); });
+        hit.on('pointerout',   () => { if (!isSelected) drawCard(false); });
+        hit.on('pointerdown',  () => {
+          wardObjs.forEach(o => o.destroy());
+          if (i !== currentSkin) {
+            SkinStore.set(i);
+            if (this.textures.exists('player_idle_shadow')) this.textures.remove('player_idle_shadow');
+            if (this.anims.exists('player_idle_shadow'))    this.anims.remove('player_idle_shadow');
+            if (this.anims.exists('_lobby_idle'))           this.anims.remove('_lobby_idle');
+            this.scene.restart();
+          }
+        });
+      });
+      // Close on backdrop click
+      const closeBg = this.add.rectangle(W / 2, H / 2, W, H)
+        .setInteractive().setDepth(59).setAlpha(0.001);
+      wardObjs.push(closeBg);
+      closeBg.on('pointerdown', () => wardObjs.forEach(o => o.destroy()));
+    };
+
+    this.add.rectangle(skinBtnX, skinBtnY, skinBtnW, skinBtnH)
+      .setInteractive({ useHandCursor: true }).setDepth(27)
+      .on('pointerdown', () => openWardrobePanel())
+      .on('pointerover',  () => { skinLabel.setColor('#ffe080'); })
+      .on('pointerout',   () => { skinLabel.setColor('#d4a044'); });
 
     battleHit.on('pointerover', () => {
       this.tweens.killTweensOf([btng, btnCnt]);
@@ -1120,7 +1224,7 @@ export class PrepScene extends Phaser.Scene {
           NetworkService.sendReady(this.multiRoomNick, PlayerStore.getLevel(), quest.id, quest.star, quest.bossId);
           this.multiRoomNick = '';
         } else {
-          this.scene.start('GameScene');
+          this.scene.start('GameScene', { ownSkinId: SkinStore.get() });
         }
       });
 
@@ -3591,15 +3695,14 @@ export class PrepScene extends Phaser.Scene {
     const leftCx  = px + P(16) + slotW / 2;
     const rightCx = px + P(32) + slotW + slotW / 2;
 
-    if (!this.anims.exists('_lobby_idle')) {
-      this.anims.create({
-        key: '_lobby_idle',
-        frames: this.anims.generateFrameNumbers('player_idle_shadow', { start: 0, end: 3 }),
-        frameRate: 5, repeat: -1,
-      });
-    }
+    if (this.anims.exists('_lobby_idle')) this.anims.remove('_lobby_idle');
+    this.anims.create({
+      key: '_lobby_idle',
+      frames: this.anims.generateFrameNumbers('player_idle_shadow', { start: 0, end: 3 }),
+      frameRate: 5, repeat: -1,
+    });
 
-    const drawSlot = (cx: number, name: string | null, level: number, badge: string, tint = 0xffddaa) => {
+    const drawSlot = (cx: number, name: string | null, level: number, badge: string, skinId = 0, tint = 0xffddaa) => {
       const sx = cx - slotW / 2;
       const sy = slotY - SLOT_H / 2;
       const g  = this.add.graphics().setDepth(D + 2);
@@ -3619,13 +3722,23 @@ export class PrepScene extends Phaser.Scene {
         return;
       }
 
+      // Per-skin lobby animation (uses preloaded skin_preview_N texture)
+      const animKey = `_lobby_idle_${skinId}`;
+      if (!this.anims.exists(animKey)) {
+        this.anims.create({
+          key: animKey,
+          frames: this.anims.generateFrameNumbers(`skin_preview_${skinId}`, { start: 0, end: 3 }),
+          frameRate: 5, repeat: -1,
+        });
+      }
+
       // Sprite — positioned with room for text at bottom; may slightly overflow top, that's OK
       const textAreaH = P(38);
       const sprY = sy + (SLOT_H - textAreaH) / 2 + P(10);
-      const spr = this.add.sprite(cx, sprY, 'player_idle_shadow', 0)
+      const spr = this.add.sprite(cx, sprY, `skin_preview_${skinId}`, 0)
         .setScale(DPR * 2.2).setTint(tint).setDepth(D + 3);
       contentObjs.push(spr);
-      spr.play('_lobby_idle');
+      spr.play(animKey);
 
       // Name + level anchored at bottom of slot
       contentObjs.push(this.add.text(cx, sy + SLOT_H - P(3), name, {
@@ -3712,9 +3825,10 @@ export class PrepScene extends Phaser.Scene {
       loadTxt.destroy();
       contentObjs.splice(contentObjs.indexOf(loadTxt), 1);
 
-      let partnerIn    = false;
-      let partnerNick  = '';
-      let partnerLevel = 0;
+      let partnerIn     = false;
+      let partnerNick   = '';
+      let partnerLevel  = 0;
+      let partnerSkinId = 0;
 
       const rebuildLobby = () => {
         clearContent();
@@ -3729,8 +3843,8 @@ export class PrepScene extends Phaser.Scene {
 
         // Slots
         const myLevel = PlayerStore.getLevel();
-        drawSlot(leftCx,  nick,                         myLevel,      '房主 (你)', 0xffddaa);
-        drawSlot(rightCx, partnerIn ? partnerNick : null, partnerLevel, '夥伴',      0xaaddff);
+        drawSlot(leftCx,  nick,                          myLevel,      '房主 (你)', SkinStore.get(),  0xffddaa);
+        drawSlot(rightCx, partnerIn ? partnerNick : null, partnerLevel, '夥伴',      partnerSkinId,    0xaaddff);
 
         // Status — just below slots
         const slotBottom = py + P(90) + SLOT_H;
@@ -3769,18 +3883,19 @@ export class PrepScene extends Phaser.Scene {
       rebuildLobby();
 
       // Push host's own name/level into Colyseus schema so guest can read it
-      NetworkService.sendPlayerInfo(nick, PlayerStore.getLevel());
+      NetworkService.sendPlayerInfo(nick, PlayerStore.getLevel(), SkinStore.get());
 
       // Primary: schema state change (works without custom server messages)
-      NetworkService.onPartnerInfoReady((name, level) => {
-        partnerIn = true; partnerNick = name; partnerLevel = level;
+      NetworkService.onPartnerInfoReady((name, level, skinId) => {
+        partnerIn = true; partnerNick = name; partnerLevel = level; partnerSkinId = skinId;
         rebuildLobby();
       });
       // Backup: explicit server message (works when server is rebuilt)
       NetworkService.onPartnerJoined(data => {
         partnerIn = true;
-        partnerNick  = data.nickname || partnerNick;
-        partnerLevel = data.level    || partnerLevel;
+        partnerNick   = data.nickname ?? partnerNick;
+        partnerLevel  = data.level    ?? partnerLevel;
+        partnerSkinId = data.skinId   ?? partnerSkinId;
         rebuildLobby();
       });
 
@@ -3790,6 +3905,7 @@ export class PrepScene extends Phaser.Scene {
         this.scene.start('GameScene', {
           seed: p.seed, questStar: p.questStar, bossMonsterId: p.bossMonsterId,
           mapParams: p.mapParams, partnerNickname: p.guestNickname,
+          ownSkinId: p.hostSkinId, partnerSkinId: p.guestSkinId,
         });
       });
     };
@@ -3817,12 +3933,13 @@ export class PrepScene extends Phaser.Scene {
         errTxt.setText('加入中…').setColor('#ffdd44');
         try {
           const joined = await NetworkService.joinRoom(code, nick);
-          NetworkService.sendPlayerInfo(nick, PlayerStore.getLevel());
+          NetworkService.sendPlayerInfo(nick, PlayerStore.getLevel(), SkinStore.get());
           // Read host info from live schema first; fall back to joined payload
           const hostState = NetworkService.getPartnerState() as any;
-          const hostName  = hostState?.nickname  || joined.hostNickname || '';
-          const hostLevel = hostState?.level     || joined.hostLevel    || 0;
-          showGuestLobby(nick, hostName, hostLevel);
+          const hostName   = hostState?.nickname ?? joined.hostNickname ?? '';
+          const hostLevel  = hostState?.level    ?? joined.hostLevel    ?? 0;
+          const hostSkinId = hostState?.skinId   ?? joined.hostSkinId  ?? 0;
+          showGuestLobby(nick, hostName, hostLevel, hostSkinId);
         } catch {
           errTxt.setText('加入失敗，代碼錯誤或房間不存在').setColor('#ff4444');
         }
@@ -3832,9 +3949,10 @@ export class PrepScene extends Phaser.Scene {
     };
 
     // ── Screen 2c : Guest lobby ──────────────────────────────────────
-    const showGuestLobby = (nick: string, hostName = '', hostLevel = 0) => {
-      let _hostName  = hostName;
-      let _hostLevel = hostLevel;
+    const showGuestLobby = (nick: string, hostName = '', hostLevel = 0, hostSkinId = 0) => {
+      let _hostName   = hostName;
+      let _hostLevel  = hostLevel;
+      let _hostSkinId = hostSkinId;
 
       const rebuildContent = () => {
         clearContent();
@@ -3844,8 +3962,8 @@ export class PrepScene extends Phaser.Scene {
         }).setOrigin(0.5).setDepth(D + 2));
 
         const myLevel = PlayerStore.getLevel();
-        drawSlot(leftCx,  _hostName || '?', _hostLevel, '房主', 0xaaddff);
-        drawSlot(rightCx, nick, myLevel, '你', 0xffddaa);
+        drawSlot(leftCx,  _hostName || '?', _hostLevel, '房主', _hostSkinId,     0xaaddff);
+        drawSlot(rightCx, nick,             myLevel,    '你',   SkinStore.get(), 0xffddaa);
 
         contentObjs.push(this.add.text(W / 2, py + P(90) + SLOT_H + P(14), '等待房主出發…', {
           fontSize: F(15), color: '#886644',
@@ -3855,9 +3973,10 @@ export class PrepScene extends Phaser.Scene {
       rebuildContent();
 
       // Update host slot whenever schema syncs with host's name/level
-      NetworkService.onPartnerInfoReady((name, level) => {
-        _hostName  = name;
-        _hostLevel = level;
+      NetworkService.onPartnerInfoReady((name, level, skinId) => {
+        _hostName   = name;
+        _hostLevel  = level;
+        _hostSkinId = skinId;
         rebuildContent();
       });
 
@@ -3868,6 +3987,7 @@ export class PrepScene extends Phaser.Scene {
         this.scene.start('GameScene', {
           seed: payload.seed, questStar: payload.questStar, bossMonsterId: payload.bossMonsterId,
           mapParams: payload.mapParams, partnerNickname: payload.hostNickname,
+          ownSkinId: payload.guestSkinId, partnerSkinId: payload.hostSkinId,
         });
       });
     };
