@@ -267,14 +267,14 @@ export class GameScene extends Phaser.Scene {
       });
 
       if (NetworkService.isHost) {
-        // Host broadcasts all alive minion positions every 100 ms
+        // Host broadcasts all alive minion positions every 100 ms (DPR-normalised)
         this.time.addEvent({
           delay: 100, loop: true,
           callback: () => {
             const alive = this.allMinions.filter(m => !m.isDead);
             if (alive.length === 0) return;
             NetworkService.sendMinionSync(alive.map(m => ({
-              id: m.minionId, x: m.x, y: m.y,
+              id: m.minionId, x: m.x / DPR, y: m.y / DPR,
               hp: m.currentHp, maxHp: m.currentHp, isDead: false,
             })));
           },
@@ -283,7 +283,7 @@ export class GameScene extends Phaser.Scene {
         // Guest stores lerp targets; actual movement happens in update()
         NetworkService.onMinionSync(({ minions }) => {
           for (const data of minions) {
-            this._minionTargets.set(data.id, { x: data.x, y: data.y });
+            this._minionTargets.set(data.id, { x: data.x * DPR, y: data.y * DPR });
           }
         });
       }
@@ -2450,12 +2450,12 @@ export class GameScene extends Phaser.Scene {
         // Guest: mark started so visibility check works, but skip AI
         for (const m of this.allMinions) m.started = true;
       }
-      // Host sends initial minion state to server for HP tracking
+      // Host sends initial minion state to server for HP tracking (DPR-normalised)
       if (NetworkService.connected && NetworkService.isHost) {
         NetworkService.sendMinionSync(this.allMinions.map(m => ({
           id:     m.minionId,
-          x:      m.x,
-          y:      m.y,
+          x:      m.x / DPR,
+          y:      m.y / DPR,
           hp:     m.currentHp,
           maxHp:  m.currentHp,
           isDead: false,
