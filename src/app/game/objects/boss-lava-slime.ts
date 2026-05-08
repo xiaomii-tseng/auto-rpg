@@ -38,6 +38,7 @@ export class BossLavaSlime extends Boss {
     if (!this.phase2 && this.currentHp <= this.maxHpValue * 0.4 && this.currentState !== BossState.DEAD) {
       this.phase2 = true;
       this.triggerPhase2();
+      if (!this.guestMode) this.onSyncState?.({ state: 'PHASE2', x: this.x / DPR, y: this.y / DPR });
     }
   }
 
@@ -110,18 +111,24 @@ export class BossLavaSlime extends Boss {
     this.scene.time.delayedCall(600, () => this.triggerPhase2GlobalPillars());
   }
 
-  private triggerPhase2GlobalPillars(): void {
+  private triggerPhase2GlobalPillars(overridePts?: { x: number; y: number }[]): void {
     if (this.currentState === BossState.DEAD) return;
     const GLOBAL_COUNT = 70;
     const ac = this.arenaCenter;
     const ar = this.arenaRadius;
 
-    // 均勻分布在場地圓形內（sqrt 使分布更均勻）
-    const positions = Array.from({ length: GLOBAL_COUNT }, () => {
-      const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
-      const dist  = Math.sqrt(Phaser.Math.FloatBetween(0, 1)) * ar;
-      return { x: ac.x + Math.cos(angle) * dist, y: ac.y + Math.sin(angle) * dist };
-    });
+    let positions: { x: number; y: number }[];
+    if (overridePts) {
+      positions = overridePts;
+    } else {
+      positions = Array.from({ length: GLOBAL_COUNT }, () => {
+        const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
+        const dist  = Math.sqrt(Phaser.Math.FloatBetween(0, 1)) * ar;
+        return { x: ac.x + Math.cos(angle) * dist, y: ac.y + Math.sin(angle) * dist };
+      });
+      this.onSyncState?.({ state: 'LAVA_PHASE2_PILLARS', x: this.x / DPR, y: this.y / DPR,
+        pts: positions.map(p => ({ x: p.x / DPR, y: p.y / DPR })) });
+    }
 
     // 全部圓圈同時出現
     const circleGraphics = positions.map(p => {
@@ -177,6 +184,15 @@ export class BossLavaSlime extends Boss {
 
   // ── 攻擊選擇 ─────────────────────────────────────────────
 
+  protected override applyUniqueState(state: string): void {
+    switch (state) {
+      case BossState.LAVA_BARRAGE_WARN: this.enterLavaBarrageWarn(); break;
+      case BossState.LAVA_PILLAR_WARN:  this.enterLavaPillarWarn();  break;
+      case 'PHASE2':               this.phase2 = true; this.triggerPhase2(); break;
+      case 'LAVA_PHASE2_PILLARS':  this.triggerPhase2GlobalPillars(this.guestPts); break;
+    }
+  }
+
   protected override pickNextAttack(): void {
     const roll = Math.random();
     let fn: () => void;
@@ -194,6 +210,7 @@ export class BossLavaSlime extends Boss {
     this.setBossState(BossState.LAVA_BARRAGE_WARN);
     (this.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
     this.playDir(`${this.animPrefix}_attack`);
+    if (!this.guestMode) this.onSyncState?.({ state: BossState.LAVA_BARRAGE_WARN, x: this.x / DPR, y: this.y / DPR });
 
     const dirs    = this.phase2 ? BARRAGE_DIRS_P2 : BARRAGE_DIRS_P1;
     const halfRad = Phaser.Math.DegToRad(BARRAGE_FAN_HALF);
@@ -357,18 +374,24 @@ export class BossLavaSlime extends Boss {
     this.playDir(`${this.animPrefix}_attack`);
     this.pulseTween?.stop();
 
-    const count  = this.phase2 ? PILLAR_COUNT_P2 : PILLAR_COUNT_P1;
-    const [px, py] = this.getTargetPos();
-    const bounds = this.scene.physics.world.bounds;
-
-    const positions = Array.from({ length: count }, (_, i) => {
-      const angle = (i / count) * Math.PI * 2 + Phaser.Math.FloatBetween(-0.4, 0.4);
-      const dist  = Phaser.Math.Between(PILLAR_NEAR_MIN, PILLAR_NEAR_MAX);
-      return {
-        x: Phaser.Math.Clamp(px + Math.cos(angle) * dist, bounds.left + 30, bounds.right  - 30),
-        y: Phaser.Math.Clamp(py + Math.sin(angle) * dist, bounds.top  + 30, bounds.bottom - 30),
-      };
-    });
+    let positions: { x: number; y: number }[];
+    if (this.guestMode) {
+      positions = this.guestPts.slice();
+    } else {
+      const count  = this.phase2 ? PILLAR_COUNT_P2 : PILLAR_COUNT_P1;
+      const [px, py] = this.getTargetPos();
+      const bounds = this.scene.physics.world.bounds;
+      positions = Array.from({ length: count }, (_, i) => {
+        const angle = (i / count) * Math.PI * 2 + Phaser.Math.FloatBetween(-0.4, 0.4);
+        const dist  = Phaser.Math.Between(PILLAR_NEAR_MIN, PILLAR_NEAR_MAX);
+        return {
+          x: Phaser.Math.Clamp(px + Math.cos(angle) * dist, bounds.left + 30, bounds.right  - 30),
+          y: Phaser.Math.Clamp(py + Math.sin(angle) * dist, bounds.top  + 30, bounds.bottom - 30),
+        };
+      });
+      this.onSyncState?.({ state: BossState.LAVA_PILLAR_WARN, x: this.x / DPR, y: this.y / DPR,
+        pts: positions.map(p => ({ x: p.x / DPR, y: p.y / DPR })) });
+    }
 
     const APPEAR_INTERVAL = 220;  // 每個紅圈出現間隔
     const WARN_AFTER_LAST = 700;  // 最後一個圈出現後的額外警示時間
@@ -404,7 +427,7 @@ export class BossLavaSlime extends Boss {
         }).setDepth(9);
 
         // 爆發時機：所有圈出完後再等 WARN_AFTER_LAST，然後依序爆發
-        const timeToErupt = (count - 1 - idx) * APPEAR_INTERVAL + WARN_AFTER_LAST + idx * ERUPT_STAGGER;
+        const timeToErupt = (positions.length - 1 - idx) * APPEAR_INTERVAL + WARN_AFTER_LAST + idx * ERUPT_STAGGER;
         this.scene.time.delayedCall(timeToErupt, () => {
           pt.stop();
           rumbleE.destroy();
@@ -422,7 +445,7 @@ export class BossLavaSlime extends Boss {
     });
 
     // enterIdle 在最後一個爆發後 + 緩衝
-    const totalMs = (count - 1) * APPEAR_INTERVAL + WARN_AFTER_LAST + (count - 1) * ERUPT_STAGGER + 800;
+    const totalMs = (positions.length - 1) * APPEAR_INTERVAL + WARN_AFTER_LAST + (positions.length - 1) * ERUPT_STAGGER + 800;
     this.stateTimer = this.scene.time.delayedCall(totalMs, () => this.enterIdle());
   }
 

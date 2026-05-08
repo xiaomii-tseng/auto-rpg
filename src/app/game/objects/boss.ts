@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { Element } from '../data/equipment-data';
 import { MONSTER_SCALE_BOSS } from '../data/monster-data';
+import type { MsgBossSync } from '../../../../shared/types';
 
 const DPR = (window as any).__gameDpr as number;
 const P = (n: number): number => Math.round(n * DPR);
@@ -83,6 +84,16 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     });
   }
 
+  // ── Co-op sync ───────────────────────────────────────────
+  guestMode = false;
+  private bossLerpX = 0;
+  private bossLerpY = 0;
+  protected guestAtkX = 0;
+  protected guestAtkY = 0;
+  protected guestAngle = 0;
+  protected guestPts: { x: number; y: number }[] = [];
+  onSyncState?: (data: MsgBossSync) => void;
+
   onHpChanged?: (hp: number, maxHp: number) => void;
   onDead?: () => void;
   onAoeExplode?: (x: number, y: number) => void;
@@ -110,7 +121,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
   start(): void {
     this.started = true;
     this.setVisible(true);
-    this.enterIdle();
+    if (!this.guestMode) this.enterIdle();
   }
 
   protected idleStopRange = 72;
@@ -118,6 +129,16 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
   override preUpdate(time: number, delta: number): void {
     super.preUpdate(time, delta);
     if (!this.started || this.bossState === BossState.DEAD) return;
+
+    // Guest mode: lerp boss toward server position, skip local AI
+    if (this.guestMode) {
+      const lx = this.x + (this.bossLerpX - this.x) * 0.15;
+      const ly = this.y + (this.bossLerpY - this.y) * 0.15;
+      this.setPosition(lx, ly);
+      (this.body as Phaser.Physics.Arcade.Body).reset(lx, ly);
+      return;
+    }
+
     if (time < this.stunUntil) {
       (this.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
       return;
@@ -174,6 +195,32 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
       default: break;
     }
   }
+
+  applyServerState(data: MsgBossSync): void {
+    if (data.state === 'POS') {
+      this.bossLerpX = data.x * DPR;
+      this.bossLerpY = data.y * DPR;
+      return;
+    }
+    // Snap to host position at attack start
+    this.bossLerpX = data.x * DPR;
+    this.bossLerpY = data.y * DPR;
+    this.setPosition(data.x * DPR, data.y * DPR);
+    (this.body as Phaser.Physics.Arcade.Body).reset(data.x * DPR, data.y * DPR);
+
+    if (data.atkX !== undefined) this.guestAtkX = data.atkX * DPR;
+    if (data.atkY !== undefined) this.guestAtkY = data.atkY * DPR;
+    if (data.angle !== undefined) this.guestAngle = data.angle;
+    if (data.pts) this.guestPts = data.pts.map(p => ({ x: p.x * DPR, y: p.y * DPR }));
+
+    switch (data.state) {
+      case BossState.AOE_WARN:  this.enterAoeWarn(); break;
+      case BossState.DASH_WARN: this.enterDashWarn(); break;
+      default: this.applyUniqueState(data.state); break;
+    }
+  }
+
+  protected applyUniqueState(_state: string): void {}
 
   applyServerHp(hp: number, isDead: boolean): void {
     if (this.bossState === BossState.DEAD) return;
@@ -235,6 +282,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
   }
 
   protected pickNextAttack(): void {
+    if (this.guestMode) return;
     const next = Math.random() < 0.5 ? () => this.enterAoeWarn() : () => this.enterDashWarn();
     this.stateTimer = this.scene.time.delayedCall(this.getNextAttackDelay(), next);
   }
@@ -245,6 +293,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     (this.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
     this.atkX = this.x;
     this.atkY = this.y;
+    if (!this.guestMode) this.onSyncState?.({ state: BossState.AOE_WARN, x: this.x / DPR, y: this.y / DPR });
     this.updateDirToTarget();
     this.playDir(`${this.animPrefix}_attack`);
     this.drawAoeWarning();
@@ -297,7 +346,13 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     this.bossState = BossState.DASH_WARN;
     this.stateTimer?.destroy();
     (this.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
-    [this.atkX, this.atkY] = this.getTargetPos();
+    if (this.guestMode) {
+      this.atkX = this.guestAtkX;
+      this.atkY = this.guestAtkY;
+    } else {
+      [this.atkX, this.atkY] = this.getTargetPos();
+      this.onSyncState?.({ state: BossState.DASH_WARN, x: this.x / DPR, y: this.y / DPR, atkX: this.atkX / DPR, atkY: this.atkY / DPR });
+    }
     this.updateDirToTarget();
     this.playDir(`${this.animPrefix}_walk`);
     this.drawDashWarning();

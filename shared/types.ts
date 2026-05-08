@@ -39,4 +39,13 @@ export interface MsgHpUpdate     { hp: number; maxHp: number }
 export interface MsgMinionSync   { minions: MinionState[] }  // host only
 export interface MsgMinionHit    { minionId: string; damage: number }
 export interface MsgBossHit      { damage: number }
+export interface MsgBossSync     {
+  state:  string;           // 'POS' | BossState value | 'PHASE2' | 'LAVA_PHASE2_PILLARS'
+  x:      number;           // boss x (DPR-normalised)
+  y:      number;           // boss y (DPR-normalised)
+  atkX?:  number;           // attack target x (DPR-normalised)
+  atkY?:  number;           // attack target y (DPR-normalised)
+  angle?: number;           // for angular skills
+  pts?:   { x: number; y: number }[];  // multi-point skills (DPR-normalised)
+}
 export interface MsgRunEnd       { won: boolean }

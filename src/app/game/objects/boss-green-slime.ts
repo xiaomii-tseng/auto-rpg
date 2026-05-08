@@ -16,6 +16,13 @@ export class BossGreenSlime extends Boss {
   onSummonElite?: (x: number, y: number) => void;
   onPoisonTick?:  (x: number, y: number, radius: number, dmg: number) => void;
 
+  protected override applyUniqueState(state: string): void {
+    switch (state) {
+      case BossState.SUMMON_WARN: this.enterSummonWarn(); break;
+      case BossState.POISON_WARN: this.enterPoisonWarn(); break;
+    }
+  }
+
   protected override pickNextAttack(): void {
     const roll = Math.random();
     let fn: () => void;
@@ -34,12 +41,19 @@ export class BossGreenSlime extends Boss {
     (this.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
     this.playDir(`${this.animPrefix}_attack`);
 
-    const a1  = Math.random() * Math.PI * 2;
-    const a2  = a1 + Math.PI + Phaser.Math.FloatBetween(-0.4, 0.4);
-    const sx1 = this.x + Math.cos(a1) * SUMMON_DIST;
-    const sy1 = this.y + Math.sin(a1) * SUMMON_DIST;
-    const sx2 = this.x + Math.cos(a2) * SUMMON_DIST;
-    const sy2 = this.y + Math.sin(a2) * SUMMON_DIST;
+    let sx1: number, sy1: number, sx2: number, sy2: number;
+    if (this.guestMode) {
+      [{ x: sx1, y: sy1 }, { x: sx2, y: sy2 }] = this.guestPts as [typeof this.guestPts[0], typeof this.guestPts[0]];
+    } else {
+      const a1 = Math.random() * Math.PI * 2;
+      const a2 = a1 + Math.PI + Phaser.Math.FloatBetween(-0.4, 0.4);
+      sx1 = this.x + Math.cos(a1) * SUMMON_DIST;
+      sy1 = this.y + Math.sin(a1) * SUMMON_DIST;
+      sx2 = this.x + Math.cos(a2) * SUMMON_DIST;
+      sy2 = this.y + Math.sin(a2) * SUMMON_DIST;
+      this.onSyncState?.({ state: BossState.SUMMON_WARN, x: this.x / DPR, y: this.y / DPR,
+        pts: [{ x: sx1 / DPR, y: sy1 / DPR }, { x: sx2 / DPR, y: sy2 / DPR }] });
+    }
 
     // ── 旋轉能量球 ─────────────────────────────────────
     const orbs = Array.from({ length: ORB_COUNT }, () => {
@@ -136,7 +150,13 @@ export class BossGreenSlime extends Boss {
     (this.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
     this.playDir(`${this.animPrefix}_attack`);
 
-    const [tx, ty] = this.getTargetPos();
+    let tx: number, ty: number;
+    if (this.guestMode) {
+      tx = this.guestAtkX; ty = this.guestAtkY;
+    } else {
+      [tx, ty] = this.getTargetPos();
+      this.onSyncState?.({ state: BossState.POISON_WARN, x: this.x / DPR, y: this.y / DPR, atkX: tx / DPR, atkY: ty / DPR });
+    }
 
     const warnG = this.scene.add.graphics().setDepth(8);
     this.drawPoisonWarning(warnG, tx, ty);

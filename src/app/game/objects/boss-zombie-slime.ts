@@ -38,6 +38,13 @@ export class BossZombieSlime extends Boss {
     if (this.zombieFanWarnG?.active) this.zombieFanWarnG.destroy(); this.zombieFanWarnG = undefined;
   }
 
+  protected override applyUniqueState(state: string): void {
+    switch (state) {
+      case BossState.ZOMBIE_SUMMON_WARN: this.enterZombieSummonWarn(); break;
+      case BossState.POISON_FAN_WARN:    this.enterPoisonFanWarn();    break;
+    }
+  }
+
   protected override pickNextAttack(): void {
     const roll = Math.random();
     let fn: () => void;
@@ -56,11 +63,18 @@ export class BossZombieSlime extends Boss {
     (this.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
     this.playDir(`${this.animPrefix}_attack`);
 
-    const baseAngle = Math.random() * Math.PI * 2;
-    const positions = Array.from({ length: SUMMON_COUNT }, (_, i) => {
-      const a = baseAngle + (Math.PI * 2 / SUMMON_COUNT) * i;
-      return { x: this.x + Math.cos(a) * SUMMON_DIST, y: this.y + Math.sin(a) * SUMMON_DIST };
-    });
+    let positions: { x: number; y: number }[];
+    if (this.guestMode) {
+      positions = this.guestPts.slice();
+    } else {
+      const baseAngle = Math.random() * Math.PI * 2;
+      positions = Array.from({ length: SUMMON_COUNT }, (_, i) => {
+        const a = baseAngle + (Math.PI * 2 / SUMMON_COUNT) * i;
+        return { x: this.x + Math.cos(a) * SUMMON_DIST, y: this.y + Math.sin(a) * SUMMON_DIST };
+      });
+      this.onSyncState?.({ state: BossState.ZOMBIE_SUMMON_WARN, x: this.x / DPR, y: this.y / DPR,
+        pts: positions.map(p => ({ x: p.x / DPR, y: p.y / DPR })) });
+    }
 
     // 旋轉能量球
     this.zombieOrbs = Array.from({ length: SUMMON_COUNT }, () => {
@@ -160,10 +174,16 @@ export class BossZombieSlime extends Boss {
     (this.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
     this.playDir(`${this.animPrefix}_attack`);
 
-    const [tx, ty]    = this.getTargetPos();
-    const centerAngle = Phaser.Math.Angle.Between(this.x, this.y, tx, ty);
-    const sideRad     = Phaser.Math.DegToRad(FAN_SIDE_DEG);
-    const fanAngles   = [centerAngle - sideRad, centerAngle, centerAngle + sideRad];
+    let centerAngle: number;
+    if (this.guestMode) {
+      centerAngle = this.guestAngle;
+    } else {
+      const [tx, ty] = this.getTargetPos();
+      centerAngle = Phaser.Math.Angle.Between(this.x, this.y, tx, ty);
+      this.onSyncState?.({ state: BossState.POISON_FAN_WARN, x: this.x / DPR, y: this.y / DPR, angle: centerAngle });
+    }
+    const sideRad   = Phaser.Math.DegToRad(FAN_SIDE_DEG);
+    const fanAngles = [centerAngle - sideRad, centerAngle, centerAngle + sideRad];
 
     this.zombieFanWarnG = this.scene.add.graphics().setDepth(8);
     const warnG = this.zombieFanWarnG;

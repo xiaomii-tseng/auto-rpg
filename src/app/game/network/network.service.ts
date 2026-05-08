@@ -1,5 +1,5 @@
 import { Client, Room } from 'colyseus.js';
-import { GameRoomState, MapParams, MsgMove, MsgHpUpdate, MsgMinionSync, MsgMinionHit, MsgBossHit } from '../../../../shared/types';
+import { GameRoomState, MapParams, MsgMove, MsgHpUpdate, MsgMinionSync, MsgMinionHit, MsgBossHit, MsgBossSync } from '../../../../shared/types';
 
 const HOST     = window.location.hostname;
 const WS_URL   = `ws://${HOST}:3001`;
@@ -93,6 +93,10 @@ class NetworkServiceClass {
     this.room?.send('bossHit', { damage });
   }
 
+  sendBossSync(data: MsgBossSync): void {
+    this.room?.send('bossSync', data);
+  }
+
   sendRunEnd(won: boolean): void {
     this.room?.send('runEnd', { won });
   }
@@ -130,6 +134,10 @@ class NetworkServiceClass {
 
   onBossHit(cb: (data: { hp: number; isDead: boolean }) => void): void {
     this.room?.onMessage('bossHit', cb);
+  }
+
+  onBossSync(cb: (data: MsgBossSync) => void): void {
+    this.room?.onMessage<MsgBossSync>('bossSync', cb);
   }
 
   onPartnerLeft(cb: () => void): void {

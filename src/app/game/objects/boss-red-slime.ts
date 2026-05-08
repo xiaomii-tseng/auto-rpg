@@ -21,11 +21,20 @@ export class BossRedSlime extends Boss {
 
   // ── 血量監聽：觸發二階段 ──────────────────────────────
 
+  protected override applyUniqueState(state: string): void {
+    switch (state) {
+      case BossState.JUMP_WARN: this.enterJumpWarn(); break;
+      case BossState.FIRE_WARN: this.enterFireFanWarn(); break;
+      case 'PHASE2': this.belowHalf = true; this.triggerPhase2(); break;
+    }
+  }
+
   override takeDamage(amount: number): void {
     super.takeDamage(amount);
     if (!this.belowHalf && this.currentHp <= this.maxHpValue * 0.5 && this.currentState !== BossState.DEAD) {
       this.belowHalf = true;
       this.triggerPhase2();
+      if (!this.guestMode) this.onSyncState?.({ state: 'PHASE2', x: this.x / DPR, y: this.y / DPR });
     }
   }
 
@@ -143,7 +152,13 @@ export class BossRedSlime extends Boss {
     (this.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
     this.playDir(`${this.animPrefix}_attack`);
 
-    const [tx, ty] = this.getTargetPos();
+    let tx: number, ty: number;
+    if (this.guestMode) {
+      tx = this.guestAtkX; ty = this.guestAtkY;
+    } else {
+      [tx, ty] = this.getTargetPos();
+      this.onSyncState?.({ state: BossState.JUMP_WARN, x: this.x / DPR, y: this.y / DPR, atkX: tx / DPR, atkY: ty / DPR });
+    }
 
     const warnG = this.scene.add.graphics().setDepth(8);
     this.drawJumpWarning(warnG, tx, ty);
@@ -213,8 +228,14 @@ export class BossRedSlime extends Boss {
     this.playDir(`${this.animPrefix}_attack`);
 
     // 鎖定方向（警示開始時鎖定）
-    const [px, py] = this.getTargetPos();
-    const fireAngle = Phaser.Math.Angle.Between(this.x, this.y, px, py);
+    const fireAngle = this.guestMode
+      ? this.guestAngle
+      : (() => {
+          const [px, py] = this.getTargetPos();
+          const a = Phaser.Math.Angle.Between(this.x, this.y, px, py);
+          this.onSyncState?.({ state: BossState.FIRE_WARN, x: this.x / DPR, y: this.y / DPR, angle: a });
+          return a;
+        })();
 
     // 扇形紅色警示
     const fanWarnG = this.scene.add.graphics().setDepth(8);

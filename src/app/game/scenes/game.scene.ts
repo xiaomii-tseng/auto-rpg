@@ -266,6 +266,21 @@ export class GameScene extends Phaser.Scene {
         this.refreshBossBar();
       });
 
+      // Guest: register bossSync handler (guestMode set after boss is created below)
+      if (!NetworkService.isHost) {
+        NetworkService.onBossSync((data) => {
+          if (!this.boss?.active) return;
+          if (!this.bossActive && !this.teleporting) {
+            this.bossActive  = true;
+            this.teleporting = true;
+            this.player.move(0, 0);
+            (this.player.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
+            this.teleportToBossArena();
+          }
+          this.boss.applyServerState(data);
+        });
+      }
+
       if (NetworkService.isHost) {
         // Host broadcasts all alive minion positions every 100 ms (DPR-normalised)
         this.time.addEvent({
@@ -303,6 +318,9 @@ export class GameScene extends Phaser.Scene {
     this.boss = this.createBoss(bossDef, bossInitHp);
     if (NetworkService.connected && NetworkService.isHost) {
       NetworkService.sendBossInit(bossInitHp);
+    }
+    if (NetworkService.connected && !NetworkService.isHost) {
+      this.boss.guestMode = true;
     }
     this.boss.arenaRadius = this.BOSS_ARENA_RADIUS;
     this.boss.arenaShape  = this.bossArenaShape;
@@ -2520,7 +2538,19 @@ export class GameScene extends Phaser.Scene {
         this.bossHpLabel.setVisible(true);
         this.bossDebuffGfx.setVisible(true);
         this.refreshBossBar();
-        this.time.delayedCall(300, () => this.boss.start());
+        this.time.delayedCall(300, () => {
+          this.boss.start();
+          if (NetworkService.connected && NetworkService.isHost) {
+            this.boss.onSyncState = (data) => NetworkService.sendBossSync(data);
+            this.time.addEvent({
+              delay: 100, loop: true,
+              callback: () => {
+                if (!this.boss.active || !this.bossActive) return;
+                NetworkService.sendBossSync({ state: 'POS', x: this.boss.x / DPR, y: this.boss.y / DPR });
+              },
+            });
+          }
+        });
       });
     });
   }

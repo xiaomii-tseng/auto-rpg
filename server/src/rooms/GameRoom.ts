@@ -14,7 +14,7 @@ import { PlayerState } from './GameRoomSchema';
 import { codeMap, generateCode } from '../codeRegistry';
 import {
   MsgReady, MsgMove, MsgHpUpdate,
-  MsgMinionSync, MsgMinionHit, MsgBossHit, MsgRunEnd,
+  MsgMinionSync, MsgMinionHit, MsgBossHit, MsgBossSync, MsgRunEnd,
 } from '../../../shared/types';
 
 export class GameRoom extends Room<GameRoomState> {
@@ -81,6 +81,10 @@ export class GameRoom extends Room<GameRoomState> {
 
     this.onMessage<{ hp: number }>('bossInit', (_client, msg) => {
       if (this.bossHp === 0) this.bossHp = msg.hp;  // host sets once after game starts
+    });
+
+    this.onMessage<MsgBossSync>('bossSync', (client, msg) => {
+      this.broadcast('bossSync', msg, { except: client });
     });
 
     this.onMessage<MsgBossHit>('bossHit', (_client, msg) => {

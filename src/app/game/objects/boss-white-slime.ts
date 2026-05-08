@@ -22,6 +22,13 @@ export class BossWhiteSlime extends Boss {
 
   // ── 攻擊選擇 ──────────────────────────────────────────
 
+  protected override applyUniqueState(state: string): void {
+    switch (state) {
+      case BossState.HOLY_CROSS_WARN: this.enterHolyCrossWarn(); break;
+      case BossState.HOLY_ORBS_WARN:  this.enterHolyOrbsWarn();  break;
+    }
+  }
+
   protected override pickNextAttack(): void {
     const roll = Math.random();
     let fn: () => void;
@@ -37,6 +44,7 @@ export class BossWhiteSlime extends Boss {
   private enterHolyCrossWarn(): void {
     if (this.currentState === BossState.DEAD) return;
     this.setBossState(BossState.HOLY_CROSS_WARN);
+    if (!this.guestMode) this.onSyncState?.({ state: BossState.HOLY_CROSS_WARN, x: this.x / DPR, y: this.y / DPR });
     (this.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
     this.playDir(`${this.animPrefix}_attack`);
 
@@ -202,6 +210,11 @@ export class BossWhiteSlime extends Boss {
     this.setBossState(BossState.HOLY_ORBS_WARN);
     (this.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
     this.playDir(`${this.animPrefix}_attack`);
+    if (!this.guestMode) {
+      const [px, py] = this.getTargetPos();
+      this.guestAngle = Phaser.Math.Angle.Between(this.x, this.y, px, py);
+      this.onSyncState?.({ state: BossState.HOLY_ORBS_WARN, x: this.x / DPR, y: this.y / DPR, angle: this.guestAngle });
+    }
 
     const chargeEmitter = this.scene.add.particles(this.x, this.y, 'pxl2', {
       speed: { min: 15, max: 55 },
@@ -235,8 +248,7 @@ export class BossWhiteSlime extends Boss {
   }
 
   private launchHolyOrbs(): void {
-    const [px, py] = this.getTargetPos();
-    const baseAngle = Phaser.Math.Angle.Between(this.x, this.y, px, py);
+    const baseAngle = this.guestAngle;  // set in enterHolyOrbsWarn for both host and guest
     for (let i = 0; i < ORB_COUNT; i++) {
       const angle = baseAngle + (i - 1) * ORB_SPREAD;
       this.scene.time.delayedCall(i * 160, () => this.launchOneOrb(angle));

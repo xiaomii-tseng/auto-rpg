@@ -33,9 +33,17 @@ export class BossBlueSlime extends Boss {
 
   // ── 冰錐八方射擊 ──────────────────────────────────────
 
+  protected override applyUniqueState(state: string): void {
+    switch (state) {
+      case BossState.ICE_SPIKE_WARN: this.enterIceSpikeWarn(); break;
+      case BossState.ICE_MINE_WARN:  this.enterIceMineWarn();  break;
+    }
+  }
+
   private enterIceSpikeWarn(): void {
     if (this.currentState === BossState.DEAD) return;
     this.setBossState(BossState.ICE_SPIKE_WARN);
+    if (!this.guestMode) this.onSyncState?.({ state: BossState.ICE_SPIKE_WARN, x: this.x / DPR, y: this.y / DPR });
     (this.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
     this.playDir(`${this.animPrefix}_attack`);
 
@@ -185,6 +193,22 @@ export class BossBlueSlime extends Boss {
     (this.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
     this.playDir(`${this.animPrefix}_attack`);
 
+    // Pre-compute mine positions (host generates, guest uses received pts)
+    let minePts: { x: number; y: number }[];
+    if (this.guestMode) {
+      minePts = this.guestPts.slice();
+    } else {
+      const count = 2 + Math.floor(Math.random() * 2);
+      const [px, py] = this.getTargetPos();
+      minePts = Array.from({ length: count }, () => {
+        const a = Math.random() * Math.PI * 2;
+        const d = Phaser.Math.FloatBetween(20, MINE_SCATTER);
+        return { x: px + Math.cos(a) * d, y: py + Math.sin(a) * d };
+      });
+      this.onSyncState?.({ state: BossState.ICE_MINE_WARN, x: this.x / DPR, y: this.y / DPR,
+        pts: minePts.map(p => ({ x: p.x / DPR, y: p.y / DPR })) });
+    }
+
     const glowG = this.scene.add.graphics().setDepth(this.depth - 1).setPosition(this.x, this.y);
     const gs = { r: P(10), a: 0.3 };
     this.scene.tweens.add({
@@ -200,22 +224,13 @@ export class BossBlueSlime extends Boss {
 
     this.stateTimer = this.scene.time.delayedCall(750, () => {
       glowG.destroy();
-      this.launchMines();
+      this.launchMines(minePts);
       this.stateTimer = this.scene.time.delayedCall(MINE_FUSE_MS + 600, () => this.enterIdle());
     });
   }
 
-  private launchMines(): void {
-    const count = 2 + Math.floor(Math.random() * 2); // 2 or 3
-    const [px, py] = this.getTargetPos();
-
-    for (let i = 0; i < count; i++) {
-      const offsetAngle = Math.random() * Math.PI * 2;
-      const offsetDist  = Phaser.Math.FloatBetween(20, MINE_SCATTER);
-      const tx = px + Math.cos(offsetAngle) * offsetDist;
-      const ty = py + Math.sin(offsetAngle) * offsetDist;
-      this.launchOneMine(tx, ty, i * 130);
-    }
+  private launchMines(pts: { x: number; y: number }[]): void {
+    pts.forEach((pt, i) => this.launchOneMine(pt.x, pt.y, i * 130));
   }
 
   private launchOneMine(tx: number, ty: number, delay: number): void {
