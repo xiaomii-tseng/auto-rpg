@@ -265,9 +265,6 @@ export class PrepScene extends Phaser.Scene {
       fontSize: F(15), fontStyle: 'bold',
       color: '#ffe8b0', stroke: '#1a0800', strokeThickness: 3,
     }).setOrigin(0, 0.5);
-    // Pencil hint underline
-    gfx.fillStyle(GOLD, 0.35);
-    gfx.fillRect(nameX, CY - P(8) + P(10), P(90), 1);
     // Hit zone for name editing
     const nameHit = this.add.rectangle(nameX + P(45), CY - P(8), P(90), P(22))
       .setInteractive({ useHandCursor: true }).setDepth(30);
@@ -276,10 +273,6 @@ export class PrepScene extends Phaser.Scene {
     const lvLabel = this.add.text(nameX, CY + P(9), '', {
       fontSize: F(15), fontStyle: 'bold', color: '#c8a050', stroke: '#1a0800', strokeThickness: 2,
     }).setOrigin(0, 0.5);
-
-    // Thin separator after name block
-    gfx.fillStyle(GOLD, 0.25);
-    gfx.fillRect(EXP_X0 - P(6), P(10), 1, TOP_H - P(20));
 
     // ── EXP bar ───────────────────────────────────────────
     const expBarW   = EXP_X1 - EXP_X0;
