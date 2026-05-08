@@ -22,6 +22,8 @@ export interface GameStartPayload {
   hostId:        string;
   questId:       string;
   mapParams:     MapParams;
+  hostNickname:  string;
+  guestNickname: string;
 }
 
 class NetworkServiceClass {
@@ -68,8 +70,8 @@ class NetworkServiceClass {
     this.room?.send('ready', { nickname, questId, questStar, bossMonsterId });
   }
 
-  sendMove(x: number, y: number, lastDir: string): void {
-    this.room?.send('move', { x, y, lastDir } satisfies MsgMove);
+  sendMove(x: number, y: number, lastDir: string, hp: number, maxHp: number): void {
+    this.room?.send('move', { x, y, lastDir, hp, maxHp } satisfies MsgMove);
   }
 
   sendAttack(animKey: string, x: number, y: number, dir: string, behavior: string): void {
@@ -131,7 +133,7 @@ class NetworkServiceClass {
     this.room?.onStateChange(state => cb(state.players));
   }
 
-  onPartnerPos(cb: (data: { x: number; y: number; lastDir: string }) => void): void {
+  onPartnerPos(cb: (data: { x: number; y: number; lastDir: string; hp: number; maxHp: number }) => void): void {
     this.room?.onMessage('partnerPos', cb);
   }
 

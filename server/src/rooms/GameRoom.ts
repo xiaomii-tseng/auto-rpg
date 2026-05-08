@@ -51,7 +51,8 @@ export class GameRoom extends Room<GameRoomState> {
       const p = this.state.players.get(client.sessionId);
       if (!p) return;
       p.x = msg.x; p.y = msg.y; p.lastDir = msg.lastDir;
-      this.broadcast('partnerPos', { x: msg.x, y: msg.y, lastDir: msg.lastDir }, { except: client });
+      p.hp = msg.hp; p.maxHp = msg.maxHp;
+      this.broadcast('partnerPos', { x: msg.x, y: msg.y, lastDir: msg.lastDir, hp: msg.hp, maxHp: msg.maxHp }, { except: client });
     });
 
     this.onMessage<{ animKey: string }>('attack', (client, msg) => {
@@ -164,6 +165,7 @@ export class GameRoom extends Room<GameRoomState> {
       }));
       const mapParams: MapParams = { angle0, segments, bossArenaShape: rng.between(0, 3) };
 
+      const guest = players.find(p => p.sessionId !== this.state.hostId);
       this.broadcast('gameStart', {
         seed:          this.state.seed,
         questStar:     this.state.questStar,
@@ -171,6 +173,8 @@ export class GameRoom extends Room<GameRoomState> {
         hostId:        this.state.hostId,
         questId:       this.state.questId,
         mapParams,
+        hostNickname:  host?.nickname  ?? '',
+        guestNickname: guest?.nickname ?? '',
       });
     }
   }

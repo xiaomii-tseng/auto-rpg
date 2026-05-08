@@ -87,8 +87,12 @@ export class GameScene extends Phaser.Scene {
   private _initBossId?:    string;
   private _initQuestStar?: number;
   private _mapParams?:     MapParams;
-  private partnerSprite?:  Phaser.GameObjects.Sprite;
-  private partnerLabel?:   Phaser.GameObjects.Text;
+  private partnerSprite?:    Phaser.GameObjects.Sprite;
+  private partnerLabel?:     Phaser.GameObjects.Text;
+  private partnerHpBar?:     Phaser.GameObjects.Graphics;
+  private _partnerHp       = 100;
+  private _partnerMaxHp    = 100;
+  private _partnerNickname = '';
   private partnerIsDead  = false;
   private _partnerPrevX    = 0;
   private _partnerPrevY    = 0;
@@ -161,11 +165,12 @@ export class GameScene extends Phaser.Scene {
     this.generateTextures();
   }
 
-  init(data: { seed?: number; questStar?: number; bossMonsterId?: string; mapParams?: MapParams }): void {
-    this._mapSeed       = data?.seed         ?? Math.floor(Math.random() * 1_000_000);
-    this._initQuestStar = data?.questStar;
-    this._initBossId    = data?.bossMonsterId;
-    this._mapParams     = data?.mapParams;
+  init(data: { seed?: number; questStar?: number; bossMonsterId?: string; mapParams?: MapParams; partnerNickname?: string }): void {
+    this._mapSeed          = data?.seed         ?? Math.floor(Math.random() * 1_000_000);
+    this._initQuestStar    = data?.questStar;
+    this._initBossId       = data?.bossMonsterId;
+    this._mapParams        = data?.mapParams;
+    this._partnerNickname  = data?.partnerNickname ?? '';
   }
 
   create(): void {
@@ -208,22 +213,20 @@ export class GameScene extends Phaser.Scene {
         duration: 900, yoyo: true, repeat: -1, ease: 'Sine.InOut',
       });
 
-      // Send our sword behavior once so partner can show the correct ring/VFX
+      // Send sword behavior + our nickname to partner
       this.time.delayedCall(800, () => {
-        NetworkService.sendAttack('__behavior_init__', 0, 0, 'down',
-          PlayerStore.getEquipped().sword?.behavior ?? 'slash180');
+        const behavior = PlayerStore.getEquipped().sword?.behavior ?? 'slash180';
+        const nickname = localStorage.getItem('playerName') ?? '';
+        NetworkService.sendAttack(`__behavior_init__:${nickname}`, 0, 0, 'down', behavior);
       });
 
-      this.partnerLabel = this.add.text(this.playerStartX, this.playerStartY - P(40), '夥伴', {
-        fontSize: F(11), color: '#88ccff', stroke: '#000', strokeThickness: 2,
-      }).setOrigin(0.5, 1).setDepth(11);
-      // Resolve nickname after state syncs (MapSchema may not be ready at create time)
-      this.time.delayedCall(300, () => {
-        const name = NetworkService.getPartnerState()?.nickname;
-        if (name && this.partnerLabel) this.partnerLabel.setText(name);
-      });
+      this.partnerLabel = this.add.text(this.playerStartX, this.playerStartY - P(40), this._partnerNickname, {
+        fontSize: F(11), fontStyle: 'bold', color: '#88ccff', stroke: '#000', strokeThickness: 2,
+      }).setOrigin(0.5, 1).setDepth(12);
 
-      NetworkService.onPartnerPos(({ x, y, lastDir }) => {
+      this.partnerHpBar = this.add.graphics().setDepth(11);
+
+      NetworkService.onPartnerPos(({ x, y, lastDir, hp, maxHp }) => {
         if (!this.partnerSprite) return;
         const wx = x * DPR, wy = y * DPR;  // restore to local DPR space
         const moved   = Math.abs(wx - this._partnerPrevX) > 0.5 || Math.abs(wy - this._partnerPrevY) > 0.5;
@@ -239,12 +242,32 @@ export class GameScene extends Phaser.Scene {
         this._partnerPrevX   = wx;
         this._partnerPrevY   = wy;
         this._partnerPrevDir = lastDir as 'down' | 'left' | 'right' | 'up';
+        if (hp !== undefined)    this._partnerHp    = hp;
+        if (maxHp !== undefined) this._partnerMaxHp = maxHp;
+        this.drawPartnerHpBar();
       });
 
+      // Send HP whenever it changes, via the attack channel (no server changes needed)
+      this.player.onHpChanged = (hp, maxHp) => {
+        NetworkService.sendAttack(`__hp__:${hp}:${maxHp}`, 0, 0, 'down', '');
+      };
+      // Send initial HP so partner bar starts correct
+      NetworkService.sendAttack(`__hp__:${this.player.currentHp}:${this.player.maxHpValue}`, 0, 0, 'down', '');
+
       NetworkService.onPartnerAttack(({ animKey, x, y, dir, behavior }) => {
-        // Behavior handshake — no animation, just store partner's weapon type
-        if (animKey === '__behavior_init__') {
+        // HP update piggybacked on attack channel
+        if (animKey.startsWith('__hp__:')) {
+          const parts = animKey.split(':');
+          this._partnerHp    = parseInt(parts[1]);
+          this._partnerMaxHp = parseInt(parts[2]);
+          this.drawPartnerHpBar();
+          return;
+        }
+        // Behavior handshake — store partner's weapon type and nickname
+        if (animKey.startsWith('__behavior_init__')) {
           this._partnerBehavior = behavior;
+          const colon = animKey.indexOf(':');
+          if (colon !== -1) this.partnerLabel?.setText(animKey.slice(colon + 1));
           return;
         }
         if (!this.partnerSprite) return;
@@ -265,6 +288,7 @@ export class GameScene extends Phaser.Scene {
       NetworkService.onPartnerLeft(() => {
         this.partnerSprite?.setVisible(false);
         this.partnerLabel?.setVisible(false);
+        this.partnerHpBar?.setVisible(false);
       });
 
       NetworkService.onPartnerDead(() => {
@@ -346,7 +370,7 @@ export class GameScene extends Phaser.Scene {
       // Send our own position to server every 50 ms (DPR-normalised so devices match)
       this.time.addEvent({
         delay: 50, loop: true,
-        callback: () => NetworkService.sendMove(this.player.x / DPR, this.player.y / DPR, this.player.lastDir),
+        callback: () => NetworkService.sendMove(this.player.x / DPR, this.player.y / DPR, this.player.lastDir, this.player.currentHp, this.player.maxHpValue),
       });
     }
 
@@ -3839,6 +3863,24 @@ export class GameScene extends Phaser.Scene {
         if (traveled >= MAX_DIST && !landed) { landed = true; land(orb.x, orb.y); }
       },
     });
+  }
+
+  private drawPartnerHpBar(): void {
+    if (!this.partnerHpBar || !this.partnerSprite) return;
+    const bx  = this.partnerSprite.x;
+    const by  = this.partnerSprite.y - P(35);
+    const W   = P(44), H = P(5);
+    const pct = this._partnerMaxHp > 0 ? Math.max(0, Math.min(1, this._partnerHp / this._partnerMaxHp)) : 1;
+    const fillColor = pct > 0.5 ? 0x44ff88 : pct > 0.25 ? 0xffee44 : 0xff4444;
+    this.partnerHpBar.clear();
+    this.partnerHpBar.fillStyle(0x000000, 0.65);
+    this.partnerHpBar.fillRect(bx - W / 2 - 1, by - 1, W + 2, H + 2);
+    this.partnerHpBar.fillStyle(0x222222, 0.9);
+    this.partnerHpBar.fillRect(bx - W / 2, by, W, H);
+    if (pct > 0) {
+      this.partnerHpBar.fillStyle(fillColor, 1);
+      this.partnerHpBar.fillRect(bx - W / 2 + 1, by + 1, (W - 2) * pct, H - 2);
+    }
   }
 
   // ── Partner attack VFX ───────────────────────────────────────

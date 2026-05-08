@@ -3588,7 +3588,7 @@ export class PrepScene extends Phaser.Scene {
           this.showQuestPanel(W, H, 700);
         });
         // Once host sends ready with questId, server broadcasts gameStart to both
-        NetworkService.onGameStart(p => { close(); this.scene.start('GameScene', { seed: p.seed, questStar: p.questStar, bossMonsterId: p.bossMonsterId, mapParams: p.mapParams }); });
+        NetworkService.onGameStart(p => { close(); this.scene.start('GameScene', { seed: p.seed, questStar: p.questStar, bossMonsterId: p.bossMonsterId, mapParams: p.mapParams, partnerNickname: p.guestNickname }); });
       } catch {
         statusTxt.setText('連線失敗，請確認 server 是否運行').setColor('#ff4444');
       }
@@ -3611,7 +3611,7 @@ export class PrepScene extends Phaser.Scene {
         NetworkService.onGameStart(payload => {
           try { if (payload.questId) QuestStore.acceptQuest(payload.questId); } catch { /* quest may not exist on guest */ }
           close();
-          this.scene.start('GameScene', { seed: payload.seed, questStar: payload.questStar, bossMonsterId: payload.bossMonsterId, mapParams: payload.mapParams });
+          this.scene.start('GameScene', { seed: payload.seed, questStar: payload.questStar, bossMonsterId: payload.bossMonsterId, mapParams: payload.mapParams, partnerNickname: payload.hostNickname });
         });
       } catch {
         statusTxt.setText('加入失敗，代碼錯誤或房間不存在').setColor('#ff4444');

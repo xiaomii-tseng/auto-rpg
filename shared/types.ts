@@ -35,7 +35,7 @@ export interface GameRoomState {
 
 // Messages: client → server
 export interface MsgReady        { nickname: string; questId?: string; questStar?: number; bossMonsterId?: string }
-export interface MsgMove         { x: number; y: number; lastDir: string }
+export interface MsgMove         { x: number; y: number; lastDir: string; hp: number; maxHp: number }
 export interface MsgHpUpdate     { hp: number; maxHp: number }
 export interface MsgMinionSync   { minions: MinionState[] }  // host only
 export interface MsgMinionHit    { minionId: string; damage: number }
