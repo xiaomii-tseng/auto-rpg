@@ -6,11 +6,13 @@ import { QuestStore } from './quest-store';
 import { PotionBarStore } from './potion-bar-store';
 
 const SAVE_KEY = 'auto_rpg_save';
-const VERSION  = 9;
+const VERSION  = 10;
 let   _loaded  = false;
 
 interface SaveData {
   version: number;
+  playerName: string;
+  skinId:     number;
   player: {
     level:    number;
     exp:      number;
@@ -34,7 +36,9 @@ interface SaveData {
 export const SaveStore = {
   save(): void {
     const data: SaveData = {
-      version: VERSION,
+      version:    VERSION,
+      playerName: localStorage.getItem('playerName') ?? '',
+      skinId:     Number(localStorage.getItem('auto_rpg_skin') ?? '0'),
       player: {
         level:    PlayerStore.getLevel(),
         exp:      PlayerStore.getExp(),
@@ -63,7 +67,11 @@ export const SaveStore = {
       const raw = localStorage.getItem(SAVE_KEY);
       if (!raw) return false;
       const data: SaveData = JSON.parse(raw);
-      if (data.version !== VERSION) return false;
+      if (data.version !== VERSION && data.version !== VERSION - 1) return false;
+
+      // Restore consolidated fields so existing getPlayerName() / SkinStore.get() still work
+      if (data.playerName) localStorage.setItem('playerName',    data.playerName);
+      if (data.skinId)     localStorage.setItem('auto_rpg_skin', String(data.skinId));
 
       const p = data.player;
       PlayerStore.setLevelExp(p.level, p.exp);
