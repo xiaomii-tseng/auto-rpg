@@ -2372,12 +2372,17 @@ export class GameScene extends Phaser.Scene {
     m.setPatrolCenter(wx, wy);
     m.getTargetPos = () => [this.player.x, this.player.y];
     m.onDead = () => this.handleMinionDrop(defId, m.x, m.y);
+    m.minionId = `m${this.allMinions.length}`;
     this.allMinions.push(m);
     this.physics.add.collider(m, this.wallLayer);
     this.physics.add.overlap(m, this.player, () => {
       if (!m.isDead && m.isDashing) this.player.takeDamage(m.atk);
     });
-    m.start();
+    if (!NetworkService.connected || NetworkService.isHost) {
+      m.start();
+    } else {
+      m.started = true;
+    }
     m.setVisible(true); // boss-summoned: immediately visible
   }
 

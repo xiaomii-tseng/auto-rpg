@@ -24,6 +24,7 @@ export class BossGreenSlime extends Boss {
   }
 
   protected override pickNextAttack(): void {
+    if (this.guestMode) return;
     const roll = Math.random();
     let fn: () => void;
     if      (roll < 0.30) fn = () => this.enterAoeWarn();
@@ -37,6 +38,8 @@ export class BossGreenSlime extends Boss {
 
   private enterSummonWarn(): void {
     if (this.currentState === BossState.DEAD) return;
+    this.stateTimer?.destroy();
+    this.pulseTween?.stop();
     this.setBossState(BossState.SUMMON_WARN);
     (this.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
     this.playDir(`${this.animPrefix}_attack`);
@@ -146,6 +149,8 @@ export class BossGreenSlime extends Boss {
 
   private enterPoisonWarn(): void {
     if (this.currentState === BossState.DEAD) return;
+    this.stateTimer?.destroy();
+    this.pulseTween?.stop();
     this.setBossState(BossState.POISON_WARN);
     (this.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
     this.playDir(`${this.animPrefix}_attack`);

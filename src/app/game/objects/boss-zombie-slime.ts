@@ -46,6 +46,7 @@ export class BossZombieSlime extends Boss {
   }
 
   protected override pickNextAttack(): void {
+    if (this.guestMode) return;
     const roll = Math.random();
     let fn: () => void;
     if      (roll < 0.26) fn = () => this.enterAoeWarn();

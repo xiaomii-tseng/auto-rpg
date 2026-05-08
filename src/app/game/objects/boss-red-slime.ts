@@ -129,6 +129,7 @@ export class BossRedSlime extends Boss {
   // ── 攻擊選擇 ──────────────────────────────────────────
 
   protected override pickNextAttack(): void {
+    if (this.guestMode) return;
     const roll = Math.random();
     let fn: () => void;
     if (this.belowHalf) {
