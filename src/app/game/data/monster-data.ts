@@ -55,9 +55,19 @@ export const ELEMENT_TINTS: Record<Element, number> = {
 };
 
 // ── Enhancement stone item IDs (referenced by game.scene & inventory) ──────
-export const ITEM_STONE_BROKEN = 'stone_broken';  // 破損強化石
-export const ITEM_STONE_INTACT = 'stone_intact';  // 完整強化石
-export const ITEM_STONE_GUARD  = 'stone_guard';   // 防退石
+export const ITEM_STONE_BROKEN    = 'stone_broken';    // 破損強化石
+export const ITEM_STONE_INTACT    = 'stone_intact';    // 完整強化石
+export const ITEM_STONE_GUARD     = 'stone_guard';     // 防退石
+export const ITEM_POTION_HEALTH_S = 'potion_health_s'; // 小型回復藥水 HP+50
+export const ITEM_POTION_HEALTH_M = 'potion_health_m'; // 中型回復藥水 HP+100
+export const ITEM_POTION_HEALTH_L = 'potion_health_l'; // 大型回復藥水 HP+200
+export const ITEM_POTION_REVIVE   = 'potion_revive';   // 復活藥水
+
+export function getHealthPotionForStar(questStar: number): { id: string; name: string; healAmt: number } {
+  if (questStar >= 5) return { id: ITEM_POTION_HEALTH_L, name: '大型回復藥水', healAmt: 200 };
+  if (questStar >= 3) return { id: ITEM_POTION_HEALTH_M, name: '中型回復藥水', healAmt: 100 };
+  return { id: ITEM_POTION_HEALTH_S, name: '小型回復藥水', healAmt: 50 };
+}
 
 // ── Card drop rates (per card, star multiplier applied separately) ─────────
 const CR_S = 0.005;  // 小怪：每張卡 0.5%  → 平均每局約 1.5 張

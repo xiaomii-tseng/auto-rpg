@@ -7,6 +7,13 @@ export interface InventoryItem {
 const items: Map<string, InventoryItem> = new Map();
 let gold = 0;
 
+const ITEM_CARRY_LIMIT: Record<string, number> = {
+  potion_health_s: 3,
+  potion_health_m: 3,
+  potion_health_l: 3,
+  potion_revive:   1,
+};
+
 // Callbacks so UI can react to changes
 const listeners: Array<() => void> = [];
 
@@ -32,11 +39,12 @@ export const InventoryStore = {
   // ── Items ──────────────────────────────────────────────
 
   addItem(id: string, name: string, qty: number): void {
+    const limit = ITEM_CARRY_LIMIT[id];
     const existing = items.get(id);
     if (existing) {
-      existing.qty += qty;
+      existing.qty = limit !== undefined ? Math.min(limit, existing.qty + qty) : existing.qty + qty;
     } else {
-      items.set(id, { id, name, qty });
+      items.set(id, { id, name, qty: limit !== undefined ? Math.min(limit, qty) : qty });
     }
     this.notify();
   },

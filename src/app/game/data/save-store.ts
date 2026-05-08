@@ -3,9 +3,10 @@ import { PlayerStore } from './player-store';
 import { InventoryStore } from './inventory-store';
 import { CardStore } from './card-store';
 import { QuestStore } from './quest-store';
+import { PotionBarStore } from './potion-bar-store';
 
 const SAVE_KEY = 'auto_rpg_save';
-const VERSION  = 8;
+const VERSION  = 9;
 let   _loaded  = false;
 
 interface SaveData {
@@ -27,6 +28,7 @@ interface SaveData {
   quests: {
     quests: { id: string; bossId: string; reward: number; flavorText: string; status: string }[];
   };
+  potionBar: { slots: (string | null)[] };
 }
 
 export const SaveStore = {
@@ -47,7 +49,8 @@ export const SaveStore = {
         equipped:  Array.from(CardStore.getEquipped()),
         inventory: CardStore.getInventory(),
       },
-      quests: QuestStore.getSaveData(),
+      quests:    QuestStore.getSaveData(),
+      potionBar: PotionBarStore.getSaveData(),
     };
     try {
       localStorage.setItem(SAVE_KEY, JSON.stringify(data));
@@ -91,7 +94,8 @@ export const SaveStore = {
         CardStore.setInventoryDirect(data.cards.inventory);
       }
 
-      if (data.quests) QuestStore.loadSaveData(data.quests as any);
+      if (data.quests)    QuestStore.loadSaveData(data.quests as any);
+      if (data.potionBar) PotionBarStore.loadSaveData(data.potionBar);
 
       _loaded = true;
       return true;

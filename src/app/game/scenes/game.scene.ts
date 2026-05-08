@@ -18,6 +18,8 @@ import { getElementMultiplier, ELEMENT_NAMES, ELEMENT_COLORS, QUALITY_NAMES, QUA
 import { QuestStore, STAR_HP_MULT, STAR_DROP_MULT, STAR_DEF_MULT, STAR_EXP_MULT, STAR_EQUIP_QUALITY } from '../data/quest-store';
 import { ELITE_HP_MULT, ELITE_SCALE_MOD } from '../data/monster-data';
 import { NetworkService } from '../network/network.service';
+import { PotionBarStore } from '../data/potion-bar-store';
+import { ITEM_POTION_HEALTH_S, ITEM_POTION_HEALTH_M, ITEM_POTION_HEALTH_L, ITEM_POTION_REVIVE, getHealthPotionForStar } from '../data/monster-data';
 import type { MapParams } from '../../../../shared/types';
 
 const CO_OP_HP_MULT = 1.6;
@@ -87,12 +89,13 @@ export class GameScene extends Phaser.Scene {
   private _mapParams?:     MapParams;
   private partnerSprite?:  Phaser.GameObjects.Sprite;
   private partnerLabel?:   Phaser.GameObjects.Text;
+  private partnerIsDead  = false;
   private _partnerPrevX    = 0;
   private _partnerPrevY    = 0;
   private _partnerPrevDir:     'down' | 'left' | 'right' | 'up' = 'down';
   private _partnerBehavior   = 'slash180';
   private partnerAuraRing?:  Phaser.GameObjects.Graphics;
-  private _minionTargets     = new Map<string, { x: number; y: number }>();
+  private _minionTargets     = new Map<string, { x: number; y: number; isDashing: boolean }>();
   private bossActive       = false;
   private lootDrops:       LootDrop[] = [];
   private exitBtnGfx!:     Phaser.GameObjects.Graphics;
@@ -126,7 +129,8 @@ export class GameScene extends Phaser.Scene {
     if (!this.textures.exists('player_run_shadow')) this.load.spritesheet('player_run_shadow', ws + 'Swordsman_lvl1_Run_with_shadow.png', cfg);
     if (!this.textures.exists('player_attack_shadow')) this.load.spritesheet('player_attack_shadow', ws + 'Swordsman_lvl1_attack_with_shadow.png', cfg);
     if (!this.textures.exists('player_run_attack_shadow')) this.load.spritesheet('player_run_attack_shadow', ws + 'Swordsman_lvl1_Run_Attack_with_shadow.png', cfg);
-    if (!this.textures.exists('player_hurt')) this.load.spritesheet('player_hurt', pBase + 'Swordsman_lvl1_Hurt_without_shadow.png', cfg);
+    if (!this.textures.exists('player_hurt'))  this.load.spritesheet('player_hurt',  pBase + 'Swordsman_lvl1_Hurt_without_shadow.png', cfg);
+    if (!this.textures.exists('player_death_shadow')) this.load.spritesheet('player_death_shadow', ws + 'Swordsman_lvl1_Death_with_shadow.png', cfg);
     if (!this.textures.exists('slime_idle'))   this.load.spritesheet('slime_idle',   sBase + 'Slime1_Idle_with_shadow.png',   cfg);
     if (!this.textures.exists('slime_walk'))   this.load.spritesheet('slime_walk',   sBase + 'Slime1_Walk_with_shadow.png',   cfg);
     if (!this.textures.exists('slime_run'))    this.load.spritesheet('slime_run',    sBase + 'Slime1_Run_with_shadow.png',    cfg);
@@ -151,7 +155,9 @@ export class GameScene extends Phaser.Scene {
     if (!this.textures.exists('icon_stone_intact'))  this.load.image('icon_stone_intact',  'other/ore1.webp');
     if (!this.textures.exists('icon_stone_guard'))   this.load.image('icon_stone_guard',   'other/ore3.webp');
     if (!this.textures.exists('icon_quest_reroll'))  this.load.image('icon_quest_reroll',  'other/ore4.webp');
-    if (!this.textures.exists('icon_gold'))          this.load.image('icon_gold',          'other/coin.webp');
+    if (!this.textures.exists('icon_gold'))              this.load.image('icon_gold',              'other/coin.webp');
+    if (!this.textures.exists('icon_potion_health_s'))  this.load.image('icon_potion_health_s',  'other/coin.webp');
+    if (!this.textures.exists('icon_potion_revive'))    this.load.image('icon_potion_revive',    'other/coin.webp');
     this.generateTextures();
   }
 
@@ -211,6 +217,11 @@ export class GameScene extends Phaser.Scene {
       this.partnerLabel = this.add.text(this.playerStartX, this.playerStartY - P(40), '夥伴', {
         fontSize: F(11), color: '#88ccff', stroke: '#000', strokeThickness: 2,
       }).setOrigin(0.5, 1).setDepth(11);
+      // Resolve nickname after state syncs (MapSchema may not be ready at create time)
+      this.time.delayedCall(300, () => {
+        const name = NetworkService.getPartnerState()?.nickname;
+        if (name && this.partnerLabel) this.partnerLabel.setText(name);
+      });
 
       NetworkService.onPartnerPos(({ x, y, lastDir }) => {
         if (!this.partnerSprite) return;
@@ -256,6 +267,28 @@ export class GameScene extends Phaser.Scene {
         this.partnerLabel?.setVisible(false);
       });
 
+      NetworkService.onPartnerDead(() => {
+        if (!this.partnerSprite) return;
+        this.partnerIsDead = true;
+        this.partnerSprite.stop();
+        this.partnerSprite.setTexture('player_death_shadow', 6);
+      });
+
+      NetworkService.onPotionEffect(({ type, amount }) => {
+        const sx = this.partnerSprite?.x ?? this.player.x;
+        const sy = this.partnerSprite?.y ?? this.player.y;
+        const range = P(this.POTION_RANGE);
+        if (type === 'heal') {
+          this.player.heal(amount);
+          this.showMagicSeal(sx, sy + P(13), range, 0x44ff88, 'heal');
+        } else if (type === 'revive' && this.gameOver) {
+          this.gameOver = false;
+          this.player.revive(amount / 100);
+          this.player.play(`player_idle_${this.player.lastDir}`);
+          this.showMagicSeal(sx, sy + P(13), range, 0xffee44, 'revive');
+        }
+      });
+
       // Sync minion HP from server (either player's hit gets broadcast back)
       NetworkService.onMinionHit(({ minionId, hp, isDead }) => {
         const m = this.allMinions.find(mn => mn.minionId === minionId);
@@ -297,7 +330,7 @@ export class GameScene extends Phaser.Scene {
             if (alive.length === 0) return;
             NetworkService.sendMinionSync(alive.map(m => ({
               id: m.minionId, x: m.x / DPR, y: m.y / DPR,
-              hp: m.currentHp, maxHp: m.currentHp, isDead: false,
+              hp: m.currentHp, maxHp: m.currentHp, isDead: false, isDashing: m.isDashing,
             })));
           },
         });
@@ -305,7 +338,7 @@ export class GameScene extends Phaser.Scene {
         // Guest stores lerp targets; actual movement happens in update()
         NetworkService.onMinionSync(({ minions }) => {
           for (const data of minions) {
-            this._minionTargets.set(data.id, { x: data.x * DPR, y: data.y * DPR });
+            this._minionTargets.set(data.id, { x: data.x * DPR, y: data.y * DPR, isDashing: data.isDashing ?? false });
           }
         });
       }
@@ -441,7 +474,13 @@ export class GameScene extends Phaser.Scene {
         if (m.isDead) continue;
         const t = this._minionTargets.get(m.minionId);
         if (!t) continue;
+        const prevX = m.x, prevY = m.y;
         m.setPosition(m.x + (t.x - m.x) * 0.2, m.y + (t.y - m.y) * 0.2);
+        const dx = m.x - prevX, dy = m.y - prevY;
+        const moving = Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5;
+        const dir: 'down' | 'left' | 'right' | 'up' = Math.abs(dx) >= Math.abs(dy)
+          ? (dx < 0 ? 'left' : 'right') : (dy < 0 ? 'up' : 'down');
+        m.applyGuestState(t.isDashing, dir, moving);
       }
     }
 
@@ -1974,7 +2013,13 @@ export class GameScene extends Phaser.Scene {
   private handleMinionDrop(monsterId: string, x: number, y: number): void {
     const def = getMonsterDef(monsterId);
     if (!def) return;
-    this.spawnLoot(x, y, def.drops);
+    const isElite = def.tier >= 3 && def.tier < 5;
+    const { id: hpId, name: hpName } = getHealthPotionForStar(this.questStar);
+    const potionDrops: import('../data/monster-data').DropEntry[] = [
+      { itemId: hpId, itemName: hpName, rate: isElite ? 0.02 : 0.01, qtyMin: 1, qtyMax: 1 },
+      ...(isElite ? [{ itemId: ITEM_POTION_REVIVE, itemName: '復活藥水', rate: 0.004, qtyMin: 1, qtyMax: 1 }] : []),
+    ];
+    this.spawnLoot(x, y, [...def.drops, ...potionDrops]);
     const cardDropMult = CardStore.getTotalStats().dropRateMult ?? 1;
     for (const card of def.cards) {
       if (Math.random() < card.rate * cardDropMult) this.spawnCardDrop(x, y, card.cardId);
@@ -2946,7 +2991,12 @@ export class GameScene extends Phaser.Scene {
     const bossDef = getMonsterDef(this.bossMonsterId);
     if (bossDef) {
       const dropMult = STAR_DROP_MULT[this.questStar] ?? 1;
-      const scaledDrops = bossDef.drops.map(d => ({ ...d, rate: Math.min(1, d.rate * dropMult) }));
+      const { id: hpId, name: hpName } = getHealthPotionForStar(this.questStar);
+      const bossPotionDrops: import('../data/monster-data').DropEntry[] = [
+        { itemId: hpId,               itemName: hpName,   rate: 0.30, qtyMin: 1, qtyMax: 1 },
+        { itemId: ITEM_POTION_REVIVE, itemName: '復活藥水', rate: 0.05, qtyMin: 1, qtyMax: 1 },
+      ];
+      const scaledDrops = [...bossDef.drops, ...bossPotionDrops].map(d => ({ ...d, rate: Math.min(1, d.rate * dropMult) }));
       this.spawnLoot(this.boss.x, this.boss.y, scaledDrops);
       const bossCardMult = CardStore.getTotalStats().dropRateMult ?? 1;
       for (const card of bossDef.cards) {
@@ -2987,7 +3037,10 @@ export class GameScene extends Phaser.Scene {
 
   private handlePlayerDead(): void {
     this.gameOver = true;
-    this.player.setActive(false).setVisible(false);
+    this.player.setActive(false);
+    this.player.stop();
+    this.player.setTexture('player_death_shadow', 6);
+    if (NetworkService.connected) NetworkService.sendPlayerDead();
   }
 
   // ── Exit button ───────────────────────────────────────
@@ -3424,11 +3477,221 @@ export class GameScene extends Phaser.Scene {
 
 
 
+  // ── Potion slots ──────────────────────────────────────
+
+  private readonly POTION_RANGE = 35;
+
+  private createPotionSlots(): void {
+    const SZ = P(40), GAP = P(20), D = 100;
+    const POTION_COLORS: Record<string, number> = {
+      [ITEM_POTION_HEALTH_S]: 0x44ff88,
+      [ITEM_POTION_HEALTH_M]: 0x44ddff,
+      [ITEM_POTION_HEALTH_L]: 0xff88ff,
+      [ITEM_POTION_REVIVE]:   0xffee44,
+    };
+    const W = this.scale.width, H = this.scale.height;
+    const slotCy = H - P(164);
+    const slotCxBase = W - P(100);
+    const slotObjs = [0, 1].map(idx => {
+      const cx = slotCxBase + idx * (SZ + GAP);
+      const cy = slotCy;
+      const bg   = this.add.graphics().setScrollFactor(0).setDepth(D);
+      const icon = this.add.image(cx, cy + P(4), 'icon_potion_health_s')
+        .setDisplaySize(SZ - P(18), SZ - P(18)).setScrollFactor(0).setDepth(D + 1).setVisible(false);
+      const qtyTxt = this.add.text(cx + SZ / 2 - P(2), cy - SZ / 2 + P(3), '', {
+        fontSize: F(11), fontStyle: 'bold', color: '#ffe866', stroke: '#000', strokeThickness: 2,
+      }).setOrigin(1, 0).setScrollFactor(0).setDepth(D + 2);
+      const hit = this.add.rectangle(cx, cy, SZ, SZ)
+        .setScrollFactor(0).setDepth(D + 3).setInteractive({ useHandCursor: true });
+      hit.on('pointerdown', () => {
+        const itemId = PotionBarStore.getSlot(idx as 0 | 1);
+        if (itemId) this.usePotionSlot(itemId, POTION_COLORS[itemId] ?? 0xffffff);
+      });
+      return { bg, icon, qtyTxt };
+    });
+
+    const redraw = () => {
+      const W2 = this.scale.width, H2 = this.scale.height;
+      [0, 1].forEach(idx => {
+        const cx = (W2 - P(100)) + idx * (SZ + GAP);
+        const cy = H2 - P(164);
+        const bx = cx - SZ / 2, by = cy - SZ / 2;
+        const itemId = PotionBarStore.getSlot(idx as 0 | 1);
+        const qty    = itemId ? InventoryStore.getItemQty(itemId) : 0;
+        const color  = itemId ? (POTION_COLORS[itemId] ?? 0x888888) : 0x554422;
+        const { bg, icon, qtyTxt } = slotObjs[idx];
+
+        bg.clear();
+        bg.fillStyle(0x1a1200, 0.85);
+        bg.fillRoundedRect(bx, by, SZ, SZ, P(6));
+        bg.lineStyle(P(2), color, itemId ? 0.75 : 0.35);
+        bg.strokeRoundedRect(bx, by, SZ, SZ, P(6));
+
+        if (itemId) {
+          icon.setTexture(`icon_${itemId}`).setVisible(true).setAlpha(qty > 0 ? 1 : 0.3);
+          qtyTxt.setText(qty > 0 ? `×${qty}` : '');
+        } else {
+          icon.setVisible(false);
+          qtyTxt.setText('');
+        }
+      });
+    };
+
+    redraw();
+    InventoryStore.onChange(redraw);
+    PotionBarStore.onChange(redraw);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      InventoryStore.offChange(redraw);
+      PotionBarStore.offChange(redraw);
+    });
+  }
+
+  private usePotionSlot(itemId: string, rangeColor: number): void {
+    if (this.gameOver && itemId !== ITEM_POTION_REVIVE) return;
+    if (!InventoryStore.spendItem(itemId, 1)) return;
+
+    const range = P(this.POTION_RANGE);
+    const sealType = itemId === ITEM_POTION_REVIVE ? 'revive' : 'heal';
+    this.showMagicSeal(this.player.x, this.player.y + P(13), range, rangeColor, sealType);
+
+    const healAmt = itemId === ITEM_POTION_HEALTH_L ? 150 : itemId === ITEM_POTION_HEALTH_M ? 80 : 40;
+    if (itemId === ITEM_POTION_HEALTH_S || itemId === ITEM_POTION_HEALTH_M || itemId === ITEM_POTION_HEALTH_L) {
+      this.player.heal(healAmt);
+      if (NetworkService.connected && this.partnerSprite?.active && !this.partnerIsDead) {
+        const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, this.partnerSprite.x, this.partnerSprite.y);
+        if (d <= range) NetworkService.sendPotionEffect('heal', healAmt);
+      }
+    } else if (itemId === ITEM_POTION_REVIVE) {
+      if (this.gameOver) {
+        this.gameOver = false;
+        this.player.revive(0.30);
+        this.player.play(`player_idle_${this.player.lastDir}`);
+      } else if (NetworkService.connected && this.partnerIsDead && this.partnerSprite) {
+        const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, this.partnerSprite.x, this.partnerSprite.y);
+        if (d <= range) {
+          NetworkService.sendPotionEffect('revive', 30);
+          this.partnerIsDead = false;
+          this.partnerSprite.play(`player_idle_${this._partnerPrevDir}`, true);
+        }
+      }
+    }
+
+    SaveStore.save();
+  }
+
+  private showMagicSeal(x: number, y: number, radius: number, color: number, type: 'heal' | 'revive'): void {
+    const c = this.add.container(x, y).setDepth(48);
+
+    const spokes = type === 'heal' ? 6 : 8;
+
+    // ── Glow background ───────────────────
+    const bg = this.add.graphics();
+    [0.06, 0.04, 0.025].forEach((a, i) => {
+      bg.fillStyle(color, a);
+      bg.fillCircle(0, 0, radius * (1.4 - i * 0.15));
+    });
+    c.add(bg);
+
+    // ── Static inner pattern ──────────────
+    const mid = this.add.graphics();
+
+    mid.lineStyle(P(1), color, 0.55);
+    mid.strokeCircle(0, 0, radius * 0.65);
+    mid.lineStyle(P(1), color, 0.4);
+    mid.strokeCircle(0, 0, radius * 0.35);
+
+    for (let i = 0; i < spokes; i++) {
+      const a = (i / spokes) * Math.PI * 2;
+      mid.lineStyle(P(1), color, 0.35);
+      mid.lineBetween(
+        Math.cos(a) * radius * 0.35, Math.sin(a) * radius * 0.35,
+        Math.cos(a) * radius * 0.92, Math.sin(a) * radius * 0.92,
+      );
+    }
+
+    if (type === 'heal') {
+      // Hexagram: two overlapping triangles
+      [0, Math.PI].forEach(offset => {
+        mid.lineStyle(P(1), color, 0.75);
+        mid.beginPath();
+        for (let i = 0; i <= 3; i++) {
+          const a = (i / 3) * Math.PI * 2 + offset + Math.PI / 2;
+          const px2 = Math.cos(a) * radius * 0.28, py2 = Math.sin(a) * radius * 0.28;
+          i === 0 ? mid.moveTo(px2, py2) : mid.lineTo(px2, py2);
+        }
+        mid.closePath();
+        mid.strokePath();
+      });
+    } else {
+      // 8-pointed star: cross + diagonal cross
+      [0, Math.PI / 4].forEach(offset => {
+        for (let i = 0; i < 4; i++) {
+          const a = (i / 4) * Math.PI * 2 + offset;
+          mid.lineStyle(P(1), color, 0.7);
+          mid.lineBetween(
+            Math.cos(a) * radius * 0.30, Math.sin(a) * radius * 0.30,
+            Math.cos(a + Math.PI) * radius * 0.30, Math.sin(a + Math.PI) * radius * 0.30,
+          );
+        }
+      });
+      mid.fillStyle(color, 0.9);
+      mid.fillCircle(0, 0, P(3));
+    }
+    c.add(mid);
+
+    // ── Rotating outer ring ───────────────
+    const outer = this.add.graphics();
+    outer.lineStyle(P(2), color, 0.9);
+    outer.strokeCircle(0, 0, radius);
+
+    for (let i = 0; i < spokes; i++) {
+      const a = (i / spokes) * Math.PI * 2;
+      const dx = Math.cos(a) * radius, dy = Math.sin(a) * radius;
+      outer.fillStyle(color, 0.9);
+      if (type === 'heal') {
+        const s = P(4);
+        outer.fillTriangle(dx, dy - s, dx + s, dy, dx, dy + s);
+        outer.fillTriangle(dx, dy - s, dx - s, dy, dx, dy + s);
+      } else {
+        outer.fillCircle(dx, dy, P(3));
+        const a2 = ((i + 0.5) / spokes) * Math.PI * 2;
+        outer.lineStyle(P(2), color, 0.4);
+        outer.lineBetween(
+          Math.cos(a2) * radius * 0.86, Math.sin(a2) * radius * 0.86,
+          Math.cos(a2) * radius * 0.96, Math.sin(a2) * radius * 0.96,
+        );
+      }
+    }
+    c.add(outer);
+
+    // ── Animate ───────────────────────────
+    c.setScale(0.15).setAlpha(0);
+    this.tweens.add({
+      targets: c, scaleX: 1, scaleY: 1, alpha: 1,
+      duration: 200, ease: 'Back.Out',
+      onComplete: () => {
+        this.tweens.add({
+          targets: c, alpha: 0,
+          duration: 500, delay: 100,
+          onComplete: () => c.destroy(),
+        });
+      },
+    });
+
+    this.tweens.add({
+      targets: outer,
+      angle: type === 'heal' ? 60 : -360,
+      duration: type === 'heal' ? 2500 : 1600,
+      repeat: -1, ease: 'Linear',
+    });
+  }
+
   // ── Scene helpers ─────────────────────────────────────
 
   private addHUD(): void {
     this.addAttackButton();
     this.addLevelHUD();
+    this.createPotionSlots();
   }
 
   private addLevelHUD(): void {
@@ -3479,10 +3742,10 @@ export class GameScene extends Phaser.Scene {
 
   private addAttackButton(): void {
     if ((PlayerStore.getEquipped().sword?.behavior ?? 'slash180') === 'aura') return;
-    const r = P(40);
+    const r = P(52);
     const getBtnCenter = () => ({
-      x: this.scale.width - P(100),
-      y: this.scale.height - P(120),
+      x: this.scale.width - P(70),
+      y: this.scale.height - P(70),
     });
 
     const gfx = this.add.graphics().setScrollFactor(0).setDepth(100).setAlpha(0.25);

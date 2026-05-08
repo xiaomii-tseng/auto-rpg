@@ -47,6 +47,7 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
   minionId      = '';
   isElite       = false;
   atk           = 10;
+  guestDashing  = false;
   burnStacks    = 0;
   burnExpiresAt = 0;
   stunUntil     = 0;
@@ -138,8 +139,21 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
   }
 
   get isDead():    boolean { return this.mState === MinionState.DEAD; }
-  get isDashing(): boolean { return this.mState === MinionState.DASHING; }
+  get isDashing(): boolean { return this.mState === MinionState.DASHING || this.guestDashing; }
   get currentHp(): number  { return this.hp; }
+
+  applyGuestState(isDashing: boolean, dir: 'down' | 'left' | 'right' | 'up', moving: boolean): void {
+    if (this.mState === MinionState.DEAD) return;
+    this.guestDashing = isDashing;
+    if (isDashing) {
+      this.setTint(0xff8800);
+      this.play(`${this.animPrefix}_run_${dir}`, true);
+    } else {
+      this.applyBaseTint();
+      const anim = moving ? `${this.animPrefix}_walk_${dir}` : `${this.animPrefix}_idle_${dir}`;
+      if (this.anims.currentAnim?.key !== anim) this.play(anim, true);
+    }
+  }
 
   // ── State Machine ───────────────────────────────────
 

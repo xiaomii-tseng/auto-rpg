@@ -103,6 +103,14 @@ export class GameRoom extends Room<GameRoomState> {
       this.state.phase = 'ended';
       this.broadcast('runEnd', { won: msg.won });
     });
+
+    this.onMessage('playerDead', (client) => {
+      this.broadcast('partnerDead', {}, { except: client });
+    });
+
+    this.onMessage<{ type: string; amount: number }>('potionEffect', (client, msg) => {
+      this.broadcast('potionEffect', msg, { except: client });
+    });
   }
 
   onJoin(client: Client): void {

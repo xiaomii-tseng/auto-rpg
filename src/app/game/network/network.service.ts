@@ -1,5 +1,5 @@
 import { Client, Room } from 'colyseus.js';
-import { GameRoomState, MapParams, MsgMove, MsgHpUpdate, MsgMinionSync, MsgMinionHit, MsgBossHit, MsgBossSync, MsgRewardSync } from '../../../../shared/types';
+import { GameRoomState, PlayerState, MapParams, MsgMove, MsgHpUpdate, MsgMinionSync, MsgMinionHit, MsgBossHit, MsgBossSync, MsgRewardSync } from '../../../../shared/types';
 
 const HOST     = window.location.hostname;
 const WS_URL   = `ws://${HOST}:3001`;
@@ -105,6 +105,14 @@ class NetworkServiceClass {
     this.room?.send('runEnd', { won });
   }
 
+  sendPlayerDead(): void {
+    this.room?.send('playerDead', {});
+  }
+
+  sendPotionEffect(type: 'heal' | 'revive', amount: number): void {
+    this.room?.send('potionEffect', { type, amount });
+  }
+
   // ── Listen ────────────────────────────────────────────────
 
   /** Fires on the host when the 2nd player joins the room */
@@ -152,19 +160,29 @@ class NetworkServiceClass {
     this.room?.onMessage('partnerLeft', cb);
   }
 
+  onPartnerDead(cb: () => void): void {
+    this.room?.onMessage('partnerDead', cb);
+  }
+
+  onPotionEffect(cb: (data: { type: string; amount: number }) => void): void {
+    this.room?.onMessage('potionEffect', cb);
+  }
+
   onRunEnd(cb: (data: { won: boolean }) => void): void {
     this.room?.onMessage('runEnd', cb);
   }
 
   // ── State ─────────────────────────────────────────────────
 
-  getPartnerState() {
+  getPartnerState(): PlayerState | null {
     if (!this.room) return null;
-    const players = this.room.state.players as unknown as Map<string, import('../../../../shared/types').PlayerState>;
-    for (const [, p] of players) {
-      if (p.sessionId !== this.sessionId) return p;
-    }
-    return null;
+    let found: PlayerState | null = null;
+    const players = this.room.state.players as any;
+    if (!players) return null;
+    players.forEach((p: PlayerState) => {
+      if (p.sessionId !== this.sessionId) found = p;
+    });
+    return found;
   }
 
   get roomCode(): string  { return this.room?.roomId ?? ''; }

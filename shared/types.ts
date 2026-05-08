@@ -15,12 +15,13 @@ export interface PlayerState {
 }
 
 export interface MinionState {
-  id:      string;
-  x:       number;
-  y:       number;
-  hp:      number;
-  maxHp:   number;
-  isDead:  boolean;
+  id:        string;
+  x:         number;
+  y:         number;
+  hp:        number;
+  maxHp:     number;
+  isDead:    boolean;
+  isDashing?: boolean;
 }
 
 export interface GameRoomState {

@@ -167,10 +167,17 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.hp = Math.max(0, this.hp - actual);
     this.onHpChanged?.(this.hp, this.maxHp);
     if (this.hp <= 0) {
+      this.headGfx.clear();
       this.onDead?.();
       return;
     }
     this.startInvincibility();
+  }
+
+  revive(hpPercent: number): void {
+    this.hp = Math.max(1, Math.ceil(this.maxHp * hpPercent));
+    this.setActive(true).setVisible(true);
+    this.onHpChanged?.(this.hp, this.maxHp);
   }
 
   private startInvincibility(): void {

@@ -1,6 +1,8 @@
 import Phaser from 'phaser';
 import { InventoryStore } from '../data/inventory-store';
 import { PlayerStore } from '../data/player-store';
+import { PotionBarStore } from '../data/potion-bar-store';
+import { ITEM_POTION_HEALTH_S, ITEM_POTION_HEALTH_M, ITEM_POTION_HEALTH_L, ITEM_POTION_REVIVE } from '../data/monster-data';
 import { generateEquipment, randomQuality, QUALITY_NAMES, QUALITY_COLORS, SLOT_NAMES, STAT_NAMES, BEHAVIOR_NAMES, BEHAVIOR_INFO, EquipSlot, EquipmentItem, applyEnhancement, revertEnhancement, ENHANCE_COST, ENHANCE_RATE, ENHANCE_COMPLETE_BONUS, ENHANCE_DEMOTE_FROM, ENHANCE_MAX } from '../data/equipment-data';
 import { SaveStore } from '../data/save-store';
 import { CardStore, CARD_SLOT_COUNT } from '../data/card-store';
@@ -75,10 +77,14 @@ export class PrepScene extends Phaser.Scene {
     bossSprites.forEach(([key, path]) => {
       if (!this.textures.exists(key)) this.load.spritesheet(key, path, cfg);
     });
-    if (!this.textures.exists('icon_stone_broken')) this.load.image('icon_stone_broken', 'other/ore2.webp');
-    if (!this.textures.exists('icon_stone_intact'))  this.load.image('icon_stone_intact',  'other/ore1.webp');
-    if (!this.textures.exists('icon_stone_guard'))   this.load.image('icon_stone_guard',   'other/ore3.webp');
-    if (!this.textures.exists('icon_quest_reroll'))  this.load.image('icon_quest_reroll',  'other/ore4.webp');
+    if (!this.textures.exists('icon_stone_broken'))     this.load.image('icon_stone_broken',     'other/ore2.webp');
+    if (!this.textures.exists('icon_stone_intact'))     this.load.image('icon_stone_intact',     'other/ore1.webp');
+    if (!this.textures.exists('icon_stone_guard'))      this.load.image('icon_stone_guard',      'other/ore3.webp');
+    if (!this.textures.exists('icon_quest_reroll'))     this.load.image('icon_quest_reroll',     'other/ore4.webp');
+    if (!this.textures.exists('icon_potion_health_s'))  this.load.image('icon_potion_health_s',  'other/coin.webp');
+    if (!this.textures.exists('icon_potion_health_m'))  this.load.image('icon_potion_health_m',  'other/coin.webp');
+    if (!this.textures.exists('icon_potion_health_l'))  this.load.image('icon_potion_health_l',  'other/coin.webp');
+    if (!this.textures.exists('icon_potion_revive'))    this.load.image('icon_potion_revive',    'other/coin.webp');
     if (!this.textures.exists('icon_gold'))          this.load.image('icon_gold',          'other/coin.webp');
   }
 
@@ -96,80 +102,10 @@ export class PrepScene extends Phaser.Scene {
     }
 
     const hasSave = SaveStore.load();
-    // 測試：補足重製石至 999
-    InventoryStore.addItem('quest_reroll', '任務重製石', 999 - InventoryStore.getItemQty('quest_reroll'));
     if (!hasSave) {
-      // 測試用：每種攻擊模式各一把，slash180 直接裝備
-      const testBehaviors: import('../data/equipment-data').AttackBehavior[] =
-        ['whirlwind', 'dashPierce', 'projectile', 'aura', 'multiHit', 'chargeSlam', 'boomerang', 'magicFire'];
-      const behaviorLabels: Record<string, string> = {
-        slash180: '半月斬', whirlwind: '旋風斬', dashPierce: '瞬步斬',
-        projectile: '風刃', aura: '血環', multiHit: '五連斬', chargeSlam: '蓄力重擊',
-        boomerang: '迴旋飛刃', magicFire: '地獄火',
-      };
-      PlayerStore.equipDirect('sword', {
-        id: 'sword_test_slash180', name: '半月斬', slot: 'sword',
-        texture: 'equip_sword1', quality: 'perfect',
-        affixes: [{ stat: 'atk', value: 20 }, { stat: 'crit', value: 0.15 }, { stat: 'atkSpeed', value: 0.10 }],
-        behavior: 'slash180', enhancement: 0, enhanceLog: [],
-      });
-      testBehaviors.forEach((bv) => {
-        const sword: EquipmentItem = {
-          id:          `sword_test_${bv}`,
-          name:        behaviorLabels[bv],
-          slot:        'sword',
-          texture:     'equip_sword1',
-          quality:     'perfect',
-          affixes:     [{ stat: 'atk', value: 20 }, { stat: 'crit', value: 0.15 }, { stat: 'atkSpeed', value: 0.10 }],
-          behavior:    bv,
-          enhancement: 0,
-          enhanceLog:  [],
-        };
-        PlayerStore.addOwned(sword);
-      });
-    }
-
-    // 若存檔中尚未有新技能武器，補入背包（版本升級補丁）
-    {
-      const allIds = new Set([
-        ...PlayerStore.getOwned().map(e => e.id),
-        ...Object.values(PlayerStore.getEquipped()).filter(Boolean).map(e => e!.id),
-      ]);
-      const patch: { bv: import('../data/equipment-data').AttackBehavior; label: string }[] = [
-        { bv: 'boomerang', label: '迴旋飛刃' },
-        { bv: 'magicFire', label: '地獄火' },
-      ];
-      for (const { bv, label } of patch) {
-        if (!allIds.has(`sword_test_${bv}`)) {
-          PlayerStore.addOwned({
-            id:          `sword_test_${bv}`,
-            name:        label,
-            slot:        'sword',
-            texture:     'equip_sword1',
-            quality:     'perfect',
-            affixes:     [{ stat: 'atk', value: 20 }, { stat: 'crit', value: 0.15 }, { stat: 'atkSpeed', value: 0.10 }],
-            behavior:    bv,
-            enhancement: 0,
-            enhanceLog:  [],
-          });
-        }
-      }
-    }
-    // 測試用飾品（補入背包，不重複）
-    {
-      const ownedIds = new Set(PlayerStore.getOwned().map(e => e.id));
-      const testRings: import('../data/equipment-data').EquipmentItem[] = [
-        { id: 'ring_test_a', name: '迅捷戒指', slot: 'ring1', texture: 'equip_ring1',
-          quality: 'good', affixes: [{ stat: 'speed', value: 20 }, { stat: 'atkSpeed', value: 0.10 }],
-          enhancement: 0, enhanceLog: [] },
-        { id: 'ring_test_b', name: '暴擊寶環', slot: 'ring1', texture: 'equip_ring1',
-          quality: 'fine', affixes: [{ stat: 'crit', value: 0.12 }, { stat: 'critDmg', value: 0.30 }],
-          enhancement: 0, enhanceLog: [] },
-        { id: 'ring_test_c', name: '鮮血戒指', slot: 'ring1', texture: 'equip_ring1',
-          quality: 'perfect', affixes: [{ stat: 'lifesteal', value: 0.08 }, { stat: 'atk', value: 15 }],
-          enhancement: 0, enhanceLog: [] },
-      ];
-      testRings.forEach(r => { if (!ownedIds.has(r.id)) PlayerStore.addOwned(r); });
+      // 新玩家：隨機送一把普通品質武器
+      const startSword = generateEquipment('sword', 'normal');
+      PlayerStore.equipDirect('sword', startSword);
     }
 
     this.generateItemIcons();
@@ -477,7 +413,7 @@ export class PrepScene extends Phaser.Scene {
       { label: '裝備', icon: '⚔',  accent: 0xaa88cc,  onClick: () => this.showEquipmentPanel(W, H) },
       { label: '卡片', icon: '♦',  accent: 0xcc6688,  onClick: () => this.openCardWindow(W, H) },
       { label: '物品', icon: '⊕',  accent: 0x70b858,  onClick: () => this.showItemPanel(W, H) },
-      { label: '商店', icon: '✦',  accent: 0xd47820,  onClick: () => this.showComingSoon(W, H, '商店') },
+      { label: '商店', icon: '✦',  accent: 0xd47820,  onClick: () => this.showShopPanel(W, H) },
     ];
 
     // Each side has two buttons occupying the space outside CENTER_R
@@ -1028,28 +964,7 @@ export class PrepScene extends Phaser.Scene {
       const btnW = CARD_W - 28;
       const btnX = cx + CARD_W / 2;
 
-      if (status === 'accepted') {
-        // 繼續出征 button (centred at BTN_Y)
-        const resumeBtnH = P(24);
-        const bg2 = this.add.graphics().setDepth(D + 3);
-        objs.push(bg2);
-        bg2.fillStyle(0x000000, 0.35);
-        bg2.fillRect(btnX - btnW / 2 + P(2), BTN_Y - resumeBtnH / 2 + P(2), btnW, resumeBtnH);
-        bg2.fillStyle(0x0e1638, 1);
-        bg2.fillRect(btnX - btnW / 2, BTN_Y - resumeBtnH / 2, btnW, resumeBtnH);
-        bg2.fillStyle(0xffffff, 0.12);
-        bg2.fillRect(btnX - btnW / 2, BTN_Y - resumeBtnH / 2, btnW, P(3));
-        bg2.lineStyle(1.5, 0x3355cc, 0.9);
-        bg2.strokeRect(btnX - btnW / 2, BTN_Y - resumeBtnH / 2, btnW, resumeBtnH);
-        objs.push(this.add.text(btnX, BTN_Y, '繼續出征', {
-          fontSize: F(15), fontStyle: 'bold',
-          color: '#6699ff', stroke: '#000000', strokeThickness: 2,
-        }).setOrigin(0.5).setDepth(D + 4));
-        const resumeHit = this.add.rectangle(btnX, BTN_Y, btnW, resumeBtnH)
-          .setInteractive({ useHandCursor: true }).setDepth(D + 5);
-        objs.push(resumeHit);
-        resumeHit.on('pointerdown', () => { closeAll(); this.scene.start('GameScene'); });
-      } else {
+      {
         let bgC  = 0x1a3a0c, ltC  = 0x44cc22, txtC = '#88ee44', label = '接  受';
         if (status === 'completed') { bgC = 0x382000; ltC = 0xddaa00; txtC = '#ffdd44'; label = '領  取'; }
         if (status === 'claimed')   { bgC = 0x1c1810; ltC = 0x554433; txtC = '#665544'; label = '已領取'; }
@@ -1071,12 +986,12 @@ export class PrepScene extends Phaser.Scene {
           padding: { top: 4, bottom: 2 },
         }).setOrigin(0.5).setDepth(D + 4));
 
-        if (status === 'available' || status === 'completed') {
+        if (status === 'available' || status === 'accepted' || status === 'completed') {
           const hit = this.add.rectangle(btnX, BTN_Y, btnW, BTN_H)
             .setInteractive({ useHandCursor: true }).setDepth(D + 5);
           objs.push(hit);
           hit.on('pointerdown', () => {
-            if (status === 'available') showConfirm(quest);
+            if (status === 'available' || status === 'accepted') showConfirm(quest);
             else if (quest.isEquipReward) showEquipRewardModal(quest, closeAll);
             else claimQuest(quest, closeAll);
           });
@@ -2434,7 +2349,7 @@ export class PrepScene extends Phaser.Scene {
 
   private showItemPanel(W: number, H: number): void {
     const PW = Math.min(P(480), W - P(20));
-    const PH = Math.min(P(380), H - P(40));
+    const PH = Math.min(P(500), H - P(40));
     const D  = 500;
 
     const container = this.add.container(W / 2, H / 2).setDepth(D);
@@ -2494,8 +2409,181 @@ export class PrepScene extends Phaser.Scene {
     });
     container.add(closeBtn);
 
+    // ── Potion bar config ─────────────────────────────────
+    const POTION_ITEMS = [
+      { id: ITEM_POTION_HEALTH_S, name: '小型回復藥水' },
+      { id: ITEM_POTION_REVIVE,   name: '復活藥水' },
+    ];
+    const potionSecY  = py + P(44);
+    const potionSlotSZ = P(80), potionSlotGap = P(8);
+
+    container.add(this.add.text(0, potionSecY + P(10), '快捷藥水配置', {
+      fontSize: F(13), fontStyle: 'bold', color: '#c49050', stroke: '#1a0800', strokeThickness: 1,
+    }).setOrigin(0.5, 0));
+
+    const potionSlotObjs: Array<{
+      bg: Phaser.GameObjects.Graphics;
+      icon: Phaser.GameObjects.Image | null;
+      lbl: Phaser.GameObjects.Text;
+    }> = [];
+
+    const redrawPotionSlots = () => {
+      potionSlotObjs.forEach((obj, idx) => {
+        const itemId = PotionBarStore.getSlot(idx as 0 | 1);
+        const qty    = itemId ? InventoryStore.getItemQty(itemId) : 0;
+        const cx2    = px + P(10) + idx * (potionSlotSZ + potionSlotGap) + potionSlotSZ / 2;
+        const sy     = potionSecY + P(28);
+        const bx2    = cx2 - potionSlotSZ / 2;
+        obj.bg.clear();
+        obj.bg.fillStyle(0x1a1200, 1);
+        obj.bg.fillRoundedRect(bx2, sy, potionSlotSZ, potionSlotSZ, P(6));
+        obj.bg.lineStyle(P(2), itemId ? 0xddaa00 : 0x554422, itemId ? 0.85 : 0.4);
+        obj.bg.strokeRoundedRect(bx2, sy, potionSlotSZ, potionSlotSZ, P(6));
+        if (obj.icon) { obj.icon.destroy(); obj.icon = null; }
+        if (itemId && this.textures.exists(`icon_${itemId}`)) {
+          const img = this.add.image(cx2, sy + potionSlotSZ / 2 - P(10), `icon_${itemId}`)
+            .setDisplaySize(P(36), P(36)).setAlpha(qty > 0 ? 1 : 0.35);
+          container.add(img);
+          obj.icon = img;
+        }
+        const itemName = POTION_ITEMS.find(p => p.id === itemId)?.name ?? '（空）';
+        obj.lbl.setText(itemName).setPosition(cx2, sy + potionSlotSZ - P(8));
+      });
+    };
+
+    [0, 1].forEach(idx => {
+      const cx2 = px + P(10) + idx * (potionSlotSZ + potionSlotGap) + potionSlotSZ / 2;
+      const sy   = potionSecY + P(28);
+      const bx2  = cx2 - potionSlotSZ / 2;
+
+      const bg = this.add.graphics();
+      container.add(bg);
+      const lbl = this.add.text(cx2, sy + potionSlotSZ - P(8), '', {
+        fontSize: F(12), fontStyle: 'bold', color: '#e8c070', stroke: '#1a0800', strokeThickness: 2,
+        wordWrap: { width: potionSlotSZ - P(4) }, align: 'center',
+      }).setOrigin(0.5, 1);
+      container.add(lbl);
+      potionSlotObjs.push({ bg, icon: null, lbl });
+
+      // slot label number
+      container.add(this.add.text(bx2 + P(5), sy + P(5), `${idx + 1}`, {
+        fontSize: F(12), fontStyle: 'bold', color: '#888866', stroke: '#1a0800', strokeThickness: 1,
+      }).setOrigin(0, 0));
+
+      // hit zone → open picker
+      const hit = this.add.rectangle(cx2, sy + potionSlotSZ / 2, potionSlotSZ, potionSlotSZ)
+        .setInteractive({ useHandCursor: true });
+      container.add(hit);
+      hit.on('pointerdown', () => {
+        // show picker overlay inside the panel
+        const pickObjs: Phaser.GameObjects.GameObject[] = [];
+        const closePick = () => pickObjs.forEach(o => o.destroy());
+
+        const pickBg = this.add.graphics();
+        pickBg.fillStyle(0x1a1200, 0.97);
+        pickBg.fillRoundedRect(px + P(4), py + P(37), PW - P(8), PH - P(41), P(6));
+        pickBg.lineStyle(P(2), 0x554422, 0.8);
+        pickBg.strokeRoundedRect(px + P(4), py + P(37), PW - P(8), PH - P(41), P(6));
+        pickObjs.push(pickBg);
+        container.add(pickBg);
+
+        const pickBlocker = this.add.rectangle(
+          px + P(4) + (PW - P(8)) / 2,
+          py + P(37) + (PH - P(41)) / 2,
+          PW - P(8), PH - P(41),
+        ).setInteractive()
+          .on('pointerdown', (_p: any, _lx: any, _ly: any, ev: any) => ev.stopPropagation());
+        pickObjs.push(pickBlocker);
+        container.add(pickBlocker);
+
+        const backBtn = this.add.text(px + P(18), py + P(52), '← 返回', {
+          fontSize: F(15), fontStyle: 'bold', color: '#c49050', stroke: '#1a0800', strokeThickness: 1,
+        }).setOrigin(0, 0.5).setInteractive({ useHandCursor: true });
+        backBtn.on('pointerdown', closePick);
+        pickObjs.push(backBtn);
+        container.add(backBtn);
+
+        const titleTxt = this.add.text(0, py + P(52), `選擇藥水槽 ${idx + 1}`, {
+          fontSize: F(14), fontStyle: 'bold', color: '#ffe066', stroke: '#1a0800', strokeThickness: 2,
+        }).setOrigin(0.5, 0.5);
+        pickObjs.push(titleTxt);
+        container.add(titleTxt);
+
+        // "清除" button
+        const clearBtn = this.add.text(px + PW - P(18), py + P(52), '清除', {
+          fontSize: F(13), fontStyle: 'bold', color: '#cc4444', stroke: '#1a0800', strokeThickness: 2,
+        }).setOrigin(1, 0.5).setInteractive({ useHandCursor: true });
+        clearBtn.on('pointerdown', () => {
+          PotionBarStore.setSlot(idx as 0 | 1, null);
+          SaveStore.save();
+          redrawPotionSlots();
+          closePick();
+        });
+        pickObjs.push(clearBtn);
+        container.add(clearBtn);
+
+        // list available potions (exclude whatever the other slot already has)
+        const otherSlot = PotionBarStore.getSlot(idx === 0 ? 1 : 0 as 0 | 1);
+        const available = POTION_ITEMS.filter(p => InventoryStore.getItemQty(p.id) > 0 && p.id !== otherSlot);
+        if (available.length === 0) {
+          const empty = this.add.text(0, py + P(100), '背包中沒有藥水', {
+            fontSize: F(15), fontStyle: 'bold', color: '#7a5830', stroke: '#1a0800', strokeThickness: 1,
+          }).setOrigin(0.5);
+          pickObjs.push(empty);
+          container.add(empty);
+        } else {
+          available.forEach((p, pi) => {
+            const ey   = py + P(88) + pi * (P(70) + P(8));
+            const rowBg = this.add.graphics();
+            rowBg.fillStyle(0x2a1e00, 1);
+            rowBg.fillRoundedRect(px + P(10), ey, PW - P(20), P(64), P(6));
+            rowBg.lineStyle(P(1), 0x554422, 0.6);
+            rowBg.strokeRoundedRect(px + P(10), ey, PW - P(20), P(64), P(6));
+            pickObjs.push(rowBg);
+            container.add(rowBg);
+
+            if (this.textures.exists(`icon_${p.id}`)) {
+              const img = this.add.image(px + P(46), ey + P(32), `icon_${p.id}`)
+                .setDisplaySize(P(44), P(44));
+              pickObjs.push(img);
+              container.add(img);
+            }
+
+            const nameTxt = this.add.text(px + P(80), ey + P(18), p.name, {
+              fontSize: F(14), fontStyle: 'bold', color: '#ffe090', stroke: '#1a0800', strokeThickness: 2,
+            });
+            pickObjs.push(nameTxt);
+            container.add(nameTxt);
+
+            const qtyTxt = this.add.text(px + P(80), ey + P(38), `數量：${InventoryStore.getItemQty(p.id)}`, {
+              fontSize: F(13), color: '#ffe866', stroke: '#1a0800', strokeThickness: 1,
+            });
+            pickObjs.push(qtyTxt);
+            container.add(qtyTxt);
+
+            const rowHit = this.add.rectangle(px + P(10) + (PW - P(20)) / 2, ey + P(32), PW - P(20), P(64))
+              .setInteractive({ useHandCursor: true });
+            pickObjs.push(rowHit);
+            container.add(rowHit);
+            rowHit.on('pointerover',  () => rowBg.setAlpha(0.7));
+            rowHit.on('pointerout',   () => rowBg.setAlpha(1));
+            rowHit.on('pointerdown', () => {
+              PotionBarStore.setSlot(idx as 0 | 1, p.id);
+              SaveStore.save();
+              redrawPotionSlots();
+              closePick();
+            });
+          });
+        }
+      });
+    });
+
+    redrawPotionSlots();
+    PotionBarStore.onChange(redrawPotionSlots);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => PotionBarStore.offChange(redrawPotionSlots));
+
     // ── Item grid ─────────────────────────────────────────
-    const gridY    = py + P(44);
+    const gridY    = py + P(44) + P(120);
     const cellSz   = P(80);
     const cellGap  = P(8);
     const gridLeft = px + P(10);
@@ -2512,6 +2600,15 @@ export class PrepScene extends Phaser.Scene {
       const detBg = this.add.graphics();
       detBg.fillStyle(WD, 0.97); detBg.fillRect(px + P(4), py + P(37), PW - P(8), PH - P(41));
       det.add(detBg);
+
+      // Invisible blocker — prevents clicks from passing through to item grid behind
+      const blocker = this.add.rectangle(
+        px + P(4) + (PW - P(8)) / 2,
+        py + P(37) + (PH - P(41)) / 2,
+        PW - P(8), PH - P(41),
+      ).setInteractive()
+        .on('pointerdown', (_p: any, _lx: any, _ly: any, ev: any) => ev.stopPropagation());
+      det.add(blocker);
 
       const backBtn = this.add.text(px + P(16), py + P(51), '← 返回', {
         fontSize: F(15), fontStyle: 'bold', color: '#c49050', stroke: '#1a0800', strokeThickness: 1,
@@ -3508,6 +3605,7 @@ export class PrepScene extends Phaser.Scene {
       statusTxt.setText('加入中…').setColor('#ffdd44');
       try {
         await NetworkService.joinRoom(code, nick);
+        NetworkService.sendReady(nick, '', 0, '');
         statusTxt.setText('已加入，等待房主選擇任務…').setColor('#88ee44');
         // Guest: accept quest from host's selection, then start game
         NetworkService.onGameStart(payload => {
@@ -3644,7 +3742,7 @@ export class PrepScene extends Phaser.Scene {
 
   private showShopPanel(W: number, H: number): void {
     const PW = Math.min(P(320), W - P(20));
-    const PH = Math.min(P(400), H - P(40));
+    const PH = Math.min(P(500), H - P(40));
     const D  = 500;
 
     const container = this.add.container(W / 2, H / 2).setDepth(D);
@@ -3699,24 +3797,24 @@ export class PrepScene extends Phaser.Scene {
 
     // ── Shop items ──────────────────────────────────────────
     const SHOP_ITEMS: { id: string; name: string; price: number; desc: string; color: number }[] = [
-      { id: 'stone_broken', name: '破損強化石', price:  50, desc: '強化裝備用（+1~+5）', color: 0x88aacc },
-      { id: 'stone_intact', name: '完整強化石', price: 300, desc: '強化+4/+5必須使用',   color: 0x66ddaa },
-      { id: 'quest_reroll', name: '任務重製石', price: 200, desc: '刷新全部任務列表',     color: 0xffcc44 },
-      { id: 'enhance_charm', name: '裝備保護符', price: 500, desc: '強化失敗時保護詞墜',  color: 0xff88cc },
+      { id: ITEM_POTION_HEALTH_S, name: '小型回復藥水', price:  80, desc: '使用後回復 50 HP',  color: 0x44ff88 },
+      { id: ITEM_POTION_HEALTH_M, name: '中型回復藥水', price: 160, desc: '使用後回復 100 HP', color: 0x44ddff },
+      { id: ITEM_POTION_HEALTH_L, name: '大型回復藥水', price: 320, desc: '使用後回復 200 HP', color: 0xff88ff },
+      { id: ITEM_POTION_REVIVE,   name: '復活藥水',     price: 400, desc: '在範圍內復活隊友',  color: 0xffee44 },
     ];
 
-    const ROW_H    = P(68);
-    const ROW_PAD  = P(8);
-    const startY  = py + 50;
+    const ROW_H   = P(80);
+    const ROW_PAD = P(8);
+    const ICON_SZ = P(56);
+    const HEADER_H = P(56);  // height of header area (title + gold)
 
     // Gold display
     let goldLabel: Phaser.GameObjects.Text;
     const refreshGold = () => {
-      goldLabel?.setText(`擁有金幣：${InventoryStore.getGold().toLocaleString()}`);
+      goldLabel?.setText(`💰 ${InventoryStore.getGold().toLocaleString()} 金幣`);
     };
-
-    goldLabel = this.add.text(0, py + 38, '', {
-      fontSize: F(15), fontStyle: 'bold', color: '#d4a044', stroke: '#1a0800', strokeThickness: 1,
+    goldLabel = this.add.text(0, py + P(40), '', {
+      fontSize: F(14), fontStyle: 'bold', color: '#d4a044', stroke: '#1a0800', strokeThickness: 1,
     }).setOrigin(0.5, 0);
     refreshGold();
     container.add(goldLabel);
@@ -3725,77 +3823,118 @@ export class PrepScene extends Phaser.Scene {
     InventoryStore.onChange(onInvChange);
     container.once(Phaser.GameObjects.Events.DESTROY, () => InventoryStore.offChange(onInvChange));
 
+    // ── Scrollable items area ──────────────────────────────
+    const viewH    = PH - HEADER_H;
+    const contentH = SHOP_ITEMS.length * (ROW_H + ROW_PAD);
+    let   scrollY  = 0;
+    const maxScroll = Math.max(0, contentH - viewH);
+
+    // Mask in world coordinates (clips the scroll area)
+    const maskGfx = this.add.graphics();
+    maskGfx.fillStyle(0xffffff);
+    maskGfx.fillRect(W / 2 + px, H / 2 + py + HEADER_H, PW, viewH);
+    const scrollMask = maskGfx.createGeometryMask();
+    container.once(Phaser.GameObjects.Events.DESTROY, () => maskGfx.destroy());
+
+    // Container for scrollable rows (origin at top of content area)
+    const scrollCont = this.add.container(0, py + HEADER_H);
+    scrollCont.setMask(scrollMask);
+    container.add(scrollCont);
+
     SHOP_ITEMS.forEach((item, i) => {
-      const ry = startY + i * (ROW_H + ROW_PAD);
+      const ry  = i * (ROW_H + ROW_PAD);
+      const mid = ry + ROW_H / 2;
+      const lx  = -PW / 2;  // left edge (equivalent to px)
 
       // Row background
       const rowGfx = this.add.graphics();
       rowGfx.fillStyle(WM, 0.6);
-      rowGfx.fillRect(px + 8, ry, PW - 16, ROW_H);
-      rowGfx.lineStyle(1, WL, 0.3);
-      rowGfx.strokeRect(px + 8, ry, PW - 16, ROW_H);
-      // Color accent left strip
-      rowGfx.fillStyle(item.color, 0.8);
-      rowGfx.fillRect(px + 8, ry, 4, ROW_H);
-      container.add(rowGfx);
+      rowGfx.fillRoundedRect(lx + P(8), ry, PW - P(16), ROW_H, P(6));
+      rowGfx.lineStyle(P(1), WL, 0.35);
+      rowGfx.strokeRoundedRect(lx + P(8), ry, PW - P(16), ROW_H, P(6));
+      rowGfx.fillStyle(item.color, 0.85);
+      rowGfx.fillRoundedRect(lx + P(8), ry, P(4), ROW_H, P(3));
+      scrollCont.add(rowGfx);
 
-      // Item name
-      container.add(this.add.text(px + 22, ry + 10, item.name, {
-        fontSize: F(15), fontStyle: 'bold', color: `#${item.color.toString(16).padStart(6, '0')}`,
-        stroke: '#1a0800', strokeThickness: 2,
+      // Icon
+      const iconX = lx + P(20) + ICON_SZ / 2;
+      const iconBg = this.add.graphics();
+      iconBg.fillStyle(0x0a0800, 0.6);
+      iconBg.fillRoundedRect(iconX - ICON_SZ / 2, mid - ICON_SZ / 2, ICON_SZ, ICON_SZ, P(5));
+      iconBg.lineStyle(P(1), item.color, 0.45);
+      iconBg.strokeRoundedRect(iconX - ICON_SZ / 2, mid - ICON_SZ / 2, ICON_SZ, ICON_SZ, P(5));
+      scrollCont.add(iconBg);
+      const iconKey = `icon_${item.id}`;
+      if (this.textures.exists(iconKey))
+        scrollCont.add(this.add.image(iconX, mid, iconKey).setDisplaySize(P(40), P(40)));
+
+      // Text
+      const tx = iconX + ICON_SZ / 2 + P(10);
+      const colorHex = `#${item.color.toString(16).padStart(6, '0')}`;
+      scrollCont.add(this.add.text(tx, mid - P(20), item.name, {
+        fontSize: F(14), fontStyle: 'bold', color: colorHex, stroke: '#1a0800', strokeThickness: 2,
       }).setOrigin(0, 0));
-
-      // Description
-      container.add(this.add.text(px + 22, ry + 28, item.desc, {
-        fontSize: F(15), fontStyle: 'bold', color: '#a08060', stroke: '#1a0800', strokeThickness: 1,
+      scrollCont.add(this.add.text(tx, mid - P(4), item.desc, {
+        fontSize: F(12), color: '#a08060', stroke: '#1a0800', strokeThickness: 1,
       }).setOrigin(0, 0));
-
-      // Price
-      container.add(this.add.text(px + 22, ry + 46, `${item.price} 金幣`, {
-        fontSize: F(15), fontStyle: 'bold', color: '#d4a044', stroke: '#1a0800', strokeThickness: 1,
+      scrollCont.add(this.add.text(tx, mid + P(12), `${item.price} 金幣`, {
+        fontSize: F(13), fontStyle: 'bold', color: '#d4a044', stroke: '#1a0800', strokeThickness: 1,
       }).setOrigin(0, 0));
 
       // Buy button
-      const BW = P(60); const BH = P(26);
-      const bx  = px + PW - 16 - BW / 2;
-      const by  = ry + ROW_H / 2;
-
+      const BW = P(56), BH = P(28);
+      const bx = PW / 2 - P(16) - BW / 2;
       const btnGfx = this.add.graphics();
       const drawBtn = (hover: boolean) => {
         btnGfx.clear();
-        btnGfx.fillStyle(hover ? 0x6a3810 : WM, 1);
-        btnGfx.fillRect(bx - BW / 2, by - BH / 2, BW, BH);
-        btnGfx.lineStyle(1, GOLD, 0.7);
-        btnGfx.strokeRect(bx - BW / 2, by - BH / 2, BW, BH);
+        btnGfx.fillStyle(hover ? 0x5a3008 : 0x2a1800, 1);
+        btnGfx.fillRoundedRect(bx - BW / 2, mid - BH / 2, BW, BH, P(5));
+        btnGfx.lineStyle(P(1), GOLD, hover ? 1 : 0.6);
+        btnGfx.strokeRoundedRect(bx - BW / 2, mid - BH / 2, BW, BH, P(5));
       };
       drawBtn(false);
-      container.add(btnGfx);
+      scrollCont.add(btnGfx);
+      scrollCont.add(this.add.text(bx, mid, '購買', {
+        fontSize: F(14), fontStyle: 'bold', color: '#e8c870', stroke: '#1a0800', strokeThickness: 2,
+      }).setOrigin(0.5));
 
-      const btnTxt = this.add.text(bx, by, '購買', {
-        fontSize: F(15), fontStyle: 'bold', color: '#e8c870', stroke: '#1a0800', strokeThickness: 2,
-      }).setOrigin(0.5);
-      container.add(btnTxt);
-
-      const hit = this.add.rectangle(bx, by, BW, BH).setInteractive({ useHandCursor: true });
+      const hit = this.add.rectangle(bx, mid, BW, BH).setInteractive({ useHandCursor: true });
       hit.on('pointerover',  () => drawBtn(true));
       hit.on('pointerout',   () => drawBtn(false));
       hit.on('pointerdown',  () => {
         if (!InventoryStore.spendGold(item.price)) return;
-
-        if (item.id === 'quest_reroll') {
-          QuestStore.rerollQuests();
-        } else {
-          const NAMES: Record<string, string> = {
-            stone_broken:  '破損強化石',
-            stone_intact:  '完整強化石',
-            enhance_charm: '裝備保護符',
-          };
-          InventoryStore.addItem(item.id, NAMES[item.id] ?? item.name, 1);
-        }
+        InventoryStore.addItem(item.id, item.name, 1);
         SaveStore.save();
         refreshGold();
       });
-      container.add(hit);
+      scrollCont.add(hit);
+    });
+
+    // Mouse wheel scroll
+    const onWheel = (_ptr: any, _gos: any, _dx: any, dy: number) => {
+      if (!container.active) return;
+      scrollY = Math.max(0, Math.min(maxScroll, scrollY + dy * 0.6));
+      scrollCont.y = py + HEADER_H - scrollY;
+    };
+    this.input.on('wheel', onWheel);
+    container.once(Phaser.GameObjects.Events.DESTROY, () => this.input.off('wheel', onWheel));
+
+    // Touch drag scroll
+    let dragStartY = 0, dragStartScroll = 0;
+    const onDragStart = (ptr: Phaser.Input.Pointer) => {
+      if (!container.active) return;
+      dragStartY = ptr.y; dragStartScroll = scrollY;
+    };
+    const onDragMove = (ptr: Phaser.Input.Pointer) => {
+      if (!container.active || !ptr.isDown) return;
+      scrollY = Math.max(0, Math.min(maxScroll, dragStartScroll - (ptr.y - dragStartY)));
+      scrollCont.y = py + HEADER_H - scrollY;
+    };
+    this.input.on('pointerdown', onDragStart);
+    this.input.on('pointermove', onDragMove);
+    container.once(Phaser.GameObjects.Events.DESTROY, () => {
+      this.input.off('pointerdown', onDragStart);
+      this.input.off('pointermove', onDragMove);
     });
   }
 
