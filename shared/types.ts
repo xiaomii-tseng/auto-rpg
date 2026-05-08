@@ -48,4 +48,5 @@ export interface MsgBossSync     {
   angle?: number;           // for angular skills
   pts?:   { x: number; y: number }[];  // multi-point skills (DPR-normalised)
 }
+export interface MsgRewardSync   { isEquipReward: boolean; gold: number; star: number }
 export interface MsgRunEnd       { won: boolean }

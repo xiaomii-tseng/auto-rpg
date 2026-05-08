@@ -14,7 +14,7 @@ import { PlayerState } from './GameRoomSchema';
 import { codeMap, generateCode } from '../codeRegistry';
 import {
   MsgReady, MsgMove, MsgHpUpdate,
-  MsgMinionSync, MsgMinionHit, MsgBossHit, MsgBossSync, MsgRunEnd,
+  MsgMinionSync, MsgMinionHit, MsgBossHit, MsgBossSync, MsgRewardSync, MsgRunEnd,
 } from '../../../shared/types';
 
 export class GameRoom extends Room<GameRoomState> {
@@ -93,6 +93,10 @@ export class GameRoom extends Room<GameRoomState> {
       const dead = this.bossHp <= 0;
       if (dead) { this.bossHp = 0; this.bossDead = true; }
       this.broadcast('bossHit', { hp: this.bossHp, isDead: dead });
+    });
+
+    this.onMessage<MsgRewardSync>('rewardSync', (client, msg) => {
+      this.broadcast('rewardSync', msg, { except: client });
     });
 
     this.onMessage<MsgRunEnd>('runEnd', (_client, msg) => {
