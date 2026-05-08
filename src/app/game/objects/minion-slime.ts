@@ -6,11 +6,14 @@ const P   = (n: number): number => Math.round(n * DPR);
 const F   = (n: number): string => `${Math.round(n * DPR)}px`;
 
 enum MinionState {
-  PATROL    = 'PATROL',
-  IDLE      = 'IDLE',
-  DASH_WARN = 'DASH_WARN',
-  DASHING   = 'DASHING',
-  DEAD      = 'DEAD',
+  PATROL       = 'PATROL',
+  IDLE         = 'IDLE',
+  DASH_WARN    = 'DASH_WARN',
+  DASHING      = 'DASHING',
+  SHOOT_WARN   = 'SHOOT_WARN',
+  TRIPLE_WARN  = 'TRIPLE_WARN',
+  EXPLODE_WARN = 'EXPLODE_WARN',
+  DEAD         = 'DEAD',
 }
 
 export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
@@ -36,15 +39,27 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
   private readonly deaggroRange  = Math.round(800 * DPR);
   private readonly leashRange    = Math.round(620 * DPR);
 
-  static readonly CHASE_SPEED = Math.round(90 * DPR);
-  static readonly STOP_RANGE  = Math.round(55 * DPR);
-  static readonly DASH_SPEED  = Math.round(310 * DPR);
-  static readonly DASH_MS     = 260;
+  static readonly CHASE_SPEED     = Math.round(90 * DPR);
+  static readonly STOP_RANGE      = Math.round(55 * DPR);
+  static readonly DASH_SPEED      = Math.round(310 * DPR);
+  static readonly DASH_MS         = 260;
+  static readonly RANGED_RANGE    = Math.round(160 * DPR);
+  static readonly EXPLODE_RANGE   = Math.round(30 * DPR);
+  static readonly COOLDOWN_SHOOT  = 2000;
+  static readonly COOLDOWN_TRIPLE = 3500;
+  static readonly COOLDOWN_EXPLODE = 2000;
+  static readonly EXPLODE_WARN_MS = 1000;
+  static readonly EXPLODE_RADIUS  = Math.round(35 * DPR);
 
   getTargetPos: () => [number, number] = () => [0, 0];
   onDead?: () => void;
+  onFire?: (type: 'shoot' | 'triple' | 'explode', mx: number, my: number, tx: number, ty: number) => void;
 
-  minionId      = '';
+  minionId        = '';
+  attackMode: 'dash' | 'shoot' | 'triple' | 'explode' = 'dash';
+  private attackCooldownUntil = 0;
+  private explodeWarnStart    = 0;
+  private warnCircleGfx?: Phaser.GameObjects.Graphics;
   isElite       = false;
   atk           = 10;
   guestDashing  = false;
@@ -200,8 +215,11 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
     this.stateTimer = undefined;
     this.updateDir();
     this.playDir(`${this.animPrefix}_walk`);
-    const delay = Phaser.Math.Between(1500, 2500);
-    this.stateTimer = this.scene.time.delayedCall(delay, () => this.enterDashWarn());
+    if (this.attackMode === 'dash') {
+      const delay = Phaser.Math.Between(1500, 2500);
+      this.stateTimer = this.scene.time.delayedCall(delay, () => this.enterDashWarn());
+    }
+    // Ranged modes: attack triggered by distance check in preUpdate
   }
 
   private enterDashWarn(): void {
@@ -214,6 +232,56 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
     this.playDir(`${this.animPrefix}_attack`);
     this.setTint(0xff4400);
     this.stateTimer = this.scene.time.delayedCall(650, () => this.enterDashing());
+  }
+
+  private enterShootWarn(): void {
+    this.mState = MinionState.SHOOT_WARN;
+    this.pb.setVelocity(0, 0);
+    [this.atkX, this.atkY] = this.getTargetPos();
+    this.updateDir();
+    this.playDir(`${this.animPrefix}_attack`);
+    this.setTint(0xff6600);
+    this.stateTimer?.destroy();
+    this.stateTimer = this.scene.time.delayedCall(400, () => {
+      this.applyBaseTint();
+      this.onFire?.('shoot', this.x / DPR, this.y / DPR, this.atkX / DPR, this.atkY / DPR);
+      this.attackCooldownUntil = this.scene.time.now + MinionSlime.COOLDOWN_SHOOT + Phaser.Math.Between(0, 800);
+      this.enterIdle();
+    });
+  }
+
+  private enterTripleWarn(): void {
+    this.mState = MinionState.TRIPLE_WARN;
+    this.pb.setVelocity(0, 0);
+    [this.atkX, this.atkY] = this.getTargetPos();
+    this.updateDir();
+    this.playDir(`${this.animPrefix}_attack`);
+    this.setTint(0xaa00ff);
+    this.stateTimer?.destroy();
+    this.stateTimer = this.scene.time.delayedCall(600, () => {
+      this.applyBaseTint();
+      this.onFire?.('triple', this.x / DPR, this.y / DPR, this.atkX / DPR, this.atkY / DPR);
+      this.attackCooldownUntil = this.scene.time.now + MinionSlime.COOLDOWN_TRIPLE + Phaser.Math.Between(0, 800);
+      this.enterIdle();
+    });
+  }
+
+  private enterExplodeWarn(): void {
+    this.mState = MinionState.EXPLODE_WARN;
+    this.pb.setVelocity(0, 0);
+    this.updateDir();
+    this.playDir(`${this.animPrefix}_attack`);
+    this.setTint(0xff0000);
+    this.explodeWarnStart = this.scene.time.now;
+    if (!this.warnCircleGfx) this.warnCircleGfx = this.scene.add.graphics().setDepth(5);
+    this.stateTimer?.destroy();
+    this.stateTimer = this.scene.time.delayedCall(MinionSlime.EXPLODE_WARN_MS, () => {
+      this.warnCircleGfx?.clear();
+      this.applyBaseTint();
+      this.onFire?.('explode', this.x / DPR, this.y / DPR, this.x / DPR, this.y / DPR);
+      this.attackCooldownUntil = this.scene.time.now + MinionSlime.COOLDOWN_EXPLODE + Phaser.Math.Between(0, 800);
+      this.enterIdle();
+    });
   }
 
   private enterDashing(): void {
@@ -247,6 +315,9 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
     this.stateTimer = undefined;
     this.pb.setVelocity(0, 0);
     this.applyBaseTint();
+    this.warnCircleGfx?.clear();
+    this.warnCircleGfx?.destroy();
+    this.warnCircleGfx = undefined;
     this.hpBarGfx.destroy();
     this.debuffGfx.destroy();
     this.debuffTexts.forEach(t => t.destroy());
@@ -325,24 +396,58 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
       const [tx, ty] = this.getTargetPos();
       const dist     = Phaser.Math.Distance.Between(this.x, this.y, tx, ty);
 
-      const [px, py] = [tx, ty];
-      const distFromHome = Phaser.Math.Distance.Between(this.patrolCenter.x, this.patrolCenter.y, px, py);
+      const distFromHome = Phaser.Math.Distance.Between(this.patrolCenter.x, this.patrolCenter.y, tx, ty);
       if (dist > this.deaggroRange || distFromHome > this.leashRange) { this.enterPatrol(); return; }
 
-      const body = this.pb;
-      const prevDir  = this.dir;
+      const body    = this.pb;
+      const prevDir = this.dir;
       this.updateDir();
 
-      if (dist <= MinionSlime.STOP_RANGE) {
-        body.setVelocity(0, 0);
-        if (this.dir !== prevDir) this.playDir(`${this.animPrefix}_idle`);
+      if (this.attackMode === 'dash') {
+        if (dist <= MinionSlime.STOP_RANGE) {
+          body.setVelocity(0, 0);
+          if (this.dir !== prevDir) this.playDir(`${this.animPrefix}_idle`);
+        } else {
+          const angle = Phaser.Math.Angle.Between(this.x, this.y, tx, ty);
+          (this.scene.physics as Phaser.Physics.Arcade.ArcadePhysics).velocityFromAngle(
+            Phaser.Math.RadToDeg(angle), MinionSlime.CHASE_SPEED, body.velocity,
+          );
+          if (this.dir !== prevDir) this.playDir(`${this.animPrefix}_walk`);
+        }
       } else {
-        const angle = Phaser.Math.Angle.Between(this.x, this.y, tx, ty);
-        (this.scene.physics as Phaser.Physics.Arcade.ArcadePhysics).velocityFromAngle(
-          Phaser.Math.RadToDeg(angle), MinionSlime.CHASE_SPEED, body.velocity,
-        );
-        if (this.dir !== prevDir) this.playDir(`${this.animPrefix}_walk`);
+        // Ranged: stop at attack range, attack when cooldown elapsed
+        const attackRange = this.attackMode === 'explode'
+          ? MinionSlime.EXPLODE_RANGE
+          : MinionSlime.RANGED_RANGE;
+        if (dist <= attackRange) {
+          body.setVelocity(0, 0);
+          if (this.dir !== prevDir) this.playDir(`${this.animPrefix}_idle`);
+          if (time >= this.attackCooldownUntil) {
+            if      (this.attackMode === 'shoot')   this.enterShootWarn();
+            else if (this.attackMode === 'triple')  this.enterTripleWarn();
+            else if (this.attackMode === 'explode') this.enterExplodeWarn();
+          }
+        } else {
+          const angle = Phaser.Math.Angle.Between(this.x, this.y, tx, ty);
+          (this.scene.physics as Phaser.Physics.Arcade.ArcadePhysics).velocityFromAngle(
+            Phaser.Math.RadToDeg(angle), MinionSlime.CHASE_SPEED, body.velocity,
+          );
+          if (this.dir !== prevDir) this.playDir(`${this.animPrefix}_walk`);
+        }
       }
+    }
+
+    // Explode warn circle — drawn every frame while warning
+    if (this.mState === MinionState.EXPLODE_WARN && this.warnCircleGfx) {
+      const elapsed = time - this.explodeWarnStart;
+      const urgency = 1 + (elapsed / MinionSlime.EXPLODE_WARN_MS) * 3;
+      const pulse   = Math.sin(elapsed * 0.015 * urgency) * 0.25 + 0.55;
+      const R       = MinionSlime.EXPLODE_RADIUS;
+      this.warnCircleGfx.clear();
+      this.warnCircleGfx.fillStyle(0xff0000, pulse * 0.35);
+      this.warnCircleGfx.fillCircle(this.x, this.y, R);
+      this.warnCircleGfx.lineStyle(P(2), 0xff4400, 0.5 + pulse * 0.5);
+      this.warnCircleGfx.strokeCircle(this.x, this.y, R);
     }
 
     this.drawHpBar();
@@ -469,6 +574,7 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
   }
 
   override destroy(fromScene?: boolean): void {
+    this.warnCircleGfx?.destroy();
     this.hpBarGfx?.destroy();
     this.debuffGfx?.destroy();
     this.debuffTexts.forEach(t => t.destroy());

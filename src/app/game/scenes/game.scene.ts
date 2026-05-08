@@ -122,6 +122,7 @@ export class GameScene extends Phaser.Scene {
   private auraTimer?: Phaser.Time.TimerEvent;
   private auraRing?: Phaser.GameObjects.Graphics;
   private activeFires: { x: number; y: number; r: number; expiresAt: number }[] = [];
+  private minionProjGroup!: Phaser.Physics.Arcade.Group;
 
   constructor() {
     super({ key: 'GameScene' });
@@ -442,6 +443,21 @@ export class GameScene extends Phaser.Scene {
 
     this.physics.add.collider(this.player, this.wallLayer);
     this.physics.add.collider(this.boss,   this.wallLayer);
+
+    // Minion projectile group
+    this.minionProjGroup = this.physics.add.group();
+    this.physics.add.overlap(this.minionProjGroup, this.player, (_p, proj) => {
+      const p = proj as Phaser.Physics.Arcade.Image;
+      if (!p.active) return;
+      this.player.takeDamage((p as any).dmg as number);
+      p.destroy();
+    });
+
+    if (NetworkService.connected && !NetworkService.isHost) {
+      NetworkService.onMinionAttack(data => {
+        this.spawnMinionAttack(data.type, data.mx, data.my, data.tx, data.ty, data.atk);
+      });
+    }
 
     this.bossHpGfx = this.add.graphics().setScrollFactor(0).setDepth(5).setVisible(false);
     this.bossHpLabel = this.add.text(W / 2, P(6), '', {
@@ -1734,6 +1750,11 @@ export class GameScene extends Phaser.Scene {
       if (!m.isDead && m.isDashing) this.player.takeDamage(m.atk);
     });
     if (!NetworkService.connected || NetworkService.isHost) {
+      m.onFire = (type, mx, my, tx, ty) => {
+        this.spawnMinionAttack(type, mx, my, tx, ty, m.atk);
+        if (NetworkService.connected)
+          NetworkService.sendMinionAttack({ minionId: m.minionId, type, mx, my, tx, ty, atk: m.atk });
+      };
       m.start();
     } else {
       m.started = true;
@@ -1786,6 +1807,12 @@ export class GameScene extends Phaser.Scene {
         m.setScale(m.scaleX * ELITE_SCALE_MOD, m.scaleY * ELITE_SCALE_MOD);
         m.setTintFill(def.tint);
       }
+      if (['slime_red_s', 'elite_slime_red', 'slime_lava_s', 'elite_slime_lava'].includes(defId))
+        m.attackMode = 'explode';
+      if (['slime_green_s', 'elite_slime_green'].includes(defId))
+        m.attackMode = 'triple';
+      if (['slime_blue_s', 'elite_slime_blue'].includes(defId))
+        m.attackMode = 'shoot';
       m.setPatrolCenter(wx, wy);
       m.getTargetPos = () => this.nearestTargetPos(m.x, m.y);
       m.onDead = () => this.handleMinionDrop(defId, m.x, m.y);
@@ -1794,6 +1821,13 @@ export class GameScene extends Phaser.Scene {
       this.physics.add.overlap(m, this.player, () => {
         if (!m.isDead && m.isDashing) this.player.takeDamage(m.atk);
       });
+      if (!NetworkService.connected || NetworkService.isHost) {
+        m.onFire = (type, mx, my, tx, ty) => {
+          this.spawnMinionAttack(type, mx, my, tx, ty, m.atk);
+          if (NetworkService.connected)
+            NetworkService.sendMinionAttack({ minionId: m.minionId, type, mx, my, tx, ty, atk: m.atk });
+        };
+      }
     };
 
     const spawnAt = (wx: number, wy: number) => {
@@ -4095,6 +4129,79 @@ export class GameScene extends Phaser.Scene {
 
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private spawnMinionAttack(type: 'shoot' | 'triple' | 'explode', mx: number, my: number, tx: number, ty: number, atk: number): void {
+    const wx = mx * DPR, wy = my * DPR, wtx = tx * DPR, wty = ty * DPR;
+    if (type === 'shoot') {
+      this.fireProjectile(wx, wy, wtx, wty, 'proj_fast', Math.round(atk * 0.8), Math.round(320 * DPR));
+    } else if (type === 'triple') {
+      const baseAngle = Phaser.Math.Angle.Between(wx, wy, wtx, wty);
+      for (const offset of [-0.35, 0, 0.35]) {
+        const a   = baseAngle + offset;
+        const etx = wx + Math.cos(a) * P(600);
+        const ety = wy + Math.sin(a) * P(600);
+        this.fireProjectile(wx, wy, etx, ety, 'proj_slow', Math.round(atk * 0.6), Math.round(140 * DPR));
+      }
+    } else {
+      this.explodeAt(wx, wy, atk);
+    }
+  }
+
+  private fireProjectile(fromX: number, fromY: number, toX: number, toY: number, texKey: string, dmg: number, speed: number): void {
+    const proj = this.minionProjGroup.create(fromX, fromY, texKey) as Phaser.Physics.Arcade.Image;
+    proj.setDepth(20);
+    (proj as any).dmg = dmg;
+    const body  = proj.body as Phaser.Physics.Arcade.Body;
+    const angle = Phaser.Math.Angle.Between(fromX, fromY, toX, toY);
+    (this.physics as Phaser.Physics.Arcade.ArcadePhysics).velocityFromAngle(
+      Phaser.Math.RadToDeg(angle), speed, body.velocity,
+    );
+    this.time.delayedCall(3500, () => { if (proj.active) proj.destroy(); });
+  }
+
+  private explodeAt(wx: number, wy: number, atk: number): void {
+    const R   = MinionSlime.EXPLODE_RADIUS;
+    const dmg = Math.round(atk * 1.5);
+
+    // Shockwave ring — expands outward and fades
+    const ring = this.add.graphics({ x: wx, y: wy }).setDepth(50);
+    ring.lineStyle(P(4), 0xff6600, 1);
+    ring.strokeCircle(0, 0, R * 0.3);
+    this.tweens.add({
+      targets: ring, scaleX: 3.5, scaleY: 3.5, alpha: 0, duration: 380,
+      ease: 'Cubic.Out', onComplete: () => ring.destroy(),
+    });
+
+    // Center flash — bright burst that quickly shrinks
+    const flash = this.add.graphics({ x: wx, y: wy }).setDepth(51);
+    flash.fillStyle(0xffffff, 1);   flash.fillCircle(0, 0, R * 0.55);
+    flash.fillStyle(0xff8800, 0.9); flash.fillCircle(0, 0, R * 0.35);
+    this.tweens.add({
+      targets: flash, scaleX: 0.1, scaleY: 0.1, alpha: 0, duration: 220,
+      ease: 'Quad.In', onComplete: () => flash.destroy(),
+    });
+
+    // Sparks — 6 small circles flying outward
+    for (let i = 0; i < 6; i++) {
+      const angle  = (i / 6) * Math.PI * 2 + Phaser.Math.FloatBetween(-0.3, 0.3);
+      const dist   = R * Phaser.Math.FloatBetween(1.1, 1.8);
+      const spark  = this.add.graphics({ x: wx, y: wy }).setDepth(49);
+      spark.fillStyle(0xffcc00, 1);
+      spark.fillCircle(0, 0, P(3));
+      this.tweens.add({
+        targets: spark,
+        x: wx + Math.cos(angle) * dist,
+        y: wy + Math.sin(angle) * dist,
+        alpha: 0, scaleX: 0.3, scaleY: 0.3,
+        duration: 320, ease: 'Quad.Out',
+        onComplete: () => spark.destroy(),
+      });
+    }
+
+    if (Phaser.Math.Distance.Between(this.player.x, this.player.y, wx, wy) <= R)
+      this.player.takeDamage(dmg);
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private generateTextures(): void {
     if (!this.textures.exists('grass')) {
       const gg = (this.make.graphics as any)({ x: 0, y: 0, add: false }) as Phaser.GameObjects.Graphics;
@@ -4231,6 +4338,23 @@ export class GameScene extends Phaser.Scene {
       g.generateTexture('icon_slime_essence', 32, 32);
       g.destroy();
     }
+    if (!this.textures.exists('proj_fast')) {
+      const g = (this.make.graphics as any)({ x: 0, y: 0, add: false }) as Phaser.GameObjects.Graphics;
+      const R = P(5);
+      g.fillStyle(0xff6600, 1); g.fillCircle(R, R, R);
+      g.fillStyle(0xffcc44, 0.9); g.fillCircle(R - P(1), R - P(1), R * 0.45);
+      g.generateTexture('proj_fast', R * 2, R * 2);
+      g.destroy();
+    }
+    if (!this.textures.exists('proj_slow')) {
+      const g = (this.make.graphics as any)({ x: 0, y: 0, add: false }) as Phaser.GameObjects.Graphics;
+      const R = P(6);
+      g.fillStyle(0x9900ff, 1); g.fillCircle(R, R, R);
+      g.fillStyle(0xdd88ff, 0.85); g.fillCircle(R - P(1), R - P(1), R * 0.45);
+      g.generateTexture('proj_slow', R * 2, R * 2);
+      g.destroy();
+    }
+
     // icon_gold 已在 preload 以真實圖片載入
     if (!this.textures.exists('icon_exp')) {
       const g = (this.make.graphics as any)({ x: 0, y: 0, add: false }) as Phaser.GameObjects.Graphics;

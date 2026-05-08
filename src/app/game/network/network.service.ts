@@ -1,5 +1,5 @@
 import { Client, Room } from 'colyseus.js';
-import { GameRoomState, PlayerState, MapParams, MsgMove, MsgHpUpdate, MsgMinionSync, MsgMinionHit, MsgBossHit, MsgBossSync, MsgRewardSync } from '../../../../shared/types';
+import { GameRoomState, PlayerState, MapParams, MsgMove, MsgHpUpdate, MsgMinionSync, MsgMinionHit, MsgBossHit, MsgBossSync, MsgRewardSync, MsgMinionAttack } from '../../../../shared/types';
 
 // ← 部署到 Render 後把這裡換成你的網址（不含 https://）
 const RENDER_HOST = 'minirpg-q1zq.onrender.com';
@@ -173,6 +173,14 @@ class NetworkServiceClass {
 
   onMinionHit(cb: (data: { minionId: string; hp: number; isDead: boolean }) => void): void {
     this.room?.onMessage('minionHit', cb);
+  }
+
+  sendMinionAttack(data: MsgMinionAttack): void {
+    this.room?.send('minionAttack', data);
+  }
+
+  onMinionAttack(cb: (data: MsgMinionAttack) => void): void {
+    this.room?.onMessage<MsgMinionAttack>('minionAttack', cb);
   }
 
   onBossHit(cb: (data: { hp: number; isDead: boolean }) => void): void {
