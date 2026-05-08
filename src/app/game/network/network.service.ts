@@ -4,8 +4,8 @@ import { GameRoomState, PlayerState, MapParams, MsgMove, MsgHpUpdate, MsgMinionS
 // ← 部署到 Render 後把這裡換成你的網址（不含 https://）
 const RENDER_HOST = 'minirpg-q1zq.onrender.com';
 
-const isProd   = window.location.hostname === RENDER_HOST;
 const localHost = window.location.hostname;
+const isProd    = localHost !== 'localhost' && localHost !== '127.0.0.1';
 const WS_URL   = isProd ? `wss://${RENDER_HOST}`         : `ws://${localHost}:3001`;
 const HTTP_URL = isProd ? `https://${RENDER_HOST}`        : `http://${localHost}:3001`;
 
