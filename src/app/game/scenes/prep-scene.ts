@@ -29,7 +29,12 @@ const GOLD = 0xd4a044;
 const IRON = 0x4a5560;
 
 export function getPlayerName(): string {
-  return localStorage.getItem('playerName') || '';
+  let name = localStorage.getItem('playerName');
+  if (!name) {
+    name = '勇者' + String(Math.floor(Math.random() * 900) + 100);
+    localStorage.setItem('playerName', name);
+  }
+  return name;
 }
 export function setPlayerName(name: string): void {
   localStorage.setItem('playerName', name.slice(0, 8));
@@ -106,9 +111,8 @@ export class PrepScene extends Phaser.Scene {
       // 新玩家：隨機送一把普通品質武器
       const startSword = generateEquipment('sword', 'normal');
       PlayerStore.equipDirect('sword', startSword);
-      // 測試用初始資源
-      InventoryStore.addGold(99999);
-      InventoryStore.addItem('quest_reroll', '任務重製石', 999);
+      InventoryStore.addGold(100);
+      InventoryStore.addItem('quest_reroll', '任務重製石', 10);
     }
 
     this.generateItemIcons();
@@ -3793,10 +3797,10 @@ export class PrepScene extends Phaser.Scene {
 
     // ── Shop items ──────────────────────────────────────────
     const SHOP_ITEMS: { id: string; name: string; price: number; desc: string; color: number }[] = [
-      { id: ITEM_POTION_HEALTH_S, name: '小型回復藥水', price:  80, desc: '使用後回復 50 HP',  color: 0x44ff88 },
-      { id: ITEM_POTION_HEALTH_M, name: '中型回復藥水', price: 160, desc: '使用後回復 100 HP', color: 0x44ddff },
-      { id: ITEM_POTION_HEALTH_L, name: '大型回復藥水', price: 320, desc: '使用後回復 200 HP', color: 0xff88ff },
-      { id: ITEM_POTION_REVIVE,   name: '復活藥水',     price: 400, desc: '在範圍內復活隊友',  color: 0xffee44 },
+      { id: ITEM_POTION_HEALTH_S, name: '小型回復藥水', price:  500, desc: '使用後回復 50 HP',  color: 0x44ff88 },
+      { id: ITEM_POTION_HEALTH_M, name: '中型回復藥水', price: 1500, desc: '使用後回復 100 HP', color: 0x44ddff },
+      { id: ITEM_POTION_HEALTH_L, name: '大型回復藥水', price: 3000, desc: '使用後回復 200 HP', color: 0xff88ff },
+      { id: ITEM_POTION_REVIVE,   name: '復活藥水',     price: 5000, desc: '在範圍內復活隊友',  color: 0xffee44 },
     ];
 
     const ROW_H   = P(80);
