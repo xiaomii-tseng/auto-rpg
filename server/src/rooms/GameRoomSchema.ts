@@ -8,6 +8,7 @@ export class PlayerState extends Schema {
   @type('int16')   hp:        number  = 100;
   @type('int16')   maxHp:     number  = 100;
   @type('string')  lastDir:   string  = 'down';
+  @type('uint16')  level:     number  = 1;
   @type('boolean') isReady:   boolean = false;
 }
 

@@ -15,7 +15,7 @@ app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 
 // 4-digit code → real Colyseus roomId lookup
 app.get('/room/:code', (req, res) => {
-  const roomId = codeMap.get(req.params.code);
+const roomId = codeMap.get(req.params.code);
   if (!roomId) { res.status(404).json({ error: 'not found' }); return; }
   res.json({ roomId });
 });

@@ -40,7 +40,22 @@ export class GameRoom extends Room<GameRoomState> {
       const p = this.state.players.get(client.sessionId);
       if (!p) return;
       p.nickname = msg.nickname;
-      p.isReady  = true;
+      if (msg.level) p.level = msg.level;
+
+      const isHost = client.sessionId === this.state.hostId;
+
+      // Host is only truly "ready" when they've selected a quest.
+      // The early info-only send (no questId) just stores nickname/level.
+      if (!isHost || msg.questId) {
+        p.isReady = true;
+      }
+
+      // Guest sends ready right after joining — notify host with name+level
+      if (!isHost) {
+        const hostClient = this.clients.find(c => c.sessionId === this.state.hostId);
+        hostClient?.send('partnerJoined', { nickname: msg.nickname, level: p.level });
+      }
+
       if (msg.questId)       this.state.questId       = msg.questId;
       if (msg.questStar)     this.state.questStar     = msg.questStar;
       if (msg.bossMonsterId) this.state.bossMonsterId = msg.bossMonsterId;
@@ -64,6 +79,18 @@ export class GameRoom extends Room<GameRoomState> {
       if (!p) return;
       p.hp    = msg.hp;
       p.maxHp = msg.maxHp;
+    });
+
+    this.onMessage<{ nickname: string; level: number }>('playerInfo', (client, msg) => {
+      const p = this.state.players.get(client.sessionId);
+      if (!p) return;
+      p.nickname = msg.nickname;
+      if (msg.level) p.level = msg.level;
+      // When guest updates info, notify host
+      if (client.sessionId !== this.state.hostId) {
+        const hostClient = this.clients.find(c => c.sessionId === this.state.hostId);
+        hostClient?.send('partnerJoined', { nickname: msg.nickname, level: msg.level });
+      }
     });
 
     this.onMessage<MsgMinionSync>('minionSync', (client, msg) => {
@@ -124,17 +151,16 @@ export class GameRoom extends Room<GameRoomState> {
 
     if (isHost) {
       this.state.hostId = client.sessionId;
-    } else {
-      // Notify host that partner has joined → host can now show quest board
-      const hostClient = this.clients.find(c => c.sessionId === this.state.hostId);
-      hostClient?.send('partnerJoined', {});
     }
 
+    const hostP = this.state.players.get(this.state.hostId);
     client.send('joined', {
-      sessionId: client.sessionId,
+      sessionId:       client.sessionId,
       isHost,
-      seed:      this.state.seed,
-      roomCode:  this._gameCode,
+      seed:            this.state.seed,
+      roomCode:        this._gameCode,
+      hostNickname:    !isHost ? (hostP?.nickname ?? '') : '',
+      hostLevel:       !isHost ? (hostP?.level    ?? 1)  : 0,
     });
   }
 
@@ -152,7 +178,7 @@ export class GameRoom extends Room<GameRoomState> {
   private tryStartGame(): void {
     const players = [...this.state.players.values()];
     const host = players.find(p => p.sessionId === this.state.hostId);
-    if (players.length === 2 && host?.isReady) {
+    if (players.length === 2 && host?.isReady && !!this.state.questId) {
       this.state.phase = 'playing';
 
       // Generate map layout on the server so both clients receive identical params

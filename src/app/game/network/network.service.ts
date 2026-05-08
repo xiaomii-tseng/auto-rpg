@@ -4,15 +4,18 @@ import { GameRoomState, PlayerState, MapParams, MsgMove, MsgHpUpdate, MsgMinionS
 // ← 部署到 Render 後把這裡換成你的網址（不含 https://）
 const RENDER_HOST = 'minirpg-q1zq.onrender.com';
 
-const isLocal  = ['localhost', '127.0.0.1'].includes(window.location.hostname);
-const WS_URL   = isLocal ? `ws://localhost:3001`        : `wss://${RENDER_HOST}`;
-const HTTP_URL = isLocal ? `http://localhost:3001`       : `https://${RENDER_HOST}`;
+const isProd   = window.location.hostname === RENDER_HOST;
+const localHost = window.location.hostname;
+const WS_URL   = isProd ? `wss://${RENDER_HOST}`         : `ws://${localHost}:3001`;
+const HTTP_URL = isProd ? `https://${RENDER_HOST}`        : `http://${localHost}:3001`;
 
 export interface JoinedPayload {
-  sessionId: string;
-  isHost:    boolean;
-  seed:      number;
-  roomCode:  string;
+  sessionId:     string;
+  isHost:        boolean;
+  seed:          number;
+  roomCode:      string;
+  hostNickname?: string;
+  hostLevel?:    number;
 }
 
 export interface GameStartPayload {
@@ -66,8 +69,8 @@ class NetworkServiceClass {
   // ── Send ──────────────────────────────────────────────────
 
   /** Host calls this after selecting a quest; triggers gameStart on server */
-  sendReady(nickname: string, questId: string, questStar: number, bossMonsterId: string): void {
-    this.room?.send('ready', { nickname, questId, questStar, bossMonsterId });
+  sendReady(nickname: string, level: number, questId: string, questStar: number, bossMonsterId: string): void {
+    this.room?.send('ready', { nickname, level, questId, questStar, bossMonsterId });
   }
 
   sendMove(x: number, y: number, lastDir: string, hp: number, maxHp: number): void {
@@ -118,11 +121,31 @@ class NetworkServiceClass {
     this.room?.send('potionEffect', { type, amount });
   }
 
+  /** Sync local nickname+level into Colyseus schema (no isReady side-effects) */
+  sendPlayerInfo(nickname: string, level: number): void {
+    this.room?.send('playerInfo', { nickname, level });
+  }
+
   // ── Listen ────────────────────────────────────────────────
 
   /** Fires on the host when the 2nd player joins the room */
-  onPartnerJoined(cb: () => void): void {
+  onPartnerJoined(cb: (data: { nickname: string; level: number }) => void): void {
     this.room?.onMessage('partnerJoined', cb);
+  }
+
+  /** Fires whenever the partner's nickname first appears (or changes) in the Colyseus schema */
+  onPartnerInfoReady(cb: (nickname: string, level: number) => void): void {
+    let lastNick = '';
+    this.room?.onStateChange(state => {
+      const players = state.players as any;
+      if (!players?.forEach) return;
+      players.forEach((p: any) => {
+        if (p.sessionId !== this.sessionId && p.nickname && p.nickname !== lastNick) {
+          lastNick = p.nickname;
+          cb(p.nickname, p.level ?? 1);
+        }
+      });
+    });
   }
 
   onGameStart(cb: (payload: GameStartPayload) => void): void {

@@ -2328,7 +2328,7 @@ export class GameScene extends Phaser.Scene {
     const cx = bx + bw / 2;
     const cy = by + bh / 2;
 
-    const g = this.add.graphics().setScrollFactor(0).setDepth(200);
+    const g = this.add.graphics().setScrollFactor(0).setDepth(9800);
     g.fillStyle(0x3a1010, 0.92);
     g.fillRoundedRect(bx, by, bw, bh, P(6));
     g.lineStyle(P(2), 0xaa2222, 1);
@@ -2337,10 +2337,10 @@ export class GameScene extends Phaser.Scene {
 
     this.exitBtnTxt = this.add.text(cx, cy, '✕ 退出', {
       fontSize: F(15), fontStyle: 'bold', color: '#ee4444', stroke: '#000', strokeThickness: 2,
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(201);
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(9801);
 
     this.exitBtnHit = this.add.rectangle(cx, cy, bw, bh)
-      .setScrollFactor(0).setDepth(202).setInteractive({ useHandCursor: true });
+      .setScrollFactor(0).setDepth(9802).setInteractive({ useHandCursor: true });
     this.exitBtnHit.on('pointerdown', () => this.exitToLobby());
   }
 
