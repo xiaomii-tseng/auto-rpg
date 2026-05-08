@@ -26,8 +26,16 @@ const WH  = 0xb07030; // highlight grain
 const GOLD = 0xd4a044;
 const IRON = 0x4a5560;
 
+export function getPlayerName(): string {
+  return localStorage.getItem('playerName') || '';
+}
+export function setPlayerName(name: string): void {
+  localStorage.setItem('playerName', name.slice(0, 8));
+}
+
 export class PrepScene extends Phaser.Scene {
-  private goldText!: Phaser.GameObjects.Text;
+  private goldText!:       Phaser.GameObjects.Text;
+  private playerNameTxt?:  Phaser.GameObjects.Text;
   private multiMode     = false;
   private multiRoomNick = '';
 
@@ -227,21 +235,8 @@ export class PrepScene extends Phaser.Scene {
   // ── Background ──────────────────────────────────────────
 
   private drawBackground(W: number, H: number): void {
-    // Render at low resolution then scale up → pixel art look
-    const PDIV = 6;                          // pixelate to match character's ~3.5x pixel scale
-    const rtW  = Math.round(W / PDIV);
-    const rtH  = Math.round(H / PDIV);
-
-    const tmp = this.add.image(rtW / 2, rtH / 2 - Math.round(60 / PDIV), 'bg_prep');
-    tmp.setScale(rtW / tmp.width);
-
-    const rt = this.add.renderTexture(0, 0, rtW, rtH);
-    rt.draw(tmp);
-    tmp.destroy();
-
-    // Scale up with nearest-neighbor for chunky pixels
-    rt.setOrigin(0, 0).setDisplaySize(W, H);
-    try { (rt as any).texture?.setFilter?.(Phaser.Textures.FilterMode.NEAREST); } catch (_) {}
+    const img = this.add.image(W / 2, H / 2 - 60, 'bg_prep');
+    img.setDisplaySize(W, H).setOrigin(0.5);
 
     // Dark overlay
     const ov = this.add.graphics();
@@ -327,10 +322,17 @@ export class PrepScene extends Phaser.Scene {
 
     // ── Name + Lv stacked ─────────────────────────────────
     const nameX = AV_CX + AV_R + P(10);
-    this.add.text(nameX, CY - P(8), '玩家一號', {
+    this.playerNameTxt = this.add.text(nameX, CY - P(8), getPlayerName(), {
       fontSize: F(15), fontStyle: 'bold',
       color: '#ffe8b0', stroke: '#1a0800', strokeThickness: 3,
     }).setOrigin(0, 0.5);
+    // Pencil hint underline
+    gfx.fillStyle(GOLD, 0.35);
+    gfx.fillRect(nameX, CY - P(8) + P(10), P(90), 1);
+    // Hit zone for name editing
+    const nameHit = this.add.rectangle(nameX + P(45), CY - P(8), P(90), P(22))
+      .setInteractive({ useHandCursor: true }).setDepth(30);
+    nameHit.on('pointerdown', () => this.showNameEditDialog(W, this.scale.height));
 
     const lvLabel = this.add.text(nameX, CY + P(9), '', {
       fontSize: F(15), fontStyle: 'bold', color: '#c8a050', stroke: '#1a0800', strokeThickness: 2,
@@ -786,7 +788,7 @@ export class PrepScene extends Phaser.Scene {
 
     const closeBtn = this.add.text(panelX + PW - P(18), panelY + P(22), '✕', {
       fontSize: F(16), fontStyle: 'bold', color: '#ff6644', stroke: '#1a0800', strokeThickness: 2,
-    }).setOrigin(0.5).setInteractive({ useHandCursor: true }).setDepth(D + 2);
+    }).setOrigin(0.5).setInteractive({ hitArea: new Phaser.Geom.Rectangle(-P(18), -P(16), P(44), P(44)), hitAreaCallback: Phaser.Geom.Rectangle.Contains, useHandCursor: true }).setDepth(D + 2);
     objs.push(closeBtn);
     closeBtn.on('pointerdown', closeAll);
 
@@ -890,7 +892,7 @@ export class PrepScene extends Phaser.Scene {
         }).setOrigin(1, 0).setDepth(D + 5);
         objs.push(xTxt);
         if (hasTicket) {
-          xTxt.setInteractive({ useHandCursor: true });
+          xTxt.setInteractive({ hitArea: new Phaser.Geom.Rectangle(-P(32), -P(4), P(44), P(44)), hitAreaCallback: Phaser.Geom.Rectangle.Contains, useHandCursor: true });
           xTxt.on('pointerover', () => xTxt.setColor('#ffffff'));
           xTxt.on('pointerout',  () => xTxt.setColor(xColor));
           xTxt.on('pointerdown', () => {
@@ -1258,7 +1260,7 @@ export class PrepScene extends Phaser.Scene {
       // 右上角叉叉（可晚點再選）
       const xBtn = this.add.text(mx + MW - P(14), my + P(22), '✕', {
         fontSize: F(15), fontStyle: 'bold', color: '#cc4444', stroke: '#1a0800', strokeThickness: 2,
-      }).setOrigin(0.5).setInteractive({ useHandCursor: true }).setDepth(MD + 3);
+      }).setOrigin(0.5).setInteractive({ hitArea: new Phaser.Geom.Rectangle(-P(18), -P(16), P(44), P(44)), hitAreaCallback: Phaser.Geom.Rectangle.Contains, useHandCursor: true }).setDepth(MD + 3);
       xBtn.on('pointerdown', closeMo);
       mo.push(xBtn);
 
@@ -1398,7 +1400,7 @@ export class PrepScene extends Phaser.Scene {
     // topmost interactive object regardless of container child ordering.
     const closeBtn = this.add.text(W / 2 + px + PW - P(22), H / 2 + py + P(21), '✕', {
       fontSize: F(16), fontStyle: 'bold', color: '#cc4444', stroke: '#1a0800', strokeThickness: 2,
-    }).setOrigin(0.5).setInteractive({ useHandCursor: true }).setDepth(D + 1).setScrollFactor(0);
+    }).setOrigin(0.5).setInteractive({ hitArea: new Phaser.Geom.Rectangle(-P(18), -P(16), P(44), P(44)), hitAreaCallback: Phaser.Geom.Rectangle.Contains, useHandCursor: true }).setDepth(D + 1).setScrollFactor(0);
     const closePanelFn = () => {
       if (closeBtn.active) closeBtn.destroy();
       PlayerStore.offChange(onStoreChange);
@@ -1623,7 +1625,7 @@ export class PrepScene extends Phaser.Scene {
       }).setOrigin(0.5).setDepth(ED + 2));
       es(this.add.text(mx + mw - P(16), my + TITLE_H / 2, '✕', {
         fontSize: F(15), fontStyle: 'bold', color: '#cc4444', stroke: '#1a0800', strokeThickness: 2,
-      }).setOrigin(0.5).setInteractive({ useHandCursor: true }).setDepth(ED + 3))
+      }).setOrigin(0.5).setInteractive({ hitArea: new Phaser.Geom.Rectangle(-P(18), -P(16), P(44), P(44)), hitAreaCallback: Phaser.Geom.Rectangle.Contains, useHandCursor: true }).setDepth(ED + 3))
         .on('pointerdown', closeEnhance);
 
       const levelTxt = es(this.add.text(W / 2, my + TITLE_H + LEVEL_H / 2, '', {
@@ -2485,7 +2487,7 @@ export class PrepScene extends Phaser.Scene {
 
     const closeBtn = this.add.text(px + PW - P(20), py + P(18), '✕', {
       fontSize: F(15), fontStyle: 'bold', color: '#cc4444', stroke: '#1a0800', strokeThickness: 2,
-    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+    }).setOrigin(0.5).setInteractive({ hitArea: new Phaser.Geom.Rectangle(-P(18), -P(16), P(44), P(44)), hitAreaCallback: Phaser.Geom.Rectangle.Contains, useHandCursor: true });
     closeBtn.on('pointerdown', () => {
       InventoryStore.offChange(onItemChange);
       container.destroy();
@@ -2661,7 +2663,7 @@ export class PrepScene extends Phaser.Scene {
 
     const closeBtn = this.add.text(px + PW - P(20), py + P(18), '✕', {
       fontSize: F(15), fontStyle: 'bold', color: '#cc4444', stroke: '#1a0800', strokeThickness: 2,
-    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+    }).setOrigin(0.5).setInteractive({ hitArea: new Phaser.Geom.Rectangle(-P(18), -P(16), P(44), P(44)), hitAreaCallback: Phaser.Geom.Rectangle.Contains, useHandCursor: true });
     closeBtn.on('pointerdown', () => { cleanup(); container.destroy(); });
     container.add(closeBtn);
 
@@ -3455,7 +3457,7 @@ export class PrepScene extends Phaser.Scene {
     objs.push(statusTxt);
 
     // nickname input — full panel width, h=P(32) for F(15) text
-    const nicknameInput = this.makeTextInput(objs, px + P(16), py + P(72), PW - P(32), P(32), '暱稱（最多8字）', D + 2);
+    const nicknameInput = this.makeTextInput(objs, px + P(16), py + P(72), PW - P(32), P(32), '暱稱（最多8字）', D + 2, getPlayerName());
 
     const BH = P(32); // button height
     const makeBtn = (label: string, x: number, y: number, bw: number, col: number, cb: () => void) => {
@@ -3526,7 +3528,8 @@ export class PrepScene extends Phaser.Scene {
     objs: Phaser.GameObjects.GameObject[],
     x: number, y: number, w: number, h: number,
     placeholder: string, depth: number,
-  ): { getValue(): string } {
+    initialValue = '',
+  ): { getValue(): string; setValue(v: string): void } {
     // Hidden real input for keyboard — positioned off-screen to avoid DPR issues
     const el = document.createElement('input');
     el.type = 'text'; el.maxLength = 12;
@@ -3561,7 +3564,60 @@ export class PrepScene extends Phaser.Scene {
       txt.setText(val || placeholder).setColor(val ? '#ffe0a0' : '#886644');
     });
 
-    return { getValue: () => el.value.trim().slice(0, 8) };
+    const setValue = (v: string) => {
+      el.value = v.slice(0, 8);
+      txt.setText(v || placeholder).setColor(v ? '#ffe0a0' : '#886644');
+    };
+    if (initialValue) setValue(initialValue);
+
+    return { getValue: () => el.value.trim().slice(0, 8), setValue };
+  }
+
+  private showNameEditDialog(W: number, H: number): void {
+    const D  = 950;
+    const bw = Math.min(P(260), W - P(32));
+    const bh = P(130);
+    const bx = W / 2 - bw / 2;
+    const by = H / 2 - bh / 2;
+
+    const objs: Phaser.GameObjects.GameObject[] = [];
+    const close = () => { objs.forEach(o => o.destroy()); this.cleanDomInputs(); };
+
+    const bk = this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.65)
+      .setInteractive().setDepth(D);
+    objs.push(bk);
+    bk.on('pointerdown', close);
+
+    const box = this.add.graphics().setDepth(D + 1);
+    objs.push(box);
+    box.fillStyle(0x1a0e04, 0.97); box.fillRoundedRect(bx, by, bw, bh, P(8));
+    box.lineStyle(P(2), GOLD, 0.85); box.strokeRoundedRect(bx, by, bw, bh, P(8));
+
+    objs.push(this.add.text(W / 2, by + P(18), '設定名稱', {
+      fontSize: F(15), fontStyle: 'bold', color: '#ffe080', stroke: '#1a0800', strokeThickness: 2,
+    }).setOrigin(0.5).setDepth(D + 2));
+
+    const inp = this.makeTextInput(objs, bx + P(16), by + P(36), bw - P(32), P(30), '名稱（最多8字）', D + 2, getPlayerName());
+
+    // Confirm button
+    const btnW = P(100), btnH = P(28);
+    const btnX = W / 2, btnY = by + bh - P(20);
+    const btnG = this.add.graphics().setDepth(D + 2);
+    objs.push(btnG);
+    btnG.fillStyle(0x2a4a10, 1); btnG.fillRoundedRect(btnX - btnW / 2, btnY - btnH / 2, btnW, btnH, P(5));
+    btnG.lineStyle(P(1.5), GOLD, 0.7); btnG.strokeRoundedRect(btnX - btnW / 2, btnY - btnH / 2, btnW, btnH, P(5));
+    objs.push(this.add.text(btnX, btnY, '確  定', {
+      fontSize: F(14), fontStyle: 'bold', color: '#ccff88', stroke: '#1a0800', strokeThickness: 2,
+    }).setOrigin(0.5).setDepth(D + 3));
+    const btnHit = this.add.rectangle(btnX, btnY, btnW, btnH)
+      .setInteractive({ useHandCursor: true }).setDepth(D + 4);
+    objs.push(btnHit);
+    btnHit.on('pointerdown', () => {
+      const name = inp.getValue() || '勇者';
+      setPlayerName(name);
+      this.playerNameTxt?.setText(name);
+      close();
+    });
   }
 
   private cleanDomInputs(): void {

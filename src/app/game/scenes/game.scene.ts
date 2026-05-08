@@ -211,7 +211,8 @@ export class GameScene extends Phaser.Scene {
 
       NetworkService.onPartnerPos(({ x, y, lastDir }) => {
         if (!this.partnerSprite) return;
-        const moved   = Math.abs(x - this._partnerPrevX) > 0.5 || Math.abs(y - this._partnerPrevY) > 0.5;
+        const wx = x * DPR, wy = y * DPR;  // restore to local DPR space
+        const moved   = Math.abs(wx - this._partnerPrevX) > 0.5 || Math.abs(wy - this._partnerPrevY) > 0.5;
         // Don't override a playing attack animation
         if (!this.partnerSprite.anims.currentAnim?.key.includes('attack') &&
             !this.partnerSprite.anims.currentAnim?.key.includes('whirlwind') &&
@@ -219,10 +220,10 @@ export class GameScene extends Phaser.Scene {
           const animKey = moved ? `player_run_${lastDir}` : `player_idle_${lastDir}`;
           if (this.partnerSprite.anims.currentAnim?.key !== animKey) this.partnerSprite.play(animKey, true);
         }
-        this.partnerSprite.setPosition(x, y);
-        this.partnerLabel?.setPosition(x, y - P(40));
-        this._partnerPrevX   = x;
-        this._partnerPrevY   = y;
+        this.partnerSprite.setPosition(wx, wy);
+        this.partnerLabel?.setPosition(wx, wy - P(40));
+        this._partnerPrevX   = wx;
+        this._partnerPrevY   = wy;
         this._partnerPrevDir = lastDir as 'down' | 'left' | 'right' | 'up';
       });
 
@@ -238,13 +239,13 @@ export class GameScene extends Phaser.Scene {
           if (!this.partnerSprite) return;
           this.partnerSprite.play(`player_idle_${this._partnerPrevDir}`, true);
         });
-        this.showPartnerAttackFX(behavior, x, y, dir);
+        this.showPartnerAttackFX(behavior, x * DPR, y * DPR, dir);
       });
 
-      // Send local attack info to partner
+      // Send local attack info to partner (DPR-normalised)
       this.player.onAttackAnim = (key) => {
         const behavior = PlayerStore.getEquipped().sword?.behavior ?? 'slash180';
-        NetworkService.sendAttack(key, this.player.x, this.player.y, this.player.lastDir, behavior);
+        NetworkService.sendAttack(key, this.player.x / DPR, this.player.y / DPR, this.player.lastDir, behavior);
       };
 
       NetworkService.onPartnerLeft(() => {
@@ -287,10 +288,10 @@ export class GameScene extends Phaser.Scene {
         });
       }
 
-      // Send our own position to server every 50 ms
+      // Send our own position to server every 50 ms (DPR-normalised so devices match)
       this.time.addEvent({
         delay: 50, loop: true,
-        callback: () => NetworkService.sendMove(this.player.x, this.player.y, this.player.lastDir),
+        callback: () => NetworkService.sendMove(this.player.x / DPR, this.player.y / DPR, this.player.lastDir),
       });
     }
 
