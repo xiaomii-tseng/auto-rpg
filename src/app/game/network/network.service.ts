@@ -1,9 +1,12 @@
 import { Client, Room } from 'colyseus.js';
 import { GameRoomState, PlayerState, MapParams, MsgMove, MsgHpUpdate, MsgMinionSync, MsgMinionHit, MsgBossHit, MsgBossSync, MsgRewardSync } from '../../../../shared/types';
 
-const HOST     = window.location.hostname;
-const WS_URL   = `ws://${HOST}:3001`;
-const HTTP_URL = `http://${HOST}:3001`;
+// ← 部署到 Render 後把這裡換成你的網址（不含 https://）
+const RENDER_HOST = 'your-server.onrender.com';
+
+const isLocal  = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+const WS_URL   = isLocal ? `ws://localhost:3001`        : `wss://${RENDER_HOST}`;
+const HTTP_URL = isLocal ? `http://localhost:3001`       : `https://${RENDER_HOST}`;
 
 export interface JoinedPayload {
   sessionId: string;
