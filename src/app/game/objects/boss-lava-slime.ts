@@ -10,7 +10,7 @@ const BARRAGE_DIRS_P2    = 10;
 const BARRAGE_SPEED      = 210 * DPR;   // px/s
 const BARRAGE_RANGE      = Math.round(520 * DPR);
 const BARRAGE_HIT_R      = Math.round(15 * DPR);
-const BARRAGE_DMG        = 28;
+const BARRAGE_DMG        = 50;
 const BARRAGE_WAVES      = 3;
 const BARRAGE_WAVE_DELAY = 450;   // ms 波與波之間的間隔
 const BARRAGE_FAN_HALF   = 6;     // 扇形半角（度）
@@ -20,7 +20,7 @@ const BARRAGE_FAN_PROJS  = 3;     // 每扇投射物數
 const PILLAR_COUNT_P1 = 7;
 const PILLAR_COUNT_P2 = 10;
 const PILLAR_RADIUS   = Math.round(50 * DPR);
-const PILLAR_DMG      = 50;
+const PILLAR_DMG      = 75;
 const PILLAR_NEAR_MIN = Math.round(35 * DPR);   // 玩家附近最小距離
 const PILLAR_NEAR_MAX = Math.round(110 * DPR);  // 玩家附近最大距離
 

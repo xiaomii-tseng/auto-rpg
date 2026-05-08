@@ -14,7 +14,7 @@ const FAN_HALF_DEG   = 15;        // 每個扇形半角 → 全扇 30°
 const FAN_PROJS      = 4;         // 每扇投射物數
 const FAN_SIDE_DEG   = 55;        // 中心扇與側扇的夾角
 const FAN_HIT_R      = Math.round(16 * DPR);
-const FAN_DMG        = 30;
+const FAN_DMG        = 50;
 
 export class BossZombieSlime extends Boss {
   onSummonZombie?:  (x: number, y: number) => void;

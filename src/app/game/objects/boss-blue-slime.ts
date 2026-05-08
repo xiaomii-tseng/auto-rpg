@@ -6,13 +6,13 @@ const DPR = (window as any).__gameDpr as number;
 const P = (n: number): number => Math.round(n * DPR);
 
 const SPIKE_RANGE   = Math.round(400 * DPR);
-const SPIKE_DMG     = 25;
+const SPIKE_DMG     = 45;
 const SPIKE_SPEED_MS = 700;
 const SPIKE_HIT_R   = Math.round(18 * DPR);
 
 const MINE_SCATTER  = Math.round(60 * DPR);
 const MINE_RADIUS   = Math.round(65 * DPR);
-const MINE_DMG      = 45;
+const MINE_DMG      = 70;
 const MINE_FUSE_MS  = 550;
 
 export class BossBlueSlime extends Boss {

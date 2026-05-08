@@ -8,7 +8,7 @@ const P = (n: number): number => Math.round(n * DPR);
 const PUDDLE_RADIUS = Math.round(50 * DPR);
 const PUDDLE_MS     = 3000;
 const PUDDLE_TICK   = 500;
-const PUDDLE_DMG    = 20;
+const PUDDLE_DMG    = 40;
 const SUMMON_DIST   = Math.round(90 * DPR);
 const ORB_COUNT     = 3;
 

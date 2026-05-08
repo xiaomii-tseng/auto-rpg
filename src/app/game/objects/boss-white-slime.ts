@@ -6,13 +6,13 @@ const P = (n: number): number => Math.round(n * DPR);
 
 const CROSS_RANGE  = P(400);
 const CROSS_HALF_W = P(22);
-const CROSS_DMG    = 38;
+const CROSS_DMG    = 60;
 
 const ORB_SPEED    = 220 * DPR;   // px/s
 const ORB_MAX_DIST = P(360);
 const ORB_HIT_R    = P(14);
 const ORB_EXP_R    = P(90);
-const ORB_DMG      = 32;
+const ORB_DMG      = 53;
 const ORB_COUNT    = 3;
 const ORB_SPREAD   = 15 * (Math.PI / 180);
 

@@ -418,7 +418,7 @@ export class GameScene extends Phaser.Scene {
     this.boss.onAoeExplode = (x, y) => {
       if (!this.bossActive) return;
       const dSq = Phaser.Math.Distance.BetweenPointsSquared({ x, y }, this.player);
-      if (dSq <= Boss.AOE_RADIUS ** 2) this.player.takeDamage(30);
+      if (dSq <= Boss.AOE_RADIUS ** 2) this.player.takeDamage(50);
     };
     this.boss.onRangedBarrageTrailTick = (x1, y1, x2, y2, radius, dmg) => {
       if (!this.bossActive) return;
@@ -438,7 +438,7 @@ export class GameScene extends Phaser.Scene {
 
     this.physics.add.overlap(bossGroup, this.player, () => {
       if (!this.bossActive) return;
-      if (this.boss.currentState === 'DASHING') this.player.takeDamage(25);
+      if (this.boss.currentState === 'DASHING') this.player.takeDamage(45);
     });
 
     this.physics.add.collider(this.player, this.wallLayer);
@@ -1747,7 +1747,7 @@ export class GameScene extends Phaser.Scene {
     this.allMinions.push(m);
     this.physics.add.collider(m, this.wallLayer);
     this.physics.add.overlap(m, this.player, () => {
-      if (!m.isDead && m.isDashing) this.player.takeDamage(m.atk);
+      if (!m.isDead && m.isDashing) this.player.takeDamage(m.atk * 3);
     });
     if (!NetworkService.connected || NetworkService.isHost) {
       m.onFire = (type, mx, my, tx, ty) => {
@@ -1819,7 +1819,7 @@ export class GameScene extends Phaser.Scene {
       this.allMinions.push(m);
       this.physics.add.collider(m, this.wallLayer);
       this.physics.add.overlap(m, this.player, () => {
-        if (!m.isDead && m.isDashing) this.player.takeDamage(m.atk);
+        if (!m.isDead && m.isDashing) this.player.takeDamage(m.atk * 3);
       });
       if (!NetworkService.connected || NetworkService.isHost) {
         m.onFire = (type, mx, my, tx, ty) => {
@@ -4132,14 +4132,14 @@ export class GameScene extends Phaser.Scene {
   private spawnMinionAttack(type: 'shoot' | 'triple' | 'explode', mx: number, my: number, tx: number, ty: number, atk: number): void {
     const wx = mx * DPR, wy = my * DPR, wtx = tx * DPR, wty = ty * DPR;
     if (type === 'shoot') {
-      this.fireProjectile(wx, wy, wtx, wty, 'proj_fast', Math.round(atk * 0.8), Math.round(320 * DPR));
+      this.fireProjectile(wx, wy, wtx, wty, 'proj_fast', Math.round(atk * 4.0), Math.round(320 * DPR));
     } else if (type === 'triple') {
       const baseAngle = Phaser.Math.Angle.Between(wx, wy, wtx, wty);
       for (const offset of [-0.35, 0, 0.35]) {
         const a   = baseAngle + offset;
         const etx = wx + Math.cos(a) * P(600);
         const ety = wy + Math.sin(a) * P(600);
-        this.fireProjectile(wx, wy, etx, ety, 'proj_slow', Math.round(atk * 0.6), Math.round(140 * DPR));
+        this.fireProjectile(wx, wy, etx, ety, 'proj_slow', Math.round(atk * 3.0), Math.round(140 * DPR));
       }
     } else {
       this.explodeAt(wx, wy, atk);
@@ -4160,7 +4160,7 @@ export class GameScene extends Phaser.Scene {
 
   private explodeAt(wx: number, wy: number, atk: number): void {
     const R   = MinionSlime.EXPLODE_RADIUS;
-    const dmg = Math.round(atk * 1.5);
+    const dmg = Math.round(atk * 4.0);
 
     // Shockwave ring — expands outward and fades
     const ring = this.add.graphics({ x: wx, y: wy }).setDepth(50);

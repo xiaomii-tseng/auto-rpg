@@ -6,10 +6,10 @@ const DPR = (window as any).__gameDpr as number;
 const P = (n: number): number => Math.round(n * DPR);
 
 const JUMP_RADIUS = Math.round(85 * DPR);
-const JUMP_DMG    = 40;
+const JUMP_DMG    = 63;
 const FAN_RANGE   = Math.round(220 * DPR);
 const FAN_HALF    = 35 * (Math.PI / 180);  // ±35°
-const FAN_DMG     = 35;
+const FAN_DMG     = 58;
 const FAN_STEPS   = 14;
 
 export class BossRedSlime extends Boss {

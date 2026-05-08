@@ -65,7 +65,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
   private static readonly BARRAGE_SPREAD     = 0.22;   // radians between shots
   private static readonly BARRAGE_TRAIL_W    = Math.round(28 * DPR);
   private static readonly BARRAGE_TRAIL_HIT_R = Math.round(28 * DPR);
-  private static readonly BARRAGE_TRAIL_DMG  = 12;
+  private static readonly BARRAGE_TRAIL_DMG  = 30;
   private static readonly BARRAGE_TRAIL_TICK = 600;
   private static readonly BARRAGE_TRAIL_DUR  = 3500;
   private static readonly MAX_TRAILS         = 99;
