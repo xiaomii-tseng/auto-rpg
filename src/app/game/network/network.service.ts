@@ -2,7 +2,7 @@ import { Client, Room } from 'colyseus.js';
 import { GameRoomState, PlayerState, MapParams, MsgMove, MsgHpUpdate, MsgMinionSync, MsgMinionHit, MsgBossHit, MsgBossSync, MsgRewardSync } from '../../../../shared/types';
 
 // ← 部署到 Render 後把這裡換成你的網址（不含 https://）
-const RENDER_HOST = 'your-server.onrender.com';
+const RENDER_HOST = 'minirpg-q1zq.onrender.com';
 
 const isLocal  = ['localhost', '127.0.0.1'].includes(window.location.hostname);
 const WS_URL   = isLocal ? `ws://localhost:3001`        : `wss://${RENDER_HOST}`;
