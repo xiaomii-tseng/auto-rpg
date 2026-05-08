@@ -327,7 +327,7 @@ export class GameScene extends Phaser.Scene {
     this.boss.def         = Math.round((bossDef.def ?? 0) * (STAR_DEF_MULT[this.questStar] ?? 0));
     bossDef.fillTint ? this.boss.setTintFill(bossDef.tint) : this.boss.setTint(bossDef.tint);
     this.boss.setVisible(false);
-    this.boss.getTargetPos = () => [this.player.x, this.player.y];
+    this.boss.getTargetPos = () => this.nearestTargetPos(this.boss.x, this.boss.y);
     this.boss.onHpChanged = () => this.refreshBossBar();
     this.boss.onDead = () => this.handleBossDefeated();
     this.boss.onAoeExplode = (x, y) => {
@@ -2255,6 +2255,15 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  private nearestTargetPos(fromX: number, fromY: number): [number, number] {
+    if (NetworkService.connected && NetworkService.isHost && this.partnerSprite?.active) {
+      const dp = Phaser.Math.Distance.Between(fromX, fromY, this.player.x, this.player.y);
+      const dg = Phaser.Math.Distance.Between(fromX, fromY, this.partnerSprite.x, this.partnerSprite.y);
+      return dp <= dg ? [this.player.x, this.player.y] : [this.partnerSprite.x, this.partnerSprite.y];
+    }
+    return [this.player.x, this.player.y];
+  }
+
   private createBoss(bossDef: MonsterDef, totalHp: number): Boss {
     const cx = this.bossArenaCenter.x, cy = this.bossArenaCenter.y;
     if (bossDef.id === 'boss_slime_green') {
@@ -2370,7 +2379,7 @@ export class GameScene extends Phaser.Scene {
       m.setTintFill(def.tint);
     }
     m.setPatrolCenter(wx, wy);
-    m.getTargetPos = () => [this.player.x, this.player.y];
+    m.getTargetPos = () => this.nearestTargetPos(m.x, m.y);
     m.onDead = () => this.handleMinionDrop(defId, m.x, m.y);
     m.minionId = `m${this.allMinions.length}`;
     this.allMinions.push(m);
@@ -2432,7 +2441,7 @@ export class GameScene extends Phaser.Scene {
         m.setTintFill(def.tint);
       }
       m.setPatrolCenter(wx, wy);
-      m.getTargetPos = () => [this.player.x, this.player.y];
+      m.getTargetPos = () => this.nearestTargetPos(m.x, m.y);
       m.onDead = () => this.handleMinionDrop(defId, m.x, m.y);
       this.allMinions.push(m);
       this.physics.add.collider(m, this.wallLayer);
