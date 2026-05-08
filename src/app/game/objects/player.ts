@@ -39,7 +39,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.maxHp = stats.maxHp;
     this.hp    = stats.maxHp;
 
-    this.headGfx = scene.add.graphics().setDepth(100000);
+    this.headGfx = scene.add.graphics().setDepth(9800);
   }
 
   override preUpdate(time: number, delta: number): void {

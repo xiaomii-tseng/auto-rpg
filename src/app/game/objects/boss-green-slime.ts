@@ -5,7 +5,7 @@ import { MONSTER_SCALE_BOSS } from '../data/monster-data';
 const DPR = (window as any).__gameDpr as number;
 const P = (n: number): number => Math.round(n * DPR);
 
-const PUDDLE_RADIUS = Math.round(31 * DPR);   // 原 52 × 0.6
+const PUDDLE_RADIUS = Math.round(50 * DPR);
 const PUDDLE_MS     = 3000;
 const PUDDLE_TICK   = 500;
 const PUDDLE_DMG    = 20;
@@ -172,7 +172,7 @@ export class BossGreenSlime extends Boss {
       onUpdate: () => warnG.setAlpha(pw.a),
     });
 
-    this.stateTimer = this.scene.time.delayedCall(1200, () => {
+    this.stateTimer = this.scene.time.delayedCall(400, () => {
       this.pulseTween?.stop();
       warnG.destroy();
       this.firePoisonBall(tx, ty);

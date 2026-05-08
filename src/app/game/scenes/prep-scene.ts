@@ -106,6 +106,9 @@ export class PrepScene extends Phaser.Scene {
       // 新玩家：隨機送一把普通品質武器
       const startSword = generateEquipment('sword', 'normal');
       PlayerStore.equipDirect('sword', startSword);
+      // 測試用初始資源
+      InventoryStore.addGold(99999);
+      InventoryStore.addItem('quest_reroll', '任務重製石', 999);
     }
 
     this.generateItemIcons();

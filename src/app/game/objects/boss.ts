@@ -46,7 +46,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
   private atkY = 0;
   private dashAngle = 0;
 
-  static readonly AOE_RADIUS = Math.round(95 * DPR);
+  static readonly AOE_RADIUS = Math.round(120 * DPR);
   static readonly DASH_SPEED = Math.round(460 * DPR);
   static readonly DASH_MS    = 620;
 
@@ -270,15 +270,26 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     this.pickNextAttack();
   }
 
+  questStar = 1;
+
   private comboCount = 0;
 
+  private static readonly ATTACK_DELAY_CFG: Record<number, { min: number; max: number; cMin: number; cMax: number; cChance: number }> = {
+    1: { min: 1200, max: 2800, cMin: 200, cMax: 450, cChance: 0.12 },
+    2: { min: 1150, max: 2700, cMin: 195, cMax: 435, cChance: 0.13 },
+    3: { min: 1100, max: 2600, cMin: 190, cMax: 420, cChance: 0.14 },
+    4: { min: 1060, max: 2500, cMin: 185, cMax: 410, cChance: 0.15 },
+    5: { min: 1020, max: 2400, cMin: 175, cMax: 385, cChance: 0.16 },
+  };
+
   protected getNextAttackDelay(): number {
-    if (this.comboCount < 1 && Math.random() < 0.12) {
+    const c = Boss.ATTACK_DELAY_CFG[Math.min(5, Math.max(1, this.questStar))];
+    if (this.comboCount < 1 && Math.random() < c.cChance) {
       this.comboCount++;
-      return Phaser.Math.Between(200, 450);
+      return Phaser.Math.Between(c.cMin, c.cMax);
     }
     this.comboCount = 0;
-    return Phaser.Math.Between(1200, 2800);
+    return Phaser.Math.Between(c.min, c.max);
   }
 
   protected pickNextAttack(): void {
@@ -372,7 +383,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
       quantity: 3,
     }).setDepth(9);
 
-    this.stateTimer = this.scene.time.delayedCall(1000, () => this.enterDashing());
+    this.stateTimer = this.scene.time.delayedCall(600, () => this.enterDashing());
   }
 
   private enterDashing(): void {
@@ -408,6 +419,14 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
         this.spawnDashImpact(this.x, this.y);
         this.enterIdle();
       },
+    });
+    // Safety: if tween onComplete never fires (e.g. zero-distance dash at arena edge), force back to idle
+    this.scene.time.delayedCall(Boss.DASH_MS + 400, () => {
+      if (this.active && this.bossState === BossState.DASHING) {
+        this.anims.timeScale = 1;
+        this.stopDashTrail();
+        this.enterIdle();
+      }
     });
   }
 

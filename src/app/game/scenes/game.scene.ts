@@ -356,6 +356,7 @@ export class GameScene extends Phaser.Scene {
     const coopMult = NetworkService.connected ? CO_OP_HP_MULT : 1;
     const bossInitHp = Math.round(bossDef.hp * hpMult * coopMult);
     this.boss = this.createBoss(bossDef, bossInitHp);
+    this.boss.questStar = this.questStar;
     if (NetworkService.connected && NetworkService.isHost) {
       NetworkService.sendBossInit(bossInitHp);
     }
@@ -3398,6 +3399,12 @@ export class GameScene extends Phaser.Scene {
       } else {
         InventoryStore.addItem(loot.itemId, loot.itemName, loot.qty);
         this.showPickupText(loot.obj.x, loot.obj.y, loot.itemName, loot.qty);
+        const potionIds = [ITEM_POTION_HEALTH_S, ITEM_POTION_HEALTH_M, ITEM_POTION_HEALTH_L, ITEM_POTION_REVIVE];
+        if (potionIds.includes(loot.itemId)) {
+          const slots = PotionBarStore.getSlots();
+          const emptyIdx = slots.findIndex(s => s === null);
+          if (emptyIdx !== -1) PotionBarStore.setSlot(emptyIdx as 0 | 1, loot.itemId);
+        }
       }
       loot.obj.destroy();
       return false;
@@ -3455,7 +3462,7 @@ export class GameScene extends Phaser.Scene {
   private showLevelUp(newLevel: number): void {
     const W = this.scale.width;
     const H = this.scale.height;
-    const bg = this.add.graphics().setScrollFactor(0).setDepth(290);
+    const bg = this.add.graphics().setScrollFactor(0).setDepth(10000);
     bg.fillStyle(0x000000, 0.55);
     bg.fillRoundedRect(W / 2 - P(120), H / 2 - P(38), P(240), P(76), P(10));
     bg.lineStyle(2, 0xf0c040, 0.9);
@@ -3463,11 +3470,11 @@ export class GameScene extends Phaser.Scene {
 
     const line1 = this.add.text(W / 2, H / 2 - P(14), '⬆  等級提升！', {
       fontSize: F(20), color: '#f0c040', stroke: '#000', strokeThickness: 3,
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(291);
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(10001);
 
-    const line2 = this.add.text(W / 2, H / 2 + P(16), `Lv. ${newLevel}   ATK +1   HP +10`, {
+    const line2 = this.add.text(W / 2, H / 2 + P(16), `Lv. ${newLevel}   ATK +2   HP +15`, {
       fontSize: F(15), color: '#ffffff', stroke: '#000', strokeThickness: 2,
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(291);
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(10001);
 
     this.tweens.add({
       targets: [bg, line1, line2], alpha: 0, delay: 1800, duration: 500,
