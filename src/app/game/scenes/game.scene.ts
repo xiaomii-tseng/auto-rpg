@@ -1809,10 +1809,8 @@ export class GameScene extends Phaser.Scene {
       }
       if (['slime_red_s', 'elite_slime_red', 'slime_lava_s', 'elite_slime_lava'].includes(defId))
         m.attackMode = 'explode';
-      if (['slime_green_s', 'elite_slime_green'].includes(defId))
-        m.attackMode = 'triple';
-      if (['slime_blue_s', 'elite_slime_blue'].includes(defId))
-        m.attackMode = 'shoot';
+      if (['slime_red_s', 'elite_slime_red', 'slime_lava_s', 'elite_slime_lava'].includes(defId))
+        m.attackMode = 'explode';
       m.setPatrolCenter(wx, wy);
       m.getTargetPos = () => this.nearestTargetPos(m.x, m.y);
       m.onDead = () => this.handleMinionDrop(defId, m.x, m.y);
