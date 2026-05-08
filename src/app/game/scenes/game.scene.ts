@@ -820,23 +820,7 @@ export class GameScene extends Phaser.Scene {
       const sa  = Phaser.Math.DegToRad(deg - arc / 2);
       const ea  = Phaser.Math.DegToRad(deg + arc / 2);
       const R   = MELEE_RANGE;
-      const R2  = R * 0.62;   // 內弧半徑（月牙厚度）
 
-      // 月牙多邊形頂點（外弧 + 內弧）
-      const buildCrescent = (outerR: number, innerR: number, steps = 28) => {
-        const pts: { x: number; y: number }[] = [];
-        for (let i = 0; i <= steps; i++) {
-          const a = sa + (ea - sa) * (i / steps);
-          pts.push({ x: px + Math.cos(a) * outerR, y: py + Math.sin(a) * outerR });
-        }
-        for (let i = steps; i >= 0; i--) {
-          const a = sa + (ea - sa) * (i / steps);
-          pts.push({ x: px + Math.cos(a) * innerR, y: py + Math.sin(a) * innerR });
-        }
-        return pts;
-      };
-
-      // 傷害判定：跟動畫同步，掃到哪打到哪
       const hitTargets = new Set<object>();
       const checkSweepHit = (curEa: number) => {
         for (const t of this.getHittableTargets()) {
@@ -844,109 +828,14 @@ export class GameScene extends Phaser.Scene {
           const dx = t.x - px, dy = t.y - py;
           const dist = Math.sqrt(dx * dx + dy * dy);
           if (dist > R) continue;
-          // 判斷角度是否已被掃到
           let tAngle = Math.atan2(dy, dx);
-          // 把 tAngle 正規化到 sa~ea 範圍內比較
           while (tAngle < sa - 0.01) tAngle += Math.PI * 2;
           if (tAngle > curEa + 0.01) continue;
           hitTargets.add(t);
           this.dealDamage(t, 1.0 * (1 + (stats.slash180DmgPct ?? 0)), px, py, dir);
         }
       };
-
-      // 1. 刀氣主體（月牙形，掃入動畫）
-      const slashState = { prog: 0 };
-      const slashG = this.add.graphics().setDepth(D + 2);
-      this.tweens.add({
-        targets: slashState, prog: 1, duration: 80, ease: 'Quad.Out',
-        onUpdate: () => {
-          const curEa = sa + (ea - sa) * slashState.prog;
-          checkSweepHit(curEa);
-          slashG.clear();
-          const steps  = Math.max(4, Math.round(28 * slashState.prog));
-          const pts: { x: number; y: number }[] = [];
-          for (let i = 0; i <= steps; i++) {
-            const a = sa + (curEa - sa) * (i / steps);
-            pts.push({ x: px + Math.cos(a) * R, y: py + Math.sin(a) * R });
-          }
-          for (let i = steps; i >= 0; i--) {
-            const a = sa + (curEa - sa) * (i / steps);
-            pts.push({ x: px + Math.cos(a) * R2, y: py + Math.sin(a) * R2 });
-          }
-          // 外暈
-          slashG.fillStyle(0x5599ff, 0.18);
-          slashG.fillPoints(pts.map(p => ({ x: p.x + P(3), y: p.y + P(3) })), true);
-          // 主體藍白月牙
-          slashG.fillStyle(0xaaddff, 0.55);
-          slashG.fillPoints(pts, true);
-          // 亮邊（外弧描線）
-          slashG.lineStyle(2.5, 0xffffff, 0.9);
-          slashG.beginPath();
-          for (let i = 0; i <= steps; i++) {
-            const a = sa + (curEa - sa) * (i / steps);
-            const x = px + Math.cos(a) * R, y = py + Math.sin(a) * R;
-            i === 0 ? slashG.moveTo(x, y) : slashG.lineTo(x, y);
-          }
-          slashG.strokePath();
-          // 次亮邊（內弧）
-          slashG.lineStyle(1.2, 0xddeeff, 0.55);
-          slashG.beginPath();
-          for (let i = 0; i <= steps; i++) {
-            const a = sa + (curEa - sa) * (i / steps);
-            const x = px + Math.cos(a) * R2, y = py + Math.sin(a) * R2;
-            i === 0 ? slashG.moveTo(x, y) : slashG.lineTo(x, y);
-          }
-          slashG.strokePath();
-        },
-        onComplete: () => {
-          // 刀氣淡出
-          this.tweens.add({ targets: slashG, alpha: 0, duration: 140, ease: 'Quad.In', onComplete: () => slashG.destroy() });
-        },
-      });
-
-      // 2. 殘影（月牙完整形，稍大稍偏，延遲出現後快速消散）
-      const afterPts = buildCrescent(R * 1.06, R2 * 0.92);
-      const afterG   = this.add.graphics().setDepth(D + 1).setAlpha(0);
-      afterG.fillStyle(0x3366cc, 0.30); afterG.fillPoints(afterPts, true);
-      afterG.lineStyle(1.5, 0x88bbff, 0.50);
-      afterG.beginPath();
-      for (let i = 0; i <= 28; i++) {
-        const a = sa + (ea - sa) * (i / 28);
-        const x = px + Math.cos(a) * R * 1.06, y = py + Math.sin(a) * R * 1.06;
-        i === 0 ? afterG.moveTo(x, y) : afterG.lineTo(x, y);
-      }
-      afterG.strokePath();
-      this.tweens.add({ targets: afterG, alpha: 1, duration: 60, delay: 80,
-        onComplete: () => this.tweens.add({ targets: afterG, alpha: 0, duration: 200, onComplete: () => afterG.destroy() }) });
-
-      // 3. 外弧邊緣光粒子（沿外弧均勻散開）
-      const sparkG = this.add.graphics().setDepth(D + 3);
-      const SPARKS = 10;
-      const sparks = Array.from({ length: SPARKS }, (_, i) => {
-        const a  = sa + (ea - sa) * (i / (SPARKS - 1));
-        const dr = Phaser.Math.FloatBetween(P(8), P(20));
-        return { x: px + Math.cos(a) * R, y: py + Math.sin(a) * R,
-                 vx: Math.cos(a) * dr, vy: Math.sin(a) * dr, a: 0.9 };
-      });
-      const sparkState = { t: 0 };
-      this.tweens.add({
-        targets: sparkState, t: 1, duration: 300,
-        onUpdate: () => {
-          sparkG.clear();
-          sparks.forEach(s => {
-            s.x += s.vx * 0.08; s.y += s.vy * 0.08; s.a *= 0.90;
-            sparkG.fillStyle(0xffffff, s.a * 0.9); sparkG.fillCircle(s.x, s.y, P(2));
-            sparkG.fillStyle(0x88ccff, s.a * 0.5); sparkG.fillCircle(s.x, s.y, P(4));
-          });
-        },
-        onComplete: () => sparkG.destroy(),
-      });
-
-      // 4. 起揮中心閃光
-      const flashG = this.add.graphics().setDepth(D + 4).setPosition(px, py);
-      flashG.fillStyle(0xffffff, 0.55); flashG.fillCircle(0, 0, P(10));
-      flashG.fillStyle(0x88ccff, 0.30); flashG.fillCircle(0, 0, P(20));
-      this.tweens.add({ targets: flashG, alpha: 0, duration: 180, onComplete: () => flashG.destroy() });
+      this.fxSlash180(px, py, sa, ea, R, D, checkSweepHit);
     });
   }
 
@@ -961,63 +850,7 @@ export class GameScene extends Phaser.Scene {
     const D  = this.player.depth;
     this.player.playWhirlwind(() => {
       this.hitInArea(px, py, RANGE, 0.8, 360, 0, 'down');
-
-      // ── 旋風視覺效果 ────────────────────────────────────
-
-      // 1. 三層錯開衝擊環
-      for (let i = 0; i < 3; i++) {
-        const rs = { r: RANGE * (0.15 + i * 0.12), a: 1.0 - i * 0.2 };
-        const rG = this.add.graphics().setDepth(D + 1).setPosition(px, py);
-        this.tweens.add({
-          targets: rs, r: RANGE * (1.05 + i * 0.18), a: 0,
-          duration: 420 + i * 70, delay: i * 55, ease: 'Quad.Out',
-          onUpdate: () => {
-            rG.clear();
-            rG.lineStyle(3.5 - i, i === 0 ? 0xffffff : 0x66aaff, rs.a);
-            rG.strokeCircle(0, 0, rs.r);
-            if (i === 0) {
-              rG.lineStyle(8, 0x2255cc, rs.a * 0.18);
-              rG.strokeCircle(0, 0, rs.r);
-            }
-          },
-          onComplete: () => rG.destroy(),
-        });
-      }
-
-      // 2. 四條螺旋臂向外展開
-      const spiralG = this.add.graphics().setDepth(D + 2).setPosition(px, py);
-      const sp = { prog: 0 };
-      this.tweens.add({
-        targets: sp, prog: 1, duration: 220, ease: 'Cubic.Out',
-        onUpdate: () => {
-          spiralG.clear();
-          const ARMS = 4, STEPS = 22;
-          for (let arm = 0; arm < ARMS; arm++) {
-            const base = (arm / ARMS) * Math.PI * 2;
-            const color = arm % 2 === 0 ? 0x88ccff : 0xcceeff;
-            spiralG.lineStyle(2.2, color, 0.85 * (1 - sp.prog * 0.45));
-            spiralG.beginPath();
-            for (let s = 0; s <= STEPS; s++) {
-              const t  = (s / STEPS) * sp.prog;
-              const a  = base + t * Math.PI * 1.6;
-              const r  = t * RANGE * 0.95;
-              if (s === 0) spiralG.moveTo(Math.cos(a) * r, Math.sin(a) * r);
-              else         spiralG.lineTo(Math.cos(a) * r, Math.sin(a) * r);
-            }
-            spiralG.strokePath();
-          }
-        },
-        onComplete: () => {
-          this.tweens.add({ targets: spiralG, alpha: 0, duration: 180, onComplete: () => spiralG.destroy() });
-        },
-      });
-
-      // 3. 中心強光閃現
-      const flashG = this.add.graphics().setDepth(D + 4).setPosition(px, py);
-      flashG.fillStyle(0xffffff, 0.7);  flashG.fillCircle(0, 0, P(14));
-      flashG.fillStyle(0x88ddff, 0.45); flashG.fillCircle(0, 0, P(30));
-      flashG.fillStyle(0x2255cc, 0.20); flashG.fillCircle(0, 0, RANGE * 0.6);
-      this.tweens.add({ targets: flashG, alpha: 0, duration: 260, ease: 'Quad.In', onComplete: () => flashG.destroy() });
+      this.fxWhirlwind(px, py, RANGE, D);
     });
   }
 
@@ -1092,60 +925,7 @@ export class GameScene extends Phaser.Scene {
     const hitTargets = new Set<object>();
     const D = this.player.depth;
 
-    // ── 動態光波尾跡（亮頭掃過路徑）────────────────────
-    const perpRad = rad + Math.PI / 2;
-    const trailG  = this.add.graphics().setDepth(D);
-    const sweep   = { t: 0 };
-    this.tweens.add({
-      targets: sweep, t: 1, duration: 160, ease: 'Quad.Out',
-      onUpdate: () => {
-        trailG.clear();
-        const hx = sx + (endX - sx) * sweep.t;
-        const hy = sy + (endY - sy) * sweep.t;
-        // 尾跡：沿路徑畫漸層光點（近頭部越亮越大）
-        const STEPS = 14;
-        for (let i = 0; i <= STEPS; i++) {
-          const f  = i / STEPS;
-          const tx = sx + (hx - sx) * f, ty = sy + (hy - sy) * f;
-          trailG.fillStyle(0x2255cc, f * 0.22); trailG.fillCircle(tx, ty, P(10) + f * P(5));
-          trailG.fillStyle(0x66aaff, f * 0.45); trailG.fillCircle(tx, ty,  P(5) + f * P(3));
-        }
-        // 中心細線
-        trailG.lineStyle(P(1), 0xddeeff, 0.75);
-        trailG.lineBetween(sx, sy, hx, hy);
-        // 頭部亮核
-        trailG.fillStyle(0xffffff, 0.95); trailG.fillCircle(hx, hy, P(4));
-        trailG.fillStyle(0x99ddff, 0.55); trailG.fillCircle(hx, hy, P(9));
-        // 頭部垂直波紋（2 條，間距不同）
-        [P(10), P(16)].forEach((len, idx) => {
-          trailG.lineStyle(P(1), 0xaaddff, 0.75 - idx * 0.3);
-          trailG.lineBetween(
-            hx + Math.cos(perpRad) * len, hy + Math.sin(perpRad) * len,
-            hx - Math.cos(perpRad) * len, hy - Math.sin(perpRad) * len,
-          );
-        });
-      },
-      onComplete: () => {
-        this.tweens.add({ targets: trailG, alpha: 0, duration: 240, onComplete: () => trailG.destroy() });
-      },
-    });
-
-    // ── 衝擊環（以終點為原點展開）───────────────────────
-    this.time.delayedCall(130, () => {
-      const ringG = this.add.graphics().setDepth(D + 1).setPosition(endX, endY);
-      const state = { r: P(6), a: 0.85 };
-      this.tweens.add({
-        targets: state, r: P(40), a: 0, duration: 320, ease: 'Quad.Out',
-        onUpdate: () => {
-          ringG.clear();
-          ringG.lineStyle(P(3), 0x88ccff, state.a);
-          ringG.strokeCircle(0, 0, state.r);
-          ringG.lineStyle(P(1), 0xffffff, state.a * 0.5);
-          ringG.strokeCircle(0, 0, state.r + P(4));
-        },
-        onComplete: () => ringG.destroy(),
-      });
-    });
+    this.fxDashPierce(sx, sy, endX, endY, rad, D);
 
     // ── 衝刺 + 傷害判定 ──────────────────────────────────
     this.tweens.add({
@@ -1175,123 +955,13 @@ export class GameScene extends Phaser.Scene {
     this.player.startAttackAnim(`player_attack_${dir}`);
     const HIT_R = P(18);
 
-    const buildCrescent = (outerR: number, innerR: number, ox: number): { x: number; y: number }[] => {
-      const steps = 32;
-      const sa = -115 * Math.PI / 180, ea = 115 * Math.PI / 180;
-      const outer: { x: number; y: number }[] = [];
-      const inner: { x: number; y: number }[] = [];
-      for (let i = 0; i <= steps; i++) {
-        const a = sa + (ea - sa) * i / steps;
-        outer.push({ x: Math.cos(a) * outerR, y: Math.sin(a) * outerR });
+    this.fxProjectile(this.player.x, this.player.y, rad, this.player.depth + 1, SPEED, MAX_DIST, (px, py) => {
+      for (const t of this.getHittableTargets()) {
+        if (hitTargets.has(t)) continue;
+        if (Phaser.Math.Distance.Between(px, py, t.x, t.y) > HIT_R) continue;
+        hitTargets.add(t);
+        this.dealDamage(t, 0.55, px, py, dir);
       }
-      for (let i = steps; i >= 0; i--) {
-        const a = sa + (ea - sa) * i / steps;
-        inner.push({ x: ox + Math.cos(a) * innerR, y: Math.sin(a) * innerR });
-      }
-      return [...outer, ...inner];
-    };
-
-    const proj  = this.add.graphics().setDepth(this.player.depth + 1);
-    const trail = this.add.graphics().setDepth(this.player.depth);
-    proj.setPosition(this.player.x, this.player.y);
-    proj.setRotation(rad);
-
-    const trailHistory: { x: number; y: number }[] = [];
-
-    // 出手閃光
-    const launchFlash = this.add.graphics().setDepth(this.player.depth + 2);
-    launchFlash.fillStyle(0xffdd44, 0.55);
-    launchFlash.fillCircle(this.player.x, this.player.y, P(20));
-    this.tweens.add({ targets: launchFlash, alpha: 0, duration: 160, onComplete: () => launchFlash.destroy() });
-
-    const drawProj = (t: number) => {
-      if (!proj.active) return;
-      proj.clear();
-
-      // 外層擴散光暈
-      proj.fillStyle(0xffee44, 0.07);
-      proj.fillCircle(0, 0, P(28));
-      proj.fillStyle(0xffcc00, 0.13);
-      proj.fillCircle(0, 0, P(21));
-
-      // 半月主體（由外到內三層）
-      proj.fillStyle(0xff9900, 0.20);
-      proj.fillPoints(buildCrescent(P(20), 0, 0), true);       // 最外暈
-      proj.fillStyle(0xffaa00, 0.95);
-      proj.fillPoints(buildCrescent(P(18), P(11), P(8)), true); // 主體深金
-      proj.fillStyle(0xffdd55, 0.65);
-      proj.fillPoints(buildCrescent(P(18), P(11), P(8)), true); // 亮金疊加
-      proj.fillStyle(0xffffff, 0.35);
-      proj.fillPoints(buildCrescent(P(17), P(13), P(9)), true); // 白色薄邊高光
-
-      // 前緣亮線
-      const steps = 32, sa = -115 * Math.PI / 180, ea = 115 * Math.PI / 180;
-      proj.lineStyle(P(2), 0xffffff, 0.95);
-      proj.beginPath();
-      for (let i = 0; i <= steps; i++) {
-        const a = sa + (ea - sa) * i / steps;
-        i === 0 ? proj.moveTo(Math.cos(a) * P(18), Math.sin(a) * P(18))
-                : proj.lineTo(Math.cos(a) * P(18), Math.sin(a) * P(18));
-      }
-      proj.strokePath();
-
-      // 能量光點（沿弧面閃爍）
-      for (let i = 0; i < 4; i++) {
-        const a  = sa + (ea - sa) * (i / 3);
-        const sp = 0.55 + Math.sin(t * 0.018 + i * 1.3) * 0.35;
-        proj.fillStyle(0xffffff, sp);
-        proj.fillCircle(Math.cos(a) * P(18), Math.sin(a) * P(18), P(2));
-      }
-    };
-
-    const updateTrail = () => {
-      if (!trail.active) return;
-      // 轉換到 trail 的本地坐標（trail 跟 proj 同 rotation，位置用 world）
-      trailHistory.push({ x: proj.x, y: proj.y });
-      if (trailHistory.length > 10) trailHistory.shift();
-      trail.clear();
-      trailHistory.forEach((p, i) => {
-        const frac  = i / trailHistory.length;
-        const alpha = frac * 0.45;
-        const r     = frac * P(10) + P(3);
-        trail.fillStyle(0xffaa00, alpha);
-        trail.fillCircle(p.x, p.y, r);
-        trail.fillStyle(0xffee88, alpha * 0.5);
-        trail.fillCircle(p.x, p.y, r * 0.5);
-      });
-    };
-
-    let elapsed = 0;
-    let traveled = 0;
-    const tickMs  = 16;
-    const stepPx  = SPEED * tickMs / 1000;
-
-    const cleanup = () => {
-      trail.destroy();
-      if (proj.active) proj.destroy();
-    };
-
-    this.time.addEvent({
-      delay: tickMs,
-      repeat: Math.ceil(MAX_DIST / stepPx),
-      callback: () => {
-        if (!proj.active) return;
-        elapsed  += tickMs;
-        traveled += stepPx;
-        proj.x += Math.cos(rad) * stepPx;
-        proj.y += Math.sin(rad) * stepPx;
-
-        drawProj(elapsed);
-        updateTrail();
-
-        for (const t of this.getHittableTargets()) {
-          if (hitTargets.has(t)) continue;
-          if (Phaser.Math.Distance.Between(proj.x, proj.y, t.x, t.y) > HIT_R) continue;
-          hitTargets.add(t);
-          this.dealDamage(t, 0.55, proj.x, proj.y, dir);
-        }
-        if (traveled >= MAX_DIST) cleanup();
-      },
     });
   }
 
@@ -1309,126 +979,15 @@ export class GameScene extends Phaser.Scene {
     this.player.setRooted(rootMs);
     this.player.startAttackAnim(`player_multihit_${dir}`);
 
-    // 五連斬：弧形刀光，從弧中心向兩端掃出，帶隨機擾動
     const rad0   = Phaser.Math.DegToRad(deg);
     const DELAYS = [55, 115, 175, 235, 310];
-    const baseCfgs = [
-      { tilt: -0.38, arcSpan: 1.0, rMult: 0.78, color: 0x66aaee, glowW:  8 },
-      { tilt:  0.38, arcSpan: 1.0, rMult: 0.78, color: 0x66aaee, glowW:  8 },
-      { tilt: -0.18, arcSpan: 1.2, rMult: 0.88, color: 0x99ccff, glowW: 11 },
-      { tilt:  0.18, arcSpan: 1.2, rMult: 0.88, color: 0x99ccff, glowW: 11 },
-      { tilt:  0,    arcSpan: 1.6, rMult: 0.97, color: 0xffffff,  glowW: 16 },
-    ];
 
     DELAYS.map(d => Math.round(d / spd)).forEach((delay, hitIdx) => {
       this.time.delayedCall(delay, () => {
         const px = this.player.x, py = this.player.y;
         const D  = this.player.depth;
         this.hitInArea(px, py, MELEE_RANGE, 0.29, arc, deg, dir);
-
-        const b        = baseCfgs[hitIdx];
-        const tilt     = b.tilt    + Phaser.Math.FloatBetween(-0.12, 0.12);
-        const span     = b.arcSpan + Phaser.Math.FloatBetween(-0.12, 0.12);
-        const r        = MELEE_RANGE * (b.rMult + Phaser.Math.FloatBetween(-0.06, 0.06));
-        const midAngle = rad0 + tilt;
-        const halfSpan = span / 2 + Phaser.Math.FloatBetween(-0.06, 0.06);
-        const slashRot = Phaser.Math.FloatBetween(-Math.PI / 6, Math.PI / 6); // ±30° 傾斜
-        const STEPS    = 20;
-
-        const drawArcSegment = (g: Phaser.GameObjects.Graphics, prog: number, alpha: number) => {
-          const sa   = midAngle - halfSpan * prog;
-          const ea   = midAngle + halfSpan * prog;
-          const rOut = r;
-          const rIn  = r * 0.38;
-
-          // 弧心（用來當旋轉基點）
-          const arcCx = px + Math.cos(midAngle) * (rOut + rIn) / 2;
-          const arcCy = py + Math.sin(midAngle) * (rOut + rIn) / 2;
-          const cosR  = Math.cos(slashRot), sinR = Math.sin(slashRot);
-          const rot2d = (x: number, y: number) => {
-            const dx = x - arcCx, dy = y - arcCy;
-            return new Phaser.Math.Vector2(arcCx + dx * cosR - dy * sinR, arcCy + dx * sinR + dy * cosR);
-          };
-
-          // 建立楔形多邊形（外弧 + 內弧反向，點先旋轉）
-          const outerPts: Phaser.Math.Vector2[] = [];
-          const innerPts: Phaser.Math.Vector2[] = [];
-          for (let i = 0; i <= STEPS; i++) {
-            const angle = sa + (ea - sa) * (i / STEPS);
-            outerPts.push(rot2d(px + Math.cos(angle) * rOut, py + Math.sin(angle) * rOut));
-            innerPts.push(rot2d(px + Math.cos(angle) * rIn,  py + Math.sin(angle) * rIn));
-          }
-          const wedgePts = [...outerPts, ...[...innerPts].reverse()];
-
-          // 楔形填色（帶角度感的刀光體）
-          g.fillStyle(b.color, 0.13 * alpha);
-          g.fillPoints(wedgePts, true);
-
-          // 外弧輝光描邊（多層）
-          const strokeArc = (pts: Phaser.Math.Vector2[], w: number, col: number, a: number) => {
-            g.lineStyle(w, col, a * alpha);
-            g.beginPath();
-            pts.forEach((p, i) => i === 0 ? g.moveTo(p.x, p.y) : g.lineTo(p.x, p.y));
-            g.strokePath();
-          };
-          strokeArc(outerPts, b.glowW + 12, b.color,   0.08);
-          strokeArc(outerPts, b.glowW,      b.color,   0.32);
-          strokeArc(outerPts, b.glowW * 0.45, 0xddeeff, 0.72);
-          strokeArc(outerPts, 2.2,           0xffffff,  1.0);
-
-          // 內弧亮邊（強調刀根）
-          strokeArc(innerPts, 1.5, 0xffffff, 0.45);
-
-          // 掃出前端亮點（兩端 outer）
-          g.fillStyle(0xffffff, 0.9 * alpha);
-          g.fillCircle(outerPts[0].x, outerPts[0].y, P(3));
-          g.fillCircle(outerPts[STEPS].x, outerPts[STEPS].y, P(3));
-        };
-
-        const slG  = this.add.graphics().setDepth(D + 3);
-        const sw   = { prog: 0 };
-        const hold = 450 - DELAYS[hitIdx] - 35;  // 持續到僵直結束
-
-        // 掃出階段（35ms）
-        this.tweens.add({
-          targets: sw, prog: 1, duration: 35, ease: 'Cubic.Out',
-          onUpdate: () => { slG.clear(); drawArcSegment(slG, sw.prog, 1); },
-          onComplete: () => {
-            // 持續→淡出
-            const fa = { a: 1.0 };
-            this.tweens.add({
-              targets: fa, a: 0, duration: hold, ease: 'Quad.In',
-              onUpdate: () => { slG.clear(); drawArcSegment(slG, 1, fa.a); },
-              onComplete: () => slG.destroy(),
-            });
-          },
-        });
-
-        // 起揮閃光（玩家中心）
-        const fG = this.add.graphics().setDepth(D + 4).setPosition(px, py);
-        fG.fillStyle(0xffffff, 0.55 + hitIdx * 0.08); fG.fillCircle(0, 0, P(5) + hitIdx * P(1));
-        fG.fillStyle(b.color,  0.30);                  fG.fillCircle(0, 0, P(11) + hitIdx * P(2));
-        this.tweens.add({ targets: fG, alpha: 0, duration: 120, onComplete: () => fG.destroy() });
-
-        // 第五刀：額外衝擊環
-        if (hitIdx === 4) {
-          const ringState = { r: P(8), a: 0.9 };
-          const ringG = this.add.graphics().setDepth(D + 2).setPosition(
-            px + Math.cos(rad0) * MELEE_RANGE * 0.7,
-            py + Math.sin(rad0) * MELEE_RANGE * 0.7,
-          );
-          this.tweens.add({
-            targets: ringState, r: P(38), a: 0, duration: 280, ease: 'Quad.Out',
-            onUpdate: () => {
-              ringG.clear();
-              ringG.lineStyle(P(3), 0xffffff, ringState.a);
-              ringG.strokeCircle(0, 0, ringState.r);
-              ringG.lineStyle(P(7), 0x88ccff, ringState.a * 0.25);
-              ringG.strokeCircle(0, 0, ringState.r);
-            },
-            onComplete: () => ringG.destroy(),
-          });
-        }
+        this.fxMultiHitSlash(px, py, D, rad0, hitIdx, MELEE_RANGE);
       });
     });
   }
@@ -1451,173 +1010,37 @@ export class GameScene extends Phaser.Scene {
     const SPIN_MS  = Math.round(800 / spd);
     const destX    = this.player.x + Math.cos(rad) * MAX_DIST;
     const destY    = this.player.y + Math.sin(rad) * MAX_DIST;
-
-    const blade = this.add.graphics().setDepth(this.player.depth + 1);
-    blade.setPosition(this.player.x, this.player.y);
-    const trail = this.add.graphics().setDepth(this.player.depth);
-    const trailPts: { x: number; y: number; alpha: number }[] = [];
-
-    let rot = 0;
-
-    const drawBlade = () => {
-      if (!blade.active) return;
-      blade.clear();
-      // outer diffuse glow — capped at HIT_R boundary
-      blade.fillStyle(0x1144cc, 0.10);
-      blade.fillCircle(0, 0, HIT_R + 2);
-      blade.fillStyle(0x3377ff, 0.20);
-      blade.fillCircle(0, 0, HIT_R - 2);
-      // pulsing energy ring exactly at HIT_R
-      const pulse = 0.45 + Math.sin(rot * 5) * 0.2;
-      blade.lineStyle(1.5, 0x99ddff, pulse);
-      blade.strokeCircle(0, 0, HIT_R);
-      // 3-wing blade body — tips reach exactly HIT_R
-      for (let w = 0; w < 3; w++) {
-        const ba  = rot + (w / 3) * Math.PI * 2;
-        const tipX = Math.cos(ba) * HIT_R;
-        const tipY = Math.sin(ba) * HIT_R;
-        const lX  = Math.cos(ba + 0.52) * HIT_R * 0.43;
-        const lY  = Math.sin(ba + 0.52) * HIT_R * 0.43;
-        const rX  = Math.cos(ba - 0.52) * HIT_R * 0.43;
-        const rY  = Math.sin(ba - 0.52) * HIT_R * 0.43;
-        const cX  = Math.cos(ba + Math.PI) * HIT_R * 0.15;
-        const cY  = Math.sin(ba + Math.PI) * HIT_R * 0.15;
-        // blade shadow (depth)
-        blade.fillStyle(0x112244, 0.6);
-        blade.fillTriangle(tipX * 0.9, tipY * 0.9, lX, lY, cX, cY);
-        blade.fillTriangle(tipX * 0.9, tipY * 0.9, rX, rY, cX, cY);
-        // blade body (steel blue)
-        blade.fillStyle(0x88ccff, 0.95);
-        blade.fillTriangle(tipX, tipY, lX, lY, cX, cY);
-        blade.fillTriangle(tipX, tipY, rX, rY, cX, cY);
-        // bright edge highlight
-        blade.fillStyle(0xeef8ff, 0.85);
-        blade.fillTriangle(
-          tipX, tipY,
-          (tipX + lX) * 0.55, (tipY + lY) * 0.55,
-          (tipX + cX) * 0.55, (tipY + cY) * 0.55,
-        );
-      }
-      // center gem
-      blade.fillStyle(0x3366cc, 1);
-      blade.fillCircle(0, 0, P(5));
-      blade.fillStyle(0xaaddff, 1);
-      blade.fillCircle(0, 0, P(3));
-      blade.fillStyle(0xffffff, 1);
-      blade.fillCircle(0, 0, P(2));
-    };
-
-    const updateTrail = () => {
-      if (!trail.active) return;
-      trailPts.push({ x: blade.x, y: blade.y, alpha: 0.55 });
-      if (trailPts.length > 14) trailPts.shift();
-      trail.clear();
-      trailPts.forEach((p, i) => {
-        p.alpha *= 0.80;
-        const sz = (i / trailPts.length) * P(7) + P(1);
-        trail.fillStyle(0x55aaff, p.alpha);
-        trail.fillCircle(p.x, p.y, sz);
-      });
-    };
-
-    const spinTicker = this.time.addEvent({
-      delay: 16, repeat: -1,
-      callback: () => { rot += 0.22; drawBlade(); updateTrail(); },
-    });
-    drawBlade();
-
-    // 出手閃光
-    const launchFlash = this.add.graphics().setDepth(this.player.depth + 2);
-    launchFlash.fillStyle(0x99ddff, 0.65);
-    launchFlash.fillCircle(this.player.x, this.player.y, P(22));
-    this.tweens.add({ targets: launchFlash, alpha: 0, duration: 200, onComplete: () => launchFlash.destroy() });
+    const D        = this.player.depth;
 
     const hitOut  = new Set<object>();
     const hitBack = new Set<object>();
 
-    const checkHit = (hitSet: Set<object>, dmgMult: number, onFirstHit?: () => void) => {
-      const bx = blade.x, by = blade.y;
-      let hit = false;
-      for (const t of this.getHittableTargets()) {
-        if (hitSet.has(t)) continue;
-        if (Phaser.Math.Distance.Between(bx, by, t.x, t.y) > HIT_R) continue;
-        hitSet.add(t);
-        hit = true;
-        this.dealDamage(t, dmgMult, bx, by, dir);
-      }
-      if (hit) onFirstHit?.();
-    };
-
-    // 旋轉並折返（命中停止飛行後、或飛到終點後都會呼叫）
-    let spinStarted = false;
-    const startSpin = () => {
-      if (spinStarted) return;
-      spinStarted = true;
-      const sx = blade.x, sy = blade.y;
-
-      const spinOrb = this.add.graphics().setDepth(this.player.depth);
-      let orbRot = 0;
-      const orbTicker = this.time.addEvent({
-        delay: 16, repeat: -1,
-        callback: () => {
-          if (!spinOrb.active) return;
-          spinOrb.clear();
-          orbRot += 0.10;
-          for (let i = 0; i < 4; i++) {
-            const a  = orbRot + (i / 4) * Math.PI * 2;
-            const ox = sx + Math.cos(a) * (SPIN_R);
-            const oy = sy + Math.sin(a) * (SPIN_R);
-            const brightness = 0.4 + Math.sin(orbRot * 3 + i) * 0.3;
-            spinOrb.fillStyle(0x66bbff, brightness);
-            spinOrb.fillCircle(ox, oy, P(4));
+    this.fxBoomerang(
+      this.player.x, this.player.y, destX, destY,
+      rad, D, HIT_R, SPIN_R, SPIN_MS,
+      () => ({ x: this.player.x, y: this.player.y }),
+      {
+        onHitOut: (bx, by) => {
+          let hit = false;
+          for (const t of this.getHittableTargets()) {
+            if (hitOut.has(t)) continue;
+            if (Phaser.Math.Distance.Between(bx, by, t.x, t.y) > HIT_R) continue;
+            hitOut.add(t); hit = true;
+            this.dealDamage(t, 0.60, bx, by, dir);
           }
-          const rp = 0.3 + Math.sin(orbRot * 6) * 0.15;
-          spinOrb.lineStyle(1.5, 0x99eeff, rp);
-          spinOrb.strokeCircle(sx, sy, SPIN_R);
+          return hit;
         },
-      });
-
-      const spinDmg = this.time.addEvent({
-        delay: Math.round(SPIN_MS / 4), repeat: 3,
-        callback: () => { if (blade.active) this.hitInArea(blade.x, blade.y, SPIN_R, 0.30, 360, 0, dir); },
-      });
-
-      this.time.delayedCall(SPIN_MS, () => {
-        spinDmg.destroy();
-        orbTicker.destroy();
-        spinOrb.destroy();
-        trailPts.length = 0;
-
-        // 折返閃光
-        const retFlash = this.add.graphics().setDepth(this.player.depth + 2);
-        retFlash.fillStyle(0xffffff, 0.45);
-        retFlash.fillCircle(sx, sy, SPIN_R);
-        this.tweens.add({ targets: retFlash, alpha: 0, duration: 140, onComplete: () => retFlash.destroy() });
-
-        // 飛回
-        this.tweens.add({
-          targets: blade, x: this.player.x, y: this.player.y, duration: 260, ease: 'Quad.In',
-          onUpdate: () => { if (blade.active) checkHit(hitBack, 0.60); },
-          onComplete: () => {
-            spinTicker.destroy();
-            trail.destroy();
-            if (blade.active) blade.destroy();
-            // 接住閃光
-            const catchFlash = this.add.graphics().setDepth(this.player.depth + 2);
-            catchFlash.fillStyle(0x99ddff, 0.75);
-            catchFlash.fillCircle(this.player.x, this.player.y, P(20));
-            this.tweens.add({ targets: catchFlash, alpha: 0, duration: 200, onComplete: () => catchFlash.destroy() });
-          },
-        });
-      });
-    };
-
-    // 飛出：命中時立即停止並旋轉
-    const outTween = this.tweens.add({
-      targets: blade, x: destX, y: destY, duration: 320, ease: 'Linear',
-      onUpdate: () => checkHit(hitOut, 0.60, () => { outTween.stop(); startSpin(); }),
-      onComplete: () => startSpin(),
-    });
+        onSpinTick: (bx, by) => this.hitInArea(bx, by, SPIN_R, 0.30, 360, 0, dir),
+        onHitBack: (bx, by) => {
+          for (const t of this.getHittableTargets()) {
+            if (hitBack.has(t)) continue;
+            if (Phaser.Math.Distance.Between(bx, by, t.x, t.y) > HIT_R) continue;
+            hitBack.add(t);
+            this.dealDamage(t, 0.60, bx, by, dir);
+          }
+        },
+      },
+    );
   }
 
   // ── 魔法火 magicFire ─────────────────────────────────────
@@ -1636,110 +1059,12 @@ export class GameScene extends Phaser.Scene {
     const FIRE_R   = P(25);
     const FIRE_DUR = 3000;
 
-    const orb = this.add.graphics().setDepth(this.player.depth + 1);
-    orb.setPosition(this.player.x, this.player.y);
-    let orbT = 0;
-
-    const drawOrb = () => {
-      if (!orb.active) return;
-      orb.clear();
-      const p = Math.sin(orbT / 80) * 2;
-      const r = ORB_R * 0.5;
-      orb.fillStyle(0xff4400, 0.30); orb.fillCircle(0, 0, r + 3 + p * 0.5);
-      orb.fillStyle(0xff6600, 0.90); orb.fillCircle(0, 0, r);
-      orb.fillStyle(0xffaa00, 0.85); orb.fillCircle(0, 0, r * 0.65);
-      orb.fillStyle(0xffee66, 0.90); orb.fillCircle(-1, -1, r * 0.32);
-    };
-    const orbAnim = this.time.addEvent({ delay: 16, repeat: -1, callback: () => { orbT += 16; drawOrb(); } });
-    drawOrb();
-
     const spawnFire = (fx: number, fy: number) => {
-      orbAnim.destroy();
-      if (orb.active) orb.destroy();
+      this.fxMagicFireGround(fx, fy);
 
-      // 落地衝擊閃光
-      const flash = this.add.graphics().setDepth(15);
-      flash.fillStyle(0xff8800, 0.55); flash.fillCircle(fx, fy, FIRE_R);
-      flash.fillStyle(0xffcc44, 0.45); flash.fillCircle(fx, fy, FIRE_R * 0.6);
-      this.tweens.add({ targets: flash, alpha: 0, duration: 280, onComplete: () => flash.destroy() });
-
-      // 預計算焦痕裂紋（靜態，不閃爍）
-      const cracks: { a1: number; r1: number; a2: number; r2: number }[] = [];
-      for (let i = 0; i < 9; i++) {
-        cracks.push({
-          a1: (i / 9) * Math.PI * 2 + Phaser.Math.FloatBetween(-0.2, 0.2),
-          r1: FIRE_R * Phaser.Math.FloatBetween(0.05, 0.2),
-          a2: (i / 9) * Math.PI * 2 + Phaser.Math.FloatBetween(-0.4, 0.4),
-          r2: FIRE_R * Phaser.Math.FloatBetween(0.55, 0.95),
-        });
-      }
-
-      const fire = this.add.graphics().setDepth(3);
-      let fireT = 0;
-
-      const drawWavy = (r: number, amp: number, freq: number, phase: number, color: number, alpha: number) => {
-        const pts: { x: number; y: number }[] = [];
-        const steps = 22;
-        for (let i = 0; i <= steps; i++) {
-          const a    = (i / steps) * Math.PI * 2;
-          const wave = r * (1 + Math.sin(a * freq + phase) * amp);
-          pts.push({ x: fx + Math.cos(a) * wave, y: fy + Math.sin(a) * wave });
-        }
-        fire.fillStyle(color, alpha);
-        fire.fillPoints(pts, true);
-      };
-
-      const fireAnim = this.time.addEvent({
-        delay: 16, repeat: -1,
-        callback: () => {
-          if (!fire.active) return;
-          fireT += 16;
-          fire.clear();
-
-          // 焦黑地面
-          fire.fillStyle(0x0d0200, 0.85);
-          fire.fillCircle(fx, fy, FIRE_R + 3);
-
-          // 焦痕裂紋
-          for (const c of cracks) {
-            fire.lineStyle(1, 0x3a0800, 0.5);
-            fire.beginPath();
-            fire.moveTo(fx + Math.cos(c.a1) * c.r1, fy + Math.sin(c.a1) * c.r1);
-            fire.lineTo(fx + Math.cos(c.a2) * c.r2, fy + Math.sin(c.a2) * c.r2);
-            fire.strokePath();
-          }
-
-          // 波浪火焰層（由外到內）
-          const t = fireT * 0.001;
-          drawWavy(FIRE_R,        0.10, 4, t * 4.5,  0x881000, 0.75);
-          drawWavy(FIRE_R * 0.80, 0.12, 5, t * 5.5 + 1, 0xcc2200, 0.70);
-          drawWavy(FIRE_R * 0.60, 0.13, 4, t * 7.0 + 2, 0xff4400, 0.75);
-          drawWavy(FIRE_R * 0.42, 0.11, 3, t * 9.0 + 0.5, 0xff7700, 0.80);
-          drawWavy(FIRE_R * 0.25, 0.09, 3, t * 11  + 1.5, 0xffaa00, 0.85);
-
-          // 中心亮核
-          const pulse = Math.sin(fireT / 90) * 0.08;
-          fire.fillStyle(0xffdd44, 0.9);
-          fire.fillCircle(fx, fy, FIRE_R * (0.12 + pulse));
-          fire.fillStyle(0xffffff, 0.6);
-          fire.fillCircle(fx, fy, FIRE_R * 0.05);
-
-          // 環繞火星（6顆，各自不同速度與相位）
-          for (let i = 0; i < 6; i++) {
-            const ea = (i / 6) * Math.PI * 2 + t * (i % 2 === 0 ? 3 : -4);
-            const er = FIRE_R * (0.28 + Math.sin(fireT / 140 + i * 1.1) * 0.12);
-            const ea2 = 0.55 + Math.sin(fireT / 80 + i * 0.8) * 0.3;
-            fire.fillStyle(0xffee66, ea2);
-            fire.fillCircle(fx + Math.cos(ea) * er, fy + Math.sin(ea) * er, P(3));
-          }
-        },
-      });
-
-      // 註冊火焰區域，tickBurns 會用來判斷疊層
       const fireEntry = { x: fx, y: fy, r: FIRE_R, expiresAt: this.time.now + FIRE_DUR };
       this.activeFires.push(fireEntry);
 
-      // 出現瞬間立即疊 1 層
       const now = this.time.now;
       for (const m of this.allMinions) {
         if (!m.isDead && Phaser.Math.Distance.Between(fx, fy, m.x, m.y) <= FIRE_R)
@@ -1748,39 +1073,24 @@ export class GameScene extends Phaser.Scene {
       if (this.bossActive && this.boss.active &&
           Phaser.Math.Distance.Between(fx, fy, this.boss.x, this.boss.y) <= FIRE_R)
         this.boss.applyBurn(now);
-
-      this.time.delayedCall(FIRE_DUR - 400, () => {
-        this.tweens.add({
-          targets: fire, alpha: 0, duration: 400,
-          onComplete: () => { fireAnim.destroy(); fire.destroy(); },
-        });
-      });
     };
 
-    let traveled = 0;
-    const tickMs = 16;
-    const stepPx = SPEED * tickMs / 1000;
     let hit = false;
-
-    this.time.addEvent({
-      delay: tickMs,
-      repeat: Math.ceil(MAX_DIST / stepPx) + 1,
-      callback: () => {
-        if (!orb.active || hit) return;
-        traveled += stepPx;
-        orb.x += Math.cos(rad) * stepPx;
-        orb.y += Math.sin(rad) * stepPx;
+    this.fxMagicFire(
+      this.player.x, this.player.y, rad, this.player.depth,
+      SPEED, MAX_DIST,
+      (ox, oy) => {
+        if (hit) return true;
         for (const t of this.getHittableTargets()) {
-          if (hit) break;
-          if (Phaser.Math.Distance.Between(orb.x, orb.y, t.x, t.y) > ORB_R) continue;
+          if (Phaser.Math.Distance.Between(ox, oy, t.x, t.y) > ORB_R) continue;
           hit = true;
-          this.dealDamage(t, 0.30, orb.x, orb.y, dir, 'fire');
-          spawnFire(orb.x, orb.y);
-          return;
+          this.dealDamage(t, 0.30, ox, oy, dir, 'fire');
+          return true;
         }
-        if (traveled >= MAX_DIST && !hit) { hit = true; spawnFire(orb.x, orb.y); }
+        return false;
       },
-    });
+      (fx, fy) => spawnFire(fx, fy),
+    );
   }
 
   // ── 血環 aura（被動，每 0.25 秒） ────────────────────────────
@@ -1926,78 +1236,8 @@ export class GameScene extends Phaser.Scene {
       this.player.startAttackAnim(`player_attack_${dir}`);
       this.time.delayedCall(150, () => {
         const px = this.player.x, py = this.player.y;
-
-        // ── 衝擊波視覺 ────────────────────────────────────────
-        const R = SLAM_RANGE;
-
-        // 地面殘影（最底層）
-        const ground = this.add.graphics().setDepth(this.player.depth);
-        ground.fillStyle(0xffcc00, 0.12);
-        ground.fillCircle(px, py, R);
-        this.tweens.add({ targets: ground, alpha: 0, duration: 500, onComplete: () => ground.destroy() });
-
-        // 放射裂縫線（8條，長度到 R）
-        const cracks = this.add.graphics().setDepth(this.player.depth + 1);
-        for (let i = 0; i < 8; i++) {
-          const a  = (i / 8) * Math.PI * 2 + Phaser.Math.FloatBetween(-0.2, 0.2);
-          const r1 = R * 0.25;
-          const r2 = R * Phaser.Math.FloatBetween(0.75, 1.0);
-          cracks.lineStyle(2, 0xffee88, 0.9);
-          cracks.beginPath();
-          cracks.moveTo(px + Math.cos(a) * r1, py + Math.sin(a) * r1);
-          cracks.lineTo(px + Math.cos(a) * r2, py + Math.sin(a) * r2);
-          cracks.strokePath();
-          // 支線
-          const midA = a + Phaser.Math.FloatBetween(-0.4, 0.4);
-          const midR = r1 + (r2 - r1) * 0.5;
-          cracks.lineStyle(1, 0xffee88, 0.5);
-          cracks.beginPath();
-          cracks.moveTo(px + Math.cos(a) * midR, py + Math.sin(a) * midR);
-          cracks.lineTo(px + Math.cos(midA) * (midR + P(12)), py + Math.sin(midA) * (midR + P(12)));
-          cracks.strokePath();
-        }
-        this.tweens.add({ targets: cracks, alpha: 0, duration: 400, delay: 80, onComplete: () => cracks.destroy() });
-
-        // 金色厚主環（半徑 0 → R，線寬固定 5px）
-        const ring1 = this.add.graphics().setDepth(this.player.depth + 2);
-        this.tweens.addCounter({
-          from: 0, to: R, duration: 320, ease: 'Expo.Out',
-          onUpdate: t => {
-            const r = t.getValue() ?? 0, a = 1 - r / R;
-            ring1.clear();
-            ring1.lineStyle(5, 0xffaa00, a);
-            ring1.strokeCircle(px, py, r);
-          },
-          onComplete: () => ring1.destroy(),
-        });
-
-        // 白色細快環（半徑 0 → R*0.9）
-        const ring2 = this.add.graphics().setDepth(this.player.depth + 3);
-        this.tweens.addCounter({
-          from: 0, to: R * 0.9, duration: 180, ease: 'Expo.Out',
-          onUpdate: t => {
-            const r = t.getValue() ?? 0, a = 1 - r / (R * 0.9);
-            ring2.clear();
-            ring2.lineStyle(2, 0xffffff, a);
-            ring2.strokeCircle(px, py, r);
-          },
-          onComplete: () => ring2.destroy(),
-        });
-
-        // 中心爆閃（固定大小，不超出 R）
-        const flashR = Math.min(P(16), R * 0.2);
-        const flash = this.add.graphics().setDepth(this.player.depth + 4);
-        this.tweens.addCounter({
-          from: 0, to: flashR, duration: 200, ease: 'Quad.Out',
-          onUpdate: t => {
-            const r = t.getValue() ?? 0, a = 1 - r / flashR;
-            flash.clear();
-            flash.fillStyle(0xffffff, a);
-            flash.fillCircle(px, py, r);
-          },
-          onComplete: () => flash.destroy(),
-        });
-
+        const D  = this.player.depth;
+        this.fxChargeSlam(px, py, SLAM_RANGE, D);
         this.hitInArea(px, py, SLAM_RANGE, 1.235, 360, 0, dir);
 
         // 暈眩效果
@@ -3874,131 +3114,780 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
-  // ── Partner attack VFX ───────────────────────────────────────
-  private showPartnerAttackFX(behavior: string, x: number, y: number, dir: string): void {
-    const D = 20;
-    const dirRad = ({ down: Math.PI / 2, up: -Math.PI / 2, left: Math.PI, right: 0 } as Record<string, number>)[dir] ?? 0;
+  // ── Shared VFX helpers (called by both local attacks and partner sync) ──────
 
-    const crescent = (cx: number, cy: number, outerR: number, arcRad: number, color: number, dur: number) => {
-      const sa = dirRad - arcRad / 2, ea = dirRad + arcRad / 2;
-      const R2 = outerR * 0.55, steps = 18;
+  private fxSlash180(
+    px: number, py: number, sa: number, ea: number, R: number, D: number,
+    onSweepHit?: (curEa: number) => void,
+  ): void {
+    const R2 = R * 0.62;
+    const buildCrescent = (outerR: number, innerR: number, steps = 28) => {
       const pts: { x: number; y: number }[] = [];
-      for (let i = 0; i <= steps; i++) { const a = sa + (ea - sa) * (i / steps); pts.push({ x: cx + Math.cos(a) * outerR, y: cy + Math.sin(a) * outerR }); }
-      for (let i = steps; i >= 0; i--) { const a = sa + (ea - sa) * (i / steps); pts.push({ x: cx + Math.cos(a) * R2, y: cy + Math.sin(a) * R2 }); }
-      const s = { a: 0.8 };
-      const g = this.add.graphics().setDepth(D);
-      this.tweens.add({ targets: s, a: 0, duration: dur, onUpdate: () => { g.clear(); g.fillStyle(color, s.a); g.fillPoints(pts, true); }, onComplete: () => g.destroy() });
+      for (let i = 0; i <= steps; i++) {
+        const a = sa + (ea - sa) * (i / steps);
+        pts.push({ x: px + Math.cos(a) * outerR, y: py + Math.sin(a) * outerR });
+      }
+      for (let i = steps; i >= 0; i--) {
+        const a = sa + (ea - sa) * (i / steps);
+        pts.push({ x: px + Math.cos(a) * innerR, y: py + Math.sin(a) * innerR });
+      }
+      return pts;
     };
 
-    switch (behavior) {
-      case 'slash180':
-        // VFX fires inside onHit callback (~150ms after anim starts); delay to match
-        this.time.delayedCall(100, () => crescent(x, y, P(55), Math.PI, 0xaaddff, 200));
-        break;
-
-      case 'whirlwind':
-        // onHit fires at 150ms into the animation
-        this.time.delayedCall(150, () => {
-          for (let i = 0; i < 3; i++) {
-            const s = { r: P(20 + i * 10), a: 0.85 - i * 0.2 };
-            const g = this.add.graphics().setDepth(D).setPosition(x, y);
-            this.tweens.add({ targets: s, r: P(80 + i * 20), a: 0, duration: 380 + i * 60, delay: i * 50, ease: 'Quad.Out',
-              onUpdate: () => { g.clear(); g.lineStyle(3, i === 0 ? 0xffffff : 0x66aaff, s.a); g.strokeCircle(0, 0, s.r); },
-              onComplete: () => g.destroy() });
-          }
-        });
-        break;
-
-      case 'dashPierce': {
-        const len = P(140);
-        const s = { a: 0.85 };
-        const g = this.add.graphics().setDepth(D);
-        const ex = x - Math.cos(dirRad) * len, ey = y - Math.sin(dirRad) * len;
-        this.tweens.add({ targets: s, a: 0, duration: 280,
-          onUpdate: () => { g.clear(); g.lineStyle(P(6), 0x88ccff, s.a); g.lineBetween(ex, ey, x, y); },
-          onComplete: () => g.destroy() });
-        break;
-      }
-
-      case 'projectile': {
-        // 風刃：快速向前飛出的月牙
-        const dist = P(200);
-        const ex = x + Math.cos(dirRad) * dist, ey = y + Math.sin(dirRad) * dist;
-        const outerR = P(30), arcRad = Math.PI * 0.7;
-        const sa = dirRad - arcRad / 2, ea = dirRad + arcRad / 2;
-        const R2 = outerR * 0.55, steps = 14;
-        const s = { t: 0, a: 0.85 };
-        const g = this.add.graphics().setDepth(D);
-        this.tweens.add({ targets: s, t: 1, a: 0, duration: 280, ease: 'Quad.In',
-          onUpdate: () => {
-            const cx2 = x + (ex - x) * s.t, cy2 = y + (ey - y) * s.t;
-            const pts: { x: number; y: number }[] = [];
-            for (let i = 0; i <= steps; i++) { const a = sa + (ea - sa) * (i / steps); pts.push({ x: cx2 + Math.cos(a) * outerR, y: cy2 + Math.sin(a) * outerR }); }
-            for (let i = steps; i >= 0; i--) { const a = sa + (ea - sa) * (i / steps); pts.push({ x: cx2 + Math.cos(a) * R2, y: cy2 + Math.sin(a) * R2 }); }
-            g.clear(); g.fillStyle(0x88ffcc, s.a); g.fillPoints(pts, true);
-          },
-          onComplete: () => g.destroy() });
-        break;
-      }
-
-      case 'multiHit':
-        for (let i = 0; i < 5; i++) {
-          this.time.delayedCall(i * 70, () => {
-            const g = this.add.graphics().setDepth(D).setPosition(x, y);
-            g.fillStyle(0xffffff, 0.75); g.fillCircle(0, 0, P(18));
-            this.tweens.add({ targets: g, alpha: 0, scaleX: 2.5, scaleY: 2.5, duration: 140, onComplete: () => g.destroy() });
-          });
+    const slashState = { prog: 0 };
+    const slashG = this.add.graphics().setDepth(D + 2);
+    this.tweens.add({
+      targets: slashState, prog: 1, duration: 80, ease: 'Quad.Out',
+      onUpdate: () => {
+        const curEa = sa + (ea - sa) * slashState.prog;
+        onSweepHit?.(curEa);
+        slashG.clear();
+        const steps  = Math.max(4, Math.round(28 * slashState.prog));
+        const pts: { x: number; y: number }[] = [];
+        for (let i = 0; i <= steps; i++) {
+          const a = sa + (curEa - sa) * (i / steps);
+          pts.push({ x: px + Math.cos(a) * R, y: py + Math.sin(a) * R });
         }
-        break;
+        for (let i = steps; i >= 0; i--) {
+          const a = sa + (curEa - sa) * (i / steps);
+          pts.push({ x: px + Math.cos(a) * R2, y: py + Math.sin(a) * R2 });
+        }
+        slashG.fillStyle(0x5599ff, 0.18);
+        slashG.fillPoints(pts.map(p => ({ x: p.x + P(3), y: p.y + P(3) })), true);
+        slashG.fillStyle(0xaaddff, 0.55);
+        slashG.fillPoints(pts, true);
+        slashG.lineStyle(2.5, 0xffffff, 0.9);
+        slashG.beginPath();
+        for (let i = 0; i <= steps; i++) {
+          const a = sa + (curEa - sa) * (i / steps);
+          const x = px + Math.cos(a) * R, y = py + Math.sin(a) * R;
+          i === 0 ? slashG.moveTo(x, y) : slashG.lineTo(x, y);
+        }
+        slashG.strokePath();
+        slashG.lineStyle(1.2, 0xddeeff, 0.55);
+        slashG.beginPath();
+        for (let i = 0; i <= steps; i++) {
+          const a = sa + (curEa - sa) * (i / steps);
+          const x = px + Math.cos(a) * R2, y = py + Math.sin(a) * R2;
+          i === 0 ? slashG.moveTo(x, y) : slashG.lineTo(x, y);
+        }
+        slashG.strokePath();
+      },
+      onComplete: () => {
+        this.tweens.add({ targets: slashG, alpha: 0, duration: 140, ease: 'Quad.In', onComplete: () => slashG.destroy() });
+      },
+    });
 
-      case 'chargeSlam':
-        // Actual slam fires 150ms after startAttackAnim is called
-        this.time.delayedCall(150, () => {
-          const s = { r: P(10), a: 1 };
-          const g = this.add.graphics().setDepth(D).setPosition(x, y);
-          this.tweens.add({ targets: s, r: P(200), a: 0, duration: 480, ease: 'Quad.Out',
-            onUpdate: () => { g.clear(); g.lineStyle(P(5), 0xffffff, s.a * 0.9); g.strokeCircle(0, 0, s.r); g.lineStyle(P(2), 0xaaddff, s.a * 0.5); g.strokeCircle(0, 0, s.r * 0.65); },
-            onComplete: () => g.destroy() });
+    const afterPts = buildCrescent(R * 1.06, R2 * 0.92);
+    const afterG   = this.add.graphics().setDepth(D + 1).setAlpha(0);
+    afterG.fillStyle(0x3366cc, 0.30); afterG.fillPoints(afterPts, true);
+    afterG.lineStyle(1.5, 0x88bbff, 0.50);
+    afterG.beginPath();
+    for (let i = 0; i <= 28; i++) {
+      const a = sa + (ea - sa) * (i / 28);
+      const x = px + Math.cos(a) * R * 1.06, y = py + Math.sin(a) * R * 1.06;
+      i === 0 ? afterG.moveTo(x, y) : afterG.lineTo(x, y);
+    }
+    afterG.strokePath();
+    this.tweens.add({ targets: afterG, alpha: 1, duration: 60, delay: 80,
+      onComplete: () => this.tweens.add({ targets: afterG, alpha: 0, duration: 200, onComplete: () => afterG.destroy() }) });
+
+    const sparkG = this.add.graphics().setDepth(D + 3);
+    const SPARKS = 10;
+    const sparks = Array.from({ length: SPARKS }, (_, i) => {
+      const a  = sa + (ea - sa) * (i / (SPARKS - 1));
+      const dr = Phaser.Math.FloatBetween(P(8), P(20));
+      return { x: px + Math.cos(a) * R, y: py + Math.sin(a) * R,
+               vx: Math.cos(a) * dr, vy: Math.sin(a) * dr, a: 0.9 };
+    });
+    const sparkState = { t: 0 };
+    this.tweens.add({
+      targets: sparkState, t: 1, duration: 300,
+      onUpdate: () => {
+        sparkG.clear();
+        sparks.forEach(s => {
+          s.x += s.vx * 0.08; s.y += s.vy * 0.08; s.a *= 0.90;
+          sparkG.fillStyle(0xffffff, s.a * 0.9); sparkG.fillCircle(s.x, s.y, P(2));
+          sparkG.fillStyle(0x88ccff, s.a * 0.5); sparkG.fillCircle(s.x, s.y, P(4));
         });
-        break;
+      },
+      onComplete: () => sparkG.destroy(),
+    });
 
-      case 'boomerang':
-        // 迴旋：兩段月牙，延遲後反向回來
-        crescent(x, y, P(50), Math.PI * 0.9, 0xffdd88, 180);
-        this.time.delayedCall(500, () => crescent(x, y, P(50), Math.PI * 0.9, 0xffdd88, 180));
-        break;
+    const flashG = this.add.graphics().setDepth(D + 4).setPosition(px, py);
+    flashG.fillStyle(0xffffff, 0.55); flashG.fillCircle(0, 0, P(10));
+    flashG.fillStyle(0x88ccff, 0.30); flashG.fillCircle(0, 0, P(20));
+    this.tweens.add({ targets: flashG, alpha: 0, duration: 180, onComplete: () => flashG.destroy() });
+  }
 
-      case 'magicFire': {
-        // Orb travels ~670ms before exploding; animate it flying then explode
-        const travelMs = 640;
-        const exX = x + Math.cos(dirRad) * P(200), exY = y + Math.sin(dirRad) * P(200);
-        const ts = { t: 0 };
-        const orbG = this.add.graphics().setDepth(D);
+  private fxWhirlwind(px: number, py: number, RANGE: number, D: number): void {
+    for (let i = 0; i < 3; i++) {
+      const rs = { r: RANGE * (0.15 + i * 0.12), a: 1.0 - i * 0.2 };
+      const rG = this.add.graphics().setDepth(D + 1).setPosition(px, py);
+      this.tweens.add({
+        targets: rs, r: RANGE * (1.05 + i * 0.18), a: 0,
+        duration: 420 + i * 70, delay: i * 55, ease: 'Quad.Out',
+        onUpdate: () => {
+          rG.clear();
+          rG.lineStyle(3.5 - i, i === 0 ? 0xffffff : 0x66aaff, rs.a);
+          rG.strokeCircle(0, 0, rs.r);
+          if (i === 0) {
+            rG.lineStyle(8, 0x2255cc, rs.a * 0.18);
+            rG.strokeCircle(0, 0, rs.r);
+          }
+        },
+        onComplete: () => rG.destroy(),
+      });
+    }
+
+    const spiralG = this.add.graphics().setDepth(D + 2).setPosition(px, py);
+    const sp = { prog: 0 };
+    this.tweens.add({
+      targets: sp, prog: 1, duration: 220, ease: 'Cubic.Out',
+      onUpdate: () => {
+        spiralG.clear();
+        const ARMS = 4, STEPS = 22;
+        for (let arm = 0; arm < ARMS; arm++) {
+          const base  = (arm / ARMS) * Math.PI * 2;
+          const color = arm % 2 === 0 ? 0x88ccff : 0xcceeff;
+          spiralG.lineStyle(2.2, color, 0.85 * (1 - sp.prog * 0.45));
+          spiralG.beginPath();
+          for (let s = 0; s <= STEPS; s++) {
+            const t = (s / STEPS) * sp.prog;
+            const a = base + t * Math.PI * 1.6;
+            const r = t * RANGE * 0.95;
+            if (s === 0) spiralG.moveTo(Math.cos(a) * r, Math.sin(a) * r);
+            else         spiralG.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+          }
+          spiralG.strokePath();
+        }
+      },
+      onComplete: () => {
+        this.tweens.add({ targets: spiralG, alpha: 0, duration: 180, onComplete: () => spiralG.destroy() });
+      },
+    });
+
+    const flashG = this.add.graphics().setDepth(D + 4).setPosition(px, py);
+    flashG.fillStyle(0xffffff, 0.7);  flashG.fillCircle(0, 0, P(14));
+    flashG.fillStyle(0x88ddff, 0.45); flashG.fillCircle(0, 0, P(30));
+    flashG.fillStyle(0x2255cc, 0.20); flashG.fillCircle(0, 0, RANGE * 0.6);
+    this.tweens.add({ targets: flashG, alpha: 0, duration: 260, ease: 'Quad.In', onComplete: () => flashG.destroy() });
+  }
+
+  private fxDashPierce(sx: number, sy: number, endX: number, endY: number, rad: number, D: number): void {
+    const perpRad = rad + Math.PI / 2;
+    const trailG  = this.add.graphics().setDepth(D);
+    const sweep   = { t: 0 };
+    this.tweens.add({
+      targets: sweep, t: 1, duration: 160, ease: 'Quad.Out',
+      onUpdate: () => {
+        trailG.clear();
+        const hx = sx + (endX - sx) * sweep.t;
+        const hy = sy + (endY - sy) * sweep.t;
+        const STEPS = 14;
+        for (let i = 0; i <= STEPS; i++) {
+          const f  = i / STEPS;
+          const tx = sx + (hx - sx) * f, ty = sy + (hy - sy) * f;
+          trailG.fillStyle(0x2255cc, f * 0.22); trailG.fillCircle(tx, ty, P(10) + f * P(5));
+          trailG.fillStyle(0x66aaff, f * 0.45); trailG.fillCircle(tx, ty,  P(5) + f * P(3));
+        }
+        trailG.lineStyle(P(1), 0xddeeff, 0.75);
+        trailG.lineBetween(sx, sy, hx, hy);
+        trailG.fillStyle(0xffffff, 0.95); trailG.fillCircle(hx, hy, P(4));
+        trailG.fillStyle(0x99ddff, 0.55); trailG.fillCircle(hx, hy, P(9));
+        [P(10), P(16)].forEach((len, idx) => {
+          trailG.lineStyle(P(1), 0xaaddff, 0.75 - idx * 0.3);
+          trailG.lineBetween(
+            hx + Math.cos(perpRad) * len, hy + Math.sin(perpRad) * len,
+            hx - Math.cos(perpRad) * len, hy - Math.sin(perpRad) * len,
+          );
+        });
+      },
+      onComplete: () => {
+        this.tweens.add({ targets: trailG, alpha: 0, duration: 240, onComplete: () => trailG.destroy() });
+      },
+    });
+
+    this.time.delayedCall(130, () => {
+      const ringG = this.add.graphics().setDepth(D + 1).setPosition(endX, endY);
+      const state = { r: P(6), a: 0.85 };
+      this.tweens.add({
+        targets: state, r: P(40), a: 0, duration: 320, ease: 'Quad.Out',
+        onUpdate: () => {
+          ringG.clear();
+          ringG.lineStyle(P(3), 0x88ccff, state.a);
+          ringG.strokeCircle(0, 0, state.r);
+          ringG.lineStyle(P(1), 0xffffff, state.a * 0.5);
+          ringG.strokeCircle(0, 0, state.r + P(4));
+        },
+        onComplete: () => ringG.destroy(),
+      });
+    });
+  }
+
+  private fxProjectile(
+    startX: number, startY: number, rad: number, D: number,
+    SPEED: number, MAX_DIST: number,
+    onTick?: (x: number, y: number) => void,
+  ): void {
+    const buildCrescent = (outerR: number, innerR: number, ox: number): { x: number; y: number }[] => {
+      const steps = 32;
+      const sa = -115 * Math.PI / 180, ea = 115 * Math.PI / 180;
+      const outer: { x: number; y: number }[] = [];
+      const inner: { x: number; y: number }[] = [];
+      for (let i = 0; i <= steps; i++) {
+        const a = sa + (ea - sa) * i / steps;
+        outer.push({ x: Math.cos(a) * outerR, y: Math.sin(a) * outerR });
+      }
+      for (let i = steps; i >= 0; i--) {
+        const a = sa + (ea - sa) * i / steps;
+        inner.push({ x: ox + Math.cos(a) * innerR, y: Math.sin(a) * innerR });
+      }
+      return [...outer, ...inner];
+    };
+
+    const proj  = this.add.graphics().setDepth(D);
+    const trail = this.add.graphics().setDepth(D - 1);
+    proj.setPosition(startX, startY);
+    proj.setRotation(rad);
+
+    const trailHistory: { x: number; y: number }[] = [];
+
+    const launchFlash = this.add.graphics().setDepth(D + 1);
+    launchFlash.fillStyle(0xffdd44, 0.55);
+    launchFlash.fillCircle(startX, startY, P(20));
+    this.tweens.add({ targets: launchFlash, alpha: 0, duration: 160, onComplete: () => launchFlash.destroy() });
+
+    const drawProj = (t: number) => {
+      if (!proj.active) return;
+      proj.clear();
+      proj.fillStyle(0xffee44, 0.07); proj.fillCircle(0, 0, P(28));
+      proj.fillStyle(0xffcc00, 0.13); proj.fillCircle(0, 0, P(21));
+      proj.fillStyle(0xff9900, 0.20); proj.fillPoints(buildCrescent(P(20), 0, 0), true);
+      proj.fillStyle(0xffaa00, 0.95); proj.fillPoints(buildCrescent(P(18), P(11), P(8)), true);
+      proj.fillStyle(0xffdd55, 0.65); proj.fillPoints(buildCrescent(P(18), P(11), P(8)), true);
+      proj.fillStyle(0xffffff, 0.35); proj.fillPoints(buildCrescent(P(17), P(13), P(9)), true);
+      const steps = 32, sa = -115 * Math.PI / 180, ea = 115 * Math.PI / 180;
+      proj.lineStyle(P(2), 0xffffff, 0.95);
+      proj.beginPath();
+      for (let i = 0; i <= steps; i++) {
+        const a = sa + (ea - sa) * i / steps;
+        i === 0 ? proj.moveTo(Math.cos(a) * P(18), Math.sin(a) * P(18))
+                : proj.lineTo(Math.cos(a) * P(18), Math.sin(a) * P(18));
+      }
+      proj.strokePath();
+      for (let i = 0; i < 4; i++) {
+        const a  = sa + (ea - sa) * (i / 3);
+        const sp = 0.55 + Math.sin(t * 0.018 + i * 1.3) * 0.35;
+        proj.fillStyle(0xffffff, sp);
+        proj.fillCircle(Math.cos(a) * P(18), Math.sin(a) * P(18), P(2));
+      }
+    };
+
+    const updateTrail = () => {
+      if (!trail.active) return;
+      trailHistory.push({ x: proj.x, y: proj.y });
+      if (trailHistory.length > 10) trailHistory.shift();
+      trail.clear();
+      trailHistory.forEach((p, i) => {
+        const frac  = i / trailHistory.length;
+        const alpha = frac * 0.45;
+        const r     = frac * P(10) + P(3);
+        trail.fillStyle(0xffaa00, alpha); trail.fillCircle(p.x, p.y, r);
+        trail.fillStyle(0xffee88, alpha * 0.5); trail.fillCircle(p.x, p.y, r * 0.5);
+      });
+    };
+
+    let elapsed  = 0;
+    let traveled = 0;
+    const tickMs = 16;
+    const stepPx = SPEED * tickMs / 1000;
+
+    const cleanup = () => { trail.destroy(); if (proj.active) proj.destroy(); };
+
+    this.time.addEvent({
+      delay: tickMs,
+      repeat: Math.ceil(MAX_DIST / stepPx),
+      callback: () => {
+        if (!proj.active) return;
+        elapsed  += tickMs;
+        traveled += stepPx;
+        proj.x += Math.cos(rad) * stepPx;
+        proj.y += Math.sin(rad) * stepPx;
+        drawProj(elapsed);
+        updateTrail();
+        onTick?.(proj.x, proj.y);
+        if (traveled >= MAX_DIST) cleanup();
+      },
+    });
+  }
+
+  private fxMultiHitSlash(px: number, py: number, D: number, rad0: number, hitIdx: number, RANGE: number): void {
+    const DELAYS   = [55, 115, 175, 235, 310];
+    const baseCfgs = [
+      { tilt: -0.38, arcSpan: 1.0, rMult: 0.78, color: 0x66aaee, glowW:  8 },
+      { tilt:  0.38, arcSpan: 1.0, rMult: 0.78, color: 0x66aaee, glowW:  8 },
+      { tilt: -0.18, arcSpan: 1.2, rMult: 0.88, color: 0x99ccff, glowW: 11 },
+      { tilt:  0.18, arcSpan: 1.2, rMult: 0.88, color: 0x99ccff, glowW: 11 },
+      { tilt:  0,    arcSpan: 1.6, rMult: 0.97, color: 0xffffff, glowW: 16 },
+    ];
+    const STEPS = 20;
+
+    const b        = baseCfgs[hitIdx];
+    const tilt     = b.tilt    + Phaser.Math.FloatBetween(-0.12, 0.12);
+    const span     = b.arcSpan + Phaser.Math.FloatBetween(-0.12, 0.12);
+    const r        = RANGE * (b.rMult + Phaser.Math.FloatBetween(-0.06, 0.06));
+    const midAngle = rad0 + tilt;
+    const halfSpan = span / 2 + Phaser.Math.FloatBetween(-0.06, 0.06);
+    const slashRot = Phaser.Math.FloatBetween(-Math.PI / 6, Math.PI / 6);
+
+    const drawArcSegment = (g: Phaser.GameObjects.Graphics, prog: number, alpha: number) => {
+      const sa   = midAngle - halfSpan * prog;
+      const ea   = midAngle + halfSpan * prog;
+      const rOut = r;
+      const rIn  = r * 0.38;
+      const arcCx = px + Math.cos(midAngle) * (rOut + rIn) / 2;
+      const arcCy = py + Math.sin(midAngle) * (rOut + rIn) / 2;
+      const cosR  = Math.cos(slashRot), sinR = Math.sin(slashRot);
+      const rot2d = (x: number, y: number) => {
+        const dx = x - arcCx, dy = y - arcCy;
+        return new Phaser.Math.Vector2(arcCx + dx * cosR - dy * sinR, arcCy + dx * sinR + dy * cosR);
+      };
+      const outerPts: Phaser.Math.Vector2[] = [];
+      const innerPts: Phaser.Math.Vector2[] = [];
+      for (let i = 0; i <= STEPS; i++) {
+        const angle = sa + (ea - sa) * (i / STEPS);
+        outerPts.push(rot2d(px + Math.cos(angle) * rOut, py + Math.sin(angle) * rOut));
+        innerPts.push(rot2d(px + Math.cos(angle) * rIn,  py + Math.sin(angle) * rIn));
+      }
+      const wedgePts = [...outerPts, ...[...innerPts].reverse()];
+      g.fillStyle(b.color, 0.13 * alpha);
+      g.fillPoints(wedgePts, true);
+      const strokeArc = (pts: Phaser.Math.Vector2[], w: number, col: number, a: number) => {
+        g.lineStyle(w, col, a * alpha);
+        g.beginPath();
+        pts.forEach((p, i) => i === 0 ? g.moveTo(p.x, p.y) : g.lineTo(p.x, p.y));
+        g.strokePath();
+      };
+      strokeArc(outerPts, b.glowW + 12, b.color,    0.08);
+      strokeArc(outerPts, b.glowW,      b.color,    0.32);
+      strokeArc(outerPts, b.glowW * 0.45, 0xddeeff, 0.72);
+      strokeArc(outerPts, 2.2,           0xffffff,  1.0);
+      strokeArc(innerPts, 1.5, 0xffffff, 0.45);
+      g.fillStyle(0xffffff, 0.9 * alpha);
+      g.fillCircle(outerPts[0].x, outerPts[0].y, P(3));
+      g.fillCircle(outerPts[STEPS].x, outerPts[STEPS].y, P(3));
+    };
+
+    const slG  = this.add.graphics().setDepth(D + 3);
+    const sw   = { prog: 0 };
+    const hold = 450 - DELAYS[hitIdx] - 35;
+
+    this.tweens.add({
+      targets: sw, prog: 1, duration: 35, ease: 'Cubic.Out',
+      onUpdate: () => { slG.clear(); drawArcSegment(slG, sw.prog, 1); },
+      onComplete: () => {
+        const fa = { a: 1.0 };
         this.tweens.add({
-          targets: ts, t: 1, duration: travelMs, ease: 'Linear',
-          onUpdate: () => {
-            const cx = x + (exX - x) * ts.t, cy = y + (exY - y) * ts.t;
-            orbG.clear();
-            orbG.fillStyle(0xff4400, 0.35); orbG.fillCircle(cx, cy, P(11));
-            orbG.fillStyle(0xff6600, 0.90); orbG.fillCircle(cx, cy, P(7));
-            orbG.fillStyle(0xffaa00, 0.80); orbG.fillCircle(cx, cy, P(4));
-          },
+          targets: fa, a: 0, duration: hold, ease: 'Quad.In',
+          onUpdate: () => { slG.clear(); drawArcSegment(slG, 1, fa.a); },
+          onComplete: () => slG.destroy(),
+        });
+      },
+    });
+
+    const fG = this.add.graphics().setDepth(D + 4).setPosition(px, py);
+    fG.fillStyle(0xffffff, 0.55 + hitIdx * 0.08); fG.fillCircle(0, 0, P(5) + hitIdx * P(1));
+    fG.fillStyle(b.color,  0.30);                  fG.fillCircle(0, 0, P(11) + hitIdx * P(2));
+    this.tweens.add({ targets: fG, alpha: 0, duration: 120, onComplete: () => fG.destroy() });
+
+    if (hitIdx === 4) {
+      const ringState = { r: P(8), a: 0.9 };
+      const ringG = this.add.graphics().setDepth(D + 2).setPosition(
+        px + Math.cos(rad0) * RANGE * 0.7,
+        py + Math.sin(rad0) * RANGE * 0.7,
+      );
+      this.tweens.add({
+        targets: ringState, r: P(38), a: 0, duration: 280, ease: 'Quad.Out',
+        onUpdate: () => {
+          ringG.clear();
+          ringG.lineStyle(P(3), 0xffffff, ringState.a);
+          ringG.strokeCircle(0, 0, ringState.r);
+          ringG.lineStyle(P(7), 0x88ccff, ringState.a * 0.25);
+          ringG.strokeCircle(0, 0, ringState.r);
+        },
+        onComplete: () => ringG.destroy(),
+      });
+    }
+  }
+
+  private fxChargeSlam(px: number, py: number, R: number, D: number): void {
+    const ground = this.add.graphics().setDepth(D);
+    ground.fillStyle(0xffcc00, 0.12);
+    ground.fillCircle(px, py, R);
+    this.tweens.add({ targets: ground, alpha: 0, duration: 500, onComplete: () => ground.destroy() });
+
+    const cracks = this.add.graphics().setDepth(D + 1);
+    for (let i = 0; i < 8; i++) {
+      const a  = (i / 8) * Math.PI * 2 + Phaser.Math.FloatBetween(-0.2, 0.2);
+      const r1 = R * 0.25;
+      const r2 = R * Phaser.Math.FloatBetween(0.75, 1.0);
+      cracks.lineStyle(2, 0xffee88, 0.9);
+      cracks.beginPath();
+      cracks.moveTo(px + Math.cos(a) * r1, py + Math.sin(a) * r1);
+      cracks.lineTo(px + Math.cos(a) * r2, py + Math.sin(a) * r2);
+      cracks.strokePath();
+      const midA = a + Phaser.Math.FloatBetween(-0.4, 0.4);
+      const midR = r1 + (r2 - r1) * 0.5;
+      cracks.lineStyle(1, 0xffee88, 0.5);
+      cracks.beginPath();
+      cracks.moveTo(px + Math.cos(a) * midR, py + Math.sin(a) * midR);
+      cracks.lineTo(px + Math.cos(midA) * (midR + P(12)), py + Math.sin(midA) * (midR + P(12)));
+      cracks.strokePath();
+    }
+    this.tweens.add({ targets: cracks, alpha: 0, duration: 400, delay: 80, onComplete: () => cracks.destroy() });
+
+    const ring1 = this.add.graphics().setDepth(D + 2);
+    this.tweens.addCounter({
+      from: 0, to: R, duration: 320, ease: 'Expo.Out',
+      onUpdate: t => {
+        const r = t.getValue() ?? 0, a = 1 - r / R;
+        ring1.clear(); ring1.lineStyle(5, 0xffaa00, a); ring1.strokeCircle(px, py, r);
+      },
+      onComplete: () => ring1.destroy(),
+    });
+
+    const ring2 = this.add.graphics().setDepth(D + 3);
+    this.tweens.addCounter({
+      from: 0, to: R * 0.9, duration: 180, ease: 'Expo.Out',
+      onUpdate: t => {
+        const r = t.getValue() ?? 0, a = 1 - r / (R * 0.9);
+        ring2.clear(); ring2.lineStyle(2, 0xffffff, a); ring2.strokeCircle(px, py, r);
+      },
+      onComplete: () => ring2.destroy(),
+    });
+
+    const flashR = Math.min(P(16), R * 0.2);
+    const flash  = this.add.graphics().setDepth(D + 4);
+    this.tweens.addCounter({
+      from: 0, to: flashR, duration: 200, ease: 'Quad.Out',
+      onUpdate: t => {
+        const r = t.getValue() ?? 0, a = 1 - r / flashR;
+        flash.clear(); flash.fillStyle(0xffffff, a); flash.fillCircle(px, py, r);
+      },
+      onComplete: () => flash.destroy(),
+    });
+  }
+
+  private fxBoomerang(
+    startX: number, startY: number, destX: number, destY: number,
+    rad: number, D: number, HIT_R: number, SPIN_R: number, SPIN_MS: number,
+    getReturnPos: () => { x: number; y: number },
+    cbs?: {
+      onHitOut?:   (bx: number, by: number) => boolean;
+      onSpinTick?: (bx: number, by: number) => void;
+      onHitBack?:  (bx: number, by: number) => void;
+    },
+  ): void {
+    const blade = this.add.graphics().setDepth(D + 1);
+    blade.setPosition(startX, startY);
+    const trail    = this.add.graphics().setDepth(D);
+    const trailPts: { x: number; y: number; alpha: number }[] = [];
+    let rot = 0;
+
+    const drawBlade = () => {
+      if (!blade.active) return;
+      blade.clear();
+      blade.fillStyle(0x1144cc, 0.10); blade.fillCircle(0, 0, HIT_R + 2);
+      blade.fillStyle(0x3377ff, 0.20); blade.fillCircle(0, 0, HIT_R - 2);
+      const pulse = 0.45 + Math.sin(rot * 5) * 0.2;
+      blade.lineStyle(1.5, 0x99ddff, pulse);
+      blade.strokeCircle(0, 0, HIT_R);
+      for (let w = 0; w < 3; w++) {
+        const ba   = rot + (w / 3) * Math.PI * 2;
+        const tipX = Math.cos(ba) * HIT_R, tipY = Math.sin(ba) * HIT_R;
+        const lX   = Math.cos(ba + 0.52) * HIT_R * 0.43, lY = Math.sin(ba + 0.52) * HIT_R * 0.43;
+        const rX   = Math.cos(ba - 0.52) * HIT_R * 0.43, rY = Math.sin(ba - 0.52) * HIT_R * 0.43;
+        const cX   = Math.cos(ba + Math.PI) * HIT_R * 0.15, cY = Math.sin(ba + Math.PI) * HIT_R * 0.15;
+        blade.fillStyle(0x112244, 0.6);
+        blade.fillTriangle(tipX * 0.9, tipY * 0.9, lX, lY, cX, cY);
+        blade.fillTriangle(tipX * 0.9, tipY * 0.9, rX, rY, cX, cY);
+        blade.fillStyle(0x88ccff, 0.95);
+        blade.fillTriangle(tipX, tipY, lX, lY, cX, cY);
+        blade.fillTriangle(tipX, tipY, rX, rY, cX, cY);
+        blade.fillStyle(0xeef8ff, 0.85);
+        blade.fillTriangle(tipX, tipY, (tipX + lX) * 0.55, (tipY + lY) * 0.55, (tipX + cX) * 0.55, (tipY + cY) * 0.55);
+      }
+      blade.fillStyle(0x3366cc, 1); blade.fillCircle(0, 0, P(5));
+      blade.fillStyle(0xaaddff, 1); blade.fillCircle(0, 0, P(3));
+      blade.fillStyle(0xffffff, 1); blade.fillCircle(0, 0, P(2));
+    };
+
+    const updateTrail = () => {
+      if (!trail.active) return;
+      trailPts.push({ x: blade.x, y: blade.y, alpha: 0.55 });
+      if (trailPts.length > 14) trailPts.shift();
+      trail.clear();
+      trailPts.forEach((p, i) => {
+        p.alpha *= 0.80;
+        const sz = (i / trailPts.length) * P(7) + P(1);
+        trail.fillStyle(0x55aaff, p.alpha);
+        trail.fillCircle(p.x, p.y, sz);
+      });
+    };
+
+    const spinTicker = this.time.addEvent({
+      delay: 16, repeat: -1,
+      callback: () => { rot += 0.22; drawBlade(); updateTrail(); },
+    });
+    drawBlade();
+
+    const launchFlash = this.add.graphics().setDepth(D + 2);
+    launchFlash.fillStyle(0x99ddff, 0.65);
+    launchFlash.fillCircle(startX, startY, P(22));
+    this.tweens.add({ targets: launchFlash, alpha: 0, duration: 200, onComplete: () => launchFlash.destroy() });
+
+    let spinStarted = false;
+    const startSpin = () => {
+      if (spinStarted) return;
+      spinStarted = true;
+      const sx = blade.x, sy = blade.y;
+
+      const spinOrb = this.add.graphics().setDepth(D);
+      let orbRot = 0;
+      const orbTicker = this.time.addEvent({
+        delay: 16, repeat: -1,
+        callback: () => {
+          if (!spinOrb.active) return;
+          spinOrb.clear();
+          orbRot += 0.10;
+          for (let i = 0; i < 4; i++) {
+            const a  = orbRot + (i / 4) * Math.PI * 2;
+            const ox = sx + Math.cos(a) * SPIN_R, oy = sy + Math.sin(a) * SPIN_R;
+            spinOrb.fillStyle(0x66bbff, 0.4 + Math.sin(orbRot * 3 + i) * 0.3);
+            spinOrb.fillCircle(ox, oy, P(4));
+          }
+          spinOrb.lineStyle(1.5, 0x99eeff, 0.3 + Math.sin(orbRot * 6) * 0.15);
+          spinOrb.strokeCircle(sx, sy, SPIN_R);
+        },
+      });
+
+      const spinDmgEvent = this.time.addEvent({
+        delay: Math.round(SPIN_MS / 4), repeat: 3,
+        callback: () => { if (blade.active) cbs?.onSpinTick?.(blade.x, blade.y); },
+      });
+
+      this.time.delayedCall(SPIN_MS, () => {
+        spinDmgEvent.destroy();
+        orbTicker.destroy();
+        spinOrb.destroy();
+        trailPts.length = 0;
+
+        const retFlash = this.add.graphics().setDepth(D + 2);
+        retFlash.fillStyle(0xffffff, 0.45);
+        retFlash.fillCircle(sx, sy, SPIN_R);
+        this.tweens.add({ targets: retFlash, alpha: 0, duration: 140, onComplete: () => retFlash.destroy() });
+
+        const { x: retX, y: retY } = getReturnPos();
+        this.tweens.add({
+          targets: blade, x: retX, y: retY, duration: 260, ease: 'Quad.In',
+          onUpdate: () => { if (blade.active) cbs?.onHitBack?.(blade.x, blade.y); },
           onComplete: () => {
-            orbG.destroy();
-            const es = { r: P(10), a: 1 };
-            const eG = this.add.graphics().setDepth(D).setPosition(exX, exY);
-            this.tweens.add({ targets: es, r: P(60), a: 0, duration: 380, ease: 'Quad.Out',
-              onUpdate: () => {
-                eG.clear();
-                eG.fillStyle(0xff4400, es.a * 0.5); eG.fillCircle(0, 0, es.r * 1.4);
-                eG.fillStyle(0xff6600, es.a * 0.8); eG.fillCircle(0, 0, es.r);
-                eG.fillStyle(0xffee00, es.a);        eG.fillCircle(0, 0, es.r * 0.5);
-              },
-              onComplete: () => eG.destroy() });
+            spinTicker.destroy();
+            trail.destroy();
+            if (blade.active) blade.destroy();
+            const catchFlash = this.add.graphics().setDepth(D + 2);
+            catchFlash.fillStyle(0x99ddff, 0.75);
+            catchFlash.fillCircle(retX, retY, P(20));
+            this.tweens.add({ targets: catchFlash, alpha: 0, duration: 200, onComplete: () => catchFlash.destroy() });
           },
+        });
+      });
+    };
+
+    const outTween = this.tweens.add({
+      targets: blade, x: destX, y: destY, duration: 320, ease: 'Linear',
+      onUpdate: () => {
+        if (cbs?.onHitOut?.(blade.x, blade.y)) {
+          outTween.stop();
+          startSpin();
+        }
+      },
+      onComplete: () => startSpin(),
+    });
+  }
+
+  private fxMagicFireGround(fx: number, fy: number): void {
+    const FIRE_R   = P(25);
+    const FIRE_DUR = 3000;
+
+    const flash = this.add.graphics().setDepth(15);
+    flash.fillStyle(0xff8800, 0.55); flash.fillCircle(fx, fy, FIRE_R);
+    flash.fillStyle(0xffcc44, 0.45); flash.fillCircle(fx, fy, FIRE_R * 0.6);
+    this.tweens.add({ targets: flash, alpha: 0, duration: 280, onComplete: () => flash.destroy() });
+
+    const cracks: { a1: number; r1: number; a2: number; r2: number }[] = [];
+    for (let i = 0; i < 9; i++) {
+      cracks.push({
+        a1: (i / 9) * Math.PI * 2 + Phaser.Math.FloatBetween(-0.2, 0.2),
+        r1: FIRE_R * Phaser.Math.FloatBetween(0.05, 0.2),
+        a2: (i / 9) * Math.PI * 2 + Phaser.Math.FloatBetween(-0.4, 0.4),
+        r2: FIRE_R * Phaser.Math.FloatBetween(0.55, 0.95),
+      });
+    }
+
+    const fire = this.add.graphics().setDepth(3);
+    let fireT = 0;
+
+    const drawWavy = (r: number, amp: number, freq: number, phase: number, color: number, alpha: number) => {
+      const pts: { x: number; y: number }[] = [];
+      const steps = 22;
+      for (let i = 0; i <= steps; i++) {
+        const a    = (i / steps) * Math.PI * 2;
+        const wave = r * (1 + Math.sin(a * freq + phase) * amp);
+        pts.push({ x: fx + Math.cos(a) * wave, y: fy + Math.sin(a) * wave });
+      }
+      fire.fillStyle(color, alpha);
+      fire.fillPoints(pts, true);
+    };
+
+    const fireAnim = this.time.addEvent({
+      delay: 16, repeat: -1,
+      callback: () => {
+        if (!fire.active) return;
+        fireT += 16;
+        fire.clear();
+        fire.fillStyle(0x0d0200, 0.85); fire.fillCircle(fx, fy, FIRE_R + 3);
+        for (const c of cracks) {
+          fire.lineStyle(1, 0x3a0800, 0.5);
+          fire.beginPath();
+          fire.moveTo(fx + Math.cos(c.a1) * c.r1, fy + Math.sin(c.a1) * c.r1);
+          fire.lineTo(fx + Math.cos(c.a2) * c.r2, fy + Math.sin(c.a2) * c.r2);
+          fire.strokePath();
+        }
+        const t = fireT * 0.001;
+        drawWavy(FIRE_R,        0.10, 4, t * 4.5,       0x881000, 0.75);
+        drawWavy(FIRE_R * 0.80, 0.12, 5, t * 5.5 + 1,   0xcc2200, 0.70);
+        drawWavy(FIRE_R * 0.60, 0.13, 4, t * 7.0 + 2,   0xff4400, 0.75);
+        drawWavy(FIRE_R * 0.42, 0.11, 3, t * 9.0 + 0.5, 0xff7700, 0.80);
+        drawWavy(FIRE_R * 0.25, 0.09, 3, t * 11  + 1.5, 0xffaa00, 0.85);
+        const pulse = Math.sin(fireT / 90) * 0.08;
+        fire.fillStyle(0xffdd44, 0.9); fire.fillCircle(fx, fy, FIRE_R * (0.12 + pulse));
+        fire.fillStyle(0xffffff, 0.6); fire.fillCircle(fx, fy, FIRE_R * 0.05);
+        for (let i = 0; i < 6; i++) {
+          const ea  = (i / 6) * Math.PI * 2 + t * (i % 2 === 0 ? 3 : -4);
+          const er  = FIRE_R * (0.28 + Math.sin(fireT / 140 + i * 1.1) * 0.12);
+          const ea2 = 0.55 + Math.sin(fireT / 80 + i * 0.8) * 0.3;
+          fire.fillStyle(0xffee66, ea2);
+          fire.fillCircle(fx + Math.cos(ea) * er, fy + Math.sin(ea) * er, P(3));
+        }
+      },
+    });
+
+    this.time.delayedCall(FIRE_DUR - 400, () => {
+      this.tweens.add({
+        targets: fire, alpha: 0, duration: 400,
+        onComplete: () => { fireAnim.destroy(); fire.destroy(); },
+      });
+    });
+  }
+
+  private fxMagicFire(
+    startX: number, startY: number, rad: number, D: number,
+    SPEED: number, MAX_DIST: number,
+    onTick?: (x: number, y: number) => boolean,
+    onLand?: (fx: number, fy: number) => void,
+  ): void {
+    const ORB_R = P(14);
+    const orb   = this.add.graphics().setDepth(D + 1);
+    orb.setPosition(startX, startY);
+    let orbT = 0;
+
+    const drawOrb = () => {
+      if (!orb.active) return;
+      orb.clear();
+      const p = Math.sin(orbT / 80) * 2;
+      const r = ORB_R * 0.5;
+      orb.fillStyle(0xff4400, 0.30); orb.fillCircle(0, 0, r + 3 + p * 0.5);
+      orb.fillStyle(0xff6600, 0.90); orb.fillCircle(0, 0, r);
+      orb.fillStyle(0xffaa00, 0.85); orb.fillCircle(0, 0, r * 0.65);
+      orb.fillStyle(0xffee66, 0.90); orb.fillCircle(-1, -1, r * 0.32);
+    };
+    const orbAnim = this.time.addEvent({ delay: 16, repeat: -1, callback: () => { orbT += 16; drawOrb(); } });
+    drawOrb();
+
+    const land = (fx: number, fy: number) => {
+      orbAnim.destroy();
+      if (orb.active) orb.destroy();
+      onLand?.(fx, fy);
+    };
+
+    let traveled = 0;
+    let landed   = false;
+    const tickMs = 16;
+    const stepPx = SPEED * tickMs / 1000;
+
+    this.time.addEvent({
+      delay: tickMs,
+      repeat: Math.ceil(MAX_DIST / stepPx) + 1,
+      callback: () => {
+        if (!orb.active || landed) return;
+        traveled += stepPx;
+        orb.x += Math.cos(rad) * stepPx;
+        orb.y += Math.sin(rad) * stepPx;
+        if (onTick?.(orb.x, orb.y)) { landed = true; land(orb.x, orb.y); return; }
+        if (traveled >= MAX_DIST && !landed) { landed = true; land(orb.x, orb.y); }
+      },
+    });
+  }
+
+  // ── Partner attack VFX ───────────────────────────────────────
+  private showPartnerAttackFX(behavior: string, x: number, y: number, dir: string): void {
+    const D      = 20;
+    const dirRad = ({ down: Math.PI / 2, up: -Math.PI / 2, left: Math.PI, right: 0 } as Record<string, number>)[dir] ?? 0;
+    const deg    = Phaser.Math.RadToDeg(dirRad);
+
+    switch (behavior) {
+      case 'slash180': {
+        const arc = 180;
+        const sa  = Phaser.Math.DegToRad(deg - arc / 2);
+        const ea  = Phaser.Math.DegToRad(deg + arc / 2);
+        this.fxSlash180(x, y, sa, ea, MELEE_RANGE, D);
+        break;
+      }
+      case 'whirlwind':
+        this.fxWhirlwind(x, y, MELEE_RANGE * 1.1, D);
+        break;
+      case 'dashPierce': {
+        const endX = x + Math.cos(dirRad) * P(78);
+        const endY = y + Math.sin(dirRad) * P(78);
+        this.fxDashPierce(x, y, endX, endY, dirRad, D);
+        break;
+      }
+      case 'projectile':
+        this.fxProjectile(x, y, dirRad, D, P(380), P(155));
+        break;
+      case 'multiHit': {
+        const DELAYS = [55, 115, 175, 235, 310];
+        DELAYS.forEach((delay, hitIdx) => {
+          this.time.delayedCall(delay, () => this.fxMultiHitSlash(x, y, D, dirRad, hitIdx, MELEE_RANGE));
         });
         break;
       }
+      case 'chargeSlam':
+        this.time.delayedCall(150, () => this.fxChargeSlam(x, y, MELEE_RANGE * 1.152, D));
+        break;
+      case 'boomerang': {
+        const destX = x + Math.cos(dirRad) * P(160);
+        const destY = y + Math.sin(dirRad) * P(160);
+        this.fxBoomerang(x, y, destX, destY, dirRad, D, P(14), P(26), 800, () => ({ x, y }));
+        break;
+      }
+      case 'magicFire':
+        this.fxMagicFire(x, y, dirRad, D, P(300), P(200),
+          undefined,
+          (fx, fy) => this.fxMagicFireGround(fx, fy));
+        break;
     }
   }
 
