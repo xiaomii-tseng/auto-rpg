@@ -8,7 +8,7 @@ const P = (n: number): number => Math.round(n * DPR);
 const BARRAGE_DIRS_P1    = 8;
 const BARRAGE_DIRS_P2    = 10;
 const BARRAGE_SPEED      = 210 * DPR;   // px/s
-const BARRAGE_RANGE      = Math.round(360 * DPR);
+const BARRAGE_RANGE      = Math.round(520 * DPR);
 const BARRAGE_HIT_R      = Math.round(15 * DPR);
 const BARRAGE_DMG        = 28;
 const BARRAGE_WAVES      = 3;
@@ -17,9 +17,9 @@ const BARRAGE_FAN_HALF   = 6;     // 扇形半角（度）
 const BARRAGE_FAN_PROJS  = 3;     // 每扇投射物數
 
 // ── 熔岩柱常數 ────────────────────────────────────────────
-const PILLAR_COUNT_P1 = 5;
-const PILLAR_COUNT_P2 = 7;
-const PILLAR_RADIUS   = Math.round(20 * DPR);   // 原始 58 × 0.7 × 0.5（再縮小 50%）
+const PILLAR_COUNT_P1 = 7;
+const PILLAR_COUNT_P2 = 10;
+const PILLAR_RADIUS   = Math.round(50 * DPR);
 const PILLAR_DMG      = 50;
 const PILLAR_NEAR_MIN = Math.round(35 * DPR);   // 玩家附近最小距離
 const PILLAR_NEAR_MAX = Math.round(110 * DPR);  // 玩家附近最大距離
@@ -195,6 +195,8 @@ export class BossLavaSlime extends Boss {
 
   protected override pickNextAttack(): void {
     if (this.guestMode) return;
+    const bc = this.barrageChance();
+    if (bc > 0 && Math.random() < bc) { this.stateTimer = this.scene.time.delayedCall(this.getNextAttackDelay(), () => this.enterBarrageWarn()); return; }
     const roll = Math.random();
     let fn: () => void;
     if      (roll < 0.20) fn = () => this.enterAoeWarn();
@@ -394,9 +396,9 @@ export class BossLavaSlime extends Boss {
         pts: positions.map(p => ({ x: p.x / DPR, y: p.y / DPR })) });
     }
 
-    const APPEAR_INTERVAL = 220;  // 每個紅圈出現間隔
-    const WARN_AFTER_LAST = 700;  // 最後一個圈出現後的額外警示時間
-    const ERUPT_STAGGER   = 130;  // 爆發間隔
+    const APPEAR_INTERVAL = 120;  // 每個紅圈出現間隔
+    const WARN_AFTER_LAST = 200;  // 最後一個圈出現後的額外警示時間
+    const ERUPT_STAGGER   = 120;  // 爆發間隔
 
     positions.forEach((p, idx) => {
       // 紅圈依序出現

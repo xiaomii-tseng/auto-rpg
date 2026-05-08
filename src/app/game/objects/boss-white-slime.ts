@@ -8,10 +8,10 @@ const CROSS_RANGE  = P(400);
 const CROSS_HALF_W = P(22);
 const CROSS_DMG    = 38;
 
-const ORB_SPEED    = 130 * DPR;   // px/s
+const ORB_SPEED    = 220 * DPR;   // px/s
 const ORB_MAX_DIST = P(360);
 const ORB_HIT_R    = P(14);
-const ORB_EXP_R    = P(65);
+const ORB_EXP_R    = P(90);
 const ORB_DMG      = 32;
 const ORB_COUNT    = 3;
 const ORB_SPREAD   = 15 * (Math.PI / 180);
@@ -31,6 +31,8 @@ export class BossWhiteSlime extends Boss {
 
   protected override pickNextAttack(): void {
     if (this.guestMode) return;
+    const bc = this.barrageChance();
+    if (bc > 0 && Math.random() < bc) { this.stateTimer = this.scene.time.delayedCall(this.getNextAttackDelay(), () => this.enterBarrageWarn()); return; }
     const roll = Math.random();
     let fn: () => void;
     if      (roll < 0.20) fn = () => this.enterAoeWarn();
@@ -100,7 +102,7 @@ export class BossWhiteSlime extends Boss {
       y: { min: -CROSS_RANGE * 0.6, max: CROSS_RANGE * 0.6 },
     }).setDepth(this.depth + 1);
 
-    this.stateTimer = this.scene.time.delayedCall(1000, () => {
+    this.stateTimer = this.scene.time.delayedCall(600, () => {
       this.pulseTween?.stop();
       warnG.destroy();
       chargeEmitter.destroy();
@@ -240,11 +242,11 @@ export class BossWhiteSlime extends Boss {
       },
     });
 
-    this.stateTimer = this.scene.time.delayedCall(800, () => {
+    this.stateTimer = this.scene.time.delayedCall(700, () => {
       chargeEmitter.destroy();
       glowG.destroy();
       this.launchHolyOrbs();
-      this.stateTimer = this.scene.time.delayedCall(2500, () => this.enterIdle());
+      this.stateTimer = this.scene.time.delayedCall(1500, () => this.enterIdle());
     });
   }
 

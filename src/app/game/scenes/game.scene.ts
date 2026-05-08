@@ -376,6 +376,16 @@ export class GameScene extends Phaser.Scene {
       const dSq = Phaser.Math.Distance.BetweenPointsSquared({ x, y }, this.player);
       if (dSq <= Boss.AOE_RADIUS ** 2) this.player.takeDamage(30);
     };
+    this.boss.onRangedBarrageTrailTick = (x1, y1, x2, y2, radius, dmg) => {
+      if (!this.bossActive) return;
+      // Point-to-segment distance check
+      const abx = x2 - x1, aby = y2 - y1;
+      const apx = this.player.x - x1, apy = this.player.y - y1;
+      const t = Math.max(0, Math.min(1, (apx * abx + apy * aby) / (abx * abx + aby * aby || 1)));
+      const nx = x1 + t * abx - this.player.x;
+      const ny = y1 + t * aby - this.player.y;
+      if (nx * nx + ny * ny <= radius * radius) this.player.takeDamage(dmg);
+    };
 
     const bossGroup = this.physics.add.group();
     bossGroup.add(this.boss, false);
@@ -3469,11 +3479,11 @@ export class GameScene extends Phaser.Scene {
     bg.strokeRoundedRect(W / 2 - P(120), H / 2 - P(38), P(240), P(76), P(10));
 
     const line1 = this.add.text(W / 2, H / 2 - P(14), '⬆  等級提升！', {
-      fontSize: F(20), color: '#f0c040', stroke: '#000', strokeThickness: 3,
+      fontSize: F(20), fontStyle: 'bold', color: '#f0c040', stroke: '#000', strokeThickness: 4,
     }).setOrigin(0.5).setScrollFactor(0).setDepth(10001);
 
     const line2 = this.add.text(W / 2, H / 2 + P(16), `Lv. ${newLevel}   ATK +2   HP +15`, {
-      fontSize: F(15), color: '#ffffff', stroke: '#000', strokeThickness: 2,
+      fontSize: F(15), fontStyle: 'bold', color: '#ffffff', stroke: '#000', strokeThickness: 3,
     }).setOrigin(0.5).setScrollFactor(0).setDepth(10001);
 
     this.tweens.add({

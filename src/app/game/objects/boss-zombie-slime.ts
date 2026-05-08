@@ -47,6 +47,8 @@ export class BossZombieSlime extends Boss {
 
   protected override pickNextAttack(): void {
     if (this.guestMode) return;
+    const bc = this.barrageChance();
+    if (bc > 0 && Math.random() < bc) { this.stateTimer = this.scene.time.delayedCall(this.getNextAttackDelay(), () => this.enterBarrageWarn()); return; }
     const roll = Math.random();
     let fn: () => void;
     if      (roll < 0.26) fn = () => this.enterAoeWarn();
@@ -196,7 +198,7 @@ export class BossZombieSlime extends Boss {
       onUpdate: () => warnG.setAlpha(pw.a),
     });
 
-    this.stateTimer = this.scene.time.delayedCall(1200, () => {
+    this.stateTimer = this.scene.time.delayedCall(800, () => {
       this.zombieFanWarnG = undefined;
       this.pulseTween?.stop();
       warnG.destroy();

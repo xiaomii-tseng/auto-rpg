@@ -24,6 +24,7 @@ export enum BossState {
   POISON_FAN_WARN    = 'POISON_FAN_WARN',
   LAVA_BARRAGE_WARN  = 'LAVA_BARRAGE_WARN',
   LAVA_PILLAR_WARN   = 'LAVA_PILLAR_WARN',
+  BARRAGE_WARN       = 'BARRAGE_WARN',
   DEAD             = 'DEAD',
 }
 
@@ -39,6 +40,13 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
   protected pulseTween?: Phaser.Tweens.Tween;
   private dashTrailTimer?: Phaser.Time.TimerEvent;
   private dashTrailEmitter?: Phaser.GameObjects.Particles.ParticleEmitter;
+  private activeTrails: Array<{
+    gfx: Phaser.GameObjects.Graphics;
+    x1: number; y1: number; x2: number; y2: number;
+    tickTimer: Phaser.Time.TimerEvent;
+    expireTimer: Phaser.Time.TimerEvent;
+    drips?: Phaser.GameObjects.Particles.ParticleEmitter;
+  }> = [];
   protected warnParticles?: Phaser.GameObjects.Particles.ParticleEmitter;
   protected readonly warningGfx: Phaser.GameObjects.Graphics;
 
@@ -49,6 +57,18 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
   static readonly AOE_RADIUS = Math.round(120 * DPR);
   static readonly DASH_SPEED = Math.round(460 * DPR);
   static readonly DASH_MS    = 620;
+
+  static readonly BARRAGE_THRESHOLD = Math.round(180 * DPR);
+  private static readonly BARRAGE_COUNT      = 3;
+  private static readonly BARRAGE_CHARGE_MS  = 150;
+  private static readonly BARRAGE_SPEED_PX   = Math.round(700 * DPR);
+  private static readonly BARRAGE_SPREAD     = 0.22;   // radians between shots
+  private static readonly BARRAGE_TRAIL_W    = Math.round(28 * DPR);
+  private static readonly BARRAGE_TRAIL_HIT_R = Math.round(28 * DPR);
+  private static readonly BARRAGE_TRAIL_DMG  = 12;
+  private static readonly BARRAGE_TRAIL_TICK = 600;
+  private static readonly BARRAGE_TRAIL_DUR  = 3500;
+  private static readonly MAX_TRAILS         = 99;
 
   protected idleChaseSpeed = Math.round(80 * DPR);
   protected readonly animPrefix: string;
@@ -84,7 +104,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     });
   }
 
-  // ── Co-op sync ───────────────────────────────────────────
+  // ── 連線同步 ─────────────────────────────────────────────
   guestMode = false;
   private bossLerpX = 0;
   private bossLerpY = 0;
@@ -97,6 +117,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
   onHpChanged?: (hp: number, maxHp: number) => void;
   onDead?: () => void;
   onAoeExplode?: (x: number, y: number) => void;
+  onRangedBarrageTrailTick?: (x1: number, y1: number, x2: number, y2: number, radius: number, dmg: number) => void;
 
   constructor(scene: Phaser.Scene, x: number, y: number, totalHp = 500, element: Element = 'none', spriteKey = 'slime', tint = 0xffffff) {
     super(scene, x, y, `${spriteKey}_idle`, 0);
@@ -214,8 +235,9 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     if (data.pts) this.guestPts = data.pts.map(p => ({ x: p.x * DPR, y: p.y * DPR }));
 
     switch (data.state) {
-      case BossState.AOE_WARN:  this.enterAoeWarn(); break;
-      case BossState.DASH_WARN: this.enterDashWarn(); break;
+      case BossState.AOE_WARN:    this.enterAoeWarn(); break;
+      case BossState.DASH_WARN:   this.enterDashWarn(); break;
+      case BossState.BARRAGE_WARN: this.enterBarrageWarn(); break;
       default: this.applyUniqueState(data.state); break;
     }
   }
@@ -255,7 +277,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     this.play(`${base}_${this.bossDir}`, true);
   }
 
-  // ── State Machine ─────────────────────────────────────
+  // ── 狀態機 ───────────────────────────────────────────────
 
   protected enterIdle(): void {
     this.bossState = BossState.IDLE;
@@ -268,6 +290,13 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     this.updateDirToTarget();
     this.playDir(`${this.animPrefix}_walk`);
     this.pickNextAttack();
+  }
+
+  // 依距離回傳彈幕機率（子類別在 pickNextAttack 開頭呼叫）
+  protected barrageChance(): number {
+    const [px, py] = this.getTargetPos();
+    const dist = Phaser.Math.Distance.Between(this.x, this.y, px, py);
+    return dist > Boss.BARRAGE_THRESHOLD ? 0.50 : 0;
   }
 
   questStar = 1;
@@ -294,6 +323,11 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
 
   protected pickNextAttack(): void {
     if (this.guestMode) return;
+    const bc = this.barrageChance();
+    if (bc > 0 && Math.random() < bc) {
+      this.stateTimer = this.scene.time.delayedCall(this.getNextAttackDelay(), () => this.enterBarrageWarn());
+      return;
+    }
     const next = Math.random() < 0.5 ? () => this.enterAoeWarn() : () => this.enterDashWarn();
     this.stateTimer = this.scene.time.delayedCall(this.getNextAttackDelay(), next);
   }
@@ -431,7 +465,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
   }
 
   // 將座標夾在當前競技場形狀內（pad = 距邊界的安全距離）
-  private clampToArena(px: number, py: number, pad: number): [number, number] {
+  protected clampToArena(px: number, py: number, pad: number): [number, number] {
     const cx = this.arenaCenter.x, cy = this.arenaCenter.y;
     const R  = this.arenaRadius;
 
@@ -440,7 +474,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
       switch (this.arenaShape) {
         case 1: { const hs = R * 0.875 - pad; return Math.abs(dx) <= hs && Math.abs(dy) <= hs && Math.abs(dx) + Math.abs(dy) <= hs * 1.5; }
         case 2: return Math.abs(dx) + Math.abs(dy) <= R - pad;
-        case 3: { const hw = 380 - pad, hh = 300 - pad, cr = 100; const ex = Math.max(Math.abs(dx) - (hw - cr), 0); const ey = Math.max(Math.abs(dy) - (hh - cr), 0); return ex * ex + ey * ey <= cr * cr; }
+        case 3: { const hw = P(380) - pad, hh = P(300) - pad, cr = P(100); const ex = Math.max(Math.abs(dx) - (hw - cr), 0); const ey = Math.max(Math.abs(dy) - (hh - cr), 0); return ex * ex + ey * ey <= cr * cr; }
         default: return dx * dx + dy * dy <= (R - pad) * (R - pad);
       }
     };
@@ -463,6 +497,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     this.stateTimer?.destroy();
     this.clearWarning();
     this.stopDashTrail();
+    this.clearActiveTrails();
     this.anims.timeScale = 1;
     (this.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
     this.playDir(`${this.animPrefix}_death`);
@@ -472,7 +507,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     });
   }
 
-  // ── Dash Trail ────────────────────────────────────────
+  // ── 衝刺殘影 ─────────────────────────────────────────────
 
   private startDashTrail(): void {
     // Continuous spark emitter — position updated each tick
@@ -520,7 +555,283 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     }
   }
 
-  // ── Skill VFX ─────────────────────────────────────────
+  // ── 彈幕射擊（共通遠程技能，玩家距離過遠時觸發）────────
+
+  protected enterBarrageWarn(): void {
+    if (this.bossState === BossState.DEAD) return;
+    this.setBossState(BossState.BARRAGE_WARN);
+    this.stateTimer?.destroy();
+    (this.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
+    this.updateDirToTarget();
+    this.playDir(`${this.animPrefix}_attack`);
+
+    const bossX = this.x, bossY = this.y;
+    let endpoints: { x: number; y: number }[];
+
+    if (this.guestMode) {
+      endpoints = this.guestPts.slice(0, Boss.BARRAGE_COUNT).map(p => ({ x: p.x, y: p.y }));
+    } else {
+      const [px, py] = this.getTargetPos();
+      const baseAngle = Phaser.Math.Angle.Between(bossX, bossY, px, py);
+      const offsets = [-Boss.BARRAGE_SPREAD, 0, Boss.BARRAGE_SPREAD];
+      endpoints = offsets.map(off => {
+        const [ex, ey] = this.angleToArenaEdge(baseAngle + off);
+        return { x: ex, y: ey };
+      });
+      this.onSyncState?.({
+        state: BossState.BARRAGE_WARN, x: bossX / DPR, y: bossY / DPR,
+        pts: endpoints.map(t => ({ x: t.x / DPR, y: t.y / DPR })),
+      });
+    }
+
+    // 蓄力特效：綠色脈衝光環
+    const glowG = this.scene.add.graphics().setDepth(this.depth - 1).setPosition(bossX, bossY);
+    const gs = { r: P(6), a: 0.2, ring1: 0, ring2: 0 };
+    this.scene.tweens.add({
+      targets: gs, r: P(34), a: 1.0, ring1: P(50), ring2: P(72),
+      duration: Boss.BARRAGE_CHARGE_MS, ease: 'Quad.In',
+      onUpdate: () => {
+        glowG.clear();
+        // 外擴光環 2
+        glowG.lineStyle(P(2), 0x44ff44, gs.a * 0.25 * (gs.ring2 / P(72)));
+        glowG.strokeCircle(0, 0, gs.ring2);
+        // 外擴光環 1
+        glowG.lineStyle(P(3), 0x88ff44, gs.a * 0.45 * (gs.ring1 / P(50)));
+        glowG.strokeCircle(0, 0, gs.ring1);
+        // 核心填充
+        glowG.fillStyle(0x44ff44, gs.a * 0.20);
+        glowG.fillCircle(0, 0, gs.r);
+        // 核心邊框
+        glowG.lineStyle(P(3), 0xaaffaa, gs.a * 0.9);
+        glowG.strokeCircle(0, 0, gs.r);
+      },
+      onComplete: () => glowG.destroy(),
+    });
+    // 蓄力粒子：綠色火花向外噴
+    const chargeEmitter = this.scene.add.particles(bossX, bossY, 'pxl2', {
+      speed: { min: 60, max: 180 },
+      angle: { min: 0, max: 360 },
+      scale: { start: 1.4, end: 0 },
+      alpha: { start: 0.9, end: 0 },
+      tint: [0x00ff00, 0x44ff44, 0x88ff88, 0xccffcc],
+      lifespan: { min: 80, max: Boss.BARRAGE_CHARGE_MS },
+      emitting: false,
+    }).setDepth(this.depth + 1);
+    chargeEmitter.emitParticleAt(0, 0, 18);
+    this.scene.time.delayedCall(200, () => { if (chargeEmitter.active) chargeEmitter.destroy(); });
+
+    const GAP_MS = 120;
+    endpoints.forEach((ep, i) => {
+      this.scene.time.delayedCall(Boss.BARRAGE_CHARGE_MS + i * GAP_MS, () => {
+        if (!this.active || this.bossState === BossState.DEAD) return;
+        this.fireBarrageProjectile(bossX, bossY, ep.x, ep.y);
+      });
+    });
+
+    const totalMs = Boss.BARRAGE_CHARGE_MS + (Boss.BARRAGE_COUNT - 1) * GAP_MS + 380;
+    this.stateTimer = this.scene.time.delayedCall(totalMs, () => this.enterIdle());
+  }
+
+  // 從 Boss 當前位置沿角度射出，精確求交點到競技場邊界（四種形狀均支援）
+  private angleToArenaEdge(angle: number): [number, number] {
+    const cos = Math.cos(angle), sin = Math.sin(angle);
+    const cx = this.arenaCenter.x, cy = this.arenaCenter.y;
+    const R  = this.arenaRadius;
+    const dx0 = this.x - cx, dy0 = this.y - cy;
+
+    if (this.arenaShape === 0) {
+      // 圓形：解析解，取正根
+      const b = 2 * (dx0 * cos + dy0 * sin);
+      const c = dx0 * dx0 + dy0 * dy0 - R * R;
+      const t = (-b + Math.sqrt(Math.max(0, b * b - 4 * c))) / 2;
+      return [this.x + cos * t, this.y + sin * t];
+    }
+
+    // 非圓形：二分搜尋，使用與 game.scene.ts 完全一致的 isInside 邏輯（含 DPR 縮放）
+    const isIn = (x: number, y: number): boolean => {
+      const dx = x - cx, dy = y - cy;
+      switch (this.arenaShape) {
+        case 1: { const hs = R * 0.875; return Math.abs(dx) <= hs && Math.abs(dy) <= hs && Math.abs(dx) + Math.abs(dy) <= hs * 1.5; }
+        case 2: return Math.abs(dx) + Math.abs(dy) <= R;
+        case 3: { const hw = P(380), hh = P(300), cr = P(100); const ex = Math.max(Math.abs(dx) - (hw - cr), 0); const ey = Math.max(Math.abs(dy) - (hh - cr), 0); return ex * ex + ey * ey <= cr * cr; }
+        default: return dx * dx + dy * dy <= R * R;
+      }
+    };
+
+    const FAR = Math.round(2000 * DPR);
+    const farX = this.x + cos * FAR, farY = this.y + sin * FAR;
+    let lo = 0, hi = 1;
+    for (let i = 0; i < 24; i++) {
+      const mid = (lo + hi) / 2;
+      if (isIn(this.x + (farX - this.x) * mid, this.y + (farY - this.y) * mid)) lo = mid; else hi = mid;
+    }
+    const t = (lo + hi) / 2;
+    return [this.x + (farX - this.x) * t, this.y + (farY - this.y) * t];
+  }
+
+  private fireBarrageProjectile(startX: number, startY: number, endX: number, endY: number): void {
+    const dist = Phaser.Math.Distance.Between(startX, startY, endX, endY);
+    if (dist < 1) return;
+    const travelMs = Math.round((dist / Boss.BARRAGE_SPEED_PX) * 1000);
+
+    const trailGfx = this.scene.add.graphics().setDepth(8);
+    const orb = this.scene.add.graphics().setDepth(15).setPosition(startX, startY);
+    const prog = { t: 0 };
+
+    // 飛行中的粒子尾跡（短命綠色水滴）
+    const orbTrail = this.scene.add.particles(startX, startY, 'pxl2', {
+      speed: { min: 15, max: 45 },
+      angle: { min: 0, max: 360 },
+      scale: { start: 1.2, end: 0 },
+      alpha: { start: 0.75, end: 0 },
+      tint: [0x00ee00, 0x44ff44, 0x22cc00, 0xaaffaa],
+      lifespan: { min: 80, max: 180 },
+      frequency: 22,
+      quantity: 2,
+      gravityY: 18,
+    }).setDepth(14);
+
+    this.scene.tweens.add({
+      targets: prog, t: 1, duration: travelMs, ease: 'Linear',
+      onUpdate: () => {
+        const t = prog.t;
+        const cx = startX + (endX - startX) * t;
+        const cy = startY + (endY - startY) * t;
+        orb.setPosition(cx, cy);
+        orbTrail.setPosition(cx, cy);
+        orb.clear();
+        // 外層柔光
+        orb.fillStyle(0x44ff44, 0.18);
+        orb.fillCircle(0, 0, P(18));
+        // 中層光暈
+        orb.fillStyle(0x00dd00, 0.55);
+        orb.fillCircle(0, 0, P(11));
+        // 核心
+        orb.fillStyle(0xccffcc, 0.95);
+        orb.fillCircle(0, 0, P(5));
+        // 邊框
+        orb.lineStyle(P(2), 0x88ff44, 0.9);
+        orb.strokeCircle(0, 0, P(11));
+        this.drawSlimeTrail(trailGfx, startX, startY, cx, cy, 1);
+      },
+      onComplete: () => {
+        orb.destroy();
+        orbTrail.stop();
+        this.scene.time.delayedCall(250, () => { if (orbTrail.active) orbTrail.destroy(); });
+        // 撞擊競技場邊緣的綠色黏液濺射
+        this.scene.cameras.main.shake(40, 0.004);
+        const burst = this.scene.add.particles(endX, endY, 'pxl2', {
+          speed: { min: 55, max: 200 },
+          angle: { min: 0, max: 360 },
+          scale: { start: 1.8, end: 0 },
+          alpha: { start: 1, end: 0 },
+          tint: [0x00ff00, 0x44ff44, 0x88ff88, 0xccffcc],
+          lifespan: { min: 120, max: 350 },
+          emitting: false,
+        }).setDepth(16);
+        burst.emitParticleAt(0, 0, 20);
+        const splat = this.scene.add.graphics().setDepth(15).setPosition(endX, endY);
+        splat.fillStyle(0x00cc00, 0.5);
+        splat.fillCircle(0, 0, P(18));
+        splat.lineStyle(P(3), 0x44ff44, 0.8);
+        splat.strokeCircle(0, 0, P(18));
+        this.scene.tweens.add({
+          targets: splat, alpha: 0, scaleX: 1.8, scaleY: 1.8,
+          duration: 280, onComplete: () => splat.destroy(),
+        });
+        this.scene.time.delayedCall(400, () => { if (burst.active) burst.destroy(); });
+        this.addBarrageTrail(trailGfx, startX, startY, endX, endY);
+      },
+    });
+  }
+
+  private drawSlimeTrail(
+    gfx: Phaser.GameObjects.Graphics,
+    x1: number, y1: number, x2: number, y2: number, alpha: number,
+  ): void {
+    gfx.clear();
+    // 最外層：大範圍柔光（讓黏液有發光感）
+    gfx.lineStyle(Boss.BARRAGE_TRAIL_W * 3, 0x44ff44, 0.10 * alpha);
+    gfx.beginPath(); gfx.moveTo(x1, y1); gfx.lineTo(x2, y2); gfx.strokePath();
+    // 中層：主體黏液
+    gfx.lineStyle(Boss.BARRAGE_TRAIL_W, 0x009900, 0.70 * alpha);
+    gfx.beginPath(); gfx.moveTo(x1, y1); gfx.lineTo(x2, y2); gfx.strokePath();
+    // 內層亮邊：中心高光，讓黏液看起來是立體液體
+    gfx.lineStyle(Math.max(1, Math.round(Boss.BARRAGE_TRAIL_W * 0.35)), 0xaaffaa, 0.55 * alpha);
+    gfx.beginPath(); gfx.moveTo(x1, y1); gfx.lineTo(x2, y2); gfx.strokePath();
+  }
+
+  private addBarrageTrail(
+    gfx: Phaser.GameObjects.Graphics,
+    x1: number, y1: number, x2: number, y2: number,
+  ): void {
+    // Remove oldest trail if at max
+    if (this.activeTrails.length >= Boss.MAX_TRAILS) {
+      const oldest = this.activeTrails.shift()!;
+      oldest.tickTimer.destroy();
+      oldest.expireTimer.destroy();
+      oldest.gfx.destroy();
+    }
+
+    // 週期傷害：玩家站在痕跡上時觸發
+    const tickTimer = this.scene.time.addEvent({
+      delay: Boss.BARRAGE_TRAIL_TICK,
+      repeat: Math.floor(Boss.BARRAGE_TRAIL_DUR / Boss.BARRAGE_TRAIL_TICK) - 1,
+      callback: () => {
+        this.onRangedBarrageTrailTick?.(x1, y1, x2, y2, Boss.BARRAGE_TRAIL_HIT_R, Boss.BARRAGE_TRAIL_DMG);
+      },
+    });
+
+    // 沿痕跡線段隨機滴落的黏液粒子
+    const trailLine = new Phaser.Geom.Line(x1, y1, x2, y2);
+    const drips = this.scene.add.particles(0, 0, 'pxl2', {
+      speed: { min: 6, max: 22 },
+      angle: { min: 75, max: 105 },
+      scale: { start: 1.1, end: 0 },
+      alpha: { start: 0.65, end: 0 },
+      tint: [0x00cc00, 0x22ee22, 0x44ff44, 0x009900],
+      lifespan: { min: 350, max: 800 },
+      frequency: 160,
+      quantity: 1,
+      gravityY: 28,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      emitZone: { type: 'random', source: trailLine } as any,
+    }).setDepth(9);
+    // 後半段停止生成，讓滴落自然消失
+    this.scene.time.delayedCall(Boss.BARRAGE_TRAIL_DUR * 0.65, () => {
+      if (drips.active) drips.stop();
+    });
+
+    // 痕跡淡出
+    const fadeObj = { a: 1 };
+    this.scene.tweens.add({
+      targets: fadeObj, a: 0,
+      duration: Boss.BARRAGE_TRAIL_DUR, ease: 'Sine.easeIn',
+      onUpdate: () => this.drawSlimeTrail(gfx, x1, y1, x2, y2, fadeObj.a),
+      onComplete: () => gfx.clear(),
+    });
+
+    const expireTimer = this.scene.time.delayedCall(Boss.BARRAGE_TRAIL_DUR, () => {
+      const idx = this.activeTrails.findIndex(t => t.gfx === gfx);
+      if (idx !== -1) this.activeTrails.splice(idx, 1);
+      gfx.destroy();
+      if (drips.active) drips.destroy();
+    });
+
+    this.activeTrails.push({ gfx, x1, y1, x2, y2, tickTimer, expireTimer, drips });
+  }
+
+  private clearActiveTrails(): void {
+    for (const trail of this.activeTrails) {
+      trail.tickTimer.destroy();
+      trail.expireTimer.destroy();
+      if (trail.gfx.active) trail.gfx.destroy();
+      if (trail.drips?.active) trail.drips.destroy();
+    }
+    this.activeTrails.length = 0;
+  }
+
+  // ── 技能特效 ─────────────────────────────────────────────
 
   private spawnAoeExplosion(cx: number, cy: number): void {
     const r = Boss.AOE_RADIUS;
@@ -724,7 +1035,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     });
   }
 
-  // ── Warning Graphics ──────────────────────────────────
+  // ── 警示圖形 ─────────────────────────────────────────────
 
   private drawAoeWarning(): void {
     this.clearWarning();

@@ -13,7 +13,7 @@ const SPIKE_HIT_R   = Math.round(18 * DPR);
 const MINE_SCATTER  = Math.round(60 * DPR);
 const MINE_RADIUS   = Math.round(65 * DPR);
 const MINE_DMG      = 45;
-const MINE_FUSE_MS  = 2000;
+const MINE_FUSE_MS  = 550;
 
 export class BossBlueSlime extends Boss {
   onSpikeHit?:   (x: number, y: number, dmg: number) => void;
@@ -23,6 +23,8 @@ export class BossBlueSlime extends Boss {
 
   protected override pickNextAttack(): void {
     if (this.guestMode) return;
+    const bc = this.barrageChance();
+    if (bc > 0 && Math.random() < bc) { this.stateTimer = this.scene.time.delayedCall(this.getNextAttackDelay(), () => this.enterBarrageWarn()); return; }
     const roll = Math.random();
     let fn: () => void;
     if      (roll < 0.20) fn = () => this.enterAoeWarn();
@@ -88,7 +90,7 @@ export class BossBlueSlime extends Boss {
       onUpdate: () => drawSpikeWarn(fw.a),
     });
 
-    this.stateTimer = this.scene.time.delayedCall(1100, () => {
+    this.stateTimer = this.scene.time.delayedCall(600, () => {
       this.pulseTween?.stop();
       this.setScale(MONSTER_SCALE_BOSS);
       warnG.destroy();
