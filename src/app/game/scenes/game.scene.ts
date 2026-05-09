@@ -9,6 +9,7 @@ import { BossWhiteSlime }  from '../objects/boss-white-slime';
 import { BossZombieSlime } from '../objects/boss-zombie-slime';
 import { BossLavaSlime }   from '../objects/boss-lava-slime';
 import { BossFlowerOne }  from '../objects/boss-flower-one';
+import { BossFlowerTwo }  from '../objects/boss-flower-two';
 import { MinionSlime } from '../objects/minion-slime';
 import { VirtualJoystick } from '../ui/joystick';
 import { PlayerStore } from '../data/player-store';
@@ -125,6 +126,8 @@ export class GameScene extends Phaser.Scene {
   private activeFires: { x: number; y: number; r: number; expiresAt: number }[] = [];
   private minionProjGroup!: Phaser.Physics.Arcade.Group;
   private homingProjs: Phaser.Physics.Arcade.Image[] = [];
+  private hitBatches = new Map<number, number>(); // batchId → hitTimestamp
+  private plantZones: { type: 'circle' | 'vine'; x: number; y: number; r: number; len?: number; ang?: number; dmg: number; lastTick: number; tickInterval: number; expiresAt: number; gfx: Phaser.GameObjects.Graphics }[] = [];
 
   constructor() {
     super({ key: 'GameScene' });
@@ -463,6 +466,16 @@ export class GameScene extends Phaser.Scene {
       if (blindDist && blindDist > 0) {
         const dist = Phaser.Math.Distance.Between((p as any).spawnX, (p as any).spawnY, p.x, p.y);
         if (dist < blindDist) return;
+      }
+      // 同批彈幕只算一發：100ms 內相同 batchId 不重複傷害
+      const batchId = (p as any).batchId as number | undefined;
+      if (batchId !== undefined) {
+        const lastHit = this.hitBatches.get(batchId);
+        if (lastHit !== undefined && this.time.now - lastHit < 100) {
+          p.destroy();
+          return;
+        }
+        this.hitBatches.set(batchId, this.time.now);
       }
       this.player.takeDamage((p as any).dmg as number);
       const isHoming = (p as any).blindDist < 0 || this.homingProjs.includes(p);
@@ -1205,6 +1218,28 @@ export class GameScene extends Phaser.Scene {
     // 清除過期火焰
     this.activeFires = this.activeFires.filter(f => now < f.expiresAt);
 
+    // 植物陷阱區域傷害
+    this.plantZones = this.plantZones.filter(z => {
+      if (now >= z.expiresAt) { z.gfx.destroy(); return false; }
+      return true;
+    });
+    for (const z of this.plantZones) {
+      if (now < z.lastTick + z.tickInterval) continue;
+      z.lastTick = now;
+      let hit = false;
+      if (z.type === 'circle') {
+        hit = Phaser.Math.Distance.Between(z.x, z.y, this.player.x, this.player.y) <= z.r;
+      } else {
+        // vine: line segment check (axis-aligned from boss in 4 cardinal dirs)
+        const nx = Math.cos(z.ang!), ny = Math.sin(z.ang!);
+        const dx = this.player.x - z.x, dy = this.player.y - z.y;
+        const proj = dx * nx + dy * ny;
+        const perp = Math.abs(dx * (-ny) + dy * nx);
+        hit = proj >= 0 && proj <= z.len! && perp <= z.r;
+      }
+      if (hit) this.player.takeDamage(z.dmg);
+    }
+
     // burnMaxStackBonus 卡片效果
     const burnCap = this.BURN_MAX_STACKS + (stats.burnMaxStackBonus ?? 0);
 
@@ -1773,6 +1808,26 @@ export class GameScene extends Phaser.Scene {
       };
       return b;
     }
+    if (bossDef.id === 'boss_flower_two') {
+      const b = new BossFlowerTwo(this, cx, cy, totalHp, bossDef.element, bossDef.spriteKey, bossDef.tint);
+      b.onPlaceBuds = (positions, dmg, r, zoneDur) => {
+        if (!this.bossActive) return;
+        this.placeBuds(positions, dmg, r, zoneDur);
+      };
+      b.onSprayMist = (fromX, fromY, angle, range, dmg) => {
+        if (!this.bossActive) return;
+        this.sprayMist(fromX, fromY, angle, range, dmg);
+      };
+      b.onSpawnVines = (fromX, fromY, len, w, dmg, baseAngle, count) => {
+        if (!this.bossActive) return;
+        this.spawnVines(fromX, fromY, len, w, dmg, baseAngle, count);
+      };
+      b.onPoisonBurst = (fromX, fromY, dist, r, dmg, count) => {
+        if (!this.bossActive) return;
+        this.poisonBurst(fromX, fromY, dist, r, dmg, count);
+      };
+      return b;
+    }
     return new Boss(this, cx, cy, totalHp, bossDef.element, bossDef.spriteKey, bossDef.tint);
   }
 
@@ -1825,6 +1880,7 @@ export class GameScene extends Phaser.Scene {
       boss_zombie_slime: 'slime_zombie_s',
       boss_lava_slime:   'slime_lava_s',
       boss_flower_one:   'plant1_s',
+      boss_flower_two:   'plant2_s',
     };
     const MINION_TO_ELITE: Record<string, string> = {
       slime_green_s:  'elite_slime_green',
@@ -1858,7 +1914,7 @@ export class GameScene extends Phaser.Scene {
       const atk = Math.round(def.atk * hpMult * (isElite ? 1.5 : 1));
       const isPlant = defId.startsWith('plant') || defId.startsWith('elite_plant');
       const a   = srng.float(0, Math.PI * 2);
-      const r   = isPlant ? srng.float(P(20), P(220)) : srng.float(P(20), P(120));
+      const r   = isPlant ? srng.float(P(10), P(50)) : srng.float(P(20), P(120));
       const spawnX = wx + Math.cos(a) * r;
       const spawnY = wy + Math.sin(a) * r;
       const m   = new MinionSlime(this, spawnX, spawnY, hp, def.spriteKey, def.tint);
@@ -1909,6 +1965,15 @@ export class GameScene extends Phaser.Scene {
     };
 
     const spawnAt = (wx: number, wy: number) => {
+      // 花怪群聚錨點：1~2 個，距 waypoint 中心 60~140px
+      const numClusters = srng.between(1, 2);
+      const plantClusters: { x: number; y: number }[] = [];
+      for (let c = 0; c < numClusters; c++) {
+        const ca = srng.float(0, Math.PI * 2);
+        const cr = srng.float(P(60), P(140));
+        plantClusters.push({ x: wx + Math.cos(ca) * cr, y: wy + Math.sin(ca) * cr });
+      }
+
       const baseCount = srng.between(8, 15);
       const count     = Math.round(baseCount * countMult);
       for (let j = 0; j < count; j++) {
@@ -1917,7 +1982,14 @@ export class GameScene extends Phaser.Scene {
           : otherPool[srng.between(0, otherPool.length - 1)];
         const eliteId  = mainMinionId ? MINION_TO_ELITE[minionId] : undefined;
         const goElite  = !!eliteId && srng.float(0, 1) < 0.12;
-        spawnMinion(goElite ? eliteId! : minionId, wx, wy, goElite);
+        const finalId  = goElite ? eliteId! : minionId;
+        const isPlantMinion = finalId.startsWith('plant') || finalId.startsWith('elite_plant');
+        if (isPlantMinion) {
+          const cluster = plantClusters[srng.between(0, plantClusters.length - 1)];
+          spawnMinion(finalId, cluster.x, cluster.y, goElite);
+        } else {
+          spawnMinion(finalId, wx, wy, goElite);
+        }
       }
     };
 
@@ -4238,12 +4310,16 @@ export class GameScene extends Phaser.Scene {
       this.fireProjectile(wx, wy, wtx, wty, isElite ? 'proj_fast_elite' : 'proj_fast', Math.round(atk * 4.0), Math.round(150 * DPR));
     } else if (type === 'triple') {
       const baseAngle = Phaser.Math.Angle.Between(wx, wy, wtx, wty);
+      const batchId   = this.time.now + Math.random();
       for (const offset of [-0.28, 0, 0.28]) {
         const a   = baseAngle + offset;
         const etx = wx + Math.cos(a) * P(600);
         const ety = wy + Math.sin(a) * P(600);
-        this.fireProjectile(wx, wy, etx, ety, isElite ? 'proj_slow_elite' : 'proj_slow', Math.round(atk * 3.0), Math.round(90 * DPR));
+        this.fireProjectile(wx, wy, etx, ety, isElite ? 'proj_slow_elite' : 'proj_slow', Math.round(atk * 2.55), Math.round(90 * DPR), batchId);
       }
+      // 清理超過 2 秒的舊 batch 記錄
+      const cutoff = this.time.now - 2000;
+      this.hitBatches.forEach((ts, id) => { if (ts < cutoff) this.hitBatches.delete(id); });
     } else if (type === 'spike') {
       this.spikeAt(tx * DPR, ty * DPR, atk, isElite);
     } else {
@@ -4274,6 +4350,365 @@ export class GameScene extends Phaser.Scene {
       if (i !== -1) this.homingProjs.splice(i, 1);
       proj.destroy();
     });
+  }
+
+  // ── 藤蔓花王 VFX ─────────────────────────────────────────
+
+  private placeBuds(positions: { x: number; y: number }[], dmg: number, r: number, zoneDur: number): void {
+    const D = 18;
+    positions.forEach(p => {
+      const gfx       = this.add.graphics().setDepth(D);
+      const startTime = this.time.now;
+      let   phase     = 0;
+
+      const tick = this.time.addEvent({
+        delay: 30, loop: true,
+        callback: () => {
+          const elapsed  = this.time.now - startTime;
+          const progress = Math.min(elapsed / zoneDur, 1);
+          phase += 0.12 + progress * 0.18;   // 快速跳動隨倒數加快
+          gfx.clear();
+
+          // 顏色由綠漸轉紅
+          const rc = Math.round(30  + progress * 210);
+          const gc = Math.round(200 - progress * 180);
+          const col = Phaser.Display.Color.GetColor(rc, gc, 20);
+
+          // 外脈衝警示圈（閃爍加快）
+          const pulse = 0.78 + Math.sin(phase * (2 + progress * 6)) * 0.16;
+          gfx.lineStyle(P(2.5), col, 0.75 + Math.sin(phase * 3) * 0.15);
+          gfx.strokeCircle(p.x, p.y, r * pulse);
+
+          // 填充（越來越亮）
+          gfx.fillStyle(col, 0.12 + progress * 0.28);
+          gfx.fillCircle(p.x, p.y, r * 0.85);
+
+          // 6 顆花苞小圓點環繞
+          for (let i = 0; i < 6; i++) {
+            const a  = (i / 6) * Math.PI * 2 + phase * 0.04;
+            const pr = r * 0.42;
+            gfx.fillStyle(col, 0.9);
+            gfx.fillCircle(p.x + Math.cos(a) * pr, p.y + Math.sin(a) * pr, P(3.5 + progress * 3));
+          }
+
+          // 中心核心（越接近爆炸越亮）
+          gfx.fillStyle(0xffffff, 0.5 + progress * 0.45);
+          gfx.fillCircle(p.x, p.y, P(3 + progress * 5));
+
+          if (progress >= 1) {
+            tick.destroy();
+            gfx.destroy();
+            if (Phaser.Math.Distance.Between(p.x, p.y, this.player.x, this.player.y) <= r)
+              this.player.takeDamage(dmg);
+            this.blossomExplodeVfx(p.x, p.y, r);
+          }
+        },
+      });
+    });
+  }
+
+  private sprayMist(fromX: number, fromY: number, angle: number, range: number, dmg: number): void {
+    const D      = 18;
+    const SPEED  = P(70);            // 慢速飄行
+    const BALL_R = P(26);
+    const DMG_R  = BALL_R + P(18);  // 傷害判定稍大於視覺球
+    const LIFE   = Math.round((range / SPEED) * 1000);  // 飄完全程所需時間(ms)
+
+    let bx = fromX, by = fromY;
+    let elapsed = 0, dmgAccum = 0, phase = 0;
+
+    const gfx = this.add.graphics().setDepth(D);
+
+    const moveTimer = this.time.addEvent({
+      delay: 16, loop: true,
+      callback: () => {
+        elapsed  += 16;
+        dmgAccum += 16;
+        phase    += 0.07;
+
+        bx += Math.cos(angle) * SPEED * 16 / 1000;
+        by += Math.sin(angle) * SPEED * 16 / 1000;
+
+        // 輕微上下飄動（垂直於飛行方向）
+        const wobble = Math.sin(phase) * P(3);
+        const wox    = -Math.sin(angle) * wobble;
+        const woy    =  Math.cos(angle) * wobble;
+        const drawX  = bx + wox, drawY = by + woy;
+
+        gfx.clear();
+
+        // 外發光暈
+        gfx.fillStyle(0x22aa44, 0.18 + Math.sin(phase * 1.5) * 0.06);
+        gfx.fillCircle(drawX, drawY, BALL_R * 1.75);
+
+        // 地面陰影橢圓
+        gfx.fillStyle(0x001100, 0.35);
+        gfx.fillEllipse(drawX + P(7), drawY + P(9), BALL_R * 2.2, BALL_R * 1.0);
+
+        // 主球體（深外層）
+        gfx.fillStyle(0x1a6630, 0.88);
+        gfx.fillCircle(drawX, drawY, BALL_R);
+        // 中層亮色
+        gfx.fillStyle(0x33bb55, 0.75);
+        gfx.fillCircle(drawX, drawY, BALL_R * 0.76);
+        // 亮核心
+        gfx.fillStyle(0x66ee88, 0.55);
+        gfx.fillCircle(drawX, drawY, BALL_R * 0.50);
+        // 高光反光
+        gfx.fillStyle(0xaaffcc, 0.58);
+        gfx.fillEllipse(drawX - BALL_R * 0.26, drawY - BALL_R * 0.30, BALL_R * 0.62, BALL_R * 0.30);
+        // 輪廓
+        gfx.lineStyle(P(2), 0x55ff88, 0.85);
+        gfx.strokeCircle(drawX, drawY, BALL_R);
+
+        // 傷害（每 350ms 判定一次）
+        if (dmgAccum >= 350) {
+          dmgAccum = 0;
+          if (Phaser.Math.Distance.Between(bx, by, this.player.x, this.player.y) <= DMG_R)
+            this.player.takeDamage(dmg);
+        }
+
+        if (elapsed >= LIFE) {
+          moveTimer.destroy();
+          // 霧球消散：擴散淡出
+          this.tweens.add({
+            targets: gfx, alpha: 0, scaleX: 2.2, scaleY: 2.2,
+            duration: 500, ease: 'Quad.Out',
+            onComplete: () => gfx.destroy(),
+          });
+        }
+      },
+    });
+  }
+
+  private spawnVines(fromX: number, fromY: number, len: number, w: number, dmg: number, baseAngle: number, count: number): void {
+    const D       = 16;
+    const DUR     = 4000;
+    const GROW_MS = 500;
+    const now     = this.time.now;
+    const dirs    = Array.from({ length: count }, (_, i) => baseAngle + i * (Math.PI * 2 / count));
+
+    dirs.forEach(ang => {
+      const perp = ang + Math.PI / 2;
+      const nx   = Math.cos(perp), ny = Math.sin(perp);
+      const gfx  = this.add.graphics().setDepth(D);
+
+      const drawVine = (gl: number) => {
+        const ex2 = fromX + Math.cos(ang) * gl;
+        const ey2 = fromY + Math.sin(ang) * gl;
+        gfx.clear();
+
+        // 地面陰影
+        gfx.fillStyle(0x001100, 0.45);
+        gfx.fillPoints([
+          { x: fromX + nx * w * 1.5 + P(4), y: fromY + ny * w * 1.5 + P(4) },
+          { x: ex2   + nx * w * 1.5 + P(4), y: ey2   + ny * w * 1.5 + P(4) },
+          { x: ex2   - nx * w * 1.5 + P(4), y: ey2   - ny * w * 1.5 + P(4) },
+          { x: fromX - nx * w * 1.5 + P(4), y: fromY - ny * w * 1.5 + P(4) },
+        ], true);
+
+        // 外層深色
+        gfx.fillStyle(0x1a5500, 0.92);
+        gfx.fillPoints([
+          { x: fromX + nx * w,  y: fromY + ny * w  }, { x: ex2 + nx * w,  y: ey2 + ny * w  },
+          { x: ex2   - nx * w,  y: ey2   - ny * w  }, { x: fromX - nx * w, y: fromY - ny * w },
+        ], true);
+
+        // 主藤蔓
+        gfx.fillStyle(0x339922, 0.95);
+        gfx.fillPoints([
+          { x: fromX + nx * w * 0.72, y: fromY + ny * w * 0.72 }, { x: ex2 + nx * w * 0.72, y: ey2 + ny * w * 0.72 },
+          { x: ex2   - nx * w * 0.72, y: ey2   - ny * w * 0.72 }, { x: fromX - nx * w * 0.72, y: fromY - ny * w * 0.72 },
+        ], true);
+
+        // 高光條
+        gfx.fillStyle(0x88ee44, 0.55);
+        gfx.fillPoints([
+          { x: fromX + nx * w * 0.22, y: fromY + ny * w * 0.22 }, { x: ex2 + nx * w * 0.22, y: ey2 + ny * w * 0.22 },
+          { x: ex2   - nx * w * 0.12, y: ey2   - nx * w * 0.12 }, { x: fromX - nx * w * 0.12, y: fromY - ny * w * 0.12 },
+        ], true);
+
+        // 邊緣輪廓
+        gfx.lineStyle(P(1.5), 0x66cc33, 0.65);
+        gfx.lineBetween(fromX + nx * w, fromY + ny * w, ex2 + nx * w, ey2 + ny * w);
+        gfx.lineBetween(fromX - nx * w, fromY - ny * w, ex2 - nx * w, ey2 - ny * w);
+
+        // 節點（每 P(60) 出現一個，依據當前長度）
+        const nodeStep = P(60);
+        for (let d = 0; d <= gl; d += nodeStep) {
+          const kx = fromX + Math.cos(ang) * d;
+          const ky = fromY + Math.sin(ang) * d;
+          gfx.fillStyle(0x0a3300, 0.65); gfx.fillCircle(kx + P(2), ky + P(2), P(6));
+          gfx.fillStyle(0x55dd22, 0.95); gfx.fillCircle(kx, ky, P(6));
+          gfx.fillStyle(0xccff88, 0.75); gfx.fillCircle(kx - P(1.5), ky - P(1.5), P(2.5));
+        }
+
+        // 刺（每 P(40) 交替兩側，依據當前長度）
+        let s = 0;
+        for (let d = P(40); d <= gl; d += P(40)) {
+          s++;
+          const kx   = fromX + Math.cos(ang) * d;
+          const ky   = fromY + Math.sin(ang) * d;
+          const side = s % 2 === 0 ? 1 : -1;
+          const tLen = P(9);
+          const tx1  = kx + nx * side * w * 0.85, ty1 = ky + ny * side * w * 0.85;
+          const tx2  = tx1 + nx * side * tLen - Math.cos(ang) * tLen * 0.35;
+          const ty2  = ty1 + ny * side * tLen - Math.sin(ang) * tLen * 0.35;
+          gfx.lineStyle(P(2), 0x44bb11, 0.88);
+          gfx.lineBetween(tx1, ty1, tx2, ty2);
+          gfx.fillStyle(0xaaff44, 0.9); gfx.fillCircle(tx2, ty2, P(2));
+        }
+
+        // 尖端箭頭
+        if (gl > P(30)) {
+          gfx.fillStyle(0xccff55, 0.95);
+          gfx.fillTriangle(
+            ex2 + Math.cos(ang) * P(8),           ey2 + Math.sin(ang) * P(8),
+            ex2 + nx * P(7),                       ey2 + ny * P(7),
+            ex2 - nx * P(7),                       ey2 - ny * P(7),
+          );
+        }
+      };
+
+      // 生長動畫
+      let growLen = 0;
+      const growTimer = this.time.addEvent({
+        delay: 16, loop: true,
+        callback: () => {
+          growLen = Math.min(growLen + len * 16 / GROW_MS, len);
+          drawVine(growLen);
+          if (growLen >= len) {
+            growTimer.destroy();
+            // 長成後維持，再慢慢消失
+            this.tweens.add({ targets: gfx, alpha: 0, duration: DUR - GROW_MS,
+              ease: 'Cubic.In', onComplete: () => gfx.destroy() });
+          }
+        },
+      });
+
+      // 傷害區域（500ms tick）
+      this.plantZones.push({
+        type: 'vine', x: fromX, y: fromY, r: w, len, ang,
+        dmg, lastTick: now, tickInterval: 500, expiresAt: now + DUR, gfx: this.add.graphics(),
+      });
+    });
+  }
+
+  private poisonBurst(fromX: number, fromY: number, dist: number, r: number, dmg: number, count: number): void {
+    const D     = 20;
+    const SPEED = P(190);
+    const ORB_R = P(11);
+    const HIT_R = ORB_R + P(16);
+
+    for (let i = 0; i < count; i++) {
+      const angle = (i / count) * Math.PI * 2;
+      let px = fromX, py = fromY;
+      let traveled = 0, phase = 0;
+
+      const gfx = this.add.graphics().setDepth(D);
+
+      const drawOrb = (ox: number, oy: number) => {
+        gfx.clear();
+        gfx.fillStyle(0x22aa44, 0.22 + Math.sin(phase) * 0.06);
+        gfx.fillCircle(ox, oy, ORB_R * 1.8);
+        gfx.fillStyle(0x001100, 0.42);
+        gfx.fillEllipse(ox + P(4), oy + P(5), ORB_R * 1.8, ORB_R * 0.85);
+        gfx.fillStyle(0x1a8833, 0.92);
+        gfx.fillCircle(ox, oy, ORB_R);
+        gfx.fillStyle(0x44cc55, 0.78);
+        gfx.fillCircle(ox, oy, ORB_R * 0.70);
+        gfx.fillStyle(0xaaffbb, 0.60);
+        gfx.fillEllipse(ox - ORB_R * 0.26, oy - ORB_R * 0.30, ORB_R * 0.52, ORB_R * 0.26);
+        gfx.lineStyle(P(1.5), 0x55ff77, 0.88);
+        gfx.strokeCircle(ox, oy, ORB_R);
+      };
+
+      drawOrb(px, py);
+
+      const moveTimer = this.time.addEvent({
+        delay: 16, loop: true,
+        callback: () => {
+          phase += 0.15;
+          const dx = Math.cos(angle) * SPEED * 16 / 1000;
+          const dy = Math.sin(angle) * SPEED * 16 / 1000;
+          px += dx; py += dy;
+          traveled += Math.sqrt(dx * dx + dy * dy);
+
+          drawOrb(px, py);
+
+          // 打到玩家：爆炸並造成傷害
+          if (Phaser.Math.Distance.Between(px, py, this.player.x, this.player.y) <= HIT_R) {
+            moveTimer.destroy();
+            gfx.destroy();
+            this.player.takeDamage(dmg);
+            this.poisonOrbExplodeVfx(px, py, r);
+            return;
+          }
+
+          // 超出射程：靜默消散
+          if (traveled >= dist * 2.5) {
+            moveTimer.destroy();
+            this.tweens.add({
+              targets: gfx, alpha: 0, scaleX: 1.6, scaleY: 1.6,
+              duration: 200, ease: 'Quad.Out', onComplete: () => gfx.destroy(),
+            });
+          }
+        },
+      });
+    }
+  }
+
+  private blossomExplodeVfx(cx: number, cy: number, r: number): void {
+    const D = 22;
+    const flash = this.add.graphics().setDepth(D + 2).setPosition(cx, cy);
+    flash.fillStyle(0xffffff, 0.90); flash.fillCircle(0, 0, r * 0.45);
+    flash.fillStyle(0xff4400, 0.72); flash.fillCircle(0, 0, r * 0.72);
+    flash.fillStyle(0xff9900, 0.40); flash.fillCircle(0, 0, r);
+    this.tweens.add({ targets: flash, scaleX: 3.2, scaleY: 3.2, alpha: 0,
+      duration: 360, ease: 'Quad.Out', onComplete: () => flash.destroy() });
+
+    const ring = this.add.graphics().setDepth(D + 1).setPosition(cx, cy);
+    ring.lineStyle(P(3), 0xff7700, 1); ring.strokeCircle(0, 0, r * 0.4);
+    this.tweens.add({ targets: ring, scaleX: 4.0, scaleY: 4.0, alpha: 0,
+      duration: 400, ease: 'Quad.Out', onComplete: () => ring.destroy() });
+
+    for (let i = 0; i < 10; i++) {
+      const a   = (i / 10) * Math.PI * 2 + Math.random() * 0.35;
+      const d   = P(18 + Math.random() * 38);
+      const fg  = this.add.graphics().setDepth(D + 2).setPosition(cx, cy);
+      const col = ([0xff4400, 0xff8800, 0xffcc00, 0x88ff44] as number[])[i % 4];
+      fg.fillStyle(col, 1); fg.fillCircle(0, 0, P(2.5 + Math.random() * 3));
+      this.tweens.add({ targets: fg,
+        x: cx + Math.cos(a) * d, y: cy + Math.sin(a) * d,
+        alpha: 0, scaleX: 0.3, scaleY: 0.3,
+        duration: 360, ease: 'Quad.Out', onComplete: () => fg.destroy() });
+    }
+  }
+
+  private poisonOrbExplodeVfx(cx: number, cy: number, r: number): void {
+    const D = 22;
+    const flash = this.add.graphics().setDepth(D + 2).setPosition(cx, cy);
+    flash.fillStyle(0xffffff, 0.85); flash.fillCircle(0, 0, r * 0.40);
+    flash.fillStyle(0x44ff88, 0.68); flash.fillCircle(0, 0, r * 0.70);
+    flash.fillStyle(0x22aa44, 0.38); flash.fillCircle(0, 0, r);
+    this.tweens.add({ targets: flash, scaleX: 2.8, scaleY: 2.8, alpha: 0,
+      duration: 340, ease: 'Quad.Out', onComplete: () => flash.destroy() });
+
+    const ring = this.add.graphics().setDepth(D + 1).setPosition(cx, cy);
+    ring.lineStyle(P(2.5), 0x55ff77, 1); ring.strokeCircle(0, 0, r * 0.35);
+    this.tweens.add({ targets: ring, scaleX: 3.8, scaleY: 3.8, alpha: 0,
+      duration: 380, ease: 'Quad.Out', onComplete: () => ring.destroy() });
+
+    for (let i = 0; i < 8; i++) {
+      const a  = (i / 8) * Math.PI * 2 + Math.random() * 0.4;
+      const d  = P(12 + Math.random() * 24);
+      const fg = this.add.graphics().setDepth(D + 2).setPosition(cx, cy);
+      fg.fillStyle(0x44ff88, 1); fg.fillCircle(0, 0, P(2 + Math.random() * 2.5));
+      this.tweens.add({ targets: fg,
+        x: cx + Math.cos(a) * d, y: cy + Math.sin(a) * d,
+        alpha: 0, scaleX: 0.3, scaleY: 0.3,
+        duration: 300, ease: 'Quad.Out', onComplete: () => fg.destroy() });
+    }
   }
 
   private petalHitVfx(cx: number, cy: number, large: boolean): void {
@@ -4325,10 +4760,11 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  private fireProjectile(fromX: number, fromY: number, toX: number, toY: number, texKey: string, dmg: number, speed: number): void {
+  private fireProjectile(fromX: number, fromY: number, toX: number, toY: number, texKey: string, dmg: number, speed: number, batchId?: number): void {
     const proj = this.minionProjGroup.create(fromX, fromY, texKey) as Phaser.Physics.Arcade.Image;
     proj.setDepth(20);
     (proj as any).dmg = dmg;
+    if (batchId !== undefined) (proj as any).batchId = batchId;
     const body  = proj.body as Phaser.Physics.Arcade.Body;
     const angle = Phaser.Math.Angle.Between(fromX, fromY, toX, toY);
     (this.physics as Phaser.Physics.Arcade.ArcadePhysics).velocityFromAngle(

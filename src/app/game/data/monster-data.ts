@@ -309,6 +309,13 @@ export const MONSTER_DEFS: MonsterDef[] = [
     cards: [{ cardId: 'card_boss_flower_one_a', rate: CR_B }, { cardId: 'card_boss_flower_one_b', rate: CR_B }, { cardId: 'card_boss_flower_one_c', rate: CR_B }],
     drops: bossDrops,
   },
+  {
+    id: 'boss_flower_two', name: '藤蔓花王', spriteKey: 'plant2', frameEnd: 9,
+    element: 'grass', tint: 0xffffff, tier: 5,
+    hp: 850, atk: 28, def: 15, speed: 0, exp: 210, gold: 115,
+    cards: [{ cardId: 'card_boss_flower_two_a', rate: CR_B }, { cardId: 'card_boss_flower_two_b', rate: CR_B }, { cardId: 'card_boss_flower_two_c', rate: CR_B }],
+    drops: bossDrops,
+  },
 ];
 
 // ── Card definitions ───────────────────────────────────────────────────────
@@ -400,6 +407,11 @@ export const CARD_DEFS: CardDef[] = [
   { id: 'card_boss_flower_one_a', name: '毒花王卡片(A)', monsterId: 'boss_flower_one', element: 'none', tint: 0xff88cc, effect: { projectileDistBonus: 60 }, desc: '風刃距離 +60' },
   { id: 'card_boss_flower_one_b', name: '毒花王卡片(B)', monsterId: 'boss_flower_one', element: 'none', tint: 0xff88cc, effect: { crit: 0.15 }, desc: '爆擊機率 +15%' },
   { id: 'card_boss_flower_one_c', name: '毒花王卡片(C)', monsterId: 'boss_flower_one', element: 'none', tint: 0xff88cc, effect: { dmgVsGrass: 0.30 }, desc: '對草屬性傷害 +30%' },
+
+  // 藤蔓花王：陷阱特化
+  { id: 'card_boss_flower_two_a', name: '藤蔓花王卡片(A)', monsterId: 'boss_flower_two', element: 'none', tint: 0x66ff88, effect: { dmgVsGrass: 0.25 }, desc: '對草屬性傷害 +25%' },
+  { id: 'card_boss_flower_two_b', name: '藤蔓花王卡片(B)', monsterId: 'boss_flower_two', element: 'none', tint: 0x66ff88, effect: { crit: 0.12 }, desc: '爆擊機率 +12%' },
+  { id: 'card_boss_flower_two_c', name: '藤蔓花王卡片(C)', monsterId: 'boss_flower_two', element: 'none', tint: 0x66ff88, effect: { projectileDistBonus: 50 }, desc: '風刃距離 +50' },
 ];
 
 // ── Helpers ────────────────────────────────────────────────────────────────

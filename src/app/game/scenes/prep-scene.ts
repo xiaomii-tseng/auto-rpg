@@ -86,6 +86,7 @@ export class PrepScene extends Phaser.Scene {
       ['slime_idle',  'sprite/slime/PNG/Slime1/With_shadow/Slime1_Idle_with_shadow.png'],
       ['slime2_idle', 'sprite/slime/PNG/Slime2/With_shadow/Slime2_Idle_with_shadow.png'],
       ['slime3_idle', 'sprite/slime/PNG/Slime3/With_shadow/Slime3_Idle_with_shadow.png'],
+      ['plant2_idle', 'sprite/flower/PNG/Plant2/With_shadow/Plant2_Idle_with_shadow.png'],
       ['plant3_idle', 'sprite/flower/PNG/Plant3/With_shadow/Plant3_Idle_with_shadow.png'],
     ];
     bossSprites.forEach(([key, path]) => {

@@ -83,8 +83,14 @@ const BOSS_POOL = [
   'boss_slime_white',
   'boss_zombie_slime',
   'boss_lava_slime',
+  'boss_flower_two',
   'boss_flower_one',
 ];
+
+const BOSS_MIN_STAR: Record<string, number> = {
+  boss_flower_one: 2,
+  boss_flower_two: 2,
+};
 
 const FLAVOR_TEMPLATES: Array<(name: string, star: number) => string> = [
   (n, s) => `國王下令：${n}橫行東方森林，急需${s >= 3 ? '精英' : ''}勇者前往討伐！`,
@@ -117,7 +123,7 @@ function generateQuests(): Quest[] {
   return picked.map((bossId, i) => {
     const def  = MONSTER_DEFS.find(m => m.id === bossId)!;
     const tmpl = FLAVOR_TEMPLATES[Math.floor(Math.random() * FLAVOR_TEMPLATES.length)];
-    const star = pickStar(playerLevel);
+    const star = Math.max(BOSS_MIN_STAR[bossId] ?? 1, pickStar(playerLevel));
     const base = (Math.floor(Math.random() * 21) + 30) * 10;
     const reward = Math.round(base * STAR_REWARD_MULT[star] / 10) * 10;
 
@@ -202,7 +208,7 @@ export const QuestStore = {
       ? choices[Math.floor(Math.random() * choices.length)]
       : BOSS_POOL[Math.floor(Math.random() * BOSS_POOL.length)];
     const def    = MONSTER_DEFS.find(m => m.id === bossId)!;
-    const star   = pickStar(PlayerStore.getLevel());
+    const star   = Math.max(BOSS_MIN_STAR[bossId] ?? 1, pickStar(PlayerStore.getLevel()));
     const base   = (Math.floor(Math.random() * 21) + 30) * 10;
     const isEquipReward = Math.random() < 0.40;
     const tmpl   = FLAVOR_TEMPLATES[Math.floor(Math.random() * FLAVOR_TEMPLATES.length)];

@@ -29,6 +29,11 @@ export enum BossState {
   TRACKING_WARN      = 'TRACKING_WARN',
   FAN_WARN           = 'FAN_WARN',
   SPIRAL_WARN        = 'SPIRAL_WARN',
+  BLOSSOM_WARN = 'BLOSSOM_WARN',
+  MIST_WARN    = 'MIST_WARN',
+  VINE_WARN    = 'VINE_WARN',
+  BURST_WARN   = 'BURST_WARN',
+  BURROW       = 'BURROW',
   DEAD             = 'DEAD',
 }
 
