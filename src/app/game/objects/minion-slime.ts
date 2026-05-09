@@ -150,7 +150,10 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
     this.drawHpBar();
   }
 
+  noKnockback = false;
+
   knockback(fromX: number, fromY: number, power = 80): void {
+    if (this.noKnockback) return;
     if (this.mState === MinionState.DEAD || this.mState === MinionState.DASHING) return;
     const angle = Phaser.Math.Angle.Between(fromX, fromY, this.x, this.y);
     const body = this.pb;

@@ -300,6 +300,15 @@ export const MONSTER_DEFS: MonsterDef[] = [
     cards: [{ cardId: 'card_boss_lava_slime_a', rate: CR_B}, { cardId: 'card_boss_lava_slime_b', rate: CR_B}, { cardId: 'card_boss_lava_slime_c', rate: CR_B}],
     drops: bossDrops,
   },
+
+  // ── 花Boss系列 ──────────────────────────────────────────
+  {
+    id: 'boss_flower_one', name: '毒花王', spriteKey: 'plant3', frameEnd: 9,
+    element: 'grass', tint: 0xffffff, tier: 5,
+    hp: 800, atk: 25, def: 15, speed: 0, exp: 200, gold: 110,
+    cards: [{ cardId: 'card_boss_flower_one_a', rate: CR_B }, { cardId: 'card_boss_flower_one_b', rate: CR_B }, { cardId: 'card_boss_flower_one_c', rate: CR_B }],
+    drops: bossDrops,
+  },
 ];
 
 // ── Card definitions ───────────────────────────────────────────────────────
@@ -386,6 +395,11 @@ export const CARD_DEFS: CardDef[] = [
   { id: 'card_boss_lava_slime_a', name: '熔岩史萊姆王卡片(A)', monsterId: 'boss_lava_slime', element: 'none', tint: 0xff6622, effect: { dmgVsBoss: 0.25 }, desc: '對Boss傷害 +25%' },
   { id: 'card_boss_lava_slime_b', name: '熔岩史萊姆王卡片(B)', monsterId: 'boss_lava_slime', element: 'none', tint: 0xff6622, effect: { multiHitNoStagger: 1 }, desc: '五連斬不再有僵直' },
   { id: 'card_boss_lava_slime_c', name: '熔岩史萊姆王卡片(C)', monsterId: 'boss_lava_slime', element: 'none', tint: 0xff6622, effect: { chargeSlamStunChance: 0.50 }, desc: '蓄力重擊有50%機率造成暈眩2秒' },
+
+  // 毒花王：彈幕特化
+  { id: 'card_boss_flower_one_a', name: '毒花王卡片(A)', monsterId: 'boss_flower_one', element: 'none', tint: 0xff88cc, effect: { projectileDistBonus: 60 }, desc: '風刃距離 +60' },
+  { id: 'card_boss_flower_one_b', name: '毒花王卡片(B)', monsterId: 'boss_flower_one', element: 'none', tint: 0xff88cc, effect: { crit: 0.15 }, desc: '爆擊機率 +15%' },
+  { id: 'card_boss_flower_one_c', name: '毒花王卡片(C)', monsterId: 'boss_flower_one', element: 'none', tint: 0xff88cc, effect: { dmgVsGrass: 0.30 }, desc: '對草屬性傷害 +30%' },
 ];
 
 // ── Helpers ────────────────────────────────────────────────────────────────

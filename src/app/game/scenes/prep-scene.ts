@@ -86,6 +86,7 @@ export class PrepScene extends Phaser.Scene {
       ['slime_idle',  'sprite/slime/PNG/Slime1/With_shadow/Slime1_Idle_with_shadow.png'],
       ['slime2_idle', 'sprite/slime/PNG/Slime2/With_shadow/Slime2_Idle_with_shadow.png'],
       ['slime3_idle', 'sprite/slime/PNG/Slime3/With_shadow/Slime3_Idle_with_shadow.png'],
+      ['plant3_idle', 'sprite/flower/PNG/Plant3/With_shadow/Plant3_Idle_with_shadow.png'],
     ];
     bossSprites.forEach(([key, path]) => {
       if (!this.textures.exists(key)) this.load.spritesheet(key, path, cfg);
@@ -959,18 +960,21 @@ export class PrepScene extends Phaser.Scene {
       cg.strokeCircle(cx + CARD_W / 2, CIRCLE_Y, CIRCLE_R - P(5));
 
       // Boss sprite
-      const spriteKey = def ? `${def.spriteKey}_idle` : 'slime_idle';
-      const animKey   = `q_${quest.bossId}`;
+      const spriteKey   = def ? `${def.spriteKey}_idle` : 'slime_idle';
+      const isPlantBoss = def?.spriteKey?.startsWith('plant');
+      const idleFrames  = isPlantBoss ? 3 : 5;   // plant idle = 4 frames (0-3), slime = 6 (0-5)
+      const bossScale   = isPlantBoss ? 3.0 * DPR * 0.8 : 3.0 * DPR;
+      const animKey     = `q_${quest.bossId}`;
       if (!this.anims.exists(animKey) && this.textures.exists(spriteKey)) {
         this.anims.create({
           key: animKey,
-          frames: this.anims.generateFrameNumbers(spriteKey, { start: 0, end: 5 }),
+          frames: this.anims.generateFrameNumbers(spriteKey, { start: 0, end: idleFrames }),
           frameRate: 8, repeat: -1,
         });
       }
       if (this.textures.exists(spriteKey)) {
         const sp = this.add.sprite(cx + CARD_W / 2, CIRCLE_Y, spriteKey, 0)
-          .setScale(3.0 * DPR).setDepth(D + 3);
+          .setScale(bossScale).setDepth(D + 3);
         if (def?.tint) def.fillTint ? sp.setTintFill(def.tint) : sp.setTint(def.tint);
         if (this.anims.exists(animKey)) sp.play(animKey);
         if (dimmed) sp.setAlpha(0.4);

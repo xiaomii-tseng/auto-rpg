@@ -7,7 +7,8 @@ import { BossRedSlime }    from '../objects/boss-red-slime';
 import { BossBlueSlime }   from '../objects/boss-blue-slime';
 import { BossWhiteSlime }  from '../objects/boss-white-slime';
 import { BossZombieSlime } from '../objects/boss-zombie-slime';
-import { BossLavaSlime }  from '../objects/boss-lava-slime';
+import { BossLavaSlime }   from '../objects/boss-lava-slime';
+import { BossFlowerOne }  from '../objects/boss-flower-one';
 import { MinionSlime } from '../objects/minion-slime';
 import { VirtualJoystick } from '../ui/joystick';
 import { PlayerStore } from '../data/player-store';
@@ -123,6 +124,7 @@ export class GameScene extends Phaser.Scene {
   private auraRing?: Phaser.GameObjects.Graphics;
   private activeFires: { x: number; y: number; r: number; expiresAt: number }[] = [];
   private minionProjGroup!: Phaser.Physics.Arcade.Group;
+  private homingProjs: Phaser.Physics.Arcade.Image[] = [];
 
   constructor() {
     super({ key: 'GameScene' });
@@ -457,8 +459,34 @@ export class GameScene extends Phaser.Scene {
     this.physics.add.overlap(this.minionProjGroup, this.player, (_p, proj) => {
       const p = proj as Phaser.Physics.Arcade.Image;
       if (!p.active) return;
+      const blindDist = (p as any).blindDist as number | undefined;
+      if (blindDist && blindDist > 0) {
+        const dist = Phaser.Math.Distance.Between((p as any).spawnX, (p as any).spawnY, p.x, p.y);
+        if (dist < blindDist) return;
+      }
       this.player.takeDamage((p as any).dmg as number);
+      const isHoming = (p as any).blindDist < 0 || this.homingProjs.includes(p);
+      if (isHoming) this.petalHitVfx(p.x, p.y, p.texture.key === 'proj_homing_petal_large');
+      const idx = this.homingProjs.indexOf(p);
+      if (idx !== -1) this.homingProjs.splice(idx, 1);
       p.destroy();
+    });
+
+    // Homing projectile steering (every 150ms)
+    this.time.addEvent({
+      delay: 150, loop: true, callback: () => {
+        this.homingProjs = this.homingProjs.filter(p => p.active);
+        this.homingProjs.forEach(p => {
+          const targetAngle = Phaser.Math.Angle.Between(p.x, p.y, this.player.x, this.player.y);
+          const body = p.body as Phaser.Physics.Arcade.Body;
+          const curAngle = Math.atan2(body.velocity.y, body.velocity.x);
+          const diff = Phaser.Math.Angle.Wrap(targetAngle - curAngle);
+          const newAngle = curAngle + diff * 0.28;
+          const speed = (p as any).homingSpeed as number;
+          (this.physics as Phaser.Physics.Arcade.ArcadePhysics)
+            .velocityFromAngle(Phaser.Math.RadToDeg(newAngle), speed, body.velocity);
+        });
+      },
     });
 
     if (NetworkService.connected && !NetworkService.isHost) {
@@ -1387,6 +1415,7 @@ export class GameScene extends Phaser.Scene {
 
     const questBossId = QuestStore.getAcceptedQuest()?.bossId;
     const BOSS_POOL = [
+      'boss_flower_one',
       'boss_slime_green', 'boss_slime_red', 'boss_slime_blue', 'boss_slime_white',
       'boss_zombie_slime', 'boss_lava_slime',
     ];
@@ -1727,6 +1756,23 @@ export class GameScene extends Phaser.Scene {
       };
       return b;
     }
+    if (bossDef.id === 'boss_flower_one') {
+      const b = new BossFlowerOne(this, cx, cy, totalHp, bossDef.element, bossDef.spriteKey, bossDef.tint);
+      b.onFirePetal = (fromX, fromY, angle, speed, dmg, blindDist, large) => {
+        if (!this.bossActive) return;
+        this.fireBossPetal(fromX, fromY, angle, speed, dmg, blindDist, large);
+      };
+      b.onRepelPlayer = (bossX, bossY) => {
+        if (!this.bossActive) return;
+        const angle = Phaser.Math.Angle.Between(bossX, bossY, this.player.x, this.player.y);
+        const pushDist = P(70);
+        this.player.setPosition(
+          this.player.x + Math.cos(angle) * pushDist,
+          this.player.y + Math.sin(angle) * pushDist,
+        );
+      };
+      return b;
+    }
     return new Boss(this, cx, cy, totalHp, bossDef.element, bossDef.spriteKey, bossDef.tint);
   }
 
@@ -1778,6 +1824,7 @@ export class GameScene extends Phaser.Scene {
       boss_slime_white:  'slime_white_s',
       boss_zombie_slime: 'slime_zombie_s',
       boss_lava_slime:   'slime_lava_s',
+      boss_flower_one:   'plant1_s',
     };
     const MINION_TO_ELITE: Record<string, string> = {
       slime_green_s:  'elite_slime_green',
@@ -1827,17 +1874,20 @@ export class GameScene extends Phaser.Scene {
       if (['slime_red_s', 'elite_slime_red', 'slime_lava_s', 'elite_slime_lava'].includes(defId))
         m.attackMode = 'explode';
       if (['plant1_s', 'elite_plant1'].includes(defId)) {
-        m.stationary  = true;
-        m.attackMode  = 'shoot';
-        m.rangedRange = Math.round(220 * DPR);
+        m.stationary   = true;
+        m.noKnockback  = true;
+        m.attackMode   = 'shoot';
+        m.rangedRange  = Math.round(220 * DPR);
       }
       if (['plant2_s', 'elite_plant2'].includes(defId)) {
         m.stationary  = true;
+        m.noKnockback = true;
         m.attackMode  = 'spike';
         m.rangedRange = Math.round(250 * DPR);
       }
       if (['plant3_s', 'elite_plant3'].includes(defId)) {
         m.stationary  = true;
+        m.noKnockback = true;
         m.attackMode  = 'triple';
         m.rangedRange = Math.round(220 * DPR);
       }
@@ -4201,6 +4251,80 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  private fireBossPetal(fromX: number, fromY: number, angle: number, speed: number, dmg: number, blindDist: number, large = false): void {
+    const isHoming = blindDist < 0;
+    const tex  = isHoming ? (large ? 'proj_homing_petal_large' : 'proj_homing_petal') : 'proj_petal';
+    const proj = this.minionProjGroup.create(fromX, fromY, tex) as Phaser.Physics.Arcade.Image;
+    proj.setDepth(20);
+    (proj as any).dmg      = dmg;
+    (proj as any).spawnX   = fromX;
+    (proj as any).spawnY   = fromY;
+    (proj as any).blindDist = Math.max(0, blindDist);
+    const body = proj.body as Phaser.Physics.Arcade.Body;
+    (this.physics as Phaser.Physics.Arcade.ArcadePhysics)
+      .velocityFromAngle(Phaser.Math.RadToDeg(angle), speed, body.velocity);
+    if (isHoming) {
+      (proj as any).isHoming    = true;
+      (proj as any).homingSpeed = speed;
+      this.homingProjs.push(proj);
+    }
+    this.time.delayedCall(4500, () => {
+      if (!proj.active) return;
+      const i = this.homingProjs.indexOf(proj);
+      if (i !== -1) this.homingProjs.splice(i, 1);
+      proj.destroy();
+    });
+  }
+
+  private petalHitVfx(cx: number, cy: number, large: boolean): void {
+    const D = 25;
+    const baseR = large ? P(14) : P(6);
+
+    // Center flash: white → pink → fade
+    const flash = this.add.graphics().setDepth(D + 3).setPosition(cx, cy);
+    flash.fillStyle(0xffffff, 1);   flash.fillCircle(0, 0, baseR * 1.1);
+    flash.fillStyle(0xff66cc, 0.7); flash.fillCircle(0, 0, baseR * 0.65);
+    this.tweens.add({ targets: flash, alpha: 0, scaleX: large ? 1.8 : 1.5, scaleY: large ? 1.8 : 1.5,
+      duration: large ? 280 : 200, ease: 'Quad.Out', onComplete: () => flash.destroy() });
+
+    // Expanding ring
+    const ring = this.add.graphics().setDepth(D + 2).setPosition(cx, cy);
+    ring.lineStyle(large ? P(2) : P(1.5), 0xff44cc, 1);
+    ring.strokeCircle(0, 0, baseR * 0.8);
+    this.tweens.add({ targets: ring, scaleX: large ? 3.5 : 2.8, scaleY: large ? 3.5 : 2.8, alpha: 0,
+      duration: large ? 380 : 280, ease: 'Quad.Out', onComplete: () => ring.destroy() });
+
+    // Petal fragments flying outward
+    const count = large ? 10 : 6;
+    for (let i = 0; i < count; i++) {
+      const angle = (i / count) * Math.PI * 2 + Math.random() * 0.4;
+      const dist  = (large ? Phaser.Math.Between(22, 48) : Phaser.Math.Between(12, 28)) * (P(1) / 3);
+      const col   = ([0xff44cc, 0xff88dd, 0xffffff, 0xdd00aa] as number[])[i % 4];
+      const dot   = this.add.graphics().setDepth(D + 2).setPosition(cx, cy);
+      const r     = large ? Phaser.Math.Between(2, 4) : Phaser.Math.Between(1, 3);
+      dot.fillStyle(col, 1); dot.fillCircle(0, 0, P(r));
+      this.tweens.add({
+        targets: dot,
+        x: cx + Math.cos(angle) * dist,
+        y: cy + Math.sin(angle) * dist,
+        alpha: 0,
+        scaleX: 0.3, scaleY: 0.3,
+        duration: large ? 380 : 260,
+        ease: 'Quad.Out',
+        onComplete: () => dot.destroy(),
+      });
+    }
+
+    // Secondary shockwave ring (large only)
+    if (large) {
+      const ring2 = this.add.graphics().setDepth(D + 1).setPosition(cx, cy);
+      ring2.lineStyle(P(1), 0xffccee, 0.6);
+      ring2.strokeCircle(0, 0, baseR * 0.5);
+      this.tweens.add({ targets: ring2, scaleX: 5.0, scaleY: 5.0, alpha: 0,
+        duration: 500, ease: 'Quad.Out', onComplete: () => ring2.destroy() });
+    }
+  }
+
   private fireProjectile(fromX: number, fromY: number, toX: number, toY: number, texKey: string, dmg: number, speed: number): void {
     const proj = this.minionProjGroup.create(fromX, fromY, texKey) as Phaser.Physics.Arcade.Image;
     proj.setDepth(20);
@@ -4560,6 +4684,66 @@ export class GameScene extends Phaser.Scene {
       g.fillStyle(0x9900ff, 1); g.fillCircle(R, R, R);
       g.fillStyle(0xdd88ff, 0.85); g.fillCircle(R - P(1), R - P(1), R * 0.45);
       g.generateTexture('proj_slow_elite', R * 2, R * 2);
+      g.destroy();
+    }
+    if (!this.textures.exists('proj_petal')) {
+      const g = (this.make.graphics as any)({ x: 0, y: 0, add: false }) as Phaser.GameObjects.Graphics;
+      const R = P(5); const cx = R, cy = R;
+      // cast shadow (flat ellipse on ground plane)
+      g.fillStyle(0x550022, 0.42); g.fillEllipse(cx + R * 0.22, cy + R * 0.28, R * 1.65, R * 1.05);
+      // dark outer rim
+      g.fillStyle(0xcc0066, 1);    g.fillCircle(cx, cy, R);
+      // main body
+      g.fillStyle(0xff44aa, 1);    g.fillCircle(cx, cy, R * 0.82);
+      // upper-left lighter zone (lit face)
+      g.fillStyle(0xff99cc, 0.68); g.fillCircle(cx - R * 0.22, cy - R * 0.22, R * 0.54);
+      // specular highlight
+      g.fillStyle(0xffffff, 0.90); g.fillCircle(cx - R * 0.32, cy - R * 0.36, R * 0.22);
+      g.generateTexture('proj_petal', R * 2, R * 2);
+      g.destroy();
+    }
+    if (!this.textures.exists('proj_homing_petal')) {
+      const g = (this.make.graphics as any)({ x: 0, y: 0, add: false }) as Phaser.GameObjects.Graphics;
+      const R = P(6); const cx = R, cy = R;
+      // soft outer glow (tracking aura)
+      g.fillStyle(0xff44ee, 0.28); g.fillCircle(cx, cy, R);
+      // cast shadow
+      g.fillStyle(0x440022, 0.48); g.fillEllipse(cx + R * 0.20, cy + R * 0.26, R * 1.62, R * 1.04);
+      // dark rim
+      g.fillStyle(0xaa0077, 1);    g.fillCircle(cx, cy, R * 0.87);
+      // main body
+      g.fillStyle(0xff22bb, 1);    g.fillCircle(cx, cy, R * 0.73);
+      // lit face
+      g.fillStyle(0xff88ee, 0.72); g.fillCircle(cx - R * 0.18, cy - R * 0.20, R * 0.48);
+      // specular
+      g.fillStyle(0xffffff, 0.92); g.fillCircle(cx - R * 0.30, cy - R * 0.34, R * 0.20);
+      // characteristic tracking ring
+      g.lineStyle(P(0.8), 0xffccff, 0.55); g.strokeCircle(cx, cy, R * 0.87);
+      g.generateTexture('proj_homing_petal', R * 2, R * 2);
+      g.destroy();
+    }
+    if (!this.textures.exists('proj_homing_petal_large')) {
+      const g = (this.make.graphics as any)({ x: 0, y: 0, add: false }) as Phaser.GameObjects.Graphics;
+      const R = P(14); const cx = R, cy = R;
+      // soft outer glow
+      g.fillStyle(0xff44ee, 0.20); g.fillCircle(cx, cy, R);
+      // cast shadow
+      g.fillStyle(0x330011, 0.50); g.fillEllipse(cx + R * 0.18, cy + R * 0.24, R * 1.70, R * 1.08);
+      // dark outer rim
+      g.fillStyle(0x880055, 1);    g.fillCircle(cx, cy, R * 0.93);
+      // main body
+      g.fillStyle(0xdd1199, 1);    g.fillCircle(cx, cy, R * 0.80);
+      // mid lit zone
+      g.fillStyle(0xff55cc, 0.65); g.fillCircle(cx - R * 0.15, cy - R * 0.15, R * 0.58);
+      // brighter upper-left zone
+      g.fillStyle(0xff99dd, 0.52); g.fillCircle(cx - R * 0.28, cy - R * 0.30, R * 0.38);
+      // primary specular
+      g.fillStyle(0xffffff, 0.92); g.fillCircle(cx - R * 0.36, cy - R * 0.40, R * 0.17);
+      // micro secondary specular
+      g.fillStyle(0xffffff, 0.48); g.fillCircle(cx - R * 0.20, cy - R * 0.46, R * 0.08);
+      // inner vein ring
+      g.lineStyle(P(1), 0xffbbee, 0.32); g.strokeCircle(cx, cy, R * 0.52);
+      g.generateTexture('proj_homing_petal_large', R * 2, R * 2);
       g.destroy();
     }
 

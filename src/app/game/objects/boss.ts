@@ -25,6 +25,10 @@ export enum BossState {
   LAVA_BARRAGE_WARN  = 'LAVA_BARRAGE_WARN',
   LAVA_PILLAR_WARN   = 'LAVA_PILLAR_WARN',
   BARRAGE_WARN       = 'BARRAGE_WARN',
+  PETAL_STORM_WARN   = 'PETAL_STORM_WARN',
+  TRACKING_WARN      = 'TRACKING_WARN',
+  FAN_WARN           = 'FAN_WARN',
+  SPIRAL_WARN        = 'SPIRAL_WARN',
   DEAD             = 'DEAD',
 }
 

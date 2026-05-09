@@ -83,6 +83,7 @@ const BOSS_POOL = [
   'boss_slime_white',
   'boss_zombie_slime',
   'boss_lava_slime',
+  'boss_flower_one',
 ];
 
 const FLAVOR_TEMPLATES: Array<(name: string, star: number) => string> = [
