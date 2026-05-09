@@ -153,6 +153,14 @@ export class GameScene extends Phaser.Scene {
     if (!this.textures.exists('slime3_attack')) this.load.spritesheet('slime3_attack', s3 + 'Slime3_Attack_with_shadow.png', cfg);
     if (!this.textures.exists('slime3_hurt'))   this.load.spritesheet('slime3_hurt',   s3 + 'Slime3_Hurt_with_shadow.png',   cfg);
     if (!this.textures.exists('slime3_death'))  this.load.spritesheet('slime3_death',  s3 + 'Slime3_Death_with_shadow.png',  cfg);
+    for (const n of [1, 2, 3]) {
+      const pb = `sprite/flower/PNG/Plant${n}/With_shadow/Plant${n}`;
+      const pk = `plant${n}`;
+      if (!this.textures.exists(`${pk}_idle`))   this.load.spritesheet(`${pk}_idle`,   `${pb}_Idle_with_shadow.png`,   cfg);
+      if (!this.textures.exists(`${pk}_attack`)) this.load.spritesheet(`${pk}_attack`, `${pb}_Attack_with_shadow.png`, cfg);
+      if (!this.textures.exists(`${pk}_hurt`))   this.load.spritesheet(`${pk}_hurt`,   `${pb}_Hurt_with_shadow.png`,   cfg);
+      if (!this.textures.exists(`${pk}_death`))  this.load.spritesheet(`${pk}_death`,  `${pb}_Death_with_shadow.png`,  cfg);
+    }
     if (!this.textures.exists('icon_stone_broken'))  this.load.image('icon_stone_broken',  'other/ore2.webp');
     if (!this.textures.exists('icon_stone_intact'))  this.load.image('icon_stone_intact',  'other/ore1.webp');
     if (!this.textures.exists('icon_stone_guard'))   this.load.image('icon_stone_guard',   'other/ore3.webp');
@@ -455,7 +463,7 @@ export class GameScene extends Phaser.Scene {
 
     if (NetworkService.connected && !NetworkService.isHost) {
       NetworkService.onMinionAttack(data => {
-        this.spawnMinionAttack(data.type, data.mx, data.my, data.tx, data.ty, data.atk);
+        this.spawnMinionAttack(data.type, data.mx, data.my, data.tx, data.ty, data.atk, data.isElite);
       });
     }
 
@@ -1778,8 +1786,12 @@ export class GameScene extends Phaser.Scene {
       slime_white_s:  'elite_slime_white',
       slime_zombie_s: 'elite_slime_zombie',
       slime_lava_s:   'elite_slime_lava',
+      plant1_s:       'elite_plant1',
+      plant2_s:       'elite_plant2',
+      plant3_s:       'elite_plant3',
     };
     const GENERAL_POOL = ['slime_green_s', 'slime_red_s', 'slime_blue_s', 'slime_white_s'];
+    if (this.questStar >= 2) GENERAL_POOL.push('plant1_s', 'plant2_s', 'plant3_s');
 
     const mainMinionId = BOSS_TO_MINION[this.bossMonsterId];
     const otherPool    = GENERAL_POOL.filter(id => id !== mainMinionId);
@@ -1797,21 +1809,39 @@ export class GameScene extends Phaser.Scene {
       if (!def) return;
       const hp  = Math.round(def.hp * hpMult * coopMult * (isElite ? ELITE_HP_MULT : 1));
       const atk = Math.round(def.atk * hpMult * (isElite ? 1.5 : 1));
+      const isPlant = defId.startsWith('plant') || defId.startsWith('elite_plant');
       const a   = srng.float(0, Math.PI * 2);
-      const r   = srng.float(P(20), P(180));
-      const m   = new MinionSlime(this, wx + Math.cos(a) * r, wy + Math.sin(a) * r, hp, def.spriteKey, def.tint);
+      const r   = isPlant ? srng.float(P(20), P(220)) : srng.float(P(20), P(120));
+      const spawnX = wx + Math.cos(a) * r;
+      const spawnY = wy + Math.sin(a) * r;
+      const m   = new MinionSlime(this, spawnX, spawnY, hp, def.spriteKey, def.tint);
       m.minionId = `m${this.allMinions.length}`;
       m.atk = atk;
       if (isElite) {
-        m.isElite = true;
+        m.isElite           = true;
+        m.dashWarnMs        = Math.round(650 * 0.8);
+        m.explodeRadiusMult = 1.4;
         m.setScale(m.scaleX * ELITE_SCALE_MOD, m.scaleY * ELITE_SCALE_MOD);
         m.setTintFill(def.tint);
       }
       if (['slime_red_s', 'elite_slime_red', 'slime_lava_s', 'elite_slime_lava'].includes(defId))
         m.attackMode = 'explode';
-      if (['slime_red_s', 'elite_slime_red', 'slime_lava_s', 'elite_slime_lava'].includes(defId))
-        m.attackMode = 'explode';
-      m.setPatrolCenter(wx, wy);
+      if (['plant1_s', 'elite_plant1'].includes(defId)) {
+        m.stationary  = true;
+        m.attackMode  = 'shoot';
+        m.rangedRange = Math.round(220 * DPR);
+      }
+      if (['plant2_s', 'elite_plant2'].includes(defId)) {
+        m.stationary  = true;
+        m.attackMode  = 'spike';
+        m.rangedRange = Math.round(250 * DPR);
+      }
+      if (['plant3_s', 'elite_plant3'].includes(defId)) {
+        m.stationary  = true;
+        m.attackMode  = 'triple';
+        m.rangedRange = Math.round(220 * DPR);
+      }
+      m.setPatrolCenter(isPlant ? spawnX : wx, isPlant ? spawnY : wy);
       m.getTargetPos = () => this.nearestTargetPos(m.x, m.y);
       m.onDead = () => this.handleMinionDrop(defId, m.x, m.y);
       this.allMinions.push(m);
@@ -1821,9 +1851,9 @@ export class GameScene extends Phaser.Scene {
       });
       if (!NetworkService.connected || NetworkService.isHost) {
         m.onFire = (type, mx, my, tx, ty) => {
-          this.spawnMinionAttack(type, mx, my, tx, ty, m.atk);
+          this.spawnMinionAttack(type, mx, my, tx, ty, m.atk, m.isElite);
           if (NetworkService.connected)
-            NetworkService.sendMinionAttack({ minionId: m.minionId, type, mx, my, tx, ty, atk: m.atk });
+            NetworkService.sendMinionAttack({ minionId: m.minionId, type, mx, my, tx, ty, atk: m.atk, isElite: m.isElite });
         };
       }
     };
@@ -1832,7 +1862,7 @@ export class GameScene extends Phaser.Scene {
       const baseCount = srng.between(8, 15);
       const count     = Math.round(baseCount * countMult);
       for (let j = 0; j < count; j++) {
-        const minionId = (mainMinionId && srng.float(0, 1) < 0.7)
+        const minionId = (mainMinionId && srng.float(0, 1) < 0.4)
           ? mainMinionId
           : otherPool[srng.between(0, otherPool.length - 1)];
         const eliteId  = mainMinionId ? MINION_TO_ELITE[minionId] : undefined;
@@ -4122,25 +4152,52 @@ export class GameScene extends Phaser.Scene {
     buildAnims('slime');
     buildAnims('slime2');
     buildAnims('slime3');
+
+    // Plant monsters — different frame counts: idle=4, attack=7, hurt=5, death=10
+    const buildPlantAnims = (prefix: string) => {
+      if (this.anims.exists(`${prefix}_idle_down`)) return;
+      const plantDefs = [
+        { action: 'idle',   cols: 4,  fps: 6,  repeat: -1 },
+        { action: 'attack', cols: 7,  fps: 10, repeat: 0  },
+        { action: 'hurt',   cols: 5,  fps: 14, repeat: 0  },
+        { action: 'death',  cols: 10, fps: 8,  repeat: 0  },
+      ];
+      dirs.forEach((dir, row) => {
+        plantDefs.forEach(d => {
+          const start = row * d.cols;
+          this.anims.create({
+            key: `${prefix}_${d.action}_${dir}`,
+            frames: this.anims.generateFrameNumbers(`${prefix}_${d.action}`, { start, end: start + d.cols - 1 }),
+            frameRate: d.fps,
+            repeat: d.repeat,
+          });
+        });
+      });
+    };
+    buildPlantAnims('plant1');
+    buildPlantAnims('plant2');
+    buildPlantAnims('plant3');
   }
 
 
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private spawnMinionAttack(type: 'shoot' | 'triple' | 'explode', mx: number, my: number, tx: number, ty: number, atk: number): void {
+  private spawnMinionAttack(type: 'shoot' | 'triple' | 'explode' | 'spike', mx: number, my: number, tx: number, ty: number, atk: number, isElite = false): void {
     const wx = mx * DPR, wy = my * DPR, wtx = tx * DPR, wty = ty * DPR;
     if (type === 'shoot') {
-      this.fireProjectile(wx, wy, wtx, wty, 'proj_fast', Math.round(atk * 4.0), Math.round(320 * DPR));
+      this.fireProjectile(wx, wy, wtx, wty, isElite ? 'proj_fast_elite' : 'proj_fast', Math.round(atk * 4.0), Math.round(150 * DPR));
     } else if (type === 'triple') {
       const baseAngle = Phaser.Math.Angle.Between(wx, wy, wtx, wty);
-      for (const offset of [-0.35, 0, 0.35]) {
+      for (const offset of [-0.28, 0, 0.28]) {
         const a   = baseAngle + offset;
         const etx = wx + Math.cos(a) * P(600);
         const ety = wy + Math.sin(a) * P(600);
-        this.fireProjectile(wx, wy, etx, ety, 'proj_slow', Math.round(atk * 3.0), Math.round(140 * DPR));
+        this.fireProjectile(wx, wy, etx, ety, isElite ? 'proj_slow_elite' : 'proj_slow', Math.round(atk * 3.0), Math.round(90 * DPR));
       }
+    } else if (type === 'spike') {
+      this.spikeAt(tx * DPR, ty * DPR, atk, isElite);
     } else {
-      this.explodeAt(wx, wy, atk);
+      this.explodeAt(wx, wy, atk, isElite ? 1.4 : 1.0);
     }
   }
 
@@ -4156,8 +4213,8 @@ export class GameScene extends Phaser.Scene {
     this.time.delayedCall(3500, () => { if (proj.active) proj.destroy(); });
   }
 
-  private explodeAt(wx: number, wy: number, atk: number): void {
-    const R   = MinionSlime.EXPLODE_RADIUS;
+  private explodeAt(wx: number, wy: number, atk: number, radiusMult = 1.0): void {
+    const R   = Math.round(MinionSlime.EXPLODE_RADIUS * radiusMult);
     const dmg = Math.round(atk * 4.0);
 
     // Shockwave ring — expands outward and fades
@@ -4197,6 +4254,143 @@ export class GameScene extends Phaser.Scene {
 
     if (Phaser.Math.Distance.Between(this.player.x, this.player.y, wx, wy) <= R)
       this.player.takeDamage(dmg);
+  }
+
+  private spikeAt(tx: number, ty: number, atk: number, isElite = false): void {
+    const R       = Math.round(MinionSlime.SPIKE_RADIUS * (isElite ? 1.4 : 1.0));
+    const dmg     = Math.round(atk * 3.5);
+    const spCount = isElite ? 10 : 7;
+    const WARN_MS = MinionSlime.SPIKE_WARN_MS;
+
+    // Fixed crack angles shared between warning and burst phases
+    const crackAngles: number[] = [];
+    for (let i = 0; i < spCount; i++)
+      crackAngles.push((i / spCount) * Math.PI * 2 + (i % 2 === 0 ? 0.15 : -0.12));
+
+    // ── Warning phase ──────────────────────────────────────────────────────
+    const warn = this.add.graphics({ x: tx, y: ty }).setDepth(6);
+    let warnElapsed = 0;
+    const warnTimer = this.time.addEvent({
+      delay: 16, loop: true, callback: () => {
+        warnElapsed += 16;
+        const t     = Math.min(warnElapsed / WARN_MS, 1);
+        const pulse = Math.sin(warnElapsed * 0.025 * (1 + t * 3)) * 0.2 + 0.8;
+        warn.clear();
+
+        // Earth glow fill
+        warn.fillStyle(0x6b2f00, (0.1 + t * 0.3) * pulse);
+        warn.fillCircle(0, 0, R);
+
+        // Crack lines — jagged 2-segment
+        crackAngles.forEach((a, idx) => {
+          const len  = R * (0.4 + t * 0.6);
+          const bend = idx % 2 === 0 ? 0.28 : -0.22;
+          warn.lineStyle(P(1.5), 0x3d1a00, 0.4 + t * 0.5);
+          warn.beginPath();
+          warn.moveTo(0, 0);
+          warn.lineTo(Math.cos(a + bend) * len * 0.5, Math.sin(a + bend) * len * 0.5);
+          warn.lineTo(Math.cos(a) * len, Math.sin(a) * len);
+          warn.strokePath();
+        });
+
+        // Outer danger ring
+        warn.lineStyle(P(2), t > 0.65 ? 0xff3300 : 0xff8800, (0.5 + t * 0.4) * pulse);
+        warn.strokeCircle(0, 0, R);
+
+        // Centre shadow (pit forming)
+        warn.fillStyle(0x000000, t * 0.45 * pulse);
+        warn.fillCircle(0, 0, R * 0.4 * t);
+      },
+    });
+
+    // ── Burst phase ────────────────────────────────────────────────────────
+    this.time.delayedCall(WARN_MS, () => {
+      warnTimer.destroy();
+      warn.destroy();
+
+      const burst = this.add.graphics({ x: tx, y: ty }).setDepth(50);
+
+      // Cast shadow on ground (flat ellipse)
+      burst.fillStyle(0x000000, 0.38);
+      burst.fillEllipse(P(3), P(6), R * 2.6, R * 0.6);
+
+      // Ground cracks (same pattern as warning)
+      crackAngles.forEach((a, idx) => {
+        const bend = idx % 2 === 0 ? 0.28 : -0.22;
+        burst.lineStyle(P(1.5), 0x2a1000, 0.9);
+        burst.beginPath();
+        burst.moveTo(0, 0);
+        burst.lineTo(Math.cos(a + bend) * R * 0.5, Math.sin(a + bend) * R * 0.5);
+        burst.lineTo(Math.cos(a) * R,               Math.sin(a) * R);
+        burst.strokePath();
+      });
+
+      // 3D spikes — back shadow + two shaded faces + highlight
+      crackAngles.forEach(a => {
+        const sH   = R * 1.4;       // spike length (radially outward)
+        const sHW  = R * 0.24;      // half-width at base
+        const perp = a + Math.PI / 2;
+        const bx   = Math.cos(a) * R * 0.08;
+        const by   = Math.sin(a) * R * 0.08;
+        const tipX = Math.cos(a) * (R * 0.08 + sH);
+        const tipY = Math.sin(a) * (R * 0.08 + sH);
+        const blX  = bx + Math.cos(perp) * sHW;
+        const blY  = by + Math.sin(perp) * sHW;
+        const brX  = bx - Math.cos(perp) * sHW;
+        const brY  = by - Math.sin(perp) * sHW;
+
+        // Back-face drop shadow
+        const sx = P(2.5), sy = P(3.5);
+        burst.fillStyle(0x001800, 0.65);
+        burst.fillTriangle(blX + sx, blY + sy, brX + sx, brY + sy, tipX + sx, tipY + sy);
+
+        // Dark (shadow) face
+        burst.fillStyle(0x1a6600, 0.97);
+        burst.fillTriangle(bx, by, brX, brY, tipX, tipY);
+
+        // Lit face
+        burst.fillStyle(0x55dd22, 0.97);
+        burst.fillTriangle(bx, by, blX, blY, tipX, tipY);
+
+        // Highlight edge (bright rim along lit side)
+        burst.lineStyle(P(1.5), 0xbbffaa, 0.72);
+        burst.beginPath();
+        burst.moveTo(blX, blY);
+        burst.lineTo(tipX, tipY);
+        burst.strokePath();
+
+        // Base ellipse where spike meets the ground
+        burst.fillStyle(0x44aa00, 0.55);
+        burst.fillEllipse(bx, by + P(2), sHW * 2.4, P(5));
+      });
+
+      // Centre impact flash
+      const flash = this.add.graphics({ x: tx, y: ty }).setDepth(51);
+      flash.fillStyle(0xffffff, 0.9);
+      flash.fillCircle(0, 0, R * 0.55);
+      this.tweens.add({
+        targets: flash, alpha: 0, scaleX: 1.8, scaleY: 1.8,
+        duration: 220, ease: 'Quad.Out', onComplete: () => flash.destroy(),
+      });
+
+      // Expanding shockwave ring
+      const ring = this.add.graphics({ x: tx, y: ty }).setDepth(49);
+      ring.lineStyle(P(3), 0x55dd22, 0.85);
+      ring.strokeCircle(0, 0, R);
+      this.tweens.add({
+        targets: ring, alpha: 0, scaleX: 1.5, scaleY: 1.5,
+        duration: 420, ease: 'Quad.Out', onComplete: () => ring.destroy(),
+      });
+
+      // Main burst fade
+      this.tweens.add({
+        targets: burst, alpha: 0, duration: 550,
+        ease: 'Quad.In', onComplete: () => burst.destroy(),
+      });
+
+      if (Phaser.Math.Distance.Between(this.player.x, this.player.y, tx, ty) <= R)
+        this.player.takeDamage(dmg);
+    });
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -4350,6 +4544,22 @@ export class GameScene extends Phaser.Scene {
       g.fillStyle(0x9900ff, 1); g.fillCircle(R, R, R);
       g.fillStyle(0xdd88ff, 0.85); g.fillCircle(R - P(1), R - P(1), R * 0.45);
       g.generateTexture('proj_slow', R * 2, R * 2);
+      g.destroy();
+    }
+    if (!this.textures.exists('proj_fast_elite')) {
+      const g = (this.make.graphics as any)({ x: 0, y: 0, add: false }) as Phaser.GameObjects.Graphics;
+      const R = P(8);
+      g.fillStyle(0xff6600, 1); g.fillCircle(R, R, R);
+      g.fillStyle(0xffcc44, 0.9); g.fillCircle(R - P(1), R - P(1), R * 0.45);
+      g.generateTexture('proj_fast_elite', R * 2, R * 2);
+      g.destroy();
+    }
+    if (!this.textures.exists('proj_slow_elite')) {
+      const g = (this.make.graphics as any)({ x: 0, y: 0, add: false }) as Phaser.GameObjects.Graphics;
+      const R = P(9);
+      g.fillStyle(0x9900ff, 1); g.fillCircle(R, R, R);
+      g.fillStyle(0xdd88ff, 0.85); g.fillCircle(R - P(1), R - P(1), R * 0.45);
+      g.generateTexture('proj_slow_elite', R * 2, R * 2);
       g.destroy();
     }
 

@@ -168,6 +168,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.onHpChanged?.(this.hp, this.maxHp);
     if (this.hp <= 0) {
       this.headGfx.clear();
+      (this.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
       this.onDead?.();
       return;
     }

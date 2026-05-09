@@ -13,6 +13,7 @@ enum MinionState {
   SHOOT_WARN   = 'SHOOT_WARN',
   TRIPLE_WARN  = 'TRIPLE_WARN',
   EXPLODE_WARN = 'EXPLODE_WARN',
+  SPIKE_WARN   = 'SPIKE_WARN',
   DEAD         = 'DEAD',
 }
 
@@ -34,7 +35,7 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
   private patrolTargetX  = 0;
   private patrolTargetY  = 0;
   private isReturning    = false;
-  private readonly patrolRadius  = Math.round(75 * DPR);
+  private readonly patrolRadius  = Math.round(120 * DPR);
   private readonly aggroRange    = Math.round(230 * DPR);
   private readonly deaggroRange  = Math.round(800 * DPR);
   private readonly leashRange    = Math.round(620 * DPR);
@@ -45,18 +46,25 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
   static readonly DASH_MS         = 260;
   static readonly RANGED_RANGE    = Math.round(160 * DPR);
   static readonly EXPLODE_RANGE   = Math.round(30 * DPR);
-  static readonly COOLDOWN_SHOOT  = 2000;
-  static readonly COOLDOWN_TRIPLE = 3500;
+  static readonly COOLDOWN_SHOOT  = 2300;
+  static readonly COOLDOWN_TRIPLE = 3800;
   static readonly COOLDOWN_EXPLODE = 2000;
   static readonly EXPLODE_WARN_MS = 1000;
   static readonly EXPLODE_RADIUS  = Math.round(35 * DPR);
+  static readonly COOLDOWN_SPIKE  = 3300;
+  static readonly SPIKE_WARN_MS   = 900;
+  static readonly SPIKE_RADIUS    = Math.round(14 * DPR);
 
   getTargetPos: () => [number, number] = () => [0, 0];
   onDead?: () => void;
-  onFire?: (type: 'shoot' | 'triple' | 'explode', mx: number, my: number, tx: number, ty: number) => void;
+  onFire?: (type: 'shoot' | 'triple' | 'explode' | 'spike', mx: number, my: number, tx: number, ty: number) => void;
 
   minionId        = '';
-  attackMode: 'dash' | 'shoot' | 'triple' | 'explode' = 'dash';
+  attackMode: 'dash' | 'shoot' | 'triple' | 'explode' | 'spike' = 'dash';
+  stationary       = false;
+  rangedRange      = MinionSlime.RANGED_RANGE;
+  dashWarnMs       = 650;
+  explodeRadiusMult = 1.0;
   private attackCooldownUntil = 0;
   private explodeWarnStart    = 0;
   private warnCircleGfx?: Phaser.GameObjects.Graphics;
@@ -179,6 +187,12 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
     this.isReturning = true;
     this.hp = this.maxHp;
     this.applyBaseTint();
+    if (this.stationary) {
+      this.mState = MinionState.IDLE;
+      this.pb.setVelocity(0, 0);
+      this.playDir(`${this.animPrefix}_idle`);
+      return;
+    }
     // 先走回巡邏中心，到了再開始正常巡邏
     this.patrolTargetX = this.patrolCenter.x;
     this.patrolTargetY = this.patrolCenter.y;
@@ -231,7 +245,7 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
     this.updateDir();
     this.playDir(`${this.animPrefix}_attack`);
     this.setTint(0xff4400);
-    this.stateTimer = this.scene.time.delayedCall(650, () => this.enterDashing());
+    this.stateTimer = this.scene.time.delayedCall(this.dashWarnMs, () => this.enterDashing());
   }
 
   private enterShootWarn(): void {
@@ -280,6 +294,22 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
       this.applyBaseTint();
       this.onFire?.('explode', this.x / DPR, this.y / DPR, this.x / DPR, this.y / DPR);
       this.attackCooldownUntil = this.scene.time.now + MinionSlime.COOLDOWN_EXPLODE + Phaser.Math.Between(0, 800);
+      this.enterIdle();
+    });
+  }
+
+  private enterSpikeWarn(): void {
+    this.mState = MinionState.SPIKE_WARN;
+    this.pb.setVelocity(0, 0);
+    this.updateDir();
+    this.playDir(`${this.animPrefix}_attack`);
+    this.setTint(0xffcc00);
+    const [tx, ty] = this.getTargetPos();
+    this.onFire?.('spike', this.x / DPR, this.y / DPR, tx / DPR, ty / DPR);
+    this.stateTimer?.destroy();
+    this.stateTimer = this.scene.time.delayedCall(MinionSlime.SPIKE_WARN_MS, () => {
+      this.applyBaseTint();
+      this.attackCooldownUntil = this.scene.time.now + MinionSlime.COOLDOWN_SPIKE + Phaser.Math.Between(0, 800);
       this.enterIdle();
     });
   }
@@ -418,7 +448,7 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
         // Ranged: stop at attack range, attack when cooldown elapsed
         const attackRange = this.attackMode === 'explode'
           ? MinionSlime.EXPLODE_RANGE
-          : MinionSlime.RANGED_RANGE;
+          : this.rangedRange;
         if (dist <= attackRange) {
           body.setVelocity(0, 0);
           if (this.dir !== prevDir) this.playDir(`${this.animPrefix}_idle`);
@@ -426,13 +456,17 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
             if      (this.attackMode === 'shoot')   this.enterShootWarn();
             else if (this.attackMode === 'triple')  this.enterTripleWarn();
             else if (this.attackMode === 'explode') this.enterExplodeWarn();
+            else if (this.attackMode === 'spike')   this.enterSpikeWarn();
           }
-        } else {
+        } else if (!this.stationary) {
           const angle = Phaser.Math.Angle.Between(this.x, this.y, tx, ty);
           (this.scene.physics as Phaser.Physics.Arcade.ArcadePhysics).velocityFromAngle(
             Phaser.Math.RadToDeg(angle), MinionSlime.CHASE_SPEED, body.velocity,
           );
           if (this.dir !== prevDir) this.playDir(`${this.animPrefix}_walk`);
+        } else {
+          body.setVelocity(0, 0);
+          if (this.dir !== prevDir) this.playDir(`${this.animPrefix}_idle`);
         }
       }
     }
@@ -442,7 +476,7 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
       const elapsed = time - this.explodeWarnStart;
       const urgency = 1 + (elapsed / MinionSlime.EXPLODE_WARN_MS) * 3;
       const pulse   = Math.sin(elapsed * 0.015 * urgency) * 0.25 + 0.55;
-      const R       = MinionSlime.EXPLODE_RADIUS;
+      const R       = Math.round(MinionSlime.EXPLODE_RADIUS * this.explodeRadiusMult);
       this.warnCircleGfx.clear();
       this.warnCircleGfx.fillStyle(0xff0000, pulse * 0.35);
       this.warnCircleGfx.fillCircle(this.x, this.y, R);

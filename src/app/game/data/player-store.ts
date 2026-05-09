@@ -62,7 +62,7 @@ const equipped: EquippedMap = {
   sword:  null,
 };
 
-let level = 1;
+let level = 15;
 let exp   = 0;
 const owned:     EquipmentItem[] = [];
 const listeners: Array<() => void> = [];

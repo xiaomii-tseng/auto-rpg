@@ -37,7 +37,10 @@
       "Bash(ipconfig)",
       "Bash(findstr \"IPv4\")",
       "Bash(Get-ChildItem -Path \"c:\\\\MyCode\\\\auto-rpg\\\\public\\\\sprite\\\\hero\\\\PNG\\\\Swordsman_lvl1\\\\With_shadow\" -Filter \"*.png\")",
-      "Bash(Select-Object -ExpandProperty Name)"
+      "Bash(Select-Object -ExpandProperty Name)",
+      "Bash(dir \"C:\\\\MyCode\\\\auto-rpg\\\\public\\\\sprite\\\\flower\\\\PNG\" /B)",
+      "PowerShell(Add-Type -AssemblyName System.Drawing; $img = [System.Drawing.Image]::FromFile\\(\"C:\\\\MyCode\\\\auto-rpg\\\\public\\\\sprite\\\\flower\\\\PNG\\\\Plant1\\\\With_shadow\\\\Plant1_Idle_with_shadow.png\"\\); \"Idle: $\\($img.Width\\) x $\\($img.Height\\)\"; $img.Dispose\\(\\); $img2 = [System.Drawing.Image]::FromFile\\(\"C:\\\\MyCode\\\\auto-rpg\\\\public\\\\sprite\\\\flower\\\\PNG\\\\Plant1\\\\With_shadow\\\\Plant1_Attack_with_shadow.png\"\\); \"Attack: $\\($img2.Width\\) x $\\($img2.Height\\)\"; $img2.Dispose\\(\\))",
+      "PowerShell(Add-Type -AssemblyName System.Drawing; foreach \\($f in @\\(\"Death\",\"Hurt\",\"Run\"\\)\\) { $img = [System.Drawing.Image]::FromFile\\(\"C:\\\\MyCode\\\\auto-rpg\\\\public\\\\sprite\\\\flower\\\\PNG\\\\Plant1\\\\With_shadow\\\\Plant1_${f}_with_shadow.png\"\\); \"${f}: $\\($img.Width\\) x $\\($img.Height\\)\"; $img.Dispose\\(\\) })"
     ]
   }
 }

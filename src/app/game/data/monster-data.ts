@@ -31,6 +31,7 @@ export interface MonsterDef {
   speed:     number;
   exp:       number;
   gold:      number;
+  minStar?:  number;   // 最低星級才出現，不設則任意星
   cards:     CardDropEntry[];   // A/B/C 三種卡片
   drops:     DropEntry[];
 }
@@ -203,6 +204,52 @@ export const MONSTER_DEFS: MonsterDef[] = [
     element: 'fire', tint: 0xff4400, tier: 3,
     hp: 70, atk: 12, speed: 110, exp: 80, gold: 36,
     cards: [{ cardId: 'card_elite_slime_lava_a', rate: CR_E}, { cardId: 'card_elite_slime_lava_b', rate: CR_E}, { cardId: 'card_elite_slime_lava_c', rate: CR_E}],
+    drops: eliteDrops,
+  },
+
+  // ── 花怪小怪 Tier 2 (minStar=2) ────────────────────────
+  {
+    id: 'plant1_s', name: '花怪1小', spriteKey: 'plant1', frameEnd: 6,
+    element: 'grass', tint: 0xffffff, tier: 2, minStar: 2,
+    hp: 100, atk: 14, speed: 0, exp: 28, gold: 10,
+    cards: [{ cardId: 'card_plant1_s_a', rate: CR_S}, { cardId: 'card_plant1_s_b', rate: CR_S}, { cardId: 'card_plant1_s_c', rate: CR_S}],
+    drops: smallDrops,
+  },
+  {
+    id: 'plant2_s', name: '花怪2小', spriteKey: 'plant2', frameEnd: 6,
+    element: 'water', tint: 0xffffff, tier: 2, minStar: 2,
+    hp: 90, atk: 16, speed: 0, exp: 30, gold: 11,
+    cards: [{ cardId: 'card_plant2_s_a', rate: CR_S}, { cardId: 'card_plant2_s_b', rate: CR_S}, { cardId: 'card_plant2_s_c', rate: CR_S}],
+    drops: smallDrops,
+  },
+  {
+    id: 'plant3_s', name: '花怪3小', spriteKey: 'plant3', frameEnd: 6,
+    element: 'fire', tint: 0xffffff, tier: 2, minStar: 2,
+    hp: 110, atk: 18, speed: 0, exp: 32, gold: 12,
+    cards: [{ cardId: 'card_plant3_s_a', rate: CR_S}, { cardId: 'card_plant3_s_b', rate: CR_S}, { cardId: 'card_plant3_s_c', rate: CR_S}],
+    drops: smallDrops,
+  },
+
+  // ── 花怪菁英 Tier 3 (minStar=2) ─────────────────────────
+  {
+    id: 'elite_plant1', name: '花怪1菁英', spriteKey: 'plant1', frameEnd: 6,
+    element: 'grass', tint: 0xffffff, tier: 3, minStar: 2,
+    hp: 130, atk: 16, speed: 0, exp: 90, gold: 38,
+    cards: [{ cardId: 'card_elite_plant1_a', rate: CR_E}, { cardId: 'card_elite_plant1_b', rate: CR_E}, { cardId: 'card_elite_plant1_c', rate: CR_E}],
+    drops: eliteDrops,
+  },
+  {
+    id: 'elite_plant2', name: '花怪2菁英', spriteKey: 'plant2', frameEnd: 6,
+    element: 'water', tint: 0xffffff, tier: 3, minStar: 2,
+    hp: 120, atk: 18, speed: 0, exp: 95, gold: 40,
+    cards: [{ cardId: 'card_elite_plant2_a', rate: CR_E}, { cardId: 'card_elite_plant2_b', rate: CR_E}, { cardId: 'card_elite_plant2_c', rate: CR_E}],
+    drops: eliteDrops,
+  },
+  {
+    id: 'elite_plant3', name: '花怪3菁英', spriteKey: 'plant3', frameEnd: 6,
+    element: 'fire', tint: 0xffffff, tier: 3, minStar: 2,
+    hp: 140, atk: 20, speed: 0, exp: 100, gold: 42,
+    cards: [{ cardId: 'card_elite_plant3_a', rate: CR_E}, { cardId: 'card_elite_plant3_b', rate: CR_E}, { cardId: 'card_elite_plant3_c', rate: CR_E}],
     drops: eliteDrops,
   },
 

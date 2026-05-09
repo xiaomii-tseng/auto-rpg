@@ -53,10 +53,11 @@ export interface MsgRewardSync   { isEquipReward: boolean; gold: number; star: n
 export interface MsgRunEnd       { won: boolean }
 export interface MsgMinionAttack {
   minionId: string;
-  type:     'shoot' | 'triple' | 'explode';
+  type:     'shoot' | 'triple' | 'explode' | 'spike';
   mx:       number;  // minion x (DPR-normalised)
   my:       number;  // minion y (DPR-normalised)
   tx:       number;  // target x (DPR-normalised)
   ty:       number;  // target y (DPR-normalised)
   atk:      number;  // raw atk value for damage calculation
+  isElite?: boolean;
 }
