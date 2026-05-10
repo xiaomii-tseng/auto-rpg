@@ -32,30 +32,100 @@ export interface GameStartPayload {
   guestSkinId:   number;
 }
 
+// ── Replaceable callback slots ─────────────────────────────────────────────
+interface Callbacks {
+  gameStart?:        (p: GameStartPayload) => void;
+  partnerJoined?:    (data: { nickname: string; level: number; skinId: number }) => void;
+  partnerInfoReady?: (name: string, level: number, skinId: number) => void;
+  partnerMove?:      (players: GameRoomState['players']) => void;
+  partnerPos?:       (data: { x: number; y: number; lastDir: string; hp: number; maxHp: number }) => void;
+  partnerAttack?:    (data: { animKey: string; x: number; y: number; dir: string; behavior: string }) => void;
+  partnerLeft?:      () => void;
+  partnerDead?:      () => void;
+  minionSync?:       (data: MsgMinionSync) => void;
+  minionHit?:        (data: { minionId: string; hp: number; isDead: boolean }) => void;
+  minionAttack?:     (data: MsgMinionAttack) => void;
+  bossHit?:          (data: { hp: number; isDead: boolean }) => void;
+  bossSync?:         (data: MsgBossSync) => void;
+  rewardSync?:       (data: MsgRewardSync) => void;
+  runEnd?:           (data: { won: boolean }) => void;
+  potionEffect?:     (data: { type: string; amount: number }) => void;
+}
+
 class NetworkServiceClass {
   private client?: Client;
   private room?:   Room<GameRoomState>;
 
   isHost    = false;
   sessionId = '';
+  gameCode  = '';
+
+  private _cbs: Callbacks = {};
+  private _autoLobby = false;
+  private _lastPartnerNick  = '';
+  private _lastPartnerLevel = 0;
+
+  /** 從多人遊戲退出時設旗標，PrepScene 啟動後呼叫 consumeAutoLobby() 一次性讀取 */
+  setAutoLobby(): void  { this._autoLobby = true; }
+  consumeAutoLobby(): boolean { const v = this._autoLobby; this._autoLobby = false; return v; }
 
   // ── Connect ───────────────────────────────────────────────
 
   async createRoom(nickname: string): Promise<JoinedPayload> {
     this.client = new Client(WS_URL);
     this.room   = await this.client.create<GameRoomState>('game');
+    this._registerForwarders();
     return this._afterJoin(nickname);
   }
 
   async joinRoom(gameCode: string, nickname: string): Promise<JoinedPayload> {
-    // Resolve 4-digit code → real Colyseus roomId
     const res = await fetch(`${HTTP_URL}/room/${gameCode}`);
     if (!res.ok) throw new Error('Room not found');
     const { roomId } = await res.json() as { roomId: string };
 
     this.client = new Client(WS_URL);
     this.room   = await this.client.joinById<GameRoomState>(roomId);
+    this._registerForwarders();
     return this._afterJoin(nickname);
+  }
+
+  // Registers one set of Colyseus listeners per room. Callbacks are forwarded
+  // to the replaceable _cbs slots, so re-registering scene callbacks is safe.
+  private _registerForwarders(): void {
+    const r = this.room!;
+    r.onMessage<GameStartPayload>('gameStart',    p  => this._cbs.gameStart?.(p));
+    r.onMessage('partnerJoined',  (d: any)        => this._cbs.partnerJoined?.(d));
+    r.onMessage('partnerPos',     (d: any)        => this._cbs.partnerPos?.(d));
+    r.onMessage('attack',         (d: any)        => this._cbs.partnerAttack?.(d));
+    r.onMessage('partnerLeft',    ()              => this._cbs.partnerLeft?.());
+    r.onMessage('partnerDead',    ()              => this._cbs.partnerDead?.());
+    r.onMessage<MsgMinionSync>('minionSync',      d  => this._cbs.minionSync?.(d));
+    r.onMessage('minionHit',      (d: any)        => this._cbs.minionHit?.(d));
+    r.onMessage<MsgMinionAttack>('minionAttack',  d  => this._cbs.minionAttack?.(d));
+    r.onMessage('bossHit',        (d: any)        => this._cbs.bossHit?.(d));
+    r.onMessage<MsgBossSync>('bossSync',          d  => this._cbs.bossSync?.(d));
+    r.onMessage<MsgRewardSync>('rewardSync',      d  => this._cbs.rewardSync?.(d));
+    r.onMessage('runEnd',         (d: any)        => this._cbs.runEnd?.(d));
+    r.onMessage('potionEffect',   (d: any)        => this._cbs.potionEffect?.(d));
+
+    // Single onStateChange forwarder for both partnerInfoReady and partnerMove
+    r.onStateChange(state => {
+      this._cbs.partnerMove?.(state.players);
+      if (!this._cbs.partnerInfoReady) return;
+      const players = state.players as any;
+      if (!players?.forEach) return;
+      players.forEach((p: any) => {
+        if (p.sessionId !== this.sessionId && p.nickname) {
+          const nickChanged  = p.nickname !== this._lastPartnerNick;
+          const levelChanged = (p.level ?? 1) !== this._lastPartnerLevel;
+          if (nickChanged || levelChanged) {
+            this._lastPartnerNick  = p.nickname;
+            this._lastPartnerLevel = p.level ?? 1;
+            this._cbs.partnerInfoReady?.(p.nickname, p.level ?? 1, p.skinId ?? 0);
+          }
+        }
+      });
+    });
   }
 
   private _afterJoin(nickname: string): Promise<JoinedPayload> {
@@ -63,7 +133,7 @@ class NetworkServiceClass {
       this.room!.onMessage<JoinedPayload>('joined', payload => {
         this.isHost    = payload.isHost;
         this.sessionId = payload.sessionId;
-        // NOTE: ready is NOT sent here; host calls sendReady() after quest selection
+        this.gameCode  = payload.roomCode;
         resolve({ ...payload, nickname } as JoinedPayload);
       });
     });
@@ -130,49 +200,51 @@ class NetworkServiceClass {
   }
 
   // ── Listen ────────────────────────────────────────────────
+  // Each on* call simply replaces the callback slot.
+  // The underlying Colyseus listener is registered once per room in _registerForwarders.
 
   /** Fires on the host when the 2nd player joins the room */
   onPartnerJoined(cb: (data: { nickname: string; level: number; skinId: number }) => void): void {
-    this.room?.onMessage('partnerJoined', cb);
+    this._cbs.partnerJoined = cb;
+    // If guest is already in room (reconnected session), fire immediately
+    const partner = this.getPartnerState() as any;
+    if (partner?.nickname) cb({ nickname: partner.nickname, level: partner.level ?? 1, skinId: partner.skinId ?? 0 });
   }
 
   /** Fires whenever the partner's info first appears (or changes) in the Colyseus schema */
   onPartnerInfoReady(cb: (nickname: string, level: number, skinId: number) => void): void {
-    let lastNick = '';
-    this.room?.onStateChange(state => {
-      const players = state.players as any;
-      if (!players?.forEach) return;
-      players.forEach((p: any) => {
-        if (p.sessionId !== this.sessionId && p.nickname && p.nickname !== lastNick) {
-          lastNick = p.nickname;
-          cb(p.nickname, p.level ?? 1, p.skinId ?? 0);
-        }
-      });
-    });
+    this._cbs.partnerInfoReady = cb;
+    const partner = this.getPartnerState() as any;
+    if (partner) {
+      // 立即觸發並更新追蹤變數，避免後續 onStateChange 重複 rebuild
+      this._lastPartnerNick  = partner.nickname ?? '';
+      this._lastPartnerLevel = partner.level    ?? 1;
+      cb(this._lastPartnerNick, this._lastPartnerLevel, partner.skinId ?? 0);
+    }
   }
 
   onGameStart(cb: (payload: GameStartPayload) => void): void {
-    this.room?.onMessage<GameStartPayload>('gameStart', cb);
+    this._cbs.gameStart = cb;
   }
 
   onPartnerMove(cb: (state: GameRoomState['players']) => void): void {
-    this.room?.onStateChange(state => cb(state.players));
+    this._cbs.partnerMove = cb;
   }
 
   onPartnerPos(cb: (data: { x: number; y: number; lastDir: string; hp: number; maxHp: number }) => void): void {
-    this.room?.onMessage('partnerPos', cb);
+    this._cbs.partnerPos = cb;
   }
 
   onPartnerAttack(cb: (data: { animKey: string; x: number; y: number; dir: string; behavior: string }) => void): void {
-    this.room?.onMessage('attack', cb);
+    this._cbs.partnerAttack = cb;
   }
 
   onMinionSync(cb: (data: MsgMinionSync) => void): void {
-    this.room?.onMessage<MsgMinionSync>('minionSync', cb);
+    this._cbs.minionSync = cb;
   }
 
   onMinionHit(cb: (data: { minionId: string; hp: number; isDead: boolean }) => void): void {
-    this.room?.onMessage('minionHit', cb);
+    this._cbs.minionHit = cb;
   }
 
   sendMinionAttack(data: MsgMinionAttack): void {
@@ -180,35 +252,35 @@ class NetworkServiceClass {
   }
 
   onMinionAttack(cb: (data: MsgMinionAttack) => void): void {
-    this.room?.onMessage<MsgMinionAttack>('minionAttack', cb);
+    this._cbs.minionAttack = cb;
   }
 
   onBossHit(cb: (data: { hp: number; isDead: boolean }) => void): void {
-    this.room?.onMessage('bossHit', cb);
+    this._cbs.bossHit = cb;
   }
 
   onBossSync(cb: (data: MsgBossSync) => void): void {
-    this.room?.onMessage<MsgBossSync>('bossSync', cb);
+    this._cbs.bossSync = cb;
   }
 
   onRewardSync(cb: (data: MsgRewardSync) => void): void {
-    this.room?.onMessage<MsgRewardSync>('rewardSync', cb);
+    this._cbs.rewardSync = cb;
   }
 
   onPartnerLeft(cb: () => void): void {
-    this.room?.onMessage('partnerLeft', cb);
+    this._cbs.partnerLeft = cb;
   }
 
   onPartnerDead(cb: () => void): void {
-    this.room?.onMessage('partnerDead', cb);
+    this._cbs.partnerDead = cb;
   }
 
   onPotionEffect(cb: (data: { type: string; amount: number }) => void): void {
-    this.room?.onMessage('potionEffect', cb);
+    this._cbs.potionEffect = cb;
   }
 
   onRunEnd(cb: (data: { won: boolean }) => void): void {
-    this.room?.onMessage('runEnd', cb);
+    this._cbs.runEnd = cb;
   }
 
   // ── State ─────────────────────────────────────────────────
@@ -227,10 +299,51 @@ class NetworkServiceClass {
   get roomCode(): string  { return this.room?.roomId ?? ''; }
   get connected(): boolean { return !!this.room; }
 
+  // ── Lifecycle ─────────────────────────────────────────────
+
+  /** 遊戲開始時清除舊大廳 callbacks，防止 Guest 先退出時觸發 stale rebuild */
+  clearLobbyCallbacks(): void {
+    this._lastPartnerNick  = '';
+    this._lastPartnerLevel = 0;
+    this._cbs.partnerInfoReady = undefined;
+    this._cbs.partnerJoined    = undefined;
+    this._cbs.gameStart        = undefined;
+  }
+
+  /**
+   * Clear game-scene callbacks so stale handlers from a finished round
+   * don't fire in the next round. Call from GameScene's shutdown handler.
+   */
+  clearGameCallbacks(): void {
+    this._lastPartnerNick  = '';   // 重置讓大廳重新偵測等級變化
+    this._lastPartnerLevel = 0;
+    // 清掉上一輪大廳的舊 callbacks，避免 sendPlayerInfo 觸發 stale rebuild
+    this._cbs.partnerInfoReady = undefined;
+    this._cbs.partnerJoined    = undefined;
+    this._cbs.gameStart        = undefined;
+    this._cbs.partnerPos    = undefined;
+    this._cbs.partnerAttack = undefined;
+    this._cbs.partnerLeft   = undefined;
+    this._cbs.partnerDead   = undefined;
+    this._cbs.partnerMove   = undefined;
+    this._cbs.minionSync    = undefined;
+    this._cbs.minionHit     = undefined;
+    this._cbs.minionAttack  = undefined;
+    this._cbs.bossHit       = undefined;
+    this._cbs.bossSync      = undefined;
+    this._cbs.rewardSync    = undefined;
+    this._cbs.runEnd        = undefined;
+    this._cbs.potionEffect  = undefined;
+  }
+
   disconnect(): void {
     this.room?.leave();
-    this.room   = undefined;
-    this.client = undefined;
+    this.room      = undefined;
+    this.client    = undefined;
+    this.isHost    = false;
+    this.sessionId = '';
+    this.gameCode  = '';
+    this._cbs      = {};
   }
 }
 

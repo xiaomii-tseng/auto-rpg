@@ -44,6 +44,15 @@ export class GameRoom extends Room<GameRoomState> {
 
       const isHost = client.sessionId === this.state.hostId;
 
+      // Host selecting a quest starts a new round — reset per-round state
+      if (isHost && msg.questId) {
+        this.bossHp    = 0;
+        this.bossDead  = false;
+        this.minionState = {};
+        this.state.phase = 'lobby';
+        this.state.players.forEach(pl => { pl.isReady = false; });
+      }
+
       // Host is only truly "ready" when they've selected a quest.
       // The early info-only send (no questId) just stores nickname/level.
       if (!isHost || msg.questId) {
@@ -87,10 +96,19 @@ export class GameRoom extends Room<GameRoomState> {
       p.nickname = msg.nickname;
       if (msg.level)                  p.level  = msg.level;
       if (msg.skinId !== undefined)   p.skinId = msg.skinId;
-      // When guest updates info, notify host
-      if (client.sessionId !== this.state.hostId) {
-        const hostClient = this.clients.find(c => c.sessionId === this.state.hostId);
-        hostClient?.send('partnerJoined', { nickname: msg.nickname, level: msg.level, skinId: p.skinId });
+      // Notify every other connected client about this player's updated info
+      this.clients.forEach(other => {
+        if (other.sessionId !== client.sessionId) {
+          other.send('partnerJoined', { nickname: p.nickname, level: p.level, skinId: p.skinId });
+        }
+      });
+      // Also send back the partner's info to the sender (covers restore-from-game / late-join cases)
+      let partner: import('./GameRoomSchema').PlayerState | undefined;
+      this.state.players.forEach((pl: import('./GameRoomSchema').PlayerState) => {
+        if (pl.sessionId !== client.sessionId) partner = pl;
+      });
+      if (partner?.nickname) {
+        client.send('partnerJoined', { nickname: partner.nickname, level: partner.level, skinId: partner.skinId });
       }
     });
 
@@ -171,7 +189,16 @@ export class GameRoom extends Room<GameRoomState> {
     });
   }
 
-  onLeave(client: Client): void {
+  async onLeave(client: Client, consented: boolean): Promise<void> {
+    if (!consented) {
+      // 非主動離開（場景切換間隙斷線）→ 給 30 秒重連，保留 player state
+      try {
+        await this.allowReconnection(client, 30);
+        return;  // 重連成功，player state 已保留
+      } catch {
+        // 30 秒內未重連 → 正常離開流程
+      }
+    }
     this.state.players.delete(client.sessionId);
     if (this.state.phase === 'playing') {
       this.broadcast('partnerLeft', {});

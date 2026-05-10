@@ -206,6 +206,8 @@ export class GameScene extends Phaser.Scene {
 
   create(): void {
     const W = this.scale.width;
+    // 遊戲一開始就清掉大廳 callbacks，避免 Guest 先退出時觸發 stale rebuild
+    if (NetworkService.connected) NetworkService.clearLobbyCallbacks();
     this.gameOver = false;
     this.bossActive = false;
     this.allMinions = [];
@@ -2793,6 +2795,11 @@ export class GameScene extends Phaser.Scene {
 
   private exitToLobby(): void {
     SaveStore.save();
+    const wasMulti = NetworkService.connected;
+    if (wasMulti) {
+      NetworkService.clearGameCallbacks();
+      NetworkService.setAutoLobby();
+    }
     this.scene.start('PrepScene');
   }
 

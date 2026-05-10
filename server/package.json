@@ -4,7 +4,7 @@
   "main": "dist/index.js",
   "scripts": {
     "start": "node dist/server/src/index.js",
-    "dev": "ts-node-dev --respawn src/index.ts",
+    "server": "ts-node-dev --respawn src/index.ts",
     "kill": "npx kill-port 3001",
     "build": "tsc"
   },

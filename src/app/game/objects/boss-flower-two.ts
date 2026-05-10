@@ -85,18 +85,27 @@ export class BossFlowerTwo extends Boss {
     const pad      = P(50);
     const budCount = this.isPhase2 ? 20 : 10;
 
-    // 全地圖隨機位置
-    const positions: { x: number; y: number }[] = [];
-    for (let i = 0; i < budCount; i++) {
-      const a = Math.random() * Math.PI * 2;
-      const d = Phaser.Math.FloatBetween(safeR * 0.08, safeR);
-      const [nx, ny] = this.clampToArena(
-        this.arenaCenter.x + Math.cos(a) * d,
-        this.arenaCenter.y + Math.sin(a) * d,
-        pad,
-      );
-      positions.push({ x: nx, y: ny });
-    }
+    // Guest uses synced positions; host generates and syncs them
+    const positions: { x: number; y: number }[] = this.guestMode
+      ? this.guestPts
+      : (() => {
+          const pts: { x: number; y: number }[] = [];
+          for (let i = 0; i < budCount; i++) {
+            const a = Math.random() * Math.PI * 2;
+            const d = Phaser.Math.FloatBetween(safeR * 0.08, safeR);
+            const [nx, ny] = this.clampToArena(
+              this.arenaCenter.x + Math.cos(a) * d,
+              this.arenaCenter.y + Math.sin(a) * d,
+              pad,
+            );
+            pts.push({ x: nx, y: ny });
+          }
+          return pts;
+        })();
+
+    if (!this.guestMode)
+      this.onSyncState?.({ state: BossState.BLOSSOM_WARN, x: this.x / DPR, y: this.y / DPR,
+        pts: positions.map(p => ({ x: p.x / DPR, y: p.y / DPR })) });
 
     // 前搖：所有目標出現綠色脈衝警示圈
     const g = this.warningGfx;
@@ -136,8 +145,12 @@ export class BossFlowerTwo extends Boss {
     this.setBossState(BossState.MIST_WARN);
     this.playDir(`${this.animPrefix}_attack`);
 
-    const [tx, ty] = this.getTargetPos();
-    const angle = Phaser.Math.Angle.Between(this.x, this.y, tx, ty);
+    const angle = this.guestMode
+      ? this.guestAngle
+      : (() => { const [tx, ty] = this.getTargetPos(); return Phaser.Math.Angle.Between(this.x, this.y, tx, ty); })();
+    if (!this.guestMode)
+      this.onSyncState?.({ state: BossState.MIST_WARN, x: this.x / DPR, y: this.y / DPR, angle });
+
     const PRE_MS = 900;
     const g = this.warningGfx;
     g.clear();
@@ -189,7 +202,11 @@ export class BossFlowerTwo extends Boss {
 
     const PRE_MS    = 800;
     const vineCount = this.isPhase2 ? 5 : 4;
-    const baseAngle = Math.random() * (Math.PI * 2 / vineCount);
+    const baseAngle = this.guestMode
+      ? this.guestAngle
+      : Math.random() * (Math.PI * 2 / vineCount);
+    if (!this.guestMode)
+      this.onSyncState?.({ state: BossState.VINE_WARN, x: this.x / DPR, y: this.y / DPR, angle: baseAngle });
     const dirs      = Array.from({ length: vineCount }, (_, i) => baseAngle + i * (Math.PI * 2 / vineCount));
     const g         = this.warningGfx;
     g.clear();
@@ -238,6 +255,8 @@ export class BossFlowerTwo extends Boss {
     this.pulseTween?.stop();
     this.setBossState(BossState.BURST_WARN);
     this.playDir(`${this.animPrefix}_attack`);
+    if (!this.guestMode)
+      this.onSyncState?.({ state: BossState.BURST_WARN, x: this.x / DPR, y: this.y / DPR });
 
     const PRE_MS    = 900;
     const burstCount = this.isPhase2 ? 12 : 8;
@@ -324,6 +343,8 @@ export class BossFlowerTwo extends Boss {
     this.setBossState(BossState.BURROW);
     this.warningGfx.clear();
     (this.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
+    if (!this.guestMode)
+      this.onSyncState?.({ state: BossState.BURROW, x: this.x / DPR, y: this.y / DPR });
 
     const deathKey = `${this.animPrefix}_death_down`;
 
@@ -346,20 +367,22 @@ export class BossFlowerTwo extends Boss {
       });
     };
 
-    // 隱形、傳送
+    // 隱形、傳送（Guest 只隱形，位置由 POS sync 更新）
     const teleport = () => {
       if (this.currentState === BossState.DEAD) return;
       this.setVisible(false);
-      const safeR       = this.arenaRadius * DPR * 0.55;
-      const a           = Math.random() * Math.PI * 2;
-      const dist        = Phaser.Math.FloatBetween(safeR * 0.15, safeR);
-      const [nx, ny]    = this.clampToArena(
-        this.arenaCenter.x + Math.cos(a) * dist,
-        this.arenaCenter.y + Math.sin(a) * dist,
-        P(60),
-      );
-      this.setPosition(nx, ny);
-      (this.body as Phaser.Physics.Arcade.Body).reset(nx, ny);
+      if (!this.guestMode) {
+        const safeR    = this.arenaRadius * DPR * 0.55;
+        const a        = Math.random() * Math.PI * 2;
+        const dist     = Phaser.Math.FloatBetween(safeR * 0.15, safeR);
+        const [nx, ny] = this.clampToArena(
+          this.arenaCenter.x + Math.cos(a) * dist,
+          this.arenaCenter.y + Math.sin(a) * dist,
+          P(60),
+        );
+        this.setPosition(nx, ny);
+        (this.body as Phaser.Physics.Arcade.Body).reset(nx, ny);
+      }
       this.scene.time.delayedCall(350, emerge);
     };
 

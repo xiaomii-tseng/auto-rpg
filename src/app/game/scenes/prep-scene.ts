@@ -44,8 +44,17 @@ export function setPlayerName(name: string): void {
 export class PrepScene extends Phaser.Scene {
   private goldText!:       Phaser.GameObjects.Text;
   private playerNameTxt?:  Phaser.GameObjects.Text;
-  private multiMode     = false;
-  private multiRoomNick = '';
+  private roomOverlayObjs: Phaser.GameObjects.GameObject[] = [];
+  private _partnerIn    = false;
+  private _partnerNick  = '';
+  private _partnerLevel = 0;
+  private _partnerSkinId = 0;
+  private _sceneW       = 0;
+  private _sceneH       = 0;
+  private _heroY        = 0;
+  private _multiBtnGfx?: Phaser.GameObjects.Graphics;
+  private _multiBtnTxt?: Phaser.GameObjects.Text;
+  private _multiBtnHit?: Phaser.GameObjects.Rectangle;
 
   static fmtGold(n: number): string {
     if (n >= 100_000_000) return `${(n / 100_000_000).toFixed(1)}億`;
@@ -106,6 +115,8 @@ export class PrepScene extends Phaser.Scene {
   create(): void {
     const W = this.scale.width;
     const H = this.scale.height;
+    this._sceneW = W;
+    this._sceneH = H;
 
     // 瀏覽器執行時嘗試觸控觸發全螢幕；PWA 已由 manifest 處理，失敗時靜默忽略
     if (!this.scale.isFullscreen) {
@@ -157,6 +168,38 @@ export class PrepScene extends Phaser.Scene {
       PlayerStore.offChange(autoSave);
       InventoryStore.offChange(autoSave);
     });
+
+    // Restore room state if returning from game while still connected.
+    // Schema state is unreliable (version mismatch) — rely purely on custom messages.
+    if (NetworkService.connected) {
+      NetworkService.onPartnerJoined(data => {
+        this._partnerIn = true;
+        this._partnerNick   = data.nickname || this._partnerNick || '?';
+        this._partnerLevel  = data.level    || this._partnerLevel  || 1;
+        this._partnerSkinId = data.skinId   ?? this._partnerSkinId ?? 0;
+        this.refreshRoomOverlay();
+      });
+      NetworkService.onPartnerLeft(() => { this._partnerIn = false; this.refreshRoomOverlay(); });
+      NetworkService.onGameStart(p => {
+        if (NetworkService.isHost) {
+          this.scene.start('GameScene', {
+            seed: p.seed, questStar: p.questStar, bossMonsterId: p.bossMonsterId,
+            mapParams: p.mapParams, partnerNickname: p.guestNickname,
+            ownSkinId: p.hostSkinId, partnerSkinId: p.guestSkinId,
+          });
+        } else {
+          try { if (p.questId) QuestStore.acceptQuest(p.questId); } catch { /* guest */ }
+          this.scene.start('GameScene', {
+            seed: p.seed, questStar: p.questStar, bossMonsterId: p.bossMonsterId,
+            mapParams: p.mapParams, partnerNickname: p.hostNickname,
+            ownSkinId: p.guestSkinId, partnerSkinId: p.hostSkinId,
+          });
+        }
+      });
+      // sendPlayerInfo triggers the server to send back the partner's info as partnerJoined
+      NetworkService.sendPlayerInfo(getPlayerName(), PlayerStore.getLevel(), SkinStore.get());
+    }
+    this.time.delayedCall(100, () => this.refreshRoomOverlay());
   }
 
   // ── Item icon textures (shared with GameScene) ──────────
@@ -190,7 +233,7 @@ export class PrepScene extends Phaser.Scene {
 
   private drawBackground(W: number, H: number): void {
     const img = this.add.image(W / 2, H / 2 - 60, 'bg_prep');
-    img.setDisplaySize(W, H).setOrigin(0.5);
+    img.setDisplaySize(W * 1.4, H * 1.4).setOrigin(0.5);
 
     // Dark overlay
     const ov = this.add.graphics();
@@ -525,11 +568,7 @@ export class PrepScene extends Phaser.Scene {
       this.tweens.killTweensOf([btng, btnCnt]);
       this.tweens.add({ targets: btnCnt, scaleX: 0.88, scaleY: 0.88, alpha: 0.85, duration: 80, ease: 'Sine.easeOut' });
       this.tweens.add({ targets: btng,   alpha: 0.85, duration: 80 });
-      if (this.multiMode) {
-        this.showRoomPanel(W, H);
-      } else {
-        this.showQuestPanel(W, H);
-      }
+      this.showQuestPanel(W, H);
     });
 
     battleHit.on('pointerup', () => {
@@ -537,46 +576,6 @@ export class PrepScene extends Phaser.Scene {
       this.tweens.add({ targets: btnCnt, scaleX: 1, scaleY: 1, alpha: 1, duration: 120, ease: 'Back.easeOut' });
       this.tweens.add({ targets: btng,   alpha: 1, duration: 120 });
     });
-
-    // ── Single / Multi toggle above battle button ─────────
-    const toggleY  = barY - P(24);
-    const halfTW   = P(64);
-    const tH       = P(30);
-    const tGap     = P(8);
-    const toggleGfx = this.add.graphics().setDepth(25);
-
-    const drawToggle = () => {
-      toggleGfx.clear();
-      const colors  = [0x1e0e06, 0x1e0e06] as const;
-      const active  = [!this.multiMode, this.multiMode];
-      for (let i = 0; i < 2; i++) {
-        const tx = cx - tGap / 2 - halfTW + i * (halfTW * 2 + tGap);
-        toggleGfx.fillStyle(active[i] ? 0xb83800 : colors[i], 1);
-        toggleGfx.fillRoundedRect(tx - halfTW, toggleY - tH / 2, halfTW * 2, tH, P(6));
-        toggleGfx.lineStyle(1.5, active[i] ? 0xffcc44 : 0x4a2e14, 1);
-        toggleGfx.strokeRoundedRect(tx - halfTW, toggleY - tH / 2, halfTW * 2, tH, P(6));
-      }
-    };
-    drawToggle();
-
-    const toggleTexts = ['⚔ 單人', '⚑ 雙人'].map((label, i) => {
-      const tx = cx - tGap / 2 - halfTW + i * (halfTW * 2 + tGap);
-      return this.add.text(tx, toggleY, label, {
-        fontSize: F(15), fontStyle: 'bold',
-        color: '#e8cc90', stroke: '#1a0800', strokeThickness: 2,
-      }).setOrigin(0.5).setDepth(26);
-    });
-
-    for (let i = 0; i < 2; i++) {
-      const tx = cx - tGap / 2 - halfTW + i * (halfTW * 2 + tGap);
-      this.add.rectangle(tx, toggleY, halfTW * 2, tH)
-        .setInteractive({ useHandCursor: true }).setDepth(27)
-        .on('pointerdown', () => {
-          this.multiMode = i === 1;
-          drawToggle();
-          toggleTexts.forEach((t, j) => t.setColor(this.multiMode === (j === 1) ? '#ffffff' : '#e8cc90'));
-        });
-    }
 
     // ── Wardrobe button (bottom-left, above nav bar) ─────────
     const skinBtnW = P(72);
@@ -688,6 +687,36 @@ export class PrepScene extends Phaser.Scene {
         },
       });
     });
+
+    // ── Multi button (bottom-right, mirrors wardrobe button) ─────
+    const multiBtnW = P(72);
+    const multiBtnH = P(26);
+    const multiBtnX = W - P(10) - multiBtnW / 2;
+    const multiBtnY = barY - P(24);
+
+    this._multiBtnGfx = this.add.graphics().setDepth(25);
+    this._multiBtnTxt = this.add.text(multiBtnX, multiBtnY, '多人', {
+      fontSize: F(13), color: '#d4a044',
+    }).setOrigin(0.5).setDepth(26);
+    this._multiBtnHit = this.add.rectangle(multiBtnX, multiBtnY, multiBtnW, multiBtnH)
+      .setInteractive({ useHandCursor: true }).setDepth(27) as Phaser.GameObjects.Rectangle;
+    this._multiBtnHit.on('pointerdown', () => this.showMultiPopup());
+
+    const drawMultiBtn = (connected: boolean) => {
+      this._multiBtnGfx!.clear();
+      const col = connected ? 0x1a1a1a : 0x1a0e04;
+      const border = connected ? 0x446644 : 0x886622;
+      const txtCol = connected ? '#556655' : '#d4a044';
+      this._multiBtnGfx!.fillStyle(0x000000, 0.35);
+      this._multiBtnGfx!.fillRoundedRect(multiBtnX - multiBtnW / 2 + P(2), multiBtnY - multiBtnH / 2 + P(2), multiBtnW, multiBtnH, P(5));
+      this._multiBtnGfx!.fillStyle(col, 1);
+      this._multiBtnGfx!.fillRoundedRect(multiBtnX - multiBtnW / 2, multiBtnY - multiBtnH / 2, multiBtnW, multiBtnH, P(5));
+      this._multiBtnGfx!.lineStyle(1.5, border, 0.8);
+      this._multiBtnGfx!.strokeRoundedRect(multiBtnX - multiBtnW / 2, multiBtnY - multiBtnH / 2, multiBtnW, multiBtnH, P(5));
+      this._multiBtnTxt!.setColor(txtCol);
+    };
+    drawMultiBtn(false);
+    (this as any)._drawMultiBtn = drawMultiBtn;
   }
 
   private addNavBtn(
@@ -1224,10 +1253,8 @@ export class PrepScene extends Phaser.Scene {
       yHit.on('pointerdown', () => {
         QuestStore.acceptQuest(quest.id);
         closeCo(); closeAll();
-        if (this.multiRoomNick) {
-          // Co-op: host sends ready with quest + boss info, server broadcasts gameStart
-          NetworkService.sendReady(this.multiRoomNick, PlayerStore.getLevel(), quest.id, quest.star, quest.bossId);
-          this.multiRoomNick = '';
+        if (NetworkService.connected && NetworkService.isHost) {
+          NetworkService.sendReady(getPlayerName(), PlayerStore.getLevel(), quest.id, quest.star, quest.bossId);
         } else {
           this.scene.start('GameScene', { ownSkinId: SkinStore.get() });
         }
@@ -3632,374 +3659,6 @@ export class PrepScene extends Phaser.Scene {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, cleanup);
   }
 
-  private showRoomPanel(W: number, H: number): void {
-    const D  = 600;
-    const PW = Math.min(W - P(32), P(360));
-    const PH = Math.min(P(410), H - P(40));
-    const px = W / 2 - PW / 2;
-    const py = H / 2 - PH / 2;
-
-    const panelObjs:   Phaser.GameObjects.GameObject[] = [];
-    const contentObjs: Phaser.GameObjects.GameObject[] = [];
-
-    const closeAll = () => {
-      [...panelObjs, ...contentObjs].forEach(o => o.destroy());
-      this.cleanDomInputs();
-      NetworkService.disconnect();
-    };
-    const clearContent = () => {
-      contentObjs.forEach(o => o.destroy());
-      contentObjs.length = 0;
-      this.cleanDomInputs();
-    };
-
-    // ── Persistent backdrop + panel shell ────────────────────────────
-    panelObjs.push(
-      this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.82).setInteractive().setDepth(D),
-    );
-    const bg = this.add.graphics().setDepth(D + 1);
-    panelObjs.push(bg);
-    bg.fillStyle(0x000000, 0.5); bg.fillRect(px + P(4), py + P(4), PW, PH);
-    bg.fillStyle(0x1a0e04, 1);   bg.fillRect(px, py, PW, PH);
-    bg.lineStyle(P(2), 0xd4a044, 0.9); bg.strokeRect(px, py, PW, PH);
-    bg.fillStyle(0xffe080, 0.6); bg.fillRect(px, py, PW, P(2));
-
-    panelObjs.push(this.add.text(W / 2, py + P(24), '⚑  多人連線', {
-      fontSize: F(18), fontStyle: 'bold', color: '#ffe080', stroke: '#2a1000', strokeThickness: 2,
-    }).setOrigin(0.5).setDepth(D + 2));
-
-    // ── Button helpers ───────────────────────────────────────────────
-    const BH = P(34);
-    const addBtn = (
-      objs: Phaser.GameObjects.GameObject[],
-      label: string, cx: number, cy: number, bw: number, col: number,
-      cb: () => void,
-    ) => {
-      const g = this.add.graphics().setDepth(D + 2);
-      objs.push(g);
-      g.fillStyle(0x000000, 0.35); g.fillRect(cx - bw/2 + P(2), cy - BH/2 + P(2), bw, BH);
-      g.fillStyle(col, 1);         g.fillRect(cx - bw/2, cy - BH/2, bw, BH);
-      g.fillStyle(0xffffff, 0.12); g.fillRect(cx - bw/2, cy - BH/2, bw, P(4));
-      g.lineStyle(1.5, 0xffcc44, 0.8); g.strokeRect(cx - bw/2, cy - BH/2, bw, BH);
-      objs.push(this.add.text(cx, cy, label, {
-        fontSize: F(15), fontStyle: 'bold', color: '#fff8e0', stroke: '#1a0800', strokeThickness: 2,
-      }).setOrigin(0.5).setDepth(D + 3));
-      const hit = this.add.rectangle(cx, cy, bw, BH).setInteractive({ useHandCursor: true }).setDepth(D + 4);
-      objs.push(hit);
-      hit.on('pointerdown', cb);
-      return hit;
-    };
-
-    // Persistent cancel button at panel bottom
-    addBtn(panelObjs, '取消', W / 2, py + PH - P(22), P(90), 0x3a0808, closeAll);
-
-    // ── Slot card helper ─────────────────────────────────────────────
-    const SLOT_H = P(155);
-    const slotW  = (PW - P(48)) / 2;
-    const slotY  = py + P(90) + SLOT_H / 2;
-    const leftCx  = px + P(16) + slotW / 2;
-    const rightCx = px + P(32) + slotW + slotW / 2;
-
-    if (this.anims.exists('_lobby_idle')) this.anims.remove('_lobby_idle');
-    this.anims.create({
-      key: '_lobby_idle',
-      frames: this.anims.generateFrameNumbers('player_idle_shadow', { start: 0, end: 3 }),
-      frameRate: 5, repeat: -1,
-    });
-
-    const drawSlot = (cx: number, name: string | null, level: number, badge: string, skinId = 0, tint = 0xffddaa) => {
-      const sx = cx - slotW / 2;
-      const sy = slotY - SLOT_H / 2;
-      const g  = this.add.graphics().setDepth(D + 2);
-      contentObjs.push(g);
-      g.fillStyle(0x0d0804, 0.9); g.fillRect(sx, sy, slotW, SLOT_H);
-      g.lineStyle(P(1.5), name ? 0xd4a044 : 0x443322, 0.8); g.strokeRect(sx, sy, slotW, SLOT_H);
-
-      // Badge label (top, small is fine since it's a tag)
-      contentObjs.push(this.add.text(cx, sy + P(8), badge, {
-        fontSize: F(11), fontStyle: 'bold', color: name ? '#ffe080' : '#554433',
-      }).setOrigin(0.5, 0).setDepth(D + 3));
-
-      if (!name) {
-        contentObjs.push(this.add.text(cx, slotY, '？', {
-          fontSize: F(28), color: '#443322',
-        }).setOrigin(0.5).setDepth(D + 3));
-        return;
-      }
-
-      // Per-skin lobby animation (uses preloaded skin_preview_N texture)
-      const animKey = `_lobby_idle_${skinId}`;
-      if (!this.anims.exists(animKey)) {
-        this.anims.create({
-          key: animKey,
-          frames: this.anims.generateFrameNumbers(`skin_preview_${skinId}`, { start: 0, end: 3 }),
-          frameRate: 5, repeat: -1,
-        });
-      }
-
-      // Sprite — positioned with room for text at bottom; may slightly overflow top, that's OK
-      const textAreaH = P(38);
-      const sprY = sy + (SLOT_H - textAreaH) / 2 + P(10);
-      const spr = this.add.sprite(cx, sprY, `skin_preview_${skinId}`, 0)
-        .setScale(DPR * 2.2).setTint(tint).setDepth(D + 3);
-      contentObjs.push(spr);
-      spr.play(animKey);
-
-      // Name + level anchored at bottom of slot
-      contentObjs.push(this.add.text(cx, sy + SLOT_H - P(3), name, {
-        fontSize: F(15), fontStyle: 'bold', color: '#e8d0a0', stroke: '#1a0800', strokeThickness: 2,
-      }).setOrigin(0.5, 1).setDepth(D + 4));
-      if (level > 0) {
-        contentObjs.push(this.add.text(cx, sy + SLOT_H - P(20), `Lv ${level}`, {
-          fontSize: F(15), color: '#aabbcc', stroke: '#1a0800', strokeThickness: 2,
-        }).setOrigin(0.5, 1).setDepth(D + 4));
-      }
-    };
-
-    // ── Screen 1 : Mode select ───────────────────────────────────────
-    const showModeSelect = () => {
-      clearContent();
-
-      contentObjs.push(this.add.text(W / 2, py + P(52), '選擇模式', {
-        fontSize: F(15), color: '#aaaaaa',
-      }).setOrigin(0.5).setDepth(D + 2));
-
-      const nickInput = this.makeTextInput(
-        contentObjs, px + P(16), py + P(68), PW - P(32), P(32), '暱稱（最多8字）', D + 2, getPlayerName(),
-      );
-
-      const errTxt = this.add.text(W / 2, py + P(112), '', {
-        fontSize: F(15), color: '#ff6644',
-      }).setOrigin(0.5).setDepth(D + 5);
-      contentObjs.push(errTxt);
-
-      const validate = () => {
-        const nick = nickInput.getValue();
-        if (!nick) { errTxt.setText('請先輸入暱稱'); return null; }
-        errTxt.setText('');
-        return nick;
-      };
-
-      // Large mode buttons
-      const BBTH = P(52);
-      const bigBtn = (label: string, cx: number, col: number, cb: () => void) => {
-        const bw = (PW - P(48)) / 2;
-        const cy = py + P(170);
-        const g  = this.add.graphics().setDepth(D + 2);
-        contentObjs.push(g);
-        g.fillStyle(0x000000, 0.4); g.fillRect(cx - bw/2 + P(3), cy - BBTH/2 + P(3), bw, BBTH);
-        g.fillStyle(col, 1);        g.fillRect(cx - bw/2, cy - BBTH/2, bw, BBTH);
-        g.fillStyle(0xffffff, 0.15); g.fillRect(cx - bw/2, cy - BBTH/2, bw, P(6));
-        g.lineStyle(P(2), 0xffcc44, 0.85); g.strokeRect(cx - bw/2, cy - BBTH/2, bw, BBTH);
-        contentObjs.push(this.add.text(cx, cy, label, {
-          fontSize: F(16), fontStyle: 'bold', color: '#fff8e0', stroke: '#1a0800', strokeThickness: 3,
-        }).setOrigin(0.5).setDepth(D + 3));
-        const hit = this.add.rectangle(cx, cy, bw, BBTH).setInteractive({ useHandCursor: true }).setDepth(D + 4);
-        contentObjs.push(hit);
-        hit.on('pointerdown', cb);
-      };
-
-      const bw    = (PW - P(48)) / 2;
-      bigBtn('創建房間', px + P(16) + bw / 2,       0x0e2a0a, async () => {
-        const nick = validate(); if (!nick) return;
-        await showCreateLobby(nick);
-      });
-      bigBtn('加入房間', px + P(32) + bw + bw / 2, 0x0a1a2a, () => {
-        const nick = validate(); if (!nick) return;
-        showJoinInput(nick);
-      });
-    };
-
-    // ── Screen 2a : Host lobby ───────────────────────────────────────
-    const showCreateLobby = async (nick: string) => {
-      clearContent();
-
-      const loadTxt = this.add.text(W / 2, py + PH / 2, '連線中…', {
-        fontSize: F(15), color: '#ffdd44',
-      }).setOrigin(0.5).setDepth(D + 2);
-      contentObjs.push(loadTxt);
-
-      let payload: Awaited<ReturnType<typeof NetworkService.createRoom>>;
-      try {
-        payload = await NetworkService.createRoom(nick);
-      } catch {
-        loadTxt.setText('連線失敗，請確認 server 是否運行').setColor('#ff4444');
-        addBtn(contentObjs, '← 返回', W / 2, py + P(200), P(110), 0x3a1a04, () => showModeSelect());
-        return;
-      }
-      loadTxt.destroy();
-      contentObjs.splice(contentObjs.indexOf(loadTxt), 1);
-
-      let partnerIn     = false;
-      let partnerNick   = '';
-      let partnerLevel  = 0;
-      let partnerSkinId = 0;
-
-      const rebuildLobby = () => {
-        clearContent();
-
-        // Room code
-        contentObjs.push(this.add.text(W / 2, py + P(52), '房間代碼', {
-          fontSize: F(15), color: '#aaaaaa',
-        }).setOrigin(0.5).setDepth(D + 2));
-        contentObjs.push(this.add.text(W / 2, py + P(68), payload.roomCode, {
-          fontSize: F(26), fontStyle: 'bold', color: '#ffe080', stroke: '#2a1000', strokeThickness: 3,
-        }).setOrigin(0.5).setDepth(D + 2));
-
-        // Slots
-        const myLevel = PlayerStore.getLevel();
-        drawSlot(leftCx,  nick,                          myLevel,      '房主 (你)', SkinStore.get(),  0xffddaa);
-        drawSlot(rightCx, partnerIn ? partnerNick : null, partnerLevel, '夥伴',      partnerSkinId,    0xaaddff);
-
-        // Status — just below slots
-        const slotBottom = py + P(90) + SLOT_H;
-        const statusMsg = partnerIn ? '夥伴已加入！可以出發了' : '等待夥伴加入…';
-        const statusCol = partnerIn ? '#88ee44' : '#886644';
-        contentObjs.push(this.add.text(W / 2, slotBottom + P(14), statusMsg, {
-          fontSize: F(15), color: statusCol,
-        }).setOrigin(0.5).setDepth(D + 2));
-
-        // 出發 button — anchored below status text, not relative to panel bottom
-        const startCol    = partnerIn ? 0x1a5a0a : 0x242018;
-        const startBorder = partnerIn ? 0xffcc44 : 0x443322;
-        const startLblCol = partnerIn ? '#fff8e0' : '#665533';
-        const startG = this.add.graphics().setDepth(D + 2);
-        contentObjs.push(startG);
-        const sBtnW = P(100), sBtnH = P(28);
-        const sBtnX = W / 2, sBtnY = slotBottom + P(14) + P(18) + sBtnH / 2;
-        startG.fillStyle(0x000000, 0.35); startG.fillRect(sBtnX - sBtnW/2 + P(2), sBtnY - sBtnH/2 + P(2), sBtnW, sBtnH);
-        startG.fillStyle(startCol, 1);    startG.fillRect(sBtnX - sBtnW/2, sBtnY - sBtnH/2, sBtnW, sBtnH);
-        startG.fillStyle(0xffffff, 0.12); startG.fillRect(sBtnX - sBtnW/2, sBtnY - sBtnH/2, sBtnW, P(4));
-        startG.lineStyle(1.5, startBorder, 0.8); startG.strokeRect(sBtnX - sBtnW/2, sBtnY - sBtnH/2, sBtnW, sBtnH);
-        contentObjs.push(this.add.text(sBtnX, sBtnY, '出  發', {
-          fontSize: F(15), fontStyle: 'bold', color: startLblCol, stroke: '#1a0800', strokeThickness: 2,
-        }).setOrigin(0.5).setDepth(D + 3));
-        if (partnerIn) {
-          const sHit = this.add.rectangle(sBtnX, sBtnY, sBtnW, sBtnH)
-            .setInteractive({ useHandCursor: true }).setDepth(D + 4);
-          contentObjs.push(sHit);
-          sHit.on('pointerdown', () => {
-            this.multiRoomNick = nick;
-            this.showQuestPanel(W, H, 700);
-          });
-        }
-      };
-
-      rebuildLobby();
-
-      // Push host's own name/level into Colyseus schema so guest can read it
-      NetworkService.sendPlayerInfo(nick, PlayerStore.getLevel(), SkinStore.get());
-
-      // Primary: schema state change (works without custom server messages)
-      NetworkService.onPartnerInfoReady((name, level, skinId) => {
-        partnerIn = true; partnerNick = name; partnerLevel = level; partnerSkinId = skinId;
-        rebuildLobby();
-      });
-      // Backup: explicit server message (works when server is rebuilt)
-      NetworkService.onPartnerJoined(data => {
-        partnerIn = true;
-        partnerNick   = data.nickname ?? partnerNick;
-        partnerLevel  = data.level    ?? partnerLevel;
-        partnerSkinId = data.skinId   ?? partnerSkinId;
-        rebuildLobby();
-      });
-
-      NetworkService.onGameStart(p => {
-        [...panelObjs, ...contentObjs].forEach(o => o.destroy());
-        this.cleanDomInputs();
-        this.scene.start('GameScene', {
-          seed: p.seed, questStar: p.questStar, bossMonsterId: p.bossMonsterId,
-          mapParams: p.mapParams, partnerNickname: p.guestNickname,
-          ownSkinId: p.hostSkinId, partnerSkinId: p.guestSkinId,
-        });
-      });
-    };
-
-    // ── Screen 2b : Join code input ──────────────────────────────────
-    const showJoinInput = (nick: string) => {
-      clearContent();
-
-      contentObjs.push(this.add.text(W / 2, py + P(68), '輸入房間代碼', {
-        fontSize: F(15), fontStyle: 'bold', color: '#ffe080', stroke: '#2a1000', strokeThickness: 2,
-      }).setOrigin(0.5).setDepth(D + 2));
-
-      const codeInput = this.makeTextInput(
-        contentObjs, W / 2 - P(75), py + P(92), P(150), P(40), '4位代碼', D + 2,
-      );
-
-      const errTxt = this.add.text(W / 2, py + P(148), '', {
-        fontSize: F(15), color: '#ff6644',
-      }).setOrigin(0.5).setDepth(D + 5);
-      contentObjs.push(errTxt);
-
-      addBtn(contentObjs, '加入房間', W / 2, py + P(186), P(130), 0x0a1a3a, async () => {
-        const code = codeInput.getValue();
-        if (!code) { errTxt.setText('請輸入房間代碼'); return; }
-        errTxt.setText('加入中…').setColor('#ffdd44');
-        try {
-          const joined = await NetworkService.joinRoom(code, nick);
-          NetworkService.sendPlayerInfo(nick, PlayerStore.getLevel(), SkinStore.get());
-          // Read host info from live schema first; fall back to joined payload
-          const hostState = NetworkService.getPartnerState() as any;
-          const hostName   = hostState?.nickname ?? joined.hostNickname ?? '';
-          const hostLevel  = hostState?.level    ?? joined.hostLevel    ?? 0;
-          const hostSkinId = hostState?.skinId   ?? joined.hostSkinId  ?? 0;
-          showGuestLobby(nick, hostName, hostLevel, hostSkinId);
-        } catch {
-          errTxt.setText('加入失敗，代碼錯誤或房間不存在').setColor('#ff4444');
-        }
-      });
-
-      addBtn(contentObjs, '← 返回', W / 2, py + P(232), P(100), 0x3a1a04, () => showModeSelect());
-    };
-
-    // ── Screen 2c : Guest lobby ──────────────────────────────────────
-    const showGuestLobby = (nick: string, hostName = '', hostLevel = 0, hostSkinId = 0) => {
-      let _hostName   = hostName;
-      let _hostLevel  = hostLevel;
-      let _hostSkinId = hostSkinId;
-
-      const rebuildContent = () => {
-        clearContent();
-
-        contentObjs.push(this.add.text(W / 2, py + P(52), '已加入房間', {
-          fontSize: F(15), fontStyle: 'bold', color: '#88ee44', stroke: '#1a0800', strokeThickness: 2,
-        }).setOrigin(0.5).setDepth(D + 2));
-
-        const myLevel = PlayerStore.getLevel();
-        drawSlot(leftCx,  _hostName || '?', _hostLevel, '房主', _hostSkinId,     0xaaddff);
-        drawSlot(rightCx, nick,             myLevel,    '你',   SkinStore.get(), 0xffddaa);
-
-        contentObjs.push(this.add.text(W / 2, py + P(90) + SLOT_H + P(14), '等待房主出發…', {
-          fontSize: F(15), color: '#886644',
-        }).setOrigin(0.5).setDepth(D + 2));
-      };
-
-      rebuildContent();
-
-      // Update host slot whenever schema syncs with host's name/level
-      NetworkService.onPartnerInfoReady((name, level, skinId) => {
-        _hostName   = name;
-        _hostLevel  = level;
-        _hostSkinId = skinId;
-        rebuildContent();
-      });
-
-      NetworkService.onGameStart(payload => {
-        try { if (payload.questId) QuestStore.acceptQuest(payload.questId); } catch { /* guest */ }
-        [...panelObjs, ...contentObjs].forEach(o => o.destroy());
-        this.cleanDomInputs();
-        this.scene.start('GameScene', {
-          seed: payload.seed, questStar: payload.questStar, bossMonsterId: payload.bossMonsterId,
-          mapParams: payload.mapParams, partnerNickname: payload.hostNickname,
-          ownSkinId: payload.guestSkinId, partnerSkinId: payload.hostSkinId,
-        });
-      });
-    };
-
-    showModeSelect();
-  }
-
   private makeTextInput(
     objs: Phaser.GameObjects.GameObject[],
     x: number, y: number, w: number, h: number,
@@ -4321,7 +3980,8 @@ export class PrepScene extends Phaser.Scene {
     const BOTTOM_H = P(78);
     const availH   = H - TOP_H - BOTTOM_H;
     const heroY    = TOP_H + availH * 0.50;
-    const scale    = 1.75 * DPR;
+    this._heroY = heroY;
+    const scale    = 1.75 * 1.5 * DPR;
 
 
     // ── Animated hero sprite ───────────────────────────────
@@ -4382,6 +4042,325 @@ export class PrepScene extends Phaser.Scene {
         repeat: -1, yoyo: true,
         delay: Phaser.Math.Between(0, 3000),
       });
+    }
+  }
+
+  /** Small popup to create or join a multiplayer room. */
+  private showMultiPopup(): void {
+    const W = this._sceneW;
+    const H = this._sceneH;
+    const D = 400;
+    const PW = Math.min(W - P(32), P(320));
+    const PH = P(280);
+    const px = W / 2 - PW / 2;
+    const py = H / 2 - PH / 2;
+    const P2 = P;
+    const objs: Phaser.GameObjects.GameObject[] = [];
+
+    const closePopup = () => { objs.forEach(o => o.destroy()); this.cleanDomInputs(); };
+
+    // Backdrop
+    const bd = this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.75).setDepth(D).setInteractive();
+    objs.push(bd);
+    bd.on('pointerdown', (ptr: Phaser.Input.Pointer) => {
+      if (ptr.x < px || ptr.x > px + PW || ptr.y < py || ptr.y > py + PH) closePopup();
+    });
+
+    // Panel
+    const pg = this.add.graphics().setDepth(D + 1);
+    objs.push(pg);
+    pg.fillStyle(0x0e0806, 0.97); pg.fillRoundedRect(px, py, PW, PH, P2(12));
+    pg.lineStyle(2, GOLD, 0.6);   pg.strokeRoundedRect(px, py, PW, PH, P2(12));
+
+    objs.push(this.add.text(W / 2, py + P2(24), '多人連線', {
+      fontSize: F(18), fontStyle: 'bold', color: '#ffe080', stroke: '#2a1000', strokeThickness: 2,
+    }).setOrigin(0.5).setDepth(D + 2));
+
+    // Nickname input
+    objs.push(this.add.text(W / 2, py + P2(56), '你的名稱', {
+      fontSize: F(13), color: '#aaaaaa',
+    }).setOrigin(0.5).setDepth(D + 2));
+
+    const nameInput = this.makeTextInput(
+      objs, W / 2 - P2(80), py + P2(70), P2(160), P2(36), '輸入名稱', D + 2,
+      getPlayerName(),
+    );
+
+    const errTxt = this.add.text(W / 2, py + P2(122), '', {
+      fontSize: F(13), color: '#ff6644',
+    }).setOrigin(0.5).setDepth(D + 5);
+    objs.push(errTxt);
+
+    // Create room
+    const cgfx = this.add.graphics().setDepth(D + 2); objs.push(cgfx);
+    cgfx.fillStyle(0x1a3a08, 1); cgfx.fillRoundedRect(W / 2 - P2(130), py + P2(140), P2(120), P2(36), P2(6));
+    cgfx.lineStyle(1.5, 0x66aa22, 0.8); cgfx.strokeRoundedRect(W / 2 - P2(130), py + P2(140), P2(120), P2(36), P2(6));
+    objs.push(this.add.text(W / 2 - P2(70), py + P2(158), '建立房間', {
+      fontSize: F(14), fontStyle: 'bold', color: '#88ee44',
+    }).setOrigin(0.5).setDepth(D + 3));
+    const cHit = this.add.rectangle(W / 2 - P2(70), py + P2(158), P2(120), P2(36))
+      .setInteractive({ useHandCursor: true }).setDepth(D + 4);
+    objs.push(cHit);
+    cHit.on('pointerdown', async () => {
+      const nick = nameInput.getValue().trim() || getPlayerName();
+      setPlayerName(nick);
+      errTxt.setText('建立中…').setColor('#ffdd44');
+      try {
+        await NetworkService.createRoom(nick);
+        NetworkService.sendPlayerInfo(nick, PlayerStore.getLevel(), SkinStore.get());
+        closePopup();
+        NetworkService.onPartnerJoined(data => {
+          this._partnerIn = true;
+          this._partnerNick   = data.nickname || this._partnerNick || '?';
+          this._partnerLevel  = data.level    || this._partnerLevel  || 1;
+          this._partnerSkinId = data.skinId   ?? this._partnerSkinId ?? 0;
+          this.refreshRoomOverlay();
+        });
+        NetworkService.onPartnerLeft(() => { this._partnerIn = false; this.refreshRoomOverlay(); });
+        NetworkService.onGameStart(p => {
+          this.scene.start('GameScene', {
+            seed: p.seed, questStar: p.questStar, bossMonsterId: p.bossMonsterId,
+            mapParams: p.mapParams, partnerNickname: p.guestNickname,
+            ownSkinId: p.hostSkinId, partnerSkinId: p.guestSkinId,
+          });
+        });
+        this.refreshRoomOverlay();
+      } catch {
+        errTxt.setText('建立失敗，請重試').setColor('#ff4444');
+      }
+    });
+
+    // Join room
+    const jgfx = this.add.graphics().setDepth(D + 2); objs.push(jgfx);
+    jgfx.fillStyle(0x0a1a3a, 1); jgfx.fillRoundedRect(W / 2 + P2(10), py + P2(140), P2(120), P2(36), P2(6));
+    jgfx.lineStyle(1.5, 0x4488cc, 0.8); jgfx.strokeRoundedRect(W / 2 + P2(10), py + P2(140), P2(120), P2(36), P2(6));
+    objs.push(this.add.text(W / 2 + P2(70), py + P2(158), '加入房間', {
+      fontSize: F(14), fontStyle: 'bold', color: '#88ccff',
+    }).setOrigin(0.5).setDepth(D + 3));
+    const jHit = this.add.rectangle(W / 2 + P2(70), py + P2(158), P2(120), P2(36))
+      .setInteractive({ useHandCursor: true }).setDepth(D + 4);
+    objs.push(jHit);
+    jHit.on('pointerdown', () => {
+      // Replace popup with join code input
+      closePopup();
+      this.showJoinCodePopup(nameInput.getValue().trim() || getPlayerName());
+    });
+
+    // Close button
+    const xHit = this.add.rectangle(px + PW - P2(18), py + P2(18), P2(28), P2(28))
+      .setInteractive({ useHandCursor: true }).setDepth(D + 4);
+    objs.push(xHit);
+    objs.push(this.add.text(px + PW - P2(18), py + P2(18), '✕', {
+      fontSize: F(16), color: '#886644',
+    }).setOrigin(0.5).setDepth(D + 3));
+    xHit.on('pointerdown', closePopup);
+  }
+
+  /** Join code entry popup */
+  private showJoinCodePopup(nick: string): void {
+    const W = this._sceneW;
+    const H = this._sceneH;
+    const D = 400;
+    const PW = Math.min(W - P(32), P(280));
+    const PH = P(220);
+    const px = W / 2 - PW / 2;
+    const py = H / 2 - PH / 2;
+    const objs: Phaser.GameObjects.GameObject[] = [];
+    const closePopup = () => { objs.forEach(o => o.destroy()); this.cleanDomInputs(); };
+
+    const bd = this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.75).setDepth(D).setInteractive();
+    objs.push(bd);
+    const pg = this.add.graphics().setDepth(D + 1); objs.push(pg);
+    pg.fillStyle(0x0e0806, 0.97); pg.fillRoundedRect(px, py, PW, PH, P(12));
+    pg.lineStyle(2, GOLD, 0.6);   pg.strokeRoundedRect(px, py, PW, PH, P(12));
+
+    objs.push(this.add.text(W / 2, py + P(24), '輸入房間代碼', {
+      fontSize: F(16), fontStyle: 'bold', color: '#ffe080', stroke: '#2a1000', strokeThickness: 2,
+    }).setOrigin(0.5).setDepth(D + 2));
+
+    const codeInput = this.makeTextInput(objs, W / 2 - P(60), py + P(52), P(120), P(36), '4位代碼', D + 2);
+
+    const errTxt = this.add.text(W / 2, py + P(104), '', {
+      fontSize: F(13), color: '#ff6644',
+    }).setOrigin(0.5).setDepth(D + 5);
+    objs.push(errTxt);
+
+    const jgfx = this.add.graphics().setDepth(D + 2); objs.push(jgfx);
+    jgfx.fillStyle(0x0a1a3a, 1); jgfx.fillRoundedRect(W / 2 - P(55), py + P(124), P(110), P(36), P(6));
+    jgfx.lineStyle(1.5, 0x4488cc, 0.8); jgfx.strokeRoundedRect(W / 2 - P(55), py + P(124), P(110), P(36), P(6));
+    objs.push(this.add.text(W / 2, py + P(142), '確認加入', {
+      fontSize: F(14), fontStyle: 'bold', color: '#88ccff',
+    }).setOrigin(0.5).setDepth(D + 3));
+    const jHit = this.add.rectangle(W / 2, py + P(142), P(110), P(36))
+      .setInteractive({ useHandCursor: true }).setDepth(D + 4);
+    objs.push(jHit);
+    jHit.on('pointerdown', async () => {
+      const code = codeInput.getValue().trim();
+      if (!code) { errTxt.setText('請輸入代碼'); return; }
+      setPlayerName(nick);
+      errTxt.setText('加入中…').setColor('#ffdd44');
+      try {
+        await NetworkService.joinRoom(code, nick);
+        // Register callbacks BEFORE sendPlayerInfo — server sends partnerJoined back
+        // with host's info as soon as it receives playerInfo, so callback must be ready first.
+        NetworkService.onPartnerJoined(data => {
+          this._partnerIn = true;
+          this._partnerNick   = data.nickname || this._partnerNick || '?';
+          this._partnerLevel  = data.level    || this._partnerLevel  || 1;
+          this._partnerSkinId = data.skinId   ?? this._partnerSkinId ?? 0;
+          this.refreshRoomOverlay();
+        });
+        NetworkService.onPartnerLeft(() => { this._partnerIn = false; this.refreshRoomOverlay(); });
+        NetworkService.onGameStart(payload => {
+          try { if (payload.questId) QuestStore.acceptQuest(payload.questId); } catch { /* guest */ }
+          this.scene.start('GameScene', {
+            seed: payload.seed, questStar: payload.questStar, bossMonsterId: payload.bossMonsterId,
+            mapParams: payload.mapParams, partnerNickname: payload.hostNickname,
+            ownSkinId: payload.guestSkinId, partnerSkinId: payload.hostSkinId,
+          });
+        });
+        NetworkService.sendPlayerInfo(nick, PlayerStore.getLevel(), SkinStore.get());
+        closePopup();
+        this.refreshRoomOverlay();
+      } catch {
+        errTxt.setText('加入失敗，代碼錯誤').setColor('#ff4444');
+      }
+    });
+
+    const xHit = this.add.rectangle(px + PW - P(18), py + P(18), P(28), P(28))
+      .setInteractive({ useHandCursor: true }).setDepth(D + 4);
+    objs.push(xHit);
+    objs.push(this.add.text(px + PW - P(18), py + P(18), '✕', {
+      fontSize: F(16), color: '#886644',
+    }).setOrigin(0.5).setDepth(D + 3));
+    xHit.on('pointerdown', closePopup);
+    objs.push(this.add.rectangle(px + PW / 2 - P(65), py + P(185), P(60), P(26))
+      .setInteractive({ useHandCursor: true }).setDepth(D + 4)
+      .on('pointerdown', () => { closePopup(); this.showMultiPopup(); }));
+    objs.push(this.add.text(px + PW / 2 - P(65), py + P(185), '← 返回', {
+      fontSize: F(13), color: '#886644',
+    }).setOrigin(0.5).setDepth(D + 3));
+  }
+
+  /** Destroys and redraws room overlay: room code, leave button, partner sprite, guest overlay */
+  private refreshRoomOverlay(): void {
+    this.roomOverlayObjs.forEach(o => o.destroy());
+    this.roomOverlayObjs = [];
+
+    const W = this._sceneW;
+    const H = this._sceneH;
+    const cx = W / 2;
+    const heroY = this._heroY;
+    const D = 30;
+
+    // Multi button state — hide base button when connected, overlay handles display
+    const connected = NetworkService.connected;
+    const drawFn = (this as any)._drawMultiBtn as ((c: boolean) => void) | undefined;
+    drawFn?.(connected);
+    if (this._multiBtnTxt) this._multiBtnTxt.setVisible(!connected);
+    if (this._multiBtnHit) {
+      if (connected) this._multiBtnHit.disableInteractive();
+      else this._multiBtnHit.setInteractive({ useHandCursor: true });
+    }
+
+    if (!connected) return;
+
+    // ── Room code + leave button in the bottom-right corner ──────
+    const BAR_H   = P(78);
+    const barY    = H - BAR_H;
+    const panelW  = P(108);                          // 原 P(72) 放大 50%
+    const panelH  = P(82);                           // 原 P(54) 放大 50%
+    const panelCX = W - P(10) - panelW / 2;          // 右對齊
+    const panelY  = barY - P(6) - panelH;
+
+    const rpgfx = this.add.graphics().setDepth(25);
+    this.roomOverlayObjs.push(rpgfx);
+    rpgfx.fillStyle(0x000000, 0.35);
+    rpgfx.fillRoundedRect(panelCX - panelW / 2 + P(2), panelY + P(2), panelW, panelH, P(8));
+    rpgfx.fillStyle(0x0e0806, 1);
+    rpgfx.fillRoundedRect(panelCX - panelW / 2, panelY, panelW, panelH, P(8));
+    rpgfx.lineStyle(1.5, 0xffcc44, 0.5);
+    rpgfx.strokeRoundedRect(panelCX - panelW / 2, panelY, panelW, panelH, P(8));
+
+    // "房間代碼" label
+    this.roomOverlayObjs.push(this.add.text(panelCX, panelY + P(14), '房間代碼', {
+      fontSize: F(12), color: '#888888',
+    }).setOrigin(0.5).setDepth(26));
+
+    // Room code digits
+    this.roomOverlayObjs.push(this.add.text(panelCX, panelY + P(32), NetworkService.gameCode, {
+      fontSize: F(22), fontStyle: 'bold', color: '#ffe080', stroke: '#1a0800', strokeThickness: 2,
+    }).setOrigin(0.5).setDepth(26));
+
+    // Leave room button
+    const lBtnW = panelW - P(16);
+    const lBtnH = P(22);
+    const lBtnY = panelY + P(61);
+    const lgfx = this.add.graphics().setDepth(25);
+    this.roomOverlayObjs.push(lgfx);
+    lgfx.fillStyle(0x3a0a04, 1);
+    lgfx.fillRoundedRect(panelCX - lBtnW / 2, lBtnY - lBtnH / 2, lBtnW, lBtnH, P(5));
+    lgfx.lineStyle(1, 0x883322, 0.8);
+    lgfx.strokeRoundedRect(panelCX - lBtnW / 2, lBtnY - lBtnH / 2, lBtnW, lBtnH, P(5));
+    this.roomOverlayObjs.push(this.add.text(panelCX, lBtnY, '離開房間', {
+      fontSize: F(13), color: '#ff8866',
+    }).setOrigin(0.5).setDepth(26));
+    const lHit = this.add.rectangle(panelCX, lBtnY, lBtnW, lBtnH)
+      .setInteractive({ useHandCursor: true }).setDepth(27);
+    this.roomOverlayObjs.push(lHit);
+    lHit.on('pointerdown', () => {
+      NetworkService.disconnect();
+      this._partnerIn = false;
+      this.refreshRoomOverlay();
+    });
+
+    if (this._partnerIn) {
+      const partnerX = cx - P(90);
+      const skinKey = `skin_preview_${this._partnerSkinId}`;
+      if (this.textures.exists(skinKey)) {
+        this.textures.get(skinKey).setFilter(Phaser.Textures.FilterMode.NEAREST);
+        const partnerSprite = this.add.sprite(partnerX, heroY, skinKey, 0)
+          .setScale(1.75 * 1.5 * DPR).setDepth(D);
+        this.roomOverlayObjs.push(partnerSprite);
+        const animKey = `multi_partner_idle_${this._partnerSkinId}`;
+        if (!this.anims.exists(animKey)) {
+          this.anims.create({
+            key: animKey,
+            frames: this.anims.generateFrameNumbers(skinKey, { start: 0, end: 3 }),
+            frameRate: 5, repeat: -1,
+          });
+        }
+        partnerSprite.play(animKey);
+      }
+      const pNameTxt = this.add.text(partnerX, heroY + P(56), this._partnerNick || '?', {
+        fontSize: F(13), fontStyle: 'bold', color: '#88ccff', stroke: '#000', strokeThickness: 2,
+      }).setOrigin(0.5).setDepth(D + 1);
+      this.roomOverlayObjs.push(pNameTxt);
+      const pLvTxt = this.add.text(partnerX, heroY + P(70), `Lv.${this._partnerLevel || 1}`, {
+        fontSize: F(12), color: '#aaccff',
+      }).setOrigin(0.5).setDepth(D + 1);
+      this.roomOverlayObjs.push(pLvTxt);
+    }
+
+    // Guest overlay on battle button (blocks 出戰)
+    if (!NetworkService.isHost) {
+      const BTN_W = P(100);
+      const BTN_H = P(68);
+      const BAR_H = P(78);
+      const barY  = H - BAR_H;
+      const bcy   = barY + BAR_H / 2;
+      const overlayGfx = this.add.graphics().setDepth(28);
+      this.roomOverlayObjs.push(overlayGfx);
+      overlayGfx.fillStyle(0x000000, 0.7);
+      overlayGfx.fillRoundedRect(cx - BTN_W / 2, bcy - BTN_H / 2, BTN_W, BTN_H, P(14));
+      const waitTxt = this.add.text(cx, bcy, '等待房主', {
+        fontSize: F(15), fontStyle: 'bold', color: '#886644', stroke: '#000', strokeThickness: 2,
+      }).setOrigin(0.5).setDepth(29);
+      this.roomOverlayObjs.push(waitTxt);
+      // Intercept clicks on the button area
+      const blocker = this.add.rectangle(cx, bcy, BTN_W, BTN_H)
+        .setInteractive().setDepth(30);
+      this.roomOverlayObjs.push(blocker);
     }
   }
 }
