@@ -42,6 +42,7 @@ interface Callbacks {
   partnerAttack?:    (data: { animKey: string; x: number; y: number; dir: string; behavior: string }) => void;
   partnerLeft?:      () => void;
   partnerDead?:      () => void;
+  roomClosed?:       () => void;
   minionSync?:       (data: MsgMinionSync) => void;
   minionHit?:        (data: { minionId: string; hp: number; isDead: boolean }) => void;
   minionAttack?:     (data: MsgMinionAttack) => void;
@@ -98,6 +99,7 @@ class NetworkServiceClass {
     r.onMessage('partnerPos',     (d: any)        => this._cbs.partnerPos?.(d));
     r.onMessage('attack',         (d: any)        => this._cbs.partnerAttack?.(d));
     r.onMessage('partnerLeft',    ()              => this._cbs.partnerLeft?.());
+    r.onMessage('roomClosed',     ()              => this._cbs.roomClosed?.());
     r.onMessage('partnerDead',    ()              => this._cbs.partnerDead?.());
     r.onMessage<MsgMinionSync>('minionSync',      d  => this._cbs.minionSync?.(d));
     r.onMessage('minionHit',      (d: any)        => this._cbs.minionHit?.(d));
@@ -271,6 +273,10 @@ class NetworkServiceClass {
     this._cbs.partnerLeft = cb;
   }
 
+  onRoomClosed(cb: () => void): void {
+    this._cbs.roomClosed = cb;
+  }
+
   onPartnerDead(cb: () => void): void {
     this._cbs.partnerDead = cb;
   }
@@ -324,6 +330,7 @@ class NetworkServiceClass {
     this._cbs.partnerPos    = undefined;
     this._cbs.partnerAttack = undefined;
     this._cbs.partnerLeft   = undefined;
+    this._cbs.roomClosed    = undefined;
     this._cbs.partnerDead   = undefined;
     this._cbs.partnerMove   = undefined;
     this._cbs.minionSync    = undefined;

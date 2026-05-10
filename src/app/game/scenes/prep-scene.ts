@@ -180,6 +180,7 @@ export class PrepScene extends Phaser.Scene {
         this.refreshRoomOverlay();
       });
       NetworkService.onPartnerLeft(() => { this._partnerIn = false; this.refreshRoomOverlay(); });
+      NetworkService.onRoomClosed(() => { NetworkService.disconnect(); this._partnerIn = false; this.refreshRoomOverlay(); this._showToast('房主已離開，房間關閉'); });
       NetworkService.onGameStart(p => {
         if (NetworkService.isHost) {
           this.scene.start('GameScene', {
@@ -4117,6 +4118,7 @@ export class PrepScene extends Phaser.Scene {
           this.refreshRoomOverlay();
         });
         NetworkService.onPartnerLeft(() => { this._partnerIn = false; this.refreshRoomOverlay(); });
+        NetworkService.onRoomClosed(() => { NetworkService.disconnect(); this._partnerIn = false; this.refreshRoomOverlay(); this._showToast('房主已離開，房間關閉'); });
         NetworkService.onGameStart(p => {
           this.scene.start('GameScene', {
             seed: p.seed, questStar: p.questStar, bossMonsterId: p.bossMonsterId,
@@ -4211,6 +4213,7 @@ export class PrepScene extends Phaser.Scene {
           this.refreshRoomOverlay();
         });
         NetworkService.onPartnerLeft(() => { this._partnerIn = false; this.refreshRoomOverlay(); });
+        NetworkService.onRoomClosed(() => { NetworkService.disconnect(); this._partnerIn = false; this.refreshRoomOverlay(); this._showToast('房主已離開，房間關閉'); });
         NetworkService.onGameStart(payload => {
           try { if (payload.questId) QuestStore.acceptQuest(payload.questId); } catch { /* guest */ }
           this.scene.start('GameScene', {
@@ -4243,6 +4246,15 @@ export class PrepScene extends Phaser.Scene {
   }
 
   /** Destroys and redraws room overlay: room code, leave button, partner sprite, guest overlay */
+  private _showToast(msg: string): void {
+    const W = this._sceneW; const H = this._sceneH;
+    const t = this.add.text(W / 2, H / 2 - P(60), msg, {
+      fontSize: F(15), fontStyle: 'bold', color: '#ffcc44',
+      stroke: '#000', strokeThickness: 3,
+    }).setOrigin(0.5).setDepth(500);
+    this.tweens.add({ targets: t, alpha: 0, delay: 1800, duration: 600, onComplete: () => t.destroy() });
+  }
+
   private refreshRoomOverlay(): void {
     this.roomOverlayObjs.forEach(o => o.destroy());
     this.roomOverlayObjs = [];

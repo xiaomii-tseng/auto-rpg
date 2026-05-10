@@ -199,9 +199,13 @@ export class GameRoom extends Room<GameRoomState> {
         // 30 秒內未重連 → 正常離開流程
       }
     }
+    const isHost = client.sessionId === this.state.hostId;
     this.state.players.delete(client.sessionId);
     if (this.state.phase === 'playing') {
       this.broadcast('partnerLeft', {});
+    } else if (isHost) {
+      this.broadcast('roomClosed', {});
+      this.disconnect();
     }
   }
 
