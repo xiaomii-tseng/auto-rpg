@@ -173,7 +173,7 @@ export const MONSTER_DEFS: MonsterDef[] = [
   },
   {
     id: 'elite_slime_red', name: '紅史萊姆菁英', spriteKey: 'slime', frameEnd: 5,
-    element: 'fire', tint: 0xff6600, tier: 3,
+    element: 'fire', tint: 0xff2020, tier: 3,
     hp: 65, atk: 10, speed: 90, exp: 65, gold: 28,
     cards: [{ cardId: 'card_elite_slime_red_a', rate: CR_E }, { cardId: 'card_elite_slime_red_b', rate: CR_E }, { cardId: 'card_elite_slime_red_c', rate: CR_E }],
     drops: eliteDrops,
@@ -201,7 +201,7 @@ export const MONSTER_DEFS: MonsterDef[] = [
   },
   {
     id: 'elite_slime_lava', name: '熔岩史萊姆菁英', spriteKey: 'slime3', frameEnd: 5,
-    element: 'fire', tint: 0xff4400, tier: 3,
+    element: 'fire', tint: 0xffffff, tier: 3,
     hp: 70, atk: 12, speed: 110, exp: 80, gold: 36,
     cards: [{ cardId: 'card_elite_slime_lava_a', rate: CR_E }, { cardId: 'card_elite_slime_lava_b', rate: CR_E }, { cardId: 'card_elite_slime_lava_c', rate: CR_E }],
     drops: eliteDrops,
@@ -303,7 +303,7 @@ export const MONSTER_DEFS: MonsterDef[] = [
 
   // ── 花Boss系列 ──────────────────────────────────────────
   {
-    id: 'boss_flower_one', name: '食人花王', spriteKey: 'plant3', frameEnd: 9,
+    id: 'boss_flower_one', name: '食人花王', spriteKey: 'plant1', frameEnd: 9,
     element: 'grass', tint: 0xffffff, tier: 5,
     hp: 800, atk: 25, def: 15, speed: 0, exp: 200, gold: 110,
     cards: [{ cardId: 'card_boss_flower_one_a', rate: CR_B }, { cardId: 'card_boss_flower_one_b', rate: CR_B }, { cardId: 'card_boss_flower_one_c', rate: CR_B }],
@@ -317,7 +317,7 @@ export const MONSTER_DEFS: MonsterDef[] = [
     drops: bossDrops,
   },
   {
-    id: 'boss_flower_three', name: '不死花王', spriteKey: 'plant1', frameEnd: 9,
+    id: 'boss_flower_three', name: '不死花王', spriteKey: 'plant3', frameEnd: 9,
     element: 'fire', tint: 0xffffff, tier: 5,
     hp: 900, atk: 22, def: 8, speed: 0, exp: 220, gold: 120,
     cards: [{ cardId: 'card_boss_flower_three_a', rate: CR_B }, { cardId: 'card_boss_flower_three_b', rate: CR_B }, { cardId: 'card_boss_flower_three_c', rate: CR_B }],
@@ -355,7 +355,7 @@ export const CARD_DEFS: CardDef[] = [
   { id: 'card_slime_lava_s_c', name: '熔岩史萊姆小卡片(C)', monsterId: 'slime_lava_s', element: 'none', tint: 0xff6622, effect: { penetration: 8, atk: 3 }, desc: '穿甲 +8、攻擊力 +3' },
 
   // ── 菁英史萊姆卡 A/B/C ──
-  { id: 'card_elite_slime_green_a', name: '綠史萊姆菁英卡片(A)', monsterId: 'elite_slime_green', element: 'none', tint: 0x00ff88, effect: { orbitIceBalls: 2 }, desc: '玩家周圍出現2顆旋轉冰球（ATK×10%傷害+緩速20%，1秒傷害CD/怪）' },
+  { id: 'card_elite_slime_green_a', name: '綠史萊姆菁英卡片(A)', monsterId: 'elite_slime_green', element: 'none', tint: 0x00ff88, effect: { orbitIceBalls: 2 }, desc: '玩家周圍出現2顆旋轉冰球（ATK×25%傷害+緩速20%，球數增加時傷害自動降低，1秒傷害CD/怪）' },
   { id: 'card_elite_slime_green_b', name: '綠史萊姆菁英卡片(B)', monsterId: 'elite_slime_green', element: 'none', tint: 0x00ff88, effect: { atk: 8 }, desc: '攻擊力 +8' },
   { id: 'card_elite_slime_green_c', name: '綠史萊姆菁英卡片(C)', monsterId: 'elite_slime_green', element: 'none', tint: 0x00ff88, effect: { dmgVsAnyElement: 0.05 }, desc: '對火/水/草屬性傷害 +5%' },
 
@@ -363,7 +363,7 @@ export const CARD_DEFS: CardDef[] = [
   { id: 'card_elite_slime_red_b', name: '紅史萊姆菁英卡片(B)', monsterId: 'elite_slime_red', element: 'none', tint: 0xff6600, effect: { dmgVsGrass: 0.08 }, desc: '對草屬性傷害 +8%' },
   { id: 'card_elite_slime_red_c', name: '紅史萊姆菁英卡片(C)', monsterId: 'elite_slime_red', element: 'none', tint: 0xff6600, effect: { lifesteal: 0.003 }, desc: '吸血 +0.3%' },
 
-  { id: 'card_elite_slime_blue_a', name: '藍史萊姆菁英卡片(A)', monsterId: 'elite_slime_blue', element: 'none', tint: 0x00ddff, effect: { lightningStrike: 1 }, desc: '每秒對200px內最遠敵人施放落雷（ATK×12%）' },
+  { id: 'card_elite_slime_blue_a', name: '藍史萊姆菁英卡片(A)', monsterId: 'elite_slime_blue', element: 'none', tint: 0x00ddff, effect: { lightningStrike: 1 }, desc: '每2秒對小範圍內隨機敵人施放落雷（ATK×50%，攜帶2張同時打2個目標）' },
   { id: 'card_elite_slime_blue_b', name: '藍史萊姆菁英卡片(B)', monsterId: 'elite_slime_blue', element: 'none', tint: 0x00ddff, effect: { speed: 18 }, desc: '移動速度 +18' },
   { id: 'card_elite_slime_blue_c', name: '藍史萊姆菁英卡片(C)', monsterId: 'elite_slime_blue', element: 'none', tint: 0x00ddff, effect: { hp: 30, weaponEnhance8Hp: 30 }, desc: '最大HP +30，武器≥+8時最大HP再+30' },
 
@@ -371,11 +371,11 @@ export const CARD_DEFS: CardDef[] = [
   { id: 'card_elite_slime_white_b', name: '白史萊姆菁英卡片(B)', monsterId: 'elite_slime_white', element: 'none', tint: 0xaaccdd, effect: { penetration: 30 }, desc: '穿甲 +30' },
   { id: 'card_elite_slime_white_c', name: '白史萊姆菁英卡片(C)', monsterId: 'elite_slime_white', element: 'none', tint: 0xaaccdd, effect: { dmgVsEliteOrBoss: 0.10 }, desc: '對菁英/Boss傷害 +10%' },
 
-  { id: 'card_elite_slime_zombie_a', name: '殭屍史萊姆菁英卡片(A)', monsterId: 'elite_slime_zombie', element: 'none', tint: 0xccff44, effect: { orbitFireBalls: 2 }, desc: '玩家周圍出現2顆旋轉火球（ATK×15%傷害，1秒傷害CD/怪）' },
+  { id: 'card_elite_slime_zombie_a', name: '殭屍史萊姆菁英卡片(A)', monsterId: 'elite_slime_zombie', element: 'none', tint: 0xccff44, effect: { orbitFireBalls: 2 }, desc: '玩家周圍出現2顆旋轉火球（ATK×30%傷害，球數增加時傷害自動降低，1秒傷害CD/怪）' },
   { id: 'card_elite_slime_zombie_b', name: '殭屍史萊姆菁英卡片(B)', monsterId: 'elite_slime_zombie', element: 'none', tint: 0xccff44, effect: { dotBonus: 0.045 }, desc: '燃燒傷害 +4.5%' },
   { id: 'card_elite_slime_zombie_c', name: '殭屍史萊姆菁英卡片(C)', monsterId: 'elite_slime_zombie', element: 'none', tint: 0xccff44, effect: { dotBonus: 0.03, weaponEnhance8DotBonus: 0.03 }, desc: '燃燒傷害 +3%，武器≥+8時燃燒傷害再+3%' },
 
-  { id: 'card_elite_slime_lava_a', name: '熔岩史萊姆菁英卡片(A)', monsterId: 'elite_slime_lava', element: 'none', tint: 0xff4400, effect: { overkillSplash: 1 }, desc: '傷害溢出時對半徑18px內所有敵人造成溢出傷害（裝備2張：波及致死的敵人也會再觸發一次連鎖）' },
+  { id: 'card_elite_slime_lava_a', name: '熔岩史萊姆菁英卡片(A)', monsterId: 'elite_slime_lava', element: 'none', tint: 0xff4400, effect: { overkillSplash: 1 }, desc: '傷害溢出時對小範圍內所有敵人造成溢出傷害（裝備2張：觸發連鎖）' },
   { id: 'card_elite_slime_lava_b', name: '熔岩史萊姆菁英卡片(B)', monsterId: 'elite_slime_lava', element: 'none', tint: 0xff4400, effect: { dmgVsNone: 0.08 }, desc: '對無屬性傷害 +8%' },
   { id: 'card_elite_slime_lava_c', name: '熔岩史萊姆菁英卡片(C)', monsterId: 'elite_slime_lava', element: 'none', tint: 0xff4400, effect: { lifesteal: 0.001, atk: 5 }, desc: '吸血 +0.1%、攻擊力 +5' },
 
@@ -384,7 +384,7 @@ export const CARD_DEFS: CardDef[] = [
   { id: 'card_elite_plant1_b', name: '菁英食人花卡片(B)', monsterId: 'elite_plant1', element: 'grass', tint: 0xff88cc, effect: { hp: 40 }, desc: '最大HP +40' },
   { id: 'card_elite_plant1_c', name: '菁英食人花卡片(C)', monsterId: 'elite_plant1', element: 'grass', tint: 0xff88cc, effect: { dmgVsSlime: 0.15 }, desc: '對史萊姆種族傷害 +15%' },
 
-  { id: 'card_elite_plant2_a', name: '菁英藤蔓花卡片(A)', monsterId: 'elite_plant2', element: 'water', tint: 0x66ff88, effect: { summonFlowerChance: 0.12 }, desc: '攻擊時12%機率召喚友軍花怪（依當前星級，可被敵人攻擊）' },
+  { id: 'card_elite_plant2_a', name: '菁英藤蔓花卡片(A)', monsterId: 'elite_plant2', element: 'water', tint: 0x66ff88, effect: { summonFlowerChance: 0.10 }, desc: '每次命中有10%機率召喚1朵友軍食人花（ATK×60%、HP×100%，上限2朵，存活8秒，0.8秒攻擊一次）。攜帶2張時機率提升至20%' },
   { id: 'card_elite_plant2_b', name: '菁英藤蔓花卡片(B)', monsterId: 'elite_plant2', element: 'water', tint: 0x66ff88, effect: { evasion: 0.03, hp: 30 }, desc: '閃避率 +3%、最大HP +30' },
   { id: 'card_elite_plant2_c', name: '菁英藤蔓花卡片(C)', monsterId: 'elite_plant2', element: 'water', tint: 0x66ff88, effect: { atk: 6, weaponEnhance8Atk: 6 }, desc: '攻擊力 +6，武器≥+8時攻擊力再+6' },
 

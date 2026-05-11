@@ -87,7 +87,8 @@ export class GameScene extends Phaser.Scene {
   private _divineShieldTimer?: Phaser.Time.TimerEvent;
   private _divineShieldGfx?: Phaser.GameObjects.Graphics;
   private _divineShieldRollUntil = 0;  // 每次攻擊動作只判定一次（300ms 鎖）
-  private _usedFreeRevive = false;
+  private _freeRevivesUsed = 0;
+  private _reviveDialogActive = false;
   private _allyMinions: MinionSlime[] = [];          // 有序陣列，上限 3，最舊的先移除
   private _allyGroup!: Phaser.Physics.Arcade.Group;  // 用於 projectile overlap 偵測
   private _slowZones: { x: number; y: number; r: number; expires: number; gfx: Phaser.GameObjects.Graphics }[] = [];
@@ -236,7 +237,7 @@ export class GameScene extends Phaser.Scene {
     this._playerKnives = [];
     this._divineShieldTimer?.destroy();
     this._divineShieldTimer = undefined;
-    this._usedFreeRevive = false;
+    this._freeRevivesUsed = 0;
     this._allyMinions = [];
 
     this.generateWaypoints();   // sets this.worldW / worldH / waypoints
@@ -489,10 +490,11 @@ export class GameScene extends Phaser.Scene {
     this.minionProjGroup = this.physics.add.group();
     // 友軍花怪群組 — 供敵方彈道 overlap 偵測使用
     this._allyGroup = this.physics.add.group();
-    this.physics.add.overlap(this.minionProjGroup, this._allyGroup, (_ally, proj) => {
+    this.physics.add.overlap(this.minionProjGroup, this._allyGroup, (proj, _ally) => {
       const p    = proj as Phaser.Physics.Arcade.Image;
       const ally = _ally as MinionSlime;
       if (!p.active || ally.isDead) return;
+      if ((p as any).isAllyProj) return;  // 友軍發射的彈道不打到友軍
       ally.takeDamage((p as any).dmg as number);
       p.destroy();
     });
@@ -613,7 +615,7 @@ export class GameScene extends Phaser.Scene {
 
   private initSpecialCardEffects(): void {
     const stats = CardStore.getTotalStats();
-    this._usedFreeRevive = false;
+    this._freeRevivesUsed = 0;
 
     // 旋轉球：火冰交錯排列
     const nFire = stats.orbitFireBalls ?? 0;
@@ -869,56 +871,74 @@ export class GameScene extends Phaser.Scene {
   }
 
   private showFreeReviveDialog(): void {
-    const W = this.scale.width, H = this.scale.height;
-    const bw = P(220), bh = P(120);
-    const bx = (W - bw) / 2, by = (H - bh) / 2;
+    this._reviveDialogActive = true;
+    (this.player as any).invincible = true;  // 等候期間玩家無敵，防止重複觸發 onDead
 
-    const bg = this.add.graphics().setScrollFactor(0).setDepth(9900);
-    bg.fillStyle(0x000000, 0.75); bg.fillRect(0, 0, W, H);
-    bg.fillStyle(0x1a1a2e, 1);    bg.fillRoundedRect(bx, by, bw, bh, P(10));
+    const W = this.scale.width, H = this.scale.height;
+    const bw = P(240), bh = P(150);
+    const bx = (W - bw) / 2, by = (H - bh) / 2;
+    const D = 200000;  // 高於 HP bar (100000) 與 debuff (100001)
+
+    const bg = this.add.graphics().setScrollFactor(0).setDepth(D);
+    bg.fillStyle(0x1a1a2e, 1); bg.fillRoundedRect(bx, by, bw, bh, P(10));
     bg.lineStyle(P(2), 0xffee44, 1); bg.strokeRoundedRect(bx, by, bw, bh, P(10));
 
-    const title = this.add.text(W / 2, by + P(22), '你陣亡了！', {
+    const title = this.add.text(W / 2, by + P(24), '你陣亡了！', {
       fontSize: F(16), fontStyle: 'bold', color: '#ffee44', stroke: '#000', strokeThickness: 2,
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(9901);
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(D + 1);
 
-    const sub = this.add.text(W / 2, by + P(44), '是否使用免費復活？（滿血復活）', {
+    const stats = CardStore.getTotalStats();
+    const remaining = (stats.freeRevive ?? 0) - this._freeRevivesUsed;
+    const sub = this.add.text(W / 2, by + P(46), '是否使用免費復活？（滿血復活）', {
       fontSize: F(12), color: '#cccccc',
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(9901);
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(D + 1);
+
+    const reviveCount = this.add.text(W / 2, by + P(66), `剩餘復活次數：${remaining}`, {
+      fontSize: F(12), fontStyle: 'bold', color: '#aaddff',
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(D + 1);
 
     const btnW = P(80), btnH = P(30);
     const yesX = W / 2 - P(50), noX = W / 2 + P(50);
-    const btnY  = by + P(84);
+    const btnY  = by + P(114);
 
-    const yesBg = this.add.graphics().setScrollFactor(0).setDepth(9901);
+    const yesBg = this.add.graphics().setScrollFactor(0).setDepth(D + 1);
     yesBg.fillStyle(0x226622, 1); yesBg.fillRoundedRect(yesX - btnW/2, btnY - btnH/2, btnW, btnH, P(6));
-    const yesBtn = this.add.rectangle(yesX, btnY, btnW, btnH).setScrollFactor(0).setDepth(9902).setInteractive({ useHandCursor: true });
-    const yesTxt = this.add.text(yesX, btnY, '✔ 復活', { fontSize: F(13), color: '#88ff88', fontStyle: 'bold' }).setOrigin(0.5).setScrollFactor(0).setDepth(9903);
+    const yesTxt = this.add.text(yesX, btnY, '復活', { fontSize: F(13), color: '#88ff88', fontStyle: 'bold' }).setOrigin(0.5).setScrollFactor(0).setDepth(D + 2);
 
-    const noBg = this.add.graphics().setScrollFactor(0).setDepth(9901);
+    const noBg = this.add.graphics().setScrollFactor(0).setDepth(D + 1);
     noBg.fillStyle(0x662222, 1); noBg.fillRoundedRect(noX - btnW/2, btnY - btnH/2, btnW, btnH, P(6));
-    const noBtn = this.add.rectangle(noX, btnY, btnW, btnH).setScrollFactor(0).setDepth(9902).setInteractive({ useHandCursor: true });
-    const noTxt = this.add.text(noX, btnY, '✕ 放棄', { fontSize: F(13), color: '#ff8888', fontStyle: 'bold' }).setOrigin(0.5).setScrollFactor(0).setDepth(9903);
+    const noTxt = this.add.text(noX, btnY, '放棄', { fontSize: F(13), color: '#ff8888', fontStyle: 'bold' }).setOrigin(0.5).setScrollFactor(0).setDepth(D + 2);
 
-    const cleanup = () => [bg, title, sub, yesBg, yesBtn, yesTxt, noBg, noBtn, noTxt].forEach(o => o.destroy());
+    let handled = false;
+    const cleanup = () => {
+      this._reviveDialogActive = false;
+      this.input.off('pointerdown', onPointerDown);
+      [bg, title, sub, reviveCount, yesBg, yesTxt, noBg, noTxt].forEach(o => o.destroy());
+    };
 
-    yesBtn.on('pointerdown', () => {
+    const onPointerDown = (pointer: Phaser.Input.Pointer) => {
+      if (handled) return;
+      const px = pointer.x, py = pointer.y;
+      const inYes = px >= yesX - btnW/2 && px <= yesX + btnW/2 && py >= btnY - btnH/2 && py <= btnY + btnH/2;
+      const inNo  = px >= noX  - btnW/2 && px <= noX  + btnW/2 && py >= btnY - btnH/2 && py <= btnY + btnH/2;
+      if (!inYes && !inNo) return;
+      handled = true;
       cleanup();
-      this._usedFreeRevive = true;
-      this.gameOver = false;
-      this.player.revive(1.0);
-      this.player.play(`player_idle_${this.player.lastDir}`);
-      // 1 秒無敵
-      this.player.divineShieldDef = 0;
-      (this.player as any).invincible = true;
-      this.time.delayedCall(1000, () => { (this.player as any).invincible = false; });
-      this.spawnDamageNumber(this.player.x, this.player.y - P(20), 0, false, 1);
-    });
-
-    noBtn.on('pointerdown', () => {
-      cleanup();
-      this.handlePlayerDead();
-    });
+      if (inYes) {
+        this._freeRevivesUsed++;
+        this.gameOver = false;
+        this.player.revive(1.0);
+        this.player.play(`player_idle_${this.player.lastDir}`);
+        this.player.divineShieldDef = 0;
+        (this.player as any).invincible = true;
+        this.time.delayedCall(2500, () => { (this.player as any).invincible = false; });
+        this.spawnDamageNumber(this.player.x, this.player.y - P(20), 0, false, 1);
+      } else {
+        (this.player as any).invincible = false;  // 放棄時解除無敵，進正常死亡
+        this.handlePlayerDead();
+      }
+    };
+    this.input.on('pointerdown', onPointerDown);
   }
 
   private triggerDivineShield(): void {
@@ -960,28 +980,26 @@ export class GameScene extends Phaser.Scene {
   }
 
   private trySummonAllyFlower(): void {
-    const ALLY_CAP = 3;
+    const ALLY_CAP = 2;
 
-    // 上限：移除最舊的友軍
-    if (this._allyMinions.length >= ALLY_CAP) {
-      const oldest = this._allyMinions.shift()!;
-      oldest.onDead = undefined;
-      this._allyGroup.remove(oldest, false, false);
-      oldest.forceKill();
-    }
+    // 上限2：未滿才召喚，不替換
+    if (this._allyMinions.length >= ALLY_CAP) return;
 
-    const star  = this.questStar ?? 1;
-    const pool  = star >= 3
-      ? ['elite_plant1', 'elite_plant2', 'elite_plant3']
-      : ['plant1_s', 'plant2_s', 'plant3_s'];
-    const defId   = pool[Math.floor(Math.random() * pool.length)];
+    const star    = this.questStar ?? 1;
+    const defId   = star >= 3 ? 'elite_plant1' : 'plant1_s';
     const angle   = Math.random() * Math.PI * 2;
     const dist    = P(Phaser.Math.Between(40, 70));
     const ax      = this.player.x + Math.cos(angle) * dist;
     const ay      = this.player.y + Math.sin(angle) * dist;
     const isElite = defId.startsWith('elite_');
-    const ally    = this.spawnMinionAtForBoss(defId, ax / DPR, ay / DPR, isElite);
+    const ally    = this.spawnMinionAtForBoss(defId, ax, ay, isElite);
     if (!ally) return;
+
+    ally.isAlly = true;  // 先設，drawHpBar 才能用藍色
+    // 花怪能力值：玩家 ATK×60%、HP×100%
+    const ps = CardStore.getTotalStats();
+    ally.setAllyStats(Math.max(1, Math.round(ps.maxHp * 1.00)), Math.max(1, Math.round(ps.atk * 0.60)));
+    ally.attackCooldownMs = 800;  // 固定0.8秒攻擊一次
 
     this._allyMinions.push(ally);
     this._allyGroup.add(ally);
@@ -1000,6 +1018,49 @@ export class GameScene extends Phaser.Scene {
       if (this.bossActive && this.boss.active) return [this.boss.x, this.boss.y];
       return [ally.x, ally.y];
     };
+
+    // 覆寫 onFire：發射彈道後，讓彈道真正飛行並碰到敵人才扣血
+    ally.onFire = (type, mx, my, tx, ty) => {
+      // 發射視覺彈道
+      this.spawnMinionAttack(type, mx, my, tx, ty, ally.atk, ally.isElite);
+
+      // 標記剛生成的彈道，防止打到友軍，並對每顆彈道加入敵人碰撞偵測
+      const wx = mx * DPR, wy = my * DPR;
+      for (const c of this.minionProjGroup.getChildren()) {
+        const img = c as Phaser.Physics.Arcade.Image;
+        if (!(img as any).isAllyProj && img.active &&
+            Phaser.Math.Distance.Between(img.x, img.y, wx, wy) < P(8)) {
+          (img as any).isAllyProj = true;
+          const dmg = (img as any).dmg as number;
+          // 每 30ms 偵測是否飛到敵人身上
+          const hitTimer = this.time.addEvent({
+            delay: 30, loop: true,
+            callback: () => {
+              if (!img.active) { hitTimer.destroy(); return; }
+              for (const t of this.getHittableTargets()) {
+                if (Phaser.Math.Distance.Between(img.x, img.y, t.x, t.y) < P(18)) {
+                  (t as any).takeDamage?.(dmg);
+                  img.destroy();
+                  hitTimer.destroy();
+                  return;
+                }
+              }
+            },
+          });
+        }
+      }
+    };
+
+    // 8秒後強制消滅
+    const removeAlly = () => {
+      if (ally.isDead) return;
+      const i = this._allyMinions.indexOf(ally);
+      if (i !== -1) this._allyMinions.splice(i, 1);
+      this._allyGroup.remove(ally, false, false);
+      ally.onDead = undefined;
+      ally.forceKill();
+    };
+    this.time.delayedCall(8000, removeAlly);
 
     // 友軍死亡時從陣列移除
     const origOnDead = ally.onDead;
@@ -1372,11 +1433,9 @@ export class GameScene extends Phaser.Scene {
       if (Math.random() < shieldChance) this.triggerDivineShield();
     }
 
-    // 召喚友軍花怪觸發
+    // 召喚友軍花怪觸發（每張卡 15% 機率，2張合計 30%）
     const summonChance = stats.summonFlowerChance ?? 0;
-    if (summonChance > 0 && Math.random() < summonChance) {
-      this.trySummonAllyFlower();
-    }
+    if (summonChance > 0 && Math.random() < summonChance) this.trySummonAllyFlower();
   }
 
   private hitInArea(
@@ -1404,7 +1463,7 @@ export class GameScene extends Phaser.Scene {
     const radMap: Record<string, number> = { right: 0, down: Math.PI / 2, left: Math.PI, up: -Math.PI / 2 };
     const degMap: Record<string, number> = { right: 0, down: 90, left: 180, up: 270 };
     const candidates = [
-      ...this.allMinions.filter(m => !m.isDead),
+      ...this.allMinions.filter(m => !m.isDead && !this._allyMinions.includes(m)),
       ...(this.bossActive && this.boss.active ? [this.boss] : []),
     ].filter(m => Phaser.Math.Distance.Between(this.player.x, this.player.y, m.x, m.y) <= range)
       .sort((a, b) =>
@@ -3085,8 +3144,9 @@ export class GameScene extends Phaser.Scene {
   }
 
   private handlePlayerDead(): void {
+    if (this._reviveDialogActive) return;  // 視窗已開啟，忽略重複呼叫
     const stats = CardStore.getTotalStats();
-    if (!this._usedFreeRevive && (stats.freeRevive ?? 0) > 0) {
+    if (this._freeRevivesUsed < (stats.freeRevive ?? 0)) {
       this.showFreeReviveDialog();
       return;
     }

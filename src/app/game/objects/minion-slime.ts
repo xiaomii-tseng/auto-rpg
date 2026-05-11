@@ -63,6 +63,8 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
   minionId        = '';
   attackMode: 'dash' | 'shoot' | 'triple' | 'explode' | 'spike' = 'dash';
   stationary       = false;
+  isAlly           = false;
+  attackCooldownMs?: number;  // 若設定則覆蓋各攻擊模式的預設冷卻時間
   rangedRange      = MinionSlime.RANGED_RANGE;
   dashWarnMs       = 650;
   explodeRadiusMult = 1.0;
@@ -126,6 +128,14 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
     this.started = true;
     this.enterPatrol();
     // visibility is controlled externally — scene shows the minion when player is near
+  }
+
+  /** Override hp/atk after construction (ally flower). */
+  setAllyStats(hp: number, atk: number): void {
+    (this as any).hp    = hp;
+    (this as any).maxHp = hp;
+    this.atk = atk;
+    this.drawHpBar();
   }
 
   setPatrolCenter(x: number, y: number): void {
@@ -234,7 +244,8 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
     this.stateTimer?.destroy();
     this.stateTimer = undefined;
     this.updateDir();
-    this.playDir(`${this.animPrefix}_walk`);
+    const walkKey = `${this.animPrefix}_walk_${this.dir}`;
+    this.playDir(this.scene.anims.exists(walkKey) ? `${this.animPrefix}_walk` : `${this.animPrefix}_idle`);
     if (this.attackMode === 'dash') {
       const delay = Phaser.Math.Between(1500, 2500);
       this.stateTimer = this.scene.time.delayedCall(delay, () => this.enterDashWarn());
@@ -265,7 +276,7 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
     this.stateTimer = this.scene.time.delayedCall(400, () => {
       this.applyBaseTint();
       this.onFire?.('shoot', this.x / DPR, this.y / DPR, this.atkX / DPR, this.atkY / DPR);
-      this.attackCooldownUntil = this.scene.time.now + MinionSlime.COOLDOWN_SHOOT + Phaser.Math.Between(0, 800);
+      this.attackCooldownUntil = this.scene.time.now + (this.attackCooldownMs ?? MinionSlime.COOLDOWN_SHOOT + Phaser.Math.Between(0, 800));
       this.enterIdle();
     });
   }
@@ -281,7 +292,7 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
     this.stateTimer = this.scene.time.delayedCall(600, () => {
       this.applyBaseTint();
       this.onFire?.('triple', this.x / DPR, this.y / DPR, this.atkX / DPR, this.atkY / DPR);
-      this.attackCooldownUntil = this.scene.time.now + MinionSlime.COOLDOWN_TRIPLE + Phaser.Math.Between(0, 800);
+      this.attackCooldownUntil = this.scene.time.now + (this.attackCooldownMs ?? MinionSlime.COOLDOWN_TRIPLE + Phaser.Math.Between(0, 800));
       this.enterIdle();
     });
   }
@@ -315,7 +326,7 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
     this.stateTimer?.destroy();
     this.stateTimer = this.scene.time.delayedCall(MinionSlime.SPIKE_WARN_MS, () => {
       this.applyBaseTint();
-      this.attackCooldownUntil = this.scene.time.now + MinionSlime.COOLDOWN_SPIKE + Phaser.Math.Between(0, 800);
+      this.attackCooldownUntil = this.scene.time.now + (this.attackCooldownMs ?? MinionSlime.COOLDOWN_SPIKE + Phaser.Math.Between(0, 800));
       this.enterIdle();
     });
   }
@@ -500,21 +511,29 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
     if (!this.visible) return;
     const pct = this.hp / this.maxHp;
 
-    if (this.isElite) {
+    if (this.isAlly) {
+      const bw = P(30), bh = P(4);
+      const bx = this.x - bw / 2;
+      const by = this.y - P(32);
+      this.hpBarGfx.fillStyle(0x001a33, 0.8);
+      this.hpBarGfx.fillRect(bx, by, bw, bh);
+      const color = pct > 0.5 ? 0x3399ff : pct > 0.25 ? 0x0066cc : 0x0033aa;
+      this.hpBarGfx.fillStyle(color);
+      this.hpBarGfx.fillRect(bx, by, bw * pct, bh);
+      this.hpBarGfx.lineStyle(P(1), 0x6699ff, 0.8);
+      this.hpBarGfx.strokeRect(bx, by, bw, bh);
+      this.drawDebuffIcons(this.x, by + bh + P(9));
+    } else if (this.isElite) {
       const bw = P(44), bh = P(6);
       const bx = this.x - bw / 2;
       const by = this.y - P(35);
-      // dark background
       this.hpBarGfx.fillStyle(0x1a0000, 0.9);
       this.hpBarGfx.fillRect(bx, by, bw, bh);
-      // fill — gold-to-orange gradient effect via single color by pct
       const color = pct > 0.5 ? 0xffcc00 : pct > 0.25 ? 0xff8800 : 0xff2200;
       this.hpBarGfx.fillStyle(color);
       this.hpBarGfx.fillRect(bx, by, bw * pct, bh);
-      // gold border (2px)
       this.hpBarGfx.lineStyle(P(2), 0xddaa00, 1);
       this.hpBarGfx.strokeRect(bx, by, bw, bh);
-      // inner highlight line
       this.hpBarGfx.lineStyle(P(1), 0xffffff, 0.25);
       this.hpBarGfx.lineBetween(bx + P(1), by + P(1), bx + bw * pct - P(1), by + P(1));
       this.drawDebuffIcons(this.x, by + bh + P(9));

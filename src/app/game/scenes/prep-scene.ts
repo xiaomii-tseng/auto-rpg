@@ -3358,11 +3358,12 @@ export class PrepScene extends Phaser.Scene {
         const spriteKey  = `${monDef.spriteKey}_idle`;
         const animKey    = `card_idle_${def.monsterId}`;
         const spriteScale = monsterDetailScale(monDef.tier);
+        const idleEnd = monDef.spriteKey.startsWith('plant') ? 3 : 5;
         try {
           if (!this.anims.exists(animKey) && this.textures.exists(spriteKey)) {
             this.anims.create({
               key: animKey,
-              frames: this.anims.generateFrameNumbers(spriteKey, { start: 0, end: 5 }),
+              frames: this.anims.generateFrameNumbers(spriteKey, { start: 0, end: idleEnd }),
               frameRate: 8, repeat: -1,
             });
           }
@@ -3488,11 +3489,12 @@ export class PrepScene extends Phaser.Scene {
       if (monDef) {
         const spriteKey = `${monDef.spriteKey}_idle`;
         const animKey   = `card_idle_${def.monsterId}`;
+        const idleEnd = monDef.spriteKey.startsWith('plant') ? 3 : 5;
         try {
           if (!this.anims.exists(animKey) && this.textures.exists(spriteKey)) {
             this.anims.create({
               key: animKey,
-              frames: this.anims.generateFrameNumbers(spriteKey, { start: 0, end: 5 }),
+              frames: this.anims.generateFrameNumbers(spriteKey, { start: 0, end: idleEnd }),
               frameRate: 8, repeat: -1,
             });
           }
