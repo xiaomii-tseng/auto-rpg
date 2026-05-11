@@ -48,7 +48,9 @@
       "Read(//c//**)",
       "Bash(Get-ChildItem -Path c:\\\\MyCode\\\\auto-rpg -Recurse -File)",
       "Bash(Select-Object -First 30)",
-      "Bash(Format-Table FullName)"
+      "Bash(Format-Table FullName)",
+      "Bash(Get-ChildItem -Path \"c:\\\\MyCode\\\\auto-rpg\" -Recurse -Filter \"*.ts\" -o ErrorAction SilentlyContinue)",
+      "Bash(Select-Object -ExpandProperty FullName)"
     ]
   }
 }

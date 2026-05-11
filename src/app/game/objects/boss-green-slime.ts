@@ -282,7 +282,7 @@ export class BossGreenSlime extends Boss {
       delay: PUDDLE_TICK,
       repeat: totalTicks - 1,
       callback: () => {
-        this.onPoisonTick?.(cx, cy, r, PUDDLE_DMG);
+        this.onPoisonTick?.(cx, cy, r, this.scaleDmg(PUDDLE_DMG));
         if (++ticked >= totalTicks) dmgTimer.destroy();
       },
     });

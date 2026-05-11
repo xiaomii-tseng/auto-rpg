@@ -117,7 +117,7 @@ export class BossWhiteSlime extends Boss {
     const [px, py] = this.getTargetPos();
     const inH = Math.abs(py - this.y) < CROSS_HALF_W && Math.abs(px - this.x) <= CROSS_RANGE;
     const inV = Math.abs(px - this.x) < CROSS_HALF_W && Math.abs(py - this.y) <= CROSS_RANGE;
-    if (inH || inV) this.onCrossHit?.(CROSS_DMG);
+    if (inH || inV) this.onCrossHit?.(this.scaleDmg(CROSS_DMG));
 
     const bx = this.x, by = this.y;
     const hw = CROSS_HALF_W;
@@ -284,7 +284,7 @@ export class BossWhiteSlime extends Boss {
       orbG.destroy();
       trail.destroy();
       this.spawnOrbExplosion(cx, cy);
-      this.onOrbExplode?.(cx, cy, ORB_EXP_R, ORB_DMG);
+      this.onOrbExplode?.(cx, cy, ORB_EXP_R, this.scaleDmg(ORB_DMG));
     };
 
     const moveTimer = this.scene.time.addEvent({

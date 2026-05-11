@@ -7,8 +7,10 @@ export const BASE_DEF        = 0;
 export const BASE_CRIT       = 0;
 export const BASE_ATTACK_ARC = 180;
 
-const LEVEL_ATK = 2;
-const LEVEL_HP  = 15;
+const LEVEL_ATK     = 2;
+const LEVEL_HP      = 15;
+const BASE_HP_REGEN = 2;
+const LEVEL_HP_REGEN = 0.05;
 
 export interface EffectiveStats {
   atk:       number;
@@ -161,7 +163,7 @@ export const PlayerStore = {
     let lifesteal   = 0;
     let evasion     = 0;
     let critDmg     = 0.5;
-    let hpRegen     = 0;
+    let hpRegen     = BASE_HP_REGEN + (level - 1) * LEVEL_HP_REGEN;
     let dotBonus    = 0;
     let penetration = 0;
 

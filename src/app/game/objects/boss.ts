@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { Element } from '../data/equipment-data';
 import { MONSTER_SCALE_BOSS } from '../data/monster-data';
+import { STAR_BOSS_DMG_MULT } from '../data/quest-store';
 import type { MsgBossSync } from '../../../../shared/types';
 
 const DPR = (window as any).__gameDpr as number;
@@ -309,6 +310,10 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
   }
 
   questStar = 1;
+
+  scaleDmg(base: number): number {
+    return Math.round(base * (STAR_BOSS_DMG_MULT[this.questStar] ?? 1));
+  }
 
   private comboCount = 0;
 

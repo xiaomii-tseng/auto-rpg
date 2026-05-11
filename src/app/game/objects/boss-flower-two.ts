@@ -132,7 +132,7 @@ export class BossFlowerTwo extends Boss {
     this.scene.time.delayedCall(PRE_MS, () => {
       if (this.currentState === BossState.DEAD) return;
       animTimer.destroy(); g.clear();
-      this.onPlaceBuds?.(positions, BLOSSOM_DMG, BLOSSOM_R, ZONE_MS);
+      this.onPlaceBuds?.(positions, this.scaleDmg(BLOSSOM_DMG), BLOSSOM_R, ZONE_MS);
       this.enterIdle();
     });
   }
@@ -182,9 +182,9 @@ export class BossFlowerTwo extends Boss {
     this.scene.time.delayedCall(PRE_MS, () => {
       if (this.currentState === BossState.DEAD) return;
       animTimer.destroy(); g.clear();
-      this.onSprayMist?.(this.x, this.y, angle, MIST_RANGE, MIST_DMG);
+      this.onSprayMist?.(this.x, this.y, angle, MIST_RANGE, this.scaleDmg(MIST_DMG));
       if (this.isPhase2)
-        this.onSprayMist?.(this.x, this.y, angle + Phaser.Math.DegToRad(12), MIST_RANGE, MIST_DMG);
+        this.onSprayMist?.(this.x, this.y, angle + Phaser.Math.DegToRad(12), MIST_RANGE, this.scaleDmg(MIST_DMG));
       this.scene.time.delayedCall(300, () => {
         if (this.currentState === BossState.DEAD) return;
         this.enterIdle();
@@ -243,7 +243,7 @@ export class BossFlowerTwo extends Boss {
     this.scene.time.delayedCall(PRE_MS, () => {
       if (this.currentState === BossState.DEAD) return;
       animTimer.destroy(); g.clear();
-      this.onSpawnVines?.(this.x, this.y, VINE_LEN, VINE_W, VINE_DMG, baseAngle, vineCount);
+      this.onSpawnVines?.(this.x, this.y, VINE_LEN, VINE_W, this.scaleDmg(VINE_DMG), baseAngle, vineCount);
       this.enterIdle();
     });
   }
@@ -327,7 +327,7 @@ export class BossFlowerTwo extends Boss {
       if (this.currentState === BossState.DEAD) return;
       animTimer.destroy();
       g.clear();
-      this.onPoisonBurst?.(this.x, this.y, BURST_DIST, BURST_R, BURST_DMG, burstCount);
+      this.onPoisonBurst?.(this.x, this.y, BURST_DIST, BURST_R, this.scaleDmg(BURST_DMG), burstCount);
       this.scene.time.delayedCall(300, () => {
         if (this.currentState === BossState.DEAD) return;
         this.enterIdle();

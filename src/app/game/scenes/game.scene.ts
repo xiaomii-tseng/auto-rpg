@@ -18,7 +18,7 @@ import { SaveStore } from '../data/save-store';
 import { CardStore } from '../data/card-store';
 import { getMonsterDef, getCardDef, DropEntry, MonsterDef } from '../data/monster-data';
 import { getElementMultiplier, ELEMENT_NAMES, ELEMENT_COLORS, QUALITY_NAMES, QUALITY_COLORS, SLOT_NAMES, STAT_NAMES, BEHAVIOR_NAMES, generateEquipment, randomQuality, EquipSlot, EquipmentItem } from '../data/equipment-data';
-import { QuestStore, STAR_HP_MULT, STAR_DROP_MULT, STAR_DEF_MULT, STAR_EXP_MULT, STAR_EQUIP_QUALITY } from '../data/quest-store';
+import { QuestStore, STAR_HP_MULT, STAR_STAT_MULT, STAR_DROP_MULT, STAR_DEF_MULT, STAR_EXP_MULT, STAR_EQUIP_QUALITY } from '../data/quest-store';
 import { ELITE_HP_MULT, ELITE_SCALE_MOD } from '../data/monster-data';
 import { NetworkService } from '../network/network.service';
 import { PotionBarStore } from '../data/potion-bar-store';
@@ -433,7 +433,7 @@ export class GameScene extends Phaser.Scene {
     this.boss.onAoeExplode = (x, y) => {
       if (!this.bossActive) return;
       const dSq = Phaser.Math.Distance.BetweenPointsSquared({ x, y }, this.player);
-      if (dSq <= Boss.AOE_RADIUS ** 2) this.player.takeDamage(50);
+      if (dSq <= Boss.AOE_RADIUS ** 2) this.player.takeDamage(this.boss.scaleDmg(50));
     };
     this.boss.onRangedBarrageTrailTick = (x1, y1, x2, y2, radius, dmg) => {
       if (!this.bossActive) return;
@@ -453,7 +453,7 @@ export class GameScene extends Phaser.Scene {
 
     this.physics.add.overlap(bossGroup, this.player, () => {
       if (!this.bossActive) return;
-      if (this.boss.currentState === 'DASHING') this.player.takeDamage(45);
+      if (this.boss.currentState === 'DASHING') this.player.takeDamage(this.boss.scaleDmg(45));
     });
 
     this.physics.add.collider(this.player, this.wallLayer);
@@ -1334,7 +1334,7 @@ export class GameScene extends Phaser.Scene {
 
     const { dir } = this.resolveAttackDir(MELEE_RANGE * 3);
     const SLAM_RANGE = MELEE_RANGE * 1.152;
-    this.player.speedMult   = 0.4;
+    this.player.speedMult   = 0.6;
     this.player.noInterrupt = true;
 
     // ── 蓄力視覺 ──────────────────────────────────────────────
@@ -1837,9 +1837,10 @@ export class GameScene extends Phaser.Scene {
     const def = getMonsterDef(defId);
     if (!def) return;
     const hpMult   = STAR_HP_MULT[this.questStar] ?? 1;
+    const atkMult  = STAR_STAT_MULT[this.questStar] ?? 1;
     const coopMult = NetworkService.connected ? CO_OP_HP_MULT : 1;
     const hp  = Math.round(def.hp * hpMult * coopMult * (isElite ? ELITE_HP_MULT : 1));
-    const atk = Math.round(def.atk * hpMult * (isElite ? 1.5 : 1));
+    const atk = Math.round(def.atk * atkMult * (isElite ? 1.5 : 1));
     const a   = Phaser.Math.FloatBetween(0, Math.PI * 2);
     const r   = Phaser.Math.FloatBetween(20, 60);
     const m   = new MinionSlime(this, wx + Math.cos(a) * r, wy + Math.sin(a) * r, hp, def.spriteKey, def.tint);
@@ -1901,6 +1902,7 @@ export class GameScene extends Phaser.Scene {
     const mainMinionId = BOSS_TO_MINION[this.bossMonsterId];
     const otherPool    = GENERAL_POOL.filter(id => id !== mainMinionId);
     const hpMult       = STAR_HP_MULT[this.questStar] ?? 1;
+    const atkMult      = STAR_STAT_MULT[this.questStar] ?? 1;
     const coopMult     = NetworkService.connected ? CO_OP_HP_MULT : 1;
 
     // 每星級數量 × 1.3^(star-1)
@@ -1913,7 +1915,7 @@ export class GameScene extends Phaser.Scene {
       const def = getMonsterDef(defId);
       if (!def) return;
       const hp  = Math.round(def.hp * hpMult * coopMult * (isElite ? ELITE_HP_MULT : 1));
-      const atk = Math.round(def.atk * hpMult * (isElite ? 1.5 : 1));
+      const atk = Math.round(def.atk * atkMult * (isElite ? 1.5 : 1));
       const isPlant = defId.startsWith('plant') || defId.startsWith('elite_plant');
       const a   = srng.float(0, Math.PI * 2);
       const r   = isPlant ? srng.float(P(10), P(50)) : srng.float(P(20), P(120));

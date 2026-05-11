@@ -172,7 +172,7 @@ export class BossLavaSlime extends Boss {
           if (this.currentState === BossState.DEAD) { g?.destroy(); return; }
           g.setAlpha(1);
           this.spawnPillarEruption(p.x, p.y);
-          this.onPillarExplode?.(p.x, p.y, PILLAR_RADIUS, PILLAR_DMG);
+          this.onPillarExplode?.(p.x, p.y, PILLAR_RADIUS, this.scaleDmg(PILLAR_DMG));
           this.scene.tweens.add({
             targets: g, alpha: 0, duration: 300, delay: 200,
             onComplete: () => g.destroy(),
@@ -321,7 +321,7 @@ export class BossLavaSlime extends Boss {
           done = true;
           ball.destroy();
           hitTimer.destroy();
-          this.onBarrageHit?.(BARRAGE_DMG);
+          this.onBarrageHit?.(this.scaleDmg(BARRAGE_DMG));
           this.spawnBallSplash(cx, cy);
         }
       },
@@ -437,7 +437,7 @@ export class BossLavaSlime extends Boss {
           if (this.currentState === BossState.DEAD) { g.destroy(); return; }
           g.setAlpha(1);
           this.spawnPillarEruption(p.x, p.y);
-          this.onPillarExplode?.(p.x, p.y, PILLAR_RADIUS, PILLAR_DMG);
+          this.onPillarExplode?.(p.x, p.y, PILLAR_RADIUS, this.scaleDmg(PILLAR_DMG));
           // 炸完才淡出
           this.scene.tweens.add({
             targets: g, alpha: 0, duration: 350, delay: 250,

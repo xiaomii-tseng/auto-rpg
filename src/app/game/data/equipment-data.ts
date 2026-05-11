@@ -213,7 +213,7 @@ export const BEHAVIOR_INFO: Record<AttackBehavior, BehaviorInfo> = {
     ],
   },
   chargeSlam: {
-    desc:    '蓄力後釋放強力震地衝擊，對周圍大範圍造成高額傷害。蓄力期間移動速度 -60%。',
+    desc:    '蓄力後釋放強力震地衝擊，對周圍大範圍造成高額傷害。蓄力期間移動速度 -40%。',
     formula: ['傷害：攻擊力 × 123.5%', '冷卻：650ms（蓄力中）', '範圍：360° 全向 AoE'],
     relatedStats: [
       { stat: 'atk',      note: '決定傷害' },

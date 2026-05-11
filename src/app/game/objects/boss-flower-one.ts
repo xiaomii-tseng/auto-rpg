@@ -135,11 +135,11 @@ export class BossFlowerOne extends Boss {
       warnG.destroy();
       const count = 16;
       for (let i = 0; i < count; i++)
-        this.onFirePetal?.(this.x, this.y, (i / count) * Math.PI * 2, STORM_SPEED, STORM_DMG, BLIND_DIST);
+        this.onFirePetal?.(this.x, this.y, (i / count) * Math.PI * 2, STORM_SPEED, this.scaleDmg(STORM_DMG), BLIND_DIST);
       this.scene.time.delayedCall(200, () => {
         if (this.currentState === BossState.DEAD) return;
         for (let i = 0; i < count; i++)
-          this.onFirePetal?.(this.x, this.y, (i / count) * Math.PI * 2, STORM_SPEED, STORM_DMG, BLIND_DIST);
+          this.onFirePetal?.(this.x, this.y, (i / count) * Math.PI * 2, STORM_SPEED, this.scaleDmg(STORM_DMG), BLIND_DIST);
         this.scene.cameras.main.shake(120, 0.008);
         this.stateTimer = this.scene.time.delayedCall(400, () => this.enterIdle());
       });
@@ -242,7 +242,7 @@ export class BossFlowerOne extends Boss {
       if (this.currentState === BossState.DEAD) return;
       const [ttx, tty] = this.guestMode ? [this.guestAtkX, this.guestAtkY] : this.getTargetPos();
       const angle = Phaser.Math.Angle.Between(this.x, this.y, ttx, tty);
-      this.onFirePetal?.(this.x, this.y, angle, TRACKING_SPEED, TRACKING_DMG, -1, true);
+      this.onFirePetal?.(this.x, this.y, angle, TRACKING_SPEED, this.scaleDmg(TRACKING_DMG), -1, true);
       this.stateTimer = this.scene.time.delayedCall(800, () => this.enterIdle());
     });
   }
@@ -357,7 +357,7 @@ export class BossFlowerOne extends Boss {
       warnG.destroy();
       for (let i = 0; i < fanCount; i++) {
         const a = baseAngle - fanHalf + (i / (fanCount - 1)) * fanHalf * 2;
-        this.onFirePetal?.(this.x, this.y, a, FAN_SPEED, FAN_DMG, BLIND_DIST);
+        this.onFirePetal?.(this.x, this.y, a, FAN_SPEED, this.scaleDmg(FAN_DMG), BLIND_DIST);
       }
       this.scene.cameras.main.shake(80, 0.005);
       this.stateTimer = this.scene.time.delayedCall(350, () => this.enterIdle());
@@ -465,7 +465,7 @@ export class BossFlowerOne extends Boss {
       for (let i = 0; i < totalShots; i++) {
         this.scene.time.delayedCall(i * interval, () => {
           if (this.currentState === BossState.DEAD) return;
-          this.onFirePetal?.(this.x, this.y, startAngle + i * rotPerShot, SPIRAL_SPEED, SPIRAL_DMG, BLIND_DIST);
+          this.onFirePetal?.(this.x, this.y, startAngle + i * rotPerShot, SPIRAL_SPEED, this.scaleDmg(SPIRAL_DMG), BLIND_DIST);
         });
       }
       this.stateTimer = this.scene.time.delayedCall(totalShots * interval + 300, () => this.enterIdle());

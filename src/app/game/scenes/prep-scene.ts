@@ -2054,7 +2054,6 @@ export class PrepScene extends Phaser.Scene {
     const buildStats = () => {
       statsLayer.removeAll(true);
       const s  = CardStore.getTotalStats();
-      const lv = PlayerStore.getLevel();
 
       const sg = this.add.graphics();
       sg.fillStyle(WD, 0.55); sg.fillRect(statsX, statsY, statsW, statsH);
@@ -2067,12 +2066,12 @@ export class PrepScene extends Phaser.Scene {
       }).setOrigin(0.5));
 
       const allRows = [
-        [{ label: 'Lv',   value: `${lv}`,                             color: '#ffee88' }, { label: 'HP',    value: `${s.maxHp}`,                              color: '#88ee88' }],
-        [{ label: '攻擊', value: `${s.atk}`,                          color: '#ff8855' }, { label: '防禦',  value: `${s.def}`,                               color: '#88aaff' }],
-        [{ label: '速度', value: `${s.speed}`,                        color: '#ffff88' }, { label: '暴擊',  value: `${(s.crit * 100).toFixed(0)}%`,           color: '#ffaa44' }],
-        [{ label: '攻速', value: `${(s.atkSpeed * 100).toFixed(0)}%`, color: '#ff88ff' }, { label: '閃避',  value: `${(s.evasion * 100).toFixed(1)}%`,        color: '#aaddff' }],
-        [{ label: '爆傷', value: `${((1 + s.critDmg) * 100).toFixed(0)}%`, color: '#ffdd44' }, { label: '吸血', value: `${(s.lifesteal * 100).toFixed(1)}%`, color: '#ff6699' }],
-        [{ label: '持續傷害', value: `+${(s.dotBonus * 100).toFixed(0)}%`, color: '#cc88ff' }, { label: '穿甲', value: `${s.penetration}`, color: '#ff9944' }],
+        [{ label: 'HP',   value: `${s.maxHp}`,                                   color: '#88ee88' }, { label: '攻擊',     value: `${s.atk}`,                               color: '#ff8855' }],
+        [{ label: 'HP回復', value: `${s.hpRegen.toFixed(1)}/s`,                  color: '#55ffaa' }, { label: '暴擊',     value: `${(s.crit * 100).toFixed(0)}%`,          color: '#ffaa44' }],
+        [{ label: '防禦', value: `${s.def}`,                                      color: '#88aaff' }, { label: '攻速',     value: `${(s.atkSpeed * 100).toFixed(0)}%`,      color: '#ff88ff' }],
+        [{ label: '閃避', value: `${(s.evasion * 100).toFixed(1)}%`,              color: '#aaddff' }, { label: '爆傷',     value: `${((1 + s.critDmg) * 100).toFixed(0)}%`, color: '#ffdd44' }],
+        [{ label: '吸血', value: `${(s.lifesteal * 100).toFixed(1)}%`,            color: '#ff6699' }, { label: '持續傷害', value: `+${(s.dotBonus * 100).toFixed(0)}%`,     color: '#cc88ff' }],
+        [{ label: '速度', value: `${s.speed}`,                                    color: '#ffff88' }, { label: '穿甲',     value: `${s.penetration}`,                       color: '#ff9944' }],
       ];
       const colW2 = statsW / 2;
       const rowH  = (statsH - P(20)) / 6;

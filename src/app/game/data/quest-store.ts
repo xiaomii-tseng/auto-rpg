@@ -32,6 +32,10 @@ export const STAR_STAT_MULT: Record<number, number> = {
   1: 1.0, 2: 1.5, 3: 2.2, 4: 3.2, 5: 4.5,
 };
 
+export const STAR_BOSS_DMG_MULT: Record<number, number> = {
+  1: 1.0, 2: 1.5, 3: 2.2, 4: 3.2, 5: 5.0,
+};
+
 export const STAR_HP_MULT: Record<number, number> = {
   1: 1.0, 2: 2.5, 3: 6.0, 4: 10.5, 5: 16.0,
 };

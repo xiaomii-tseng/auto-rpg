@@ -161,7 +161,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     const evasion = stats.evasion;
     if (evasion > 0 && Math.random() < evasion) { this.onEvade?.(this.x, this.y); return; }
     const def       = stats.def;
-    const reduction = def / (def + 100);
+    const reduction = def / (def + 65);
     const takenMult = 1 + (stats.takenDmgPct ?? 0);
     const actual    = Math.max(1, Math.round(amount * (1 - reduction) * takenMult));
     this.hp = Math.max(0, this.hp - actual);

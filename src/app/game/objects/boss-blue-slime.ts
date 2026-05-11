@@ -159,7 +159,7 @@ export class BossBlueSlime extends Boss {
             spike.hit = true;
             spike.gfx.destroy();
             spike.trail.destroy();
-            this.onSpikeHit?.(spike.cx, spike.cy, SPIKE_DMG);
+            this.onSpikeHit?.(spike.cx, spike.cy, this.scaleDmg(SPIKE_DMG));
           }
         }
       },
@@ -330,7 +330,7 @@ export class BossBlueSlime extends Boss {
 
     // 殘留冰地板
 
-    this.onMineExplode?.(x, y, MINE_RADIUS, MINE_DMG);
+    this.onMineExplode?.(x, y, MINE_RADIUS, this.scaleDmg(MINE_DMG));
   }
 
   private drawMineCrystal(g: Phaser.GameObjects.Graphics): void {

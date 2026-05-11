@@ -238,7 +238,7 @@ export class BossZombieSlime extends Boss {
           hit = true;
           proj.destroy();
           hitTimer.destroy();
-          this.onPoisonFanHit?.(FAN_DMG);
+          this.onPoisonFanHit?.(this.scaleDmg(FAN_DMG));
           this.spawnPoisonSplash(cx, cy);
         }
       },

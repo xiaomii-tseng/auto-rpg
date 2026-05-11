@@ -216,7 +216,7 @@ export class BossRedSlime extends Boss {
         this.setPosition(tx, ty);
         (this.body as Phaser.Physics.Arcade.Body).reset(tx, ty);
         this.spawnLandingImpact(tx, ty);
-        this.onJumpHit?.(tx, ty, JUMP_RADIUS, JUMP_DMG);
+        this.onJumpHit?.(tx, ty, JUMP_RADIUS, this.scaleDmg(JUMP_DMG));
         this.stateTimer = this.scene.time.delayedCall(450, () => this.enterIdle());
       },
     });
@@ -281,7 +281,7 @@ export class BossRedSlime extends Boss {
       chargeEmitter.destroy();
       glowG.destroy();
       this.spawnFireFan(fireAngle);
-      this.onFanHit?.(this.x, this.y, fireAngle, FAN_HALF, FAN_RANGE, FAN_DMG);
+      this.onFanHit?.(this.x, this.y, fireAngle, FAN_HALF, FAN_RANGE, this.scaleDmg(FAN_DMG));
       this.stateTimer = this.scene.time.delayedCall(350, () => this.enterIdle());
     });
   }

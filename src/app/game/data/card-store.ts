@@ -144,8 +144,11 @@ export const CardStore = {
   getTotalStats(): EffectiveStats {
     const base     = PlayerStore.getStats();
     const bonus    = this.getEquippedBonus();
-    const swordEnh = PlayerStore.getEquipped().sword?.enhancement ?? 0;
+    const sword    = PlayerStore.getEquipped().sword;
+    const swordEnh = sword?.enhancement ?? 0;
     const enh8     = swordEnh >= 8;
+    const MELEE_BEHAVIORS = ['slash180', 'whirlwind', 'dashPierce', 'aura', 'multiHit', 'chargeSlam'];
+    const meleeDef = (sword?.behavior && MELEE_BEHAVIORS.includes(sword.behavior)) ? 25 : 0;
 
     // 先算出中間值，用於條件判斷
     const flatAtk  = base.atk   + (bonus.atk ?? 0) + (enh8 ? (bonus.weaponEnhance8Atk ?? 0) : 0);
@@ -162,7 +165,7 @@ export const CardStore = {
     return {
       atk:         Math.round((flatAtk + condAtk) * (1 + (bonus.atkPct ?? 0))),
       maxHp:       Math.round(flatHp * (1 + (bonus.hpPct ?? 0) + condHpPct)),
-      def:         Math.round((base.def + (bonus.def ?? 0)) * (1 + (bonus.defPct ?? 0))),
+      def:         Math.round((base.def + (bonus.def ?? 0) + meleeDef) * (1 + (bonus.defPct ?? 0))),
       speed:       base.speed     + (bonus.speed    ?? 0),
       crit:        flatCrit,
       attackArc:   Math.min(base.attackArc + (bonus.attackArc ?? 0), 360),
