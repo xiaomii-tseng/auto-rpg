@@ -95,6 +95,7 @@ export class PrepScene extends Phaser.Scene {
       ['slime_idle',  'sprite/slime/PNG/Slime1/With_shadow/Slime1_Idle_with_shadow.png'],
       ['slime2_idle', 'sprite/slime/PNG/Slime2/With_shadow/Slime2_Idle_with_shadow.png'],
       ['slime3_idle', 'sprite/slime/PNG/Slime3/With_shadow/Slime3_Idle_with_shadow.png'],
+      ['plant1_idle', 'sprite/flower/PNG/Plant1/With_shadow/Plant1_Idle_with_shadow.png'],
       ['plant2_idle', 'sprite/flower/PNG/Plant2/With_shadow/Plant2_Idle_with_shadow.png'],
       ['plant3_idle', 'sprite/flower/PNG/Plant3/With_shadow/Plant3_Idle_with_shadow.png'],
     ];
@@ -939,18 +940,11 @@ export class PrepScene extends Phaser.Scene {
       cg.lineBetween(cx + P(5), cardAreaY + P(1), cx + CARD_W - P(5), cardAreaY + P(1));
       cg.lineBetween(cx + P(5), cardAreaY + BANNER_H - P(2), cx + CARD_W - P(5), cardAreaY + BANNER_H - P(2));
 
-      objs.push(this.add.text(cx + CARD_W / 2, cardAreaY + P(10), '懸  賞', {
-        fontSize: F(15), fontStyle: 'bold',
-        color: dimmed ? '#aa8866' : '#ffe090',
-        stroke: dimmed ? '#1a0800' : '#3a0000', strokeThickness: 2,
-        padding: { top: 2, bottom: 1 },
-      }).setOrigin(0.5).setDepth(D + 3));
-
-      // Star rating row
-      const starStr = '★'.repeat(quest.star) + '☆'.repeat(5 - quest.star);
+      // Star rating row — centred in banner
+      const starStr = '★'.repeat(quest.star);
       const starColors: Record<number, string> = { 1: '#aabbcc', 2: '#88ccff', 3: '#88ff88', 4: '#ffdd44', 5: '#ff8844' };
-      objs.push(this.add.text(cx + CARD_W / 2, cardAreaY + BANNER_H - P(10), starStr, {
-        fontSize: F(15), fontStyle: 'bold',
+      objs.push(this.add.text(cx + CARD_W / 2, cardAreaY + BANNER_H / 2, starStr, {
+        fontSize: F(20), fontStyle: 'bold',
         color: dimmed ? '#776655' : (starColors[quest.star] ?? '#ffffff'),
         stroke: '#1a0800', strokeThickness: 1,
       }).setOrigin(0.5).setDepth(D + 3));
@@ -1155,45 +1149,45 @@ export class PrepScene extends Phaser.Scene {
       spBg.lineStyle(P(1.5), 0x7a5020, 1);
       spBg.strokeRect(spX, spY, spW, spH);
 
-      objs.push(this.add.text(spX + spW / 2, spY + P(14), '出現率', {
-        fontSize: F(10), fontStyle: 'bold', color: '#ffe080',
+      objs.push(this.add.text(spX + spW / 2, spY + P(16), '出現率', {
+        fontSize: F(15), fontStyle: 'bold', color: '#ffe080',
         stroke: '#2a1000', strokeThickness: 2,
       }).setOrigin(0.5).setDepth(D + 2));
 
       const weights  = getStarWeights(PlayerStore.getLevel());
       const total    = Object.values(weights).reduce((s, w) => s + w, 0);
       const starChar = ['★', '★★', '★★★', '★★★★', '★★★★★'];
-      const rowH     = (spH - P(28)) / 5;
+      const rowH     = (spH - P(38)) / 5;
 
       for (let i = 0; i < 5; i++) {
         const star = i + 1;
         const pct  = total > 0 ? weights[star] / total : 0;
-        const ry   = spY + P(26) + i * rowH;
+        const ry   = spY + P(36) + i * rowH;
         const pad  = P(5);
         const barW = spW - pad * 2;
-        const barH = P(4);
+        const barH = P(7);
 
         // star label
         const starColor = ['#aaffaa', '#ffdd88', '#88ccff', '#ff99ff', '#ffaa44'][i];
         objs.push(this.add.text(spX + spW / 2, ry, starChar[i], {
-          fontSize: F(8), color: starColor,
+          fontSize: F(15), color: starColor,
         }).setOrigin(0.5, 0).setDepth(D + 2));
 
         // percentage text
         const pctText = pct < 0.005 ? '—' : `${Math.round(pct * 100)}%`;
-        objs.push(this.add.text(spX + spW / 2, ry + P(11), pctText, {
-          fontSize: F(9), fontStyle: 'bold', color: '#ffffff',
+        objs.push(this.add.text(spX + spW / 2, ry + P(18), pctText, {
+          fontSize: F(15), fontStyle: 'bold', color: '#ffffff',
         }).setOrigin(0.5, 0).setDepth(D + 2));
 
         // bar
         const barG = this.add.graphics().setDepth(D + 2);
         objs.push(barG);
         barG.fillStyle(0x333333, 1);
-        barG.fillRect(spX + pad, ry + P(22), barW, barH);
+        barG.fillRect(spX + pad, ry + P(36), barW, barH);
         if (pct > 0) {
           const fillColor = [0x44cc44, 0xddcc22, 0x2299ff, 0xcc44cc, 0xff8822][i];
           barG.fillStyle(fillColor, 1);
-          barG.fillRect(spX + pad, ry + P(22), Math.round(barW * pct), barH);
+          barG.fillRect(spX + pad, ry + P(36), Math.round(barW * pct), barH);
         }
       }
     }

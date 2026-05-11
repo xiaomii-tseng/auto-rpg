@@ -9,6 +9,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   private onCooldown  = false;
   private rooted      = false;
   speedMult           = 1;
+  slowMult            = 1;
   noInterrupt         = false;
   lastDir: 'down' | 'left' | 'right' | 'up' = 'down';
 
@@ -138,7 +139,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
   move(velX: number, velY: number): void {
     if (this.rooted) { this.setVelocity(0, 0); return; }
-    const speed  = CardStore.getTotalStats().speed * this.speedMult * DPR;
+    const speed  = CardStore.getTotalStats().speed * this.speedMult * this.slowMult * DPR;
     const moving = velX !== 0 || velY !== 0;
     if (moving) {
       const len = Math.sqrt(velX * velX + velY * velY);

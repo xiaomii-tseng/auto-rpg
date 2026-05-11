@@ -4,65 +4,65 @@ import { Element, StatBonus } from './equipment-data';
 // ── Interfaces ─────────────────────────────────────────────────────────────
 
 export interface DropEntry {
-  itemId:   string;
+  itemId: string;
   itemName: string;
-  rate:     number;   // 0~1
-  qtyMin:   number;
-  qtyMax:   number;
+  rate: number;   // 0~1
+  qtyMin: number;
+  qtyMax: number;
 }
 
 export interface CardDropEntry {
   cardId: string;
-  rate:   number;   // 0~1
+  rate: number;   // 0~1
 }
 
 export interface MonsterDef {
-  id:        string;
-  name:      string;
+  id: string;
+  name: string;
   spriteKey: string;
-  frameEnd:  number;
-  element:   Element;
-  tint:      number;
+  frameEnd: number;
+  element: Element;
+  tint: number;
   fillTint?: boolean;
-  tier:      number;
-  hp:        number;
-  atk:       number;
-  def?:      number;
-  speed:     number;
-  exp:       number;
-  gold:      number;
-  minStar?:  number;   // 最低星級才出現，不設則任意星
-  cards:     CardDropEntry[];   // A/B/C 三種卡片
-  drops:     DropEntry[];
+  tier: number;
+  hp: number;
+  atk: number;
+  def?: number;
+  speed: number;
+  exp: number;
+  gold: number;
+  minStar?: number;   // 最低星級才出現，不設則任意星
+  cards: CardDropEntry[];   // A/B/C 三種卡片
+  drops: DropEntry[];
 }
 
 export interface CardDef {
-  id:        string;
-  name:      string;
+  id: string;
+  name: string;
   monsterId: string;
-  element:   Element;
-  tint:      number;
-  effect:    StatBonus;
-  desc:      string;
+  element: Element;
+  tint: number;
+  effect: StatBonus;
+  desc: string;
 }
 
 // ── Element tints ──────────────────────────────────────────────────────────
 
 export const ELEMENT_TINTS: Record<Element, number> = {
-  none:  0xffffff,
+  none: 0xffffff,
   grass: 0x88ff88,
   water: 0x88ccff,
-  fire:  0xff9966,
+  fire: 0xff9966,
 };
 
 // ── Enhancement stone item IDs (referenced by game.scene & inventory) ──────
-export const ITEM_STONE_BROKEN    = 'stone_broken';    // 破損強化石
-export const ITEM_STONE_INTACT    = 'stone_intact';    // 完整強化石
-export const ITEM_STONE_GUARD     = 'stone_guard';     // 防退石
+export const ITEM_STONE_BROKEN = 'stone_broken';    // 破損強化石
+export const ITEM_STONE_INTACT = 'stone_intact';    // 完整強化石
+export const ITEM_STONE_GUARD = 'stone_guard';     // 防退石
 export const ITEM_POTION_HEALTH_S = 'potion_health_s'; // 小型回復藥水 HP+50
 export const ITEM_POTION_HEALTH_M = 'potion_health_m'; // 中型回復藥水 HP+100
 export const ITEM_POTION_HEALTH_L = 'potion_health_l'; // 大型回復藥水 HP+200
-export const ITEM_POTION_REVIVE   = 'potion_revive';   // 復活藥水
+export const ITEM_POTION_REVIVE = 'potion_revive';   // 復活藥水
 
 export function getHealthPotionForStar(questStar: number): { id: string; name: string; healAmt: number } {
   if (questStar >= 5) return { id: ITEM_POTION_HEALTH_L, name: '大型回復藥水', healAmt: 200 };
@@ -78,17 +78,17 @@ const CR_B = 0.010;  // Boss：每張卡 1.0%  → 平均 30 局掉 1 張
 // ── Sprite scale constants ─────────────────────────────────────────────────
 export const MONSTER_SCALE_SMALL = +(0.78 * DPR).toFixed(4);
 export const MONSTER_SCALE_ELITE = +(1.25 * DPR).toFixed(4);
-export const MONSTER_SCALE_BOSS  = +(2.0  * DPR).toFixed(4);
+export const MONSTER_SCALE_BOSS = +(2.0 * DPR).toFixed(4);
 
 /** 統一比例：小怪 0.78 / 菁英 1.25 / Boss 2.0 */
 export function monsterScale(tier: number): number {
   return tier >= 5 ? MONSTER_SCALE_BOSS : tier === 3 ? MONSTER_SCALE_ELITE : MONSTER_SCALE_SMALL;
 }
-export const monsterCardScale   = monsterScale;
+export const monsterCardScale = monsterScale;
 export const monsterDetailScale = monsterScale;
 
 // ── Elite monster multipliers ──────────────────────────────────────────────
-export const ELITE_HP_MULT   = 3.0;
+export const ELITE_HP_MULT = 3.0;
 export const ELITE_SCALE_MOD = +(MONSTER_SCALE_ELITE / MONSTER_SCALE_SMALL).toFixed(4);
 
 // ── Shared drop tables ─────────────────────────────────────────────────────
@@ -104,13 +104,13 @@ const smallDrops: DropEntry[] = [
 const eliteDrops: DropEntry[] = [
   { itemId: ITEM_STONE_BROKEN, itemName: '破損強化石', rate: 0.10, qtyMin: 1, qtyMax: 1 },
   { itemId: ITEM_STONE_INTACT, itemName: '完整強化石', rate: 0.02, qtyMin: 1, qtyMax: 1 },
-  { itemId: ITEM_STONE_GUARD,  itemName: '防退石',     rate: 0.02, qtyMin: 1, qtyMax: 1 },
+  { itemId: ITEM_STONE_GUARD, itemName: '防退石', rate: 0.02, qtyMin: 1, qtyMax: 1 },
 ];
 
 const bossDrops: DropEntry[] = [
   { itemId: ITEM_STONE_BROKEN, itemName: '破損強化石', rate: 1.00, qtyMin: 1, qtyMax: 1 },
   { itemId: ITEM_STONE_INTACT, itemName: '完整強化石', rate: 0.30, qtyMin: 1, qtyMax: 1 },
-  { itemId: ITEM_STONE_GUARD,  itemName: '防退石',     rate: 0.10, qtyMin: 1, qtyMax: 1 },
+  { itemId: ITEM_STONE_GUARD, itemName: '防退石', rate: 0.10, qtyMin: 1, qtyMax: 1 },
 ];
 
 // ── Monster definitions ────────────────────────────────────────────────────
@@ -122,28 +122,28 @@ export const MONSTER_DEFS: MonsterDef[] = [
     id: 'slime_green_s', name: '綠史萊姆小', spriteKey: 'slime', frameEnd: 5,
     element: 'grass', tint: 0x44ff44, tier: 1,
     hp: 60, atk: 8, speed: 90, exp: 15, gold: 5,
-    cards: [{ cardId: 'card_slime_green_s_a', rate: CR_S}, { cardId: 'card_slime_green_s_b', rate: CR_S}, { cardId: 'card_slime_green_s_c', rate: CR_S}],
+    cards: [{ cardId: 'card_slime_green_s_a', rate: CR_S }, { cardId: 'card_slime_green_s_b', rate: CR_S }, { cardId: 'card_slime_green_s_c', rate: CR_S }],
     drops: smallDrops,
   },
   {
     id: 'slime_red_s', name: '紅史萊姆小', spriteKey: 'slime', frameEnd: 5,
     element: 'fire', tint: 0xff2020, tier: 1,
     hp: 65, atk: 10, speed: 85, exp: 18, gold: 6,
-    cards: [{ cardId: 'card_slime_red_s_a', rate: CR_S}, { cardId: 'card_slime_red_s_b', rate: CR_S}, { cardId: 'card_slime_red_s_c', rate: CR_S}],
+    cards: [{ cardId: 'card_slime_red_s_a', rate: CR_S }, { cardId: 'card_slime_red_s_b', rate: CR_S }, { cardId: 'card_slime_red_s_c', rate: CR_S }],
     drops: smallDrops,
   },
   {
     id: 'slime_blue_s', name: '藍史萊姆小', spriteKey: 'slime', frameEnd: 5,
     element: 'water', tint: 0x2299ff, tier: 1,
     hp: 55, atk: 8, speed: 100, exp: 15, gold: 5,
-    cards: [{ cardId: 'card_slime_blue_s_a', rate: CR_S}, { cardId: 'card_slime_blue_s_b', rate: CR_S}, { cardId: 'card_slime_blue_s_c', rate: CR_S}],
+    cards: [{ cardId: 'card_slime_blue_s_a', rate: CR_S }, { cardId: 'card_slime_blue_s_b', rate: CR_S }, { cardId: 'card_slime_blue_s_c', rate: CR_S }],
     drops: smallDrops,
   },
   {
     id: 'slime_white_s', name: '白史萊姆小', spriteKey: 'slime', frameEnd: 5,
     element: 'none', tint: 0xccddee, tier: 1,
     hp: 60, atk: 8, speed: 90, exp: 12, gold: 4,
-    cards: [{ cardId: 'card_slime_white_s_a', rate: CR_S}, { cardId: 'card_slime_white_s_b', rate: CR_S}, { cardId: 'card_slime_white_s_c', rate: CR_S}],
+    cards: [{ cardId: 'card_slime_white_s_a', rate: CR_S }, { cardId: 'card_slime_white_s_b', rate: CR_S }, { cardId: 'card_slime_white_s_c', rate: CR_S }],
     drops: smallDrops,
   },
 
@@ -152,14 +152,14 @@ export const MONSTER_DEFS: MonsterDef[] = [
     id: 'slime_zombie_s', name: '殭屍史萊姆小', spriteKey: 'slime2', frameEnd: 5,
     element: 'none', tint: 0x99dd44, tier: 1,
     hp: 80, atk: 10, speed: 70, exp: 20, gold: 7,
-    cards: [{ cardId: 'card_slime_zombie_s_a', rate: CR_S}, { cardId: 'card_slime_zombie_s_b', rate: CR_S}, { cardId: 'card_slime_zombie_s_c', rate: CR_S}],
+    cards: [{ cardId: 'card_slime_zombie_s_a', rate: CR_S }, { cardId: 'card_slime_zombie_s_b', rate: CR_S }, { cardId: 'card_slime_zombie_s_c', rate: CR_S }],
     drops: smallDrops,
   },
   {
     id: 'slime_lava_s', name: '熔岩史萊姆小', spriteKey: 'slime3', frameEnd: 5,
     element: 'fire', tint: 0xffffff, tier: 1,
     hp: 70, atk: 12, speed: 100, exp: 22, gold: 8,
-    cards: [{ cardId: 'card_slime_lava_s_a', rate: CR_S}, { cardId: 'card_slime_lava_s_b', rate: CR_S}, { cardId: 'card_slime_lava_s_c', rate: CR_S}],
+    cards: [{ cardId: 'card_slime_lava_s_a', rate: CR_S }, { cardId: 'card_slime_lava_s_b', rate: CR_S }, { cardId: 'card_slime_lava_s_c', rate: CR_S }],
     drops: smallDrops,
   },
 
@@ -168,88 +168,88 @@ export const MONSTER_DEFS: MonsterDef[] = [
     id: 'elite_slime_green', name: '綠史萊姆菁英', spriteKey: 'slime', frameEnd: 5,
     element: 'grass', tint: 0x00ff88, tier: 3,
     hp: 60, atk: 8, speed: 95, exp: 60, gold: 25,
-    cards: [{ cardId: 'card_elite_slime_green_a', rate: CR_E}, { cardId: 'card_elite_slime_green_b', rate: CR_E}, { cardId: 'card_elite_slime_green_c', rate: CR_E}],
+    cards: [{ cardId: 'card_elite_slime_green_a', rate: CR_E }, { cardId: 'card_elite_slime_green_b', rate: CR_E }, { cardId: 'card_elite_slime_green_c', rate: CR_E }],
     drops: eliteDrops,
   },
   {
     id: 'elite_slime_red', name: '紅史萊姆菁英', spriteKey: 'slime', frameEnd: 5,
     element: 'fire', tint: 0xff6600, tier: 3,
     hp: 65, atk: 10, speed: 90, exp: 65, gold: 28,
-    cards: [{ cardId: 'card_elite_slime_red_a', rate: CR_E}, { cardId: 'card_elite_slime_red_b', rate: CR_E}, { cardId: 'card_elite_slime_red_c', rate: CR_E}],
+    cards: [{ cardId: 'card_elite_slime_red_a', rate: CR_E }, { cardId: 'card_elite_slime_red_b', rate: CR_E }, { cardId: 'card_elite_slime_red_c', rate: CR_E }],
     drops: eliteDrops,
   },
   {
     id: 'elite_slime_blue', name: '藍史萊姆菁英', spriteKey: 'slime', frameEnd: 5,
     element: 'water', tint: 0x00ddff, tier: 3,
     hp: 55, atk: 8, speed: 110, exp: 60, gold: 25,
-    cards: [{ cardId: 'card_elite_slime_blue_a', rate: CR_E}, { cardId: 'card_elite_slime_blue_b', rate: CR_E}, { cardId: 'card_elite_slime_blue_c', rate: CR_E}],
+    cards: [{ cardId: 'card_elite_slime_blue_a', rate: CR_E }, { cardId: 'card_elite_slime_blue_b', rate: CR_E }, { cardId: 'card_elite_slime_blue_c', rate: CR_E }],
     drops: eliteDrops,
   },
   {
     id: 'elite_slime_white', name: '白史萊姆菁英', spriteKey: 'slime', frameEnd: 5,
     element: 'none', tint: 0xeeffff, tier: 3,
     hp: 60, atk: 8, speed: 95, exp: 55, gold: 22,
-    cards: [{ cardId: 'card_elite_slime_white_a', rate: CR_E}, { cardId: 'card_elite_slime_white_b', rate: CR_E}, { cardId: 'card_elite_slime_white_c', rate: CR_E}],
+    cards: [{ cardId: 'card_elite_slime_white_a', rate: CR_E }, { cardId: 'card_elite_slime_white_b', rate: CR_E }, { cardId: 'card_elite_slime_white_c', rate: CR_E }],
     drops: eliteDrops,
   },
   {
     id: 'elite_slime_zombie', name: '殭屍史萊姆菁英', spriteKey: 'slime2', frameEnd: 5,
     element: 'none', tint: 0xccff44, tier: 3,
     hp: 80, atk: 10, speed: 78, exp: 75, gold: 32,
-    cards: [{ cardId: 'card_elite_slime_zombie_a', rate: CR_E}, { cardId: 'card_elite_slime_zombie_b', rate: CR_E}, { cardId: 'card_elite_slime_zombie_c', rate: CR_E}],
+    cards: [{ cardId: 'card_elite_slime_zombie_a', rate: CR_E }, { cardId: 'card_elite_slime_zombie_b', rate: CR_E }, { cardId: 'card_elite_slime_zombie_c', rate: CR_E }],
     drops: eliteDrops,
   },
   {
     id: 'elite_slime_lava', name: '熔岩史萊姆菁英', spriteKey: 'slime3', frameEnd: 5,
     element: 'fire', tint: 0xff4400, tier: 3,
     hp: 70, atk: 12, speed: 110, exp: 80, gold: 36,
-    cards: [{ cardId: 'card_elite_slime_lava_a', rate: CR_E}, { cardId: 'card_elite_slime_lava_b', rate: CR_E}, { cardId: 'card_elite_slime_lava_c', rate: CR_E}],
+    cards: [{ cardId: 'card_elite_slime_lava_a', rate: CR_E }, { cardId: 'card_elite_slime_lava_b', rate: CR_E }, { cardId: 'card_elite_slime_lava_c', rate: CR_E }],
     drops: eliteDrops,
   },
 
   // ── 花怪小怪 Tier 2 (minStar=2) ────────────────────────
   {
-    id: 'plant1_s', name: '花怪1小', spriteKey: 'plant1', frameEnd: 6,
+    id: 'plant1_s', name: '小食人花', spriteKey: 'plant1', frameEnd: 6,
     element: 'grass', tint: 0xffffff, tier: 2, minStar: 2,
     hp: 63, atk: 7, speed: 0, exp: 28, gold: 10,
-    cards: [{ cardId: 'card_plant1_s_a', rate: CR_S}, { cardId: 'card_plant1_s_b', rate: CR_S}, { cardId: 'card_plant1_s_c', rate: CR_S}],
+    cards: [{ cardId: 'card_plant1_s_a', rate: CR_S }, { cardId: 'card_plant1_s_b', rate: CR_S }, { cardId: 'card_plant1_s_c', rate: CR_S }],
     drops: smallDrops,
   },
   {
-    id: 'plant2_s', name: '花怪2小', spriteKey: 'plant2', frameEnd: 6,
+    id: 'plant2_s', name: '小藤蔓花', spriteKey: 'plant2', frameEnd: 6,
     element: 'water', tint: 0xffffff, tier: 2, minStar: 2,
     hp: 65, atk: 9, speed: 0, exp: 30, gold: 11,
-    cards: [{ cardId: 'card_plant2_s_a', rate: CR_S}, { cardId: 'card_plant2_s_b', rate: CR_S}, { cardId: 'card_plant2_s_c', rate: CR_S}],
+    cards: [{ cardId: 'card_plant2_s_a', rate: CR_S }, { cardId: 'card_plant2_s_b', rate: CR_S }, { cardId: 'card_plant2_s_c', rate: CR_S }],
     drops: smallDrops,
   },
   {
-    id: 'plant3_s', name: '花怪3小', spriteKey: 'plant3', frameEnd: 6,
+    id: 'plant3_s', name: '小不死花', spriteKey: 'plant3', frameEnd: 6,
     element: 'fire', tint: 0xffffff, tier: 2, minStar: 2,
     hp: 67, atk: 10, speed: 0, exp: 32, gold: 12,
-    cards: [{ cardId: 'card_plant3_s_a', rate: CR_S}, { cardId: 'card_plant3_s_b', rate: CR_S}, { cardId: 'card_plant3_s_c', rate: CR_S}],
+    cards: [{ cardId: 'card_plant3_s_a', rate: CR_S }, { cardId: 'card_plant3_s_b', rate: CR_S }, { cardId: 'card_plant3_s_c', rate: CR_S }],
     drops: smallDrops,
   },
 
   // ── 花怪菁英 Tier 3 (minStar=2) ─────────────────────────
   {
-    id: 'elite_plant1', name: '花怪1菁英', spriteKey: 'plant1', frameEnd: 6,
+    id: 'elite_plant1', name: '菁英食人花', spriteKey: 'plant1', frameEnd: 6,
     element: 'grass', tint: 0xffffff, tier: 3, minStar: 2,
     hp: 63, atk: 7, speed: 0, exp: 90, gold: 38,
-    cards: [{ cardId: 'card_elite_plant1_a', rate: CR_E}, { cardId: 'card_elite_plant1_b', rate: CR_E}, { cardId: 'card_elite_plant1_c', rate: CR_E}],
+    cards: [{ cardId: 'card_elite_plant1_a', rate: CR_E }, { cardId: 'card_elite_plant1_b', rate: CR_E }, { cardId: 'card_elite_plant1_c', rate: CR_E }],
     drops: eliteDrops,
   },
   {
-    id: 'elite_plant2', name: '花怪2菁英', spriteKey: 'plant2', frameEnd: 6,
+    id: 'elite_plant2', name: '菁英藤蔓花', spriteKey: 'plant2', frameEnd: 6,
     element: 'water', tint: 0xffffff, tier: 3, minStar: 2,
     hp: 65, atk: 9, speed: 0, exp: 95, gold: 40,
-    cards: [{ cardId: 'card_elite_plant2_a', rate: CR_E}, { cardId: 'card_elite_plant2_b', rate: CR_E}, { cardId: 'card_elite_plant2_c', rate: CR_E}],
+    cards: [{ cardId: 'card_elite_plant2_a', rate: CR_E }, { cardId: 'card_elite_plant2_b', rate: CR_E }, { cardId: 'card_elite_plant2_c', rate: CR_E }],
     drops: eliteDrops,
   },
   {
-    id: 'elite_plant3', name: '花怪3菁英', spriteKey: 'plant3', frameEnd: 6,
+    id: 'elite_plant3', name: '菁英不死花', spriteKey: 'plant3', frameEnd: 6,
     element: 'fire', tint: 0xffffff, tier: 3, minStar: 2,
     hp: 67, atk: 10, speed: 0, exp: 100, gold: 42,
-    cards: [{ cardId: 'card_elite_plant3_a', rate: CR_E}, { cardId: 'card_elite_plant3_b', rate: CR_E}, { cardId: 'card_elite_plant3_c', rate: CR_E}],
+    cards: [{ cardId: 'card_elite_plant3_a', rate: CR_E }, { cardId: 'card_elite_plant3_b', rate: CR_E }, { cardId: 'card_elite_plant3_c', rate: CR_E }],
     drops: eliteDrops,
   },
 
@@ -258,28 +258,28 @@ export const MONSTER_DEFS: MonsterDef[] = [
     id: 'boss_slime_green', name: '綠史萊姆王', spriteKey: 'slime', frameEnd: 9,
     element: 'grass', tint: 0x33ff33, tier: 5,
     hp: 750, atk: 25, def: 18, speed: 80, exp: 200, gold: 100,
-    cards: [{ cardId: 'card_boss_slime_green_a', rate: CR_B}, { cardId: 'card_boss_slime_green_b', rate: CR_B}, { cardId: 'card_boss_slime_green_c', rate: CR_B}],
+    cards: [{ cardId: 'card_boss_slime_green_a', rate: CR_B }, { cardId: 'card_boss_slime_green_b', rate: CR_B }, { cardId: 'card_boss_slime_green_c', rate: CR_B }],
     drops: bossDrops,
   },
   {
     id: 'boss_slime_red', name: '紅史萊姆王', spriteKey: 'slime', frameEnd: 9,
     element: 'fire', tint: 0xff1111, tier: 5,
     hp: 750, atk: 30, def: 18, speed: 80, exp: 200, gold: 100,
-    cards: [{ cardId: 'card_boss_slime_red_a', rate: CR_B}, { cardId: 'card_boss_slime_red_b', rate: CR_B}, { cardId: 'card_boss_slime_red_c', rate: CR_B}],
+    cards: [{ cardId: 'card_boss_slime_red_a', rate: CR_B }, { cardId: 'card_boss_slime_red_b', rate: CR_B }, { cardId: 'card_boss_slime_red_c', rate: CR_B }],
     drops: bossDrops,
   },
   {
     id: 'boss_slime_blue', name: '藍史萊姆王', spriteKey: 'slime', frameEnd: 9,
     element: 'water', tint: 0x1188ff, tier: 5,
     hp: 720, atk: 25, def: 18, speed: 80, exp: 200, gold: 100,
-    cards: [{ cardId: 'card_boss_slime_blue_a', rate: CR_B}, { cardId: 'card_boss_slime_blue_b', rate: CR_B}, { cardId: 'card_boss_slime_blue_c', rate: CR_B}],
+    cards: [{ cardId: 'card_boss_slime_blue_a', rate: CR_B }, { cardId: 'card_boss_slime_blue_b', rate: CR_B }, { cardId: 'card_boss_slime_blue_c', rate: CR_B }],
     drops: bossDrops,
   },
   {
     id: 'boss_slime_white', name: '白史萊姆王', spriteKey: 'slime', frameEnd: 9,
     element: 'none', tint: 0xccddee, tier: 5,
     hp: 750, atk: 25, def: 24, speed: 80, exp: 200, gold: 100,
-    cards: [{ cardId: 'card_boss_slime_white_a', rate: CR_B}, { cardId: 'card_boss_slime_white_b', rate: CR_B}, { cardId: 'card_boss_slime_white_c', rate: CR_B}],
+    cards: [{ cardId: 'card_boss_slime_white_a', rate: CR_B }, { cardId: 'card_boss_slime_white_b', rate: CR_B }, { cardId: 'card_boss_slime_white_c', rate: CR_B }],
     drops: bossDrops,
   },
 
@@ -288,7 +288,7 @@ export const MONSTER_DEFS: MonsterDef[] = [
     id: 'boss_zombie_slime', name: '殭屍史萊姆王', spriteKey: 'slime2', frameEnd: 9,
     element: 'none', tint: 0x99dd44, tier: 5,
     hp: 825, atk: 28, def: 20, speed: 80, exp: 220, gold: 120,
-    cards: [{ cardId: 'card_boss_zombie_slime_a', rate: CR_B}, { cardId: 'card_boss_zombie_slime_b', rate: CR_B}, { cardId: 'card_boss_zombie_slime_c', rate: CR_B}],
+    cards: [{ cardId: 'card_boss_zombie_slime_a', rate: CR_B }, { cardId: 'card_boss_zombie_slime_b', rate: CR_B }, { cardId: 'card_boss_zombie_slime_c', rate: CR_B }],
     drops: bossDrops,
   },
 
@@ -297,13 +297,13 @@ export const MONSTER_DEFS: MonsterDef[] = [
     id: 'boss_lava_slime', name: '熔岩史萊姆王', spriteKey: 'slime3', frameEnd: 9,
     element: 'fire', tint: 0xffffff, tier: 5,
     hp: 900, atk: 32, def: 30, speed: 80, exp: 250, gold: 150,
-    cards: [{ cardId: 'card_boss_lava_slime_a', rate: CR_B}, { cardId: 'card_boss_lava_slime_b', rate: CR_B}, { cardId: 'card_boss_lava_slime_c', rate: CR_B}],
+    cards: [{ cardId: 'card_boss_lava_slime_a', rate: CR_B }, { cardId: 'card_boss_lava_slime_b', rate: CR_B }, { cardId: 'card_boss_lava_slime_c', rate: CR_B }],
     drops: bossDrops,
   },
 
   // ── 花Boss系列 ──────────────────────────────────────────
   {
-    id: 'boss_flower_one', name: '毒花王', spriteKey: 'plant3', frameEnd: 9,
+    id: 'boss_flower_one', name: '食人花王', spriteKey: 'plant3', frameEnd: 9,
     element: 'grass', tint: 0xffffff, tier: 5,
     hp: 800, atk: 25, def: 15, speed: 0, exp: 200, gold: 110,
     cards: [{ cardId: 'card_boss_flower_one_a', rate: CR_B }, { cardId: 'card_boss_flower_one_b', rate: CR_B }, { cardId: 'card_boss_flower_one_c', rate: CR_B }],
@@ -314,6 +314,13 @@ export const MONSTER_DEFS: MonsterDef[] = [
     element: 'grass', tint: 0xffffff, tier: 5,
     hp: 850, atk: 28, def: 15, speed: 0, exp: 210, gold: 115,
     cards: [{ cardId: 'card_boss_flower_two_a', rate: CR_B }, { cardId: 'card_boss_flower_two_b', rate: CR_B }, { cardId: 'card_boss_flower_two_c', rate: CR_B }],
+    drops: bossDrops,
+  },
+  {
+    id: 'boss_flower_three', name: '不死花王', spriteKey: 'plant1', frameEnd: 9,
+    element: 'fire', tint: 0xffffff, tier: 5,
+    hp: 900, atk: 22, def: 8, speed: 0, exp: 220, gold: 120,
+    cards: [{ cardId: 'card_boss_flower_three_a', rate: CR_B }, { cardId: 'card_boss_flower_three_b', rate: CR_B }, { cardId: 'card_boss_flower_three_c', rate: CR_B }],
     drops: bossDrops,
   },
 ];
@@ -394,7 +401,7 @@ export const CARD_DEFS: CardDef[] = [
   { id: 'card_boss_slime_white_c', name: '白史萊姆王卡片(C)', monsterId: 'boss_slime_white', element: 'none', tint: 0xaaaaaa, effect: { auraRadiusPct: 0.30 }, desc: '血環範圍 +30%' },
 
   // 殭屍史萊姆王：玻璃砲 / 條件DoT / 燃燒上限
-  { id: 'card_boss_zombie_slime_a', name: '殭屍史萊姆王卡片(A)', monsterId: 'boss_zombie_slime', element: 'none', tint: 0x88aa44, effect: { allDmgPct: 0.45, takenDmgPct: 0.30 }, desc: '所有傷害 +45%、受到傷害 +30%（不含燃燒）' },
+  { id: 'card_boss_zombie_slime_a', name: '殭屍史萊姆王卡片(A)', monsterId: 'boss_zombie_slime', element: 'none', tint: 0x88aa44, effect: { allDmgPct: 0.45, takenDmgPct: 0.30 }, desc: '所有傷害 +45%（不含燃燒）、受到傷害 +30%' },
   { id: 'card_boss_zombie_slime_b', name: '殭屍史萊姆王卡片(B)', monsterId: 'boss_zombie_slime', element: 'none', tint: 0x88aa44, effect: { condDotStackBonus: 0.03 }, desc: '持續傷害達30%時，每層燃燒傷害 +3%' },
   { id: 'card_boss_zombie_slime_c', name: '殭屍史萊姆王卡片(C)', monsterId: 'boss_zombie_slime', element: 'none', tint: 0x88aa44, effect: { burnMaxStackBonus: 5 }, desc: '燃燒上限 +5層' },
 
@@ -403,15 +410,20 @@ export const CARD_DEFS: CardDef[] = [
   { id: 'card_boss_lava_slime_b', name: '熔岩史萊姆王卡片(B)', monsterId: 'boss_lava_slime', element: 'none', tint: 0xff6622, effect: { multiHitNoStagger: 1 }, desc: '五連斬不再有僵直' },
   { id: 'card_boss_lava_slime_c', name: '熔岩史萊姆王卡片(C)', monsterId: 'boss_lava_slime', element: 'none', tint: 0xff6622, effect: { chargeSlamStunChance: 0.50 }, desc: '蓄力重擊有50%機率造成暈眩2秒' },
 
-  // 毒花王：彈幕特化
-  { id: 'card_boss_flower_one_a', name: '毒花王卡片(A)', monsterId: 'boss_flower_one', element: 'none', tint: 0xff88cc, effect: { projectileDistBonus: 60 }, desc: '風刃距離 +60' },
-  { id: 'card_boss_flower_one_b', name: '毒花王卡片(B)', monsterId: 'boss_flower_one', element: 'none', tint: 0xff88cc, effect: { crit: 0.15 }, desc: '爆擊機率 +15%' },
-  { id: 'card_boss_flower_one_c', name: '毒花王卡片(C)', monsterId: 'boss_flower_one', element: 'none', tint: 0xff88cc, effect: { dmgVsGrass: 0.30 }, desc: '對草屬性傷害 +30%' },
+  // 食人花王：彈幕特化
+  { id: 'card_boss_flower_one_a', name: '食人花王卡片(A)', monsterId: 'boss_flower_one', element: 'none', tint: 0xff88cc, effect: { projectileDistBonus: 60 }, desc: '風刃距離 +60' },
+  { id: 'card_boss_flower_one_b', name: '食人花王卡片(B)', monsterId: 'boss_flower_one', element: 'none', tint: 0xff88cc, effect: { crit: 0.15 }, desc: '爆擊機率 +15%' },
+  { id: 'card_boss_flower_one_c', name: '食人花王卡片(C)', monsterId: 'boss_flower_one', element: 'none', tint: 0xff88cc, effect: { dmgVsGrass: 0.30 }, desc: '對草屬性傷害 +30%' },
 
   // 藤蔓花王：陷阱特化
   { id: 'card_boss_flower_two_a', name: '藤蔓花王卡片(A)', monsterId: 'boss_flower_two', element: 'none', tint: 0x66ff88, effect: { dmgVsGrass: 0.25 }, desc: '對草屬性傷害 +25%' },
   { id: 'card_boss_flower_two_b', name: '藤蔓花王卡片(B)', monsterId: 'boss_flower_two', element: 'none', tint: 0x66ff88, effect: { crit: 0.12 }, desc: '爆擊機率 +12%' },
   { id: 'card_boss_flower_two_c', name: '藤蔓花王卡片(C)', monsterId: 'boss_flower_two', element: 'none', tint: 0x66ff88, effect: { projectileDistBonus: 50 }, desc: '風刃距離 +50' },
+
+  // 不死花王：召喚/生存特化
+  { id: 'card_boss_flower_three_a', name: '不死花王卡片(A)', monsterId: 'boss_flower_three', element: 'none', tint: 0xffaa44, effect: { hpRegen: 3 }, desc: 'HP回復 +3/秒' },
+  { id: 'card_boss_flower_three_b', name: '不死花王卡片(B)', monsterId: 'boss_flower_three', element: 'none', tint: 0xffaa44, effect: { dmgVsFire: 0.25 }, desc: '對火屬性傷害 +25%' },
+  { id: 'card_boss_flower_three_c', name: '不死花王卡片(C)', monsterId: 'boss_flower_three', element: 'none', tint: 0xffaa44, effect: { crit: 0.12 }, desc: '爆擊機率 +12%' },
 ];
 
 // ── Helpers ────────────────────────────────────────────────────────────────

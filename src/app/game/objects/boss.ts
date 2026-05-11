@@ -35,6 +35,10 @@ export enum BossState {
   VINE_WARN    = 'VINE_WARN',
   BURST_WARN   = 'BURST_WARN',
   BURROW       = 'BURROW',
+  SEED_WARN      = 'SEED_WARN',
+  SLOW_ZONE_WARN = 'SLOW_ZONE_WARN',
+  ROOT_WARN      = 'ROOT_WARN',
+  CROWN_WARN     = 'CROWN_WARN',
   DEAD             = 'DEAD',
 }
 
@@ -264,6 +268,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
   get currentState(): BossState { return this.bossState; }
   get currentHp(): number { return this.hp; }
   get maxHpValue(): number { return this.maxHp; }
+  get dmgDisplayMult(): number { return 1; }
 
   protected setBossState(state: BossState): void { this.bossState = state; }
 
