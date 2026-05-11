@@ -79,6 +79,15 @@ export interface StatBonus {
   dropRateMult?:        number;  // 掉落率倍率
   // ── 條件 DoT ──
   condDotStackBonus?:   number;  // dotBonus≥30% 時每層 burn +X（加入 1+dotBonus 後的乘數）
+  // ── 特殊機制（卡片觸發效果）──
+  orbitFireBalls?:      number;  // 繞玩家旋轉火球數量（疊加，ATK×15%，1秒傷害CD/怪）
+  orbitIceBalls?:       number;  // 繞玩家旋轉冰球數量（疊加，ATK×10%+緩速20%，1秒CD）
+  periodicKnives?:      number;  // 每4秒飛刀層數（1=6方位，2=12方位，ATK×40%，穿透）
+  overkillSplash?:      number;  // 溢出傷害AOE（1=啟用，半徑15px）
+  lightningStrike?:     number;  // 每秒落雷最遠敵人（1=啟用，ATK×12%）
+  divineShieldChance?:  number;  // 攻擊時觸發神盾護體機率（DEF+20持續3秒，機率疊加）
+  summonFlowerChance?:  number;  // 攻擊時召喚友軍花怪機率（依當前星級）
+  freeRevive?:          number;  // 每局免費復活次數（滿血，無敵1秒）
 }
 
 // ── Affix system ───────────────────────────────────────────────────────────────

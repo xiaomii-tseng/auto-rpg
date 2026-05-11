@@ -16,6 +16,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   private hp:    number;
   private maxHp: number;
   private invincible  = false;
+  divineShieldDef = 0;  // 神盾護體臨時 DEF 加成
   private flashTween?: Phaser.Tweens.Tween;
   private playingHurt = false;
 
@@ -161,7 +162,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     const stats   = CardStore.getTotalStats();
     const evasion = stats.evasion;
     if (evasion > 0 && Math.random() < evasion) { this.onEvade?.(this.x, this.y); return; }
-    const def       = stats.def;
+    const def       = stats.def + this.divineShieldDef;
     const reduction = def / (def + 65);
     const takenMult = 1 + (stats.takenDmgPct ?? 0);
     const actual    = Math.max(1, Math.round(amount * (1 - reduction) * takenMult));

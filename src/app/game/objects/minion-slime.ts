@@ -58,6 +58,7 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
   getTargetPos: () => [number, number] = () => [0, 0];
   onDead?: () => void;
   onFire?: (type: 'shoot' | 'triple' | 'explode' | 'spike', mx: number, my: number, tx: number, ty: number) => void;
+  slowMult = 1;  // 減速倍率（1 = 正常，0.8 = 緩速 20%）
 
   minionId        = '';
   attackMode: 'dash' | 'shoot' | 'triple' | 'explode' | 'spike' = 'dash';
@@ -133,14 +134,16 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
     this.patrolTargetY = y;
   }
 
-  takeDamage(amount: number): void {
-    if (this.mState === MinionState.DEAD) return;
+  takeDamage(amount: number): number {
+    if (this.mState === MinionState.DEAD) return 0;
+    const prevHp = this.hp;
     this.hp = Math.max(0, this.hp - amount);
     this.setTint(0xff8888);
     this.scene.time.delayedCall(120, () => {
       if (this.mState !== MinionState.DEAD) this.applyBaseTint();
     });
     if (this.hp <= 0) this.die();
+    return Math.max(0, amount - prevHp);  // 超殺量
   }
 
   applyServerHp(hp: number, isDead: boolean): void {
@@ -342,6 +345,8 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
     });
   }
 
+  forceKill(): void { this.die(); }
+
   private die(): void {
     this.mState = MinionState.DEAD;
     this.stateTimer?.destroy();
@@ -443,7 +448,7 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
         } else {
           const angle = Phaser.Math.Angle.Between(this.x, this.y, tx, ty);
           (this.scene.physics as Phaser.Physics.Arcade.ArcadePhysics).velocityFromAngle(
-            Phaser.Math.RadToDeg(angle), MinionSlime.CHASE_SPEED, body.velocity,
+            Phaser.Math.RadToDeg(angle), MinionSlime.CHASE_SPEED * this.slowMult, body.velocity,
           );
           if (this.dir !== prevDir) this.playDir(`${this.animPrefix}_walk`);
         }
@@ -464,7 +469,7 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
         } else if (!this.stationary) {
           const angle = Phaser.Math.Angle.Between(this.x, this.y, tx, ty);
           (this.scene.physics as Phaser.Physics.Arcade.ArcadePhysics).velocityFromAngle(
-            Phaser.Math.RadToDeg(angle), MinionSlime.CHASE_SPEED, body.velocity,
+            Phaser.Math.RadToDeg(angle), MinionSlime.CHASE_SPEED * this.slowMult, body.velocity,
           );
           if (this.dir !== prevDir) this.playDir(`${this.animPrefix}_walk`);
         } else {

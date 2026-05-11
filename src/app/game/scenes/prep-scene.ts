@@ -137,6 +137,21 @@ export class PrepScene extends Phaser.Scene {
       InventoryStore.addItem('quest_reroll', '任務重製石', 10);
     }
 
+    // ── TEST ONLY: 所有菁英卡 ×2 加入背包（測試特殊效果用，完成後移除此段）──
+    const _TEST_ELITE_CARDS = [
+      'card_elite_slime_green_a',   // 旋轉冰球
+      'card_elite_slime_red_a',     // 神盾護體
+      'card_elite_slime_blue_a',    // 落雷
+      'card_elite_slime_white_a',   // 6方位飛刀
+      'card_elite_slime_zombie_a',  // 旋轉火球
+      'card_elite_slime_lava_a',    // 溢出傷害
+      'card_elite_plant1_a',        // HP回復+3
+      'card_elite_plant2_a',        // 召喚友軍花怪
+      'card_elite_plant3_a',        // 免費復活
+    ];
+    _TEST_ELITE_CARDS.forEach(id => CardStore.addCard(id, 2));
+    // ── END TEST ──────────────────────────────────────────────────────────────
+
     this.generateItemIcons();
 
     // Always rebuild so frames reference the currently loaded texture (texture may have been

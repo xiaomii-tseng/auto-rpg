@@ -80,6 +80,16 @@ export class GameScene extends Phaser.Scene {
   private allMinions: MinionSlime[] = [];
   private _flowerThreeMinions = new Set<MinionSlime>();
   private _pendingFlowerSeeds = 0;
+  // ── Special card effect state ──
+  private _orbitBalls: Array<{ gfx: Phaser.GameObjects.Graphics; angle: number; type: 'fire'|'ice'; lastHit: Map<object, number> }> = [];
+  private _orbitAngle = 0;
+  private _playerKnives: Array<{ gfx: Phaser.GameObjects.Graphics; x: number; y: number; vx: number; vy: number; spawnX: number; spawnY: number; maxDist: number; hitTargets: Set<object> }> = [];
+  private _divineShieldTimer?: Phaser.Time.TimerEvent;
+  private _divineShieldGfx?: Phaser.GameObjects.Graphics;
+  private _divineShieldRollUntil = 0;  // 每次攻擊動作只判定一次（300ms 鎖）
+  private _usedFreeRevive = false;
+  private _allyMinions: MinionSlime[] = [];          // 有序陣列，上限 3，最舊的先移除
+  private _allyGroup!: Phaser.Physics.Arcade.Group;  // 用於 projectile overlap 偵測
   private _slowZones: { x: number; y: number; r: number; expires: number; gfx: Phaser.GameObjects.Graphics }[] = [];
   private wallLayer!: Phaser.Tilemaps.TilemapLayer;
   private waypoints: Phaser.Math.Vector2[] = [];
@@ -219,6 +229,15 @@ export class GameScene extends Phaser.Scene {
     this._flowerThreeMinions.clear();
     this._pendingFlowerSeeds = 0;
     this._slowZones = [];
+    this._orbitBalls.forEach(b => b.gfx.destroy());
+    this._orbitBalls = [];
+    this._orbitAngle = 0;
+    this._playerKnives.forEach(k => k.gfx.destroy());
+    this._playerKnives = [];
+    this._divineShieldTimer?.destroy();
+    this._divineShieldTimer = undefined;
+    this._usedFreeRevive = false;
+    this._allyMinions = [];
 
     this.generateWaypoints();   // sets this.worldW / worldH / waypoints
 
@@ -468,6 +487,15 @@ export class GameScene extends Phaser.Scene {
 
     // Minion projectile group
     this.minionProjGroup = this.physics.add.group();
+    // 友軍花怪群組 — 供敵方彈道 overlap 偵測使用
+    this._allyGroup = this.physics.add.group();
+    this.physics.add.overlap(this.minionProjGroup, this._allyGroup, (_ally, proj) => {
+      const p    = proj as Phaser.Physics.Arcade.Image;
+      const ally = _ally as MinionSlime;
+      if (!p.active || ally.isDead) return;
+      ally.takeDamage((p as any).dmg as number);
+      p.destroy();
+    });
     this.physics.add.overlap(this.minionProjGroup, this.player, (_p, proj) => {
       const p = proj as Phaser.Physics.Arcade.Image;
       if (!p.active) return;
@@ -568,6 +596,8 @@ export class GameScene extends Phaser.Scene {
       },
     });
 
+    this.initSpecialCardEffects();
+
     // 血環持續視覺圈圈（只有裝備血環時才顯示）
     this.auraRing = this.add.graphics().setDepth(this.player.depth - 1);
     this.tweens.add({
@@ -577,6 +607,413 @@ export class GameScene extends Phaser.Scene {
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => { this.auraTimer?.destroy(); this.auraRing?.destroy(); });
   }
+
+  // ══════════════════════════════════════════════════════════════
+  // ── Special card effects ──────────────────────────────────────
+
+  private initSpecialCardEffects(): void {
+    const stats = CardStore.getTotalStats();
+    this._usedFreeRevive = false;
+
+    // 旋轉球：火冰交錯排列
+    const nFire = stats.orbitFireBalls ?? 0;
+    const nIce  = stats.orbitIceBalls  ?? 0;
+    const types: ('fire' | 'ice')[] = [];
+    let fi = 0, ii = 0;
+    while (fi < nFire || ii < nIce) {
+      if (fi < nFire) { types.push('fire'); fi++; }
+      if (ii < nIce)  { types.push('ice');  ii++; }
+    }
+    const total = types.length;
+    for (let i = 0; i < total; i++) {
+      const gfx = this.add.graphics().setDepth(25);
+      this._orbitBalls.push({ gfx, angle: (i / Math.max(total, 1)) * Math.PI * 2, type: types[i], lastHit: new Map() });
+    }
+
+    // 週期飛刀計時器
+    if ((stats.periodicKnives ?? 0) > 0) {
+      this.time.addEvent({ delay: 4000, repeat: -1, callback: () => this.firePeriodicKnives() });
+    }
+
+    // 落雷計時器
+    if ((stats.lightningStrike ?? 0) > 0) {
+      this.time.addEvent({ delay: 2000, repeat: -1, callback: () => this.fireLightningStrike() });
+    }
+  }
+
+  private updateOrbitBalls(delta: number): void {
+    if (this._orbitBalls.length === 0) return;
+    const ORBIT_SPEED = 0.0022;   // rad/ms ≈ 一圈約 2.8 秒
+    const ORBIT_R     = P(48);
+    const BALL_R      = P(6);
+    const HIT_RANGE   = P(16);
+    const HIT_CD      = 1000;
+    const now         = this.time.now;
+
+    this._orbitAngle += delta * ORBIT_SPEED;
+    const isAlive = this.player.active && !this.gameOver;
+
+    const nTotal = Math.min(Math.max(this._orbitBalls.length, 2), 8);
+
+    for (let i = 0; i < this._orbitBalls.length; i++) {
+      const b = this._orbitBalls[i];
+      const a = this._orbitAngle + (i / this._orbitBalls.length) * Math.PI * 2;
+      const bx = this.player.x + Math.cos(a) * ORBIT_R;
+      const by = this.player.y + Math.sin(a) * ORBIT_R;
+
+      b.gfx.setPosition(bx, by).clear();
+      if (!isAlive) continue;
+
+      const col  = b.type === 'fire' ? 0xff6600 : 0x44bbff;
+      const glow = b.type === 'fire' ? 0xffaa00 : 0x88eeff;
+      b.gfx.fillStyle(glow, 0.30); b.gfx.fillCircle(0, 0, BALL_R * 1.6);
+      b.gfx.fillStyle(col,  0.90); b.gfx.fillCircle(0, 0, BALL_R);
+      b.gfx.fillStyle(0xffffff, 0.50); b.gfx.fillCircle(-BALL_R * 0.28, -BALL_R * 0.28, BALL_R * 0.32);
+
+      for (const t of this.getHittableTargets()) {
+        if ((b.lastHit.get(t) ?? 0) + HIT_CD > now) continue;
+        if (Phaser.Math.Distance.Between(bx, by, t.x, t.y) > HIT_RANGE) continue;
+        b.lastHit.set(t, now);
+        const mult = (b.type === 'fire' ? 0.30 : 0.25) / Math.sqrt(nTotal);
+        this.dealDamage(t, mult, bx, by, 'down');
+        if (b.type === 'ice' && !(t as MinionSlime).isDead) {
+          (t as MinionSlime).slowMult = 0.80;
+          this.time.delayedCall(1500, () => { if (!(t as MinionSlime).isDead) (t as MinionSlime).slowMult = 1; });
+        }
+      }
+      // 清理過期 CD 記錄
+      b.lastHit.forEach((ts, k) => { if (ts + HIT_CD + 200 < now) b.lastHit.delete(k); });
+    }
+  }
+
+  private updatePlayerKnives(delta: number): void {
+    if (this._playerKnives.length === 0) return;
+    const SPEED = P(468);  // px/sec (360 * 1.3)
+    const dt = delta / 1000;
+
+    for (let i = this._playerKnives.length - 1; i >= 0; i--) {
+      const k = this._playerKnives[i];
+      k.x += k.vx * dt;
+      k.y += k.vy * dt;
+      const traveled = Phaser.Math.Distance.Between(k.spawnX, k.spawnY, k.x, k.y);
+
+      if (traveled >= k.maxDist) {
+        k.gfx.destroy();
+        this._playerKnives.splice(i, 1);
+        continue;
+      }
+
+      // 依飛行方向旋轉刀身
+      const angle = Math.atan2(k.vy, k.vx);
+      k.gfx.setPosition(k.x, k.y).setRotation(angle);
+
+      for (const t of this.getHittableTargets()) {
+        if (k.hitTargets.has(t)) continue;
+        if (Phaser.Math.Distance.Between(k.x, k.y, t.x, t.y) > P(14)) continue;
+        k.hitTargets.add(t);
+        this.dealDamage(t, 0.40, k.x, k.y, 'down');
+      }
+    }
+  }
+
+  private firePeriodicKnives(): void {
+    if (!this.player.active || this.gameOver) return;
+    const stats     = CardStore.getTotalStats();
+    const count     = (stats.periodicKnives ?? 1) >= 2 ? 12 : 6;
+    const maxDist   = P(200);
+    const SPEED     = P(468);
+    const baseAngle = Math.random() * Math.PI * 2;
+
+    for (let i = 0; i < count; i++) {
+      const angle = baseAngle + (i / count) * Math.PI * 2;
+      const vx = Math.cos(angle) * SPEED;
+      const vy = Math.sin(angle) * SPEED;
+
+      const gfx = this.add.graphics({ x: this.player.x, y: this.player.y }).setDepth(26);
+      gfx.setRotation(angle);
+
+      // 刀身：細長刀形（刀尖在 +x 方向）
+      gfx.fillStyle(0xe8e8ff, 1);
+      gfx.fillTriangle(P(8), 0, -P(5), -P(1.5), -P(5), P(1.5));   // 主刀身
+
+      // 刀刃高光
+      gfx.lineStyle(P(0.8), 0xffffff, 0.7);
+      gfx.beginPath();
+      gfx.moveTo(-P(4), -P(0.8));
+      gfx.lineTo(P(7), 0);
+      gfx.strokePath();
+
+      // 刀柄
+      gfx.fillStyle(0x886644, 1);
+      gfx.fillRect(-P(7), -P(1.2), P(3), P(2.4));
+
+      // 護手
+      gfx.fillStyle(0xaaaaaa, 1);
+      gfx.fillRect(-P(5), -P(2.5), P(1.5), P(5));
+
+      // 出刀時的光芒拖尾（小亮點）
+      const spark = this.add.graphics({ x: this.player.x, y: this.player.y }).setDepth(25);
+      spark.fillStyle(0xffffff, 0.6);
+      spark.fillCircle(0, 0, P(3));
+      this.tweens.add({ targets: spark, alpha: 0, scaleX: 0.1, scaleY: 0.1,
+        x: this.player.x - Math.cos(angle) * P(8),
+        y: this.player.y - Math.sin(angle) * P(8),
+        duration: 180, ease: 'Quad.Out', onComplete: () => spark.destroy() });
+
+      this._playerKnives.push({
+        gfx, x: this.player.x, y: this.player.y,
+        vx, vy,
+        spawnX: this.player.x, spawnY: this.player.y,
+        maxDist, hitTargets: new Set(),
+      });
+    }
+  }
+
+  private fireLightningStrike(): void {
+    if (!this.player.active || this.gameOver) return;
+    const stats   = CardStore.getTotalStats();
+    const maxR    = P(200);
+    const dmgMult = 0.50;
+    const count   = stats.lightningStrike ?? 1;
+
+    // 從 200px 內隨機選不重複的 count 個目標
+    const pool = this.getHittableTargets().filter(t =>
+      Phaser.Math.Distance.Between(this.player.x, this.player.y, t.x, t.y) <= maxR
+    );
+    if (pool.length === 0) return;
+
+    // Fisher-Yates shuffle 取前 count 個
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+    const targets = pool.slice(0, count);
+
+    for (const target of targets) {
+      const tx = target.x, ty = target.y;
+
+      // VFX：閃電線
+      const bolt = this.add.graphics().setDepth(60);
+      const drawBolt = (alpha: number) => {
+        bolt.clear();
+        bolt.lineStyle(P(3), 0xffffff, alpha);
+        bolt.beginPath(); bolt.moveTo(tx, ty - P(80));
+        bolt.lineTo(tx + P(4), ty - P(50)); bolt.lineTo(tx - P(3), ty - P(30));
+        bolt.lineTo(tx + P(2), ty - P(10)); bolt.lineTo(tx, ty);
+        bolt.strokePath();
+        bolt.lineStyle(P(6), 0xaaddff, alpha * 0.4);
+        bolt.beginPath(); bolt.moveTo(tx, ty - P(80)); bolt.lineTo(tx, ty);
+        bolt.strokePath();
+      };
+      drawBolt(1);
+      this.tweens.add({ targets: bolt, alpha: 0, duration: 350, ease: 'Quad.In', onComplete: () => bolt.destroy() });
+
+      // 衝擊圈
+      const ring = this.add.graphics({ x: tx, y: ty }).setDepth(59);
+      ring.lineStyle(P(2), 0xaaddff, 1); ring.strokeCircle(0, 0, P(12));
+      this.tweens.add({ targets: ring, scaleX: 2.5, scaleY: 2.5, alpha: 0, duration: 300, onComplete: () => ring.destroy() });
+
+      this.dealDamage(target, dmgMult, this.player.x, this.player.y, 'down');
+    }
+  }
+
+  private overkillSplash(ox: number, oy: number, overkill: number, chain = false): void {
+    const R = P(18);
+    const stats = CardStore.getTotalStats();
+    const canChain = !chain && (stats.overkillSplash ?? 0) >= 2;
+
+    for (const t of this.getHittableTargets()) {
+      if (Phaser.Math.Distance.Between(ox, oy, t.x, t.y) > R) continue;
+      const prev = (t as MinionSlime).hp ?? 0;
+      this.dealDamage(t, 0, ox, oy, 'down');
+      const chainOverkill = (t as MinionSlime).takeDamage(overkill);
+      this.spawnDamageNumber(t.x, t.y, overkill, false, 1);
+      if (canChain && chainOverkill > 0) {
+        this.time.delayedCall(80, () => this.overkillSplash(t.x, t.y, chainOverkill, true));
+      }
+      void prev;
+    }
+    // 紫色火焰圈 VFX
+    const cx = ox, cy = oy;
+
+    // 內爆光核
+    const core = this.add.graphics({ x: cx, y: cy }).setDepth(56);
+    core.fillStyle(0xdd88ff, 0.9); core.fillCircle(0, 0, P(6));
+    this.tweens.add({ targets: core, scaleX: 2.2, scaleY: 2.2, alpha: 0, duration: 200, ease: 'Quad.Out', onComplete: () => core.destroy() });
+
+    // 擴散火焰環（外圈）
+    const ring1 = this.add.graphics({ x: cx, y: cy }).setDepth(55);
+    ring1.lineStyle(P(4), 0xcc44ff, 1); ring1.strokeCircle(0, 0, R * 0.6);
+    this.tweens.add({ targets: ring1, scaleX: 2.6, scaleY: 2.6, alpha: 0, duration: 380, ease: 'Cubic.Out', onComplete: () => ring1.destroy() });
+
+    // 內層薄環
+    const ring2 = this.add.graphics({ x: cx, y: cy }).setDepth(55);
+    ring2.lineStyle(P(2), 0xff88ff, 0.8); ring2.strokeCircle(0, 0, R * 0.4);
+    this.tweens.add({ targets: ring2, scaleX: 3.0, scaleY: 3.0, alpha: 0, duration: 300, ease: 'Quad.Out', onComplete: () => ring2.destroy() });
+
+    // 8 道火焰粒子向外飛散
+    for (let i = 0; i < 8; i++) {
+      const a  = (i / 8) * Math.PI * 2 + Math.random() * 0.3;
+      const dist = R * (1.2 + Math.random() * 0.8);
+      const p = this.add.graphics({ x: cx, y: cy }).setDepth(57);
+      p.fillStyle(i % 2 === 0 ? 0xdd44ff : 0xff99ff, 0.9);
+      p.fillCircle(0, 0, P(2.5 + Math.random() * 1.5));
+      this.tweens.add({
+        targets: p,
+        x: cx + Math.cos(a) * dist,
+        y: cy + Math.sin(a) * dist,
+        scaleX: 0.1, scaleY: 0.1, alpha: 0,
+        duration: 300 + Math.random() * 120,
+        ease: 'Quad.Out',
+        onComplete: () => p.destroy(),
+      });
+    }
+  }
+
+  private showFreeReviveDialog(): void {
+    const W = this.scale.width, H = this.scale.height;
+    const bw = P(220), bh = P(120);
+    const bx = (W - bw) / 2, by = (H - bh) / 2;
+
+    const bg = this.add.graphics().setScrollFactor(0).setDepth(9900);
+    bg.fillStyle(0x000000, 0.75); bg.fillRect(0, 0, W, H);
+    bg.fillStyle(0x1a1a2e, 1);    bg.fillRoundedRect(bx, by, bw, bh, P(10));
+    bg.lineStyle(P(2), 0xffee44, 1); bg.strokeRoundedRect(bx, by, bw, bh, P(10));
+
+    const title = this.add.text(W / 2, by + P(22), '你陣亡了！', {
+      fontSize: F(16), fontStyle: 'bold', color: '#ffee44', stroke: '#000', strokeThickness: 2,
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(9901);
+
+    const sub = this.add.text(W / 2, by + P(44), '是否使用免費復活？（滿血復活）', {
+      fontSize: F(12), color: '#cccccc',
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(9901);
+
+    const btnW = P(80), btnH = P(30);
+    const yesX = W / 2 - P(50), noX = W / 2 + P(50);
+    const btnY  = by + P(84);
+
+    const yesBg = this.add.graphics().setScrollFactor(0).setDepth(9901);
+    yesBg.fillStyle(0x226622, 1); yesBg.fillRoundedRect(yesX - btnW/2, btnY - btnH/2, btnW, btnH, P(6));
+    const yesBtn = this.add.rectangle(yesX, btnY, btnW, btnH).setScrollFactor(0).setDepth(9902).setInteractive({ useHandCursor: true });
+    const yesTxt = this.add.text(yesX, btnY, '✔ 復活', { fontSize: F(13), color: '#88ff88', fontStyle: 'bold' }).setOrigin(0.5).setScrollFactor(0).setDepth(9903);
+
+    const noBg = this.add.graphics().setScrollFactor(0).setDepth(9901);
+    noBg.fillStyle(0x662222, 1); noBg.fillRoundedRect(noX - btnW/2, btnY - btnH/2, btnW, btnH, P(6));
+    const noBtn = this.add.rectangle(noX, btnY, btnW, btnH).setScrollFactor(0).setDepth(9902).setInteractive({ useHandCursor: true });
+    const noTxt = this.add.text(noX, btnY, '✕ 放棄', { fontSize: F(13), color: '#ff8888', fontStyle: 'bold' }).setOrigin(0.5).setScrollFactor(0).setDepth(9903);
+
+    const cleanup = () => [bg, title, sub, yesBg, yesBtn, yesTxt, noBg, noBtn, noTxt].forEach(o => o.destroy());
+
+    yesBtn.on('pointerdown', () => {
+      cleanup();
+      this._usedFreeRevive = true;
+      this.gameOver = false;
+      this.player.revive(1.0);
+      this.player.play(`player_idle_${this.player.lastDir}`);
+      // 1 秒無敵
+      this.player.divineShieldDef = 0;
+      (this.player as any).invincible = true;
+      this.time.delayedCall(1000, () => { (this.player as any).invincible = false; });
+      this.spawnDamageNumber(this.player.x, this.player.y - P(20), 0, false, 1);
+    });
+
+    noBtn.on('pointerdown', () => {
+      cleanup();
+      this.handlePlayerDead();
+    });
+  }
+
+  private triggerDivineShield(): void {
+    if (this._divineShieldTimer) this._divineShieldTimer.destroy();
+    this.player.divineShieldDef = 20;
+
+    const px = this.player.x, py = this.player.y;
+
+    // 外爆衝擊波
+    const burst = this.add.graphics({ x: px, y: py }).setDepth(30);
+    burst.lineStyle(P(4), 0xffd700, 1); burst.strokeCircle(0, 0, P(18));
+    this.tweens.add({ targets: burst, alpha: 0, scaleX: 2.5, scaleY: 2.5, duration: 400, ease: 'Cubic.Out', onComplete: () => burst.destroy() });
+
+    // 內層亮環
+    const inner = this.add.graphics({ x: px, y: py }).setDepth(30);
+    inner.lineStyle(P(2), 0xffffff, 0.9); inner.strokeCircle(0, 0, P(10));
+    this.tweens.add({ targets: inner, alpha: 0, scaleX: 1.6, scaleY: 1.6, duration: 250, ease: 'Quad.Out', onComplete: () => inner.destroy() });
+
+    // 四道放射光粒子
+    for (let i = 0; i < 8; i++) {
+      const angle = (i / 8) * Math.PI * 2;
+      const spark = this.add.graphics({ x: px, y: py }).setDepth(30);
+      spark.fillStyle(0xffd700, 1); spark.fillCircle(P(16), 0, P(2));
+      spark.setRotation(angle);
+      this.tweens.add({ targets: spark, scaleX: 0, scaleY: 0, alpha: 0, x: px + Math.cos(angle) * P(28), y: py + Math.sin(angle) * P(28), duration: 350, ease: 'Quad.Out', onComplete: () => spark.destroy() });
+    }
+
+    // 持續光圈（跟隨玩家，update 每幀重繪）
+    this._divineShieldGfx?.destroy();
+    this._divineShieldGfx = this.add.graphics().setDepth(27);
+
+    this._divineShieldTimer = this.time.delayedCall(1750, () => {
+      // 消散動畫
+      const fade = this._divineShieldGfx;
+      this._divineShieldGfx = undefined;
+      if (fade) this.tweens.add({ targets: fade, alpha: 0, duration: 300, onComplete: () => fade.destroy() });
+      this.player.divineShieldDef = 0;
+    });
+  }
+
+  private trySummonAllyFlower(): void {
+    const ALLY_CAP = 3;
+
+    // 上限：移除最舊的友軍
+    if (this._allyMinions.length >= ALLY_CAP) {
+      const oldest = this._allyMinions.shift()!;
+      oldest.onDead = undefined;
+      this._allyGroup.remove(oldest, false, false);
+      oldest.forceKill();
+    }
+
+    const star  = this.questStar ?? 1;
+    const pool  = star >= 3
+      ? ['elite_plant1', 'elite_plant2', 'elite_plant3']
+      : ['plant1_s', 'plant2_s', 'plant3_s'];
+    const defId   = pool[Math.floor(Math.random() * pool.length)];
+    const angle   = Math.random() * Math.PI * 2;
+    const dist    = P(Phaser.Math.Between(40, 70));
+    const ax      = this.player.x + Math.cos(angle) * dist;
+    const ay      = this.player.y + Math.sin(angle) * dist;
+    const isElite = defId.startsWith('elite_');
+    const ally    = this.spawnMinionAtForBoss(defId, ax / DPR, ay / DPR, isElite);
+    if (!ally) return;
+
+    this._allyMinions.push(ally);
+    this._allyGroup.add(ally);
+    ally.setTint(0x88ffcc);  // 友軍綠色標示
+
+    // 追擊最近的敵方單位
+    ally.getTargetPos = () => {
+      let nearest: MinionSlime | null = null;
+      let minD = Infinity;
+      for (const m of this.allMinions) {
+        if (m.isDead || this._allyMinions.includes(m)) continue;
+        const d = Phaser.Math.Distance.Between(ally.x, ally.y, m.x, m.y);
+        if (d < minD) { minD = d; nearest = m; }
+      }
+      if (nearest) return [nearest.x, nearest.y];
+      if (this.bossActive && this.boss.active) return [this.boss.x, this.boss.y];
+      return [ally.x, ally.y];
+    };
+
+    // 友軍死亡時從陣列移除
+    const origOnDead = ally.onDead;
+    ally.onDead = () => {
+      const i = this._allyMinions.indexOf(ally);
+      if (i !== -1) this._allyMinions.splice(i, 1);
+      this._allyGroup.remove(ally, false, false);
+      origOnDead?.();
+    };
+  }
+
+  // ══════════════════════════════════════════════════════════════
 
   private getAttackTarget(): { x: number; y: number } {
     let nearest: { x: number; y: number } | null = null;
@@ -819,6 +1256,41 @@ export class GameScene extends Phaser.Scene {
     for (const m of this.allMinions) {
       if (!m.isDead) m.setDepth(m.y + 16);
     }
+
+    this.updateOrbitBalls(this.game.loop.delta);
+    this.updatePlayerKnives(this.game.loop.delta);
+
+    if (this._divineShieldGfx && this.player.active) {
+      const g = this._divineShieldGfx;
+      g.setPosition(this.player.x, this.player.y).clear();
+      const t  = this.time.now / 1000;
+      const pulse = P(24) + Math.sin(t * 5) * P(2);
+
+      // 填充光暈
+      g.fillStyle(0xffd700, 0.07 + Math.sin(t * 5) * 0.03);
+      g.fillCircle(0, 0, pulse);
+
+      // 外圈（粗，主色）
+      g.lineStyle(P(2.5), 0xffd700, 0.85 + Math.sin(t * 5) * 0.12);
+      g.strokeCircle(0, 0, pulse);
+
+      // 內圈（細，白色）
+      g.lineStyle(P(1), 0xffffff, 0.45);
+      g.strokeCircle(0, 0, pulse - P(4));
+
+      // 六道旋轉短弧（鑽石感）
+      const spokeCount = 6;
+      const rotOffset  = t * 1.2;
+      for (let i = 0; i < spokeCount; i++) {
+        const a = rotOffset + (i / spokeCount) * Math.PI * 2;
+        const x1 = Math.cos(a) * (pulse - P(7));
+        const y1 = Math.sin(a) * (pulse - P(7));
+        const x2 = Math.cos(a) * (pulse + P(3));
+        const y2 = Math.sin(a) * (pulse + P(3));
+        g.lineStyle(P(1.5), 0xffe066, 0.7);
+        g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2, y2); g.strokePath();
+      }
+    }
   }
 
   // ── Attack dispatcher ────────────────────────────────────
@@ -841,7 +1313,7 @@ export class GameScene extends Phaser.Scene {
   // ── Unified damage helpers ────────────────────────────────
 
   private getHittableTargets(): Array<MinionSlime | Boss> {
-    const out: Array<MinionSlime | Boss> = this.allMinions.filter(m => !m.isDead) as Array<MinionSlime | Boss>;
+    const out: Array<MinionSlime | Boss> = this.allMinions.filter(m => !m.isDead && !this._allyMinions.includes(m)) as Array<MinionSlime | Boss>;
     if (this.bossActive && this.boss.active) out.push(this.boss);
     return out;
   }
@@ -873,7 +1345,14 @@ export class GameScene extends Phaser.Scene {
     const allMult = 1 + (stats.allDmgPct ?? 0);
     const dmg = Math.round(stats.atk * Phaser.Math.FloatBetween(0.85, 1.15) * dmgMult * (isCrit ? (1 + stats.critDmg) : 1) * elemMult * targetMult * allMult);
     const pen = isBoss ? stats.penetration : 0;
-    target.takeDamage(dmg, pen);
+
+    let overkill = 0;
+    if (!isBoss) {
+      overkill = (target as MinionSlime).takeDamage(dmg);
+    } else {
+      target.takeDamage(dmg, pen);
+    }
+
     target.knockback(srcX, srcY);
     const displayDmg = isBoss ? Math.round(dmg * this.boss.dmgDisplayMult) : dmg;
     if (stats.lifesteal > 0) this.player.heal(Math.round(displayDmg * stats.lifesteal));
@@ -881,6 +1360,24 @@ export class GameScene extends Phaser.Scene {
     if (NetworkService.connected) {
       if (isBoss) NetworkService.sendBossHit(dmg);
       else NetworkService.sendMinionHit((target as MinionSlime).minionId, dmg);
+    }
+
+    // 溢出傷害 AOE
+    if ((stats.overkillSplash ?? 0) > 0 && overkill > 0) {
+      this.overkillSplash(target.x, target.y, overkill);
+    }
+
+    // 神盾護體觸發（每次攻擊動作只判定一次，300ms 鎖避免多目標重複判）
+    const shieldChance = stats.divineShieldChance ?? 0;
+    if (shieldChance > 0 && this.time.now > this._divineShieldRollUntil) {
+      this._divineShieldRollUntil = this.time.now + 300;
+      if (Math.random() < shieldChance) this.triggerDivineShield();
+    }
+
+    // 召喚友軍花怪觸發
+    const summonChance = stats.summonFlowerChance ?? 0;
+    if (summonChance > 0 && Math.random() < summonChance) {
+      this.trySummonAllyFlower();
     }
   }
 
@@ -1708,12 +2205,22 @@ export class GameScene extends Phaser.Scene {
   }
 
   private nearestTargetPos(fromX: number, fromY: number): [number, number] {
+    let best: [number, number] = [this.player.x, this.player.y];
+    let bestDist = Phaser.Math.Distance.Between(fromX, fromY, this.player.x, this.player.y);
+
     if (NetworkService.connected && NetworkService.isHost && this.partnerSprite?.active) {
-      const dp = Phaser.Math.Distance.Between(fromX, fromY, this.player.x, this.player.y);
       const dg = Phaser.Math.Distance.Between(fromX, fromY, this.partnerSprite.x, this.partnerSprite.y);
-      return dp <= dg ? [this.player.x, this.player.y] : [this.partnerSprite.x, this.partnerSprite.y];
+      if (dg < bestDist) { bestDist = dg; best = [this.partnerSprite.x, this.partnerSprite.y]; }
     }
-    return [this.player.x, this.player.y];
+
+    // 友軍花怪也納入敵人的追擊目標
+    for (const ally of this._allyMinions) {
+      if (ally.isDead) continue;
+      const d = Phaser.Math.Distance.Between(fromX, fromY, ally.x, ally.y);
+      if (d < bestDist) { bestDist = d; best = [ally.x, ally.y]; }
+    }
+
+    return best;
   }
 
   private createBoss(bossDef: MonsterDef, totalHp: number): Boss {
@@ -2580,6 +3087,11 @@ export class GameScene extends Phaser.Scene {
   }
 
   private handlePlayerDead(): void {
+    const stats = CardStore.getTotalStats();
+    if (!this._usedFreeRevive && (stats.freeRevive ?? 0) > 0) {
+      this.showFreeReviveDialog();
+      return;
+    }
     this.gameOver = true;
     this.player.setActive(false);
     this.player.stop();

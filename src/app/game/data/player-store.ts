@@ -51,6 +51,15 @@ export interface EffectiveStats {
   dropRateMult?: number;
   // ── 條件 DoT ──
   condDotStackBonus?: number;
+  // ── 特殊機制（卡片觸發效果）──
+  orbitFireBalls?:      number;
+  orbitIceBalls?:       number;
+  periodicKnives?:      number;
+  overkillSplash?:      number;
+  lightningStrike?:     number;
+  divineShieldChance?:  number;
+  summonFlowerChance?:  number;
+  freeRevive?:          number;
 }
 
 type EquippedMap = { [K in EquipSlot]: EquipmentItem | null };

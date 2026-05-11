@@ -136,6 +136,14 @@ export const CardStore = {
       b.takenDmgPct          = (b.takenDmgPct          ?? 0) + (e.takenDmgPct          ?? 0);
       b.dropRateMult         = (b.dropRateMult         ?? 0) + (e.dropRateMult         ?? 0);
       b.condDotStackBonus    = (b.condDotStackBonus    ?? 0) + (e.condDotStackBonus    ?? 0);
+      b.orbitFireBalls       = (b.orbitFireBalls       ?? 0) + (e.orbitFireBalls       ?? 0);
+      b.orbitIceBalls        = (b.orbitIceBalls        ?? 0) + (e.orbitIceBalls        ?? 0);
+      b.periodicKnives       = (b.periodicKnives       ?? 0) + (e.periodicKnives       ?? 0);
+      b.overkillSplash       = (b.overkillSplash       ?? 0) + (e.overkillSplash       ?? 0);
+      b.lightningStrike      = (b.lightningStrike      ?? 0) + (e.lightningStrike      ?? 0);
+      b.divineShieldChance   = (b.divineShieldChance   ?? 0) + (e.divineShieldChance   ?? 0);
+      b.summonFlowerChance   = (b.summonFlowerChance   ?? 0) + (e.summonFlowerChance   ?? 0);
+      b.freeRevive           = (b.freeRevive           ?? 0) + (e.freeRevive           ?? 0);
     }
     return b;
   },
@@ -197,6 +205,14 @@ export const CardStore = {
       takenDmgPct:          bonus.takenDmgPct,
       dropRateMult:         bonus.dropRateMult || 1,
       condDotStackBonus:    bonus.condDotStackBonus,
+      orbitFireBalls:       bonus.orbitFireBalls,
+      orbitIceBalls:        bonus.orbitIceBalls,
+      periodicKnives:       bonus.periodicKnives,
+      overkillSplash:       bonus.overkillSplash,
+      lightningStrike:      bonus.lightningStrike,
+      divineShieldChance:   bonus.divineShieldChance,
+      summonFlowerChance:   bonus.summonFlowerChance,
+      freeRevive:           bonus.freeRevive,
     };
   },
 
