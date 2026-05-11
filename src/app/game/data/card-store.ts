@@ -121,14 +121,21 @@ export const CardStore = {
       b.dmgVsSlime       = (b.dmgVsSlime       ?? 0) + (e.dmgVsSlime       ?? 0);
       b.dmgVsBoss        = (b.dmgVsBoss        ?? 0) + (e.dmgVsBoss        ?? 0);
       b.whirlwindRangePct    = (b.whirlwindRangePct    ?? 0) + (e.whirlwindRangePct    ?? 0);
+      b.whirlwindDmgPct      = (b.whirlwindDmgPct      ?? 0) + (e.whirlwindDmgPct      ?? 0);
       b.slash180DmgPct       = (b.slash180DmgPct       ?? 0) + (e.slash180DmgPct       ?? 0);
       b.burnMaxStackBonus    = (b.burnMaxStackBonus    ?? 0) + (e.burnMaxStackBonus    ?? 0);
       b.dashDistBonus        = (b.dashDistBonus        ?? 0) + (e.dashDistBonus        ?? 0);
+      b.dashDmgPct           = (b.dashDmgPct           ?? 0) + (e.dashDmgPct           ?? 0);
       b.multiHitNoStagger    = (b.multiHitNoStagger    ?? 0) + (e.multiHitNoStagger    ?? 0);
+      b.multiHitDmgPct       = (b.multiHitDmgPct       ?? 0) + (e.multiHitDmgPct       ?? 0);
       b.chargeSlamStunChance = (b.chargeSlamStunChance ?? 0) + (e.chargeSlamStunChance ?? 0);
+      b.chargeSlamDmgPct     = (b.chargeSlamDmgPct     ?? 0) + (e.chargeSlamDmgPct     ?? 0);
       b.boomerangRangePct    = (b.boomerangRangePct    ?? 0) + (e.boomerangRangePct    ?? 0);
+      b.boomerangDmgPct      = (b.boomerangDmgPct      ?? 0) + (e.boomerangDmgPct      ?? 0);
       b.auraRadiusPct        = (b.auraRadiusPct        ?? 0) + (e.auraRadiusPct        ?? 0);
+      b.auraDmgPct           = (b.auraDmgPct           ?? 0) + (e.auraDmgPct           ?? 0);
       b.projectileDistBonus  = (b.projectileDistBonus  ?? 0) + (e.projectileDistBonus  ?? 0);
+      b.projectileDmgPct     = (b.projectileDmgPct     ?? 0) + (e.projectileDmgPct     ?? 0);
       b.condCritDmgBonus     = (b.condCritDmgBonus     ?? 0) + (e.condCritDmgBonus     ?? 0);
       b.condPenAtk           = (b.condPenAtk           ?? 0) + (e.condPenAtk           ?? 0);
       b.condHpPct            = (b.condHpPct            ?? 0) + (e.condHpPct            ?? 0);
@@ -138,12 +145,21 @@ export const CardStore = {
       b.condDotStackBonus    = (b.condDotStackBonus    ?? 0) + (e.condDotStackBonus    ?? 0);
       b.orbitFireBalls       = (b.orbitFireBalls       ?? 0) + (e.orbitFireBalls       ?? 0);
       b.orbitIceBalls        = (b.orbitIceBalls        ?? 0) + (e.orbitIceBalls        ?? 0);
+      b.orbitBallDmgPct      = (b.orbitBallDmgPct      ?? 0) + (e.orbitBallDmgPct      ?? 0);
       b.periodicKnives       = (b.periodicKnives       ?? 0) + (e.periodicKnives       ?? 0);
       b.overkillSplash       = (b.overkillSplash       ?? 0) + (e.overkillSplash       ?? 0);
       b.lightningStrike      = (b.lightningStrike      ?? 0) + (e.lightningStrike      ?? 0);
+      b.onHitLightningChance = (b.onHitLightningChance ?? 0) + (e.onHitLightningChance ?? 0);
+      b.lightningDmgBonus    = (b.lightningDmgBonus    ?? 0) + (e.lightningDmgBonus    ?? 0);
       b.divineShieldChance   = (b.divineShieldChance   ?? 0) + (e.divineShieldChance   ?? 0);
+      b.infiniteDivineShield = (b.infiniteDivineShield ?? 0) + (e.infiniteDivineShield ?? 0);
       b.summonFlowerChance   = (b.summonFlowerChance   ?? 0) + (e.summonFlowerChance   ?? 0);
+      b.flowerSummonMode     = (b.flowerSummonMode     ?? 0) + (e.flowerSummonMode     ?? 0);
+      b.lavaSlimeCompanion   = (b.lavaSlimeCompanion   ?? 0) + (e.lavaSlimeCompanion   ?? 0);
       b.freeRevive           = (b.freeRevive           ?? 0) + (e.freeRevive           ?? 0);
+      b.maxHpPct             = (b.maxHpPct             ?? 0) + (e.maxHpPct             ?? 0);
+      b.weaponRefineAtk      = (b.weaponRefineAtk      ?? 0) + (e.weaponRefineAtk      ?? 0);
+      b.weaponRefineHp       = (b.weaponRefineHp       ?? 0) + (e.weaponRefineHp       ?? 0);
     }
     return b;
   },
@@ -158,9 +174,14 @@ export const CardStore = {
     const MELEE_BEHAVIORS = ['slash180', 'whirlwind', 'dashPierce', 'aura', 'multiHit', 'chargeSlam'];
     const meleeDef = (sword?.behavior && MELEE_BEHAVIORS.includes(sword.behavior)) ? 25 : 0;
 
+    // 精煉加成（每+2精煉 ATK/HP+X）
+    const refineSteps = Math.floor(swordEnh / 2);
+    const refineAtk   = refineSteps * (bonus.weaponRefineAtk ?? 0);
+    const refineHp    = refineSteps * (bonus.weaponRefineHp  ?? 0);
+
     // 先算出中間值，用於條件判斷
-    const flatAtk  = base.atk   + (bonus.atk ?? 0) + (enh8 ? (bonus.weaponEnhance8Atk ?? 0) : 0);
-    const flatHp   = base.maxHp + (bonus.hp  ?? 0) + (enh8 ? (bonus.weaponEnhance8Hp  ?? 0) : 0);
+    const flatAtk  = base.atk   + (bonus.atk ?? 0) + (enh8 ? (bonus.weaponEnhance8Atk ?? 0) : 0) + refineAtk;
+    const flatHp   = base.maxHp + (bonus.hp  ?? 0) + (enh8 ? (bonus.weaponEnhance8Hp  ?? 0) : 0) + refineHp;
     const flatPen  = base.penetration + (bonus.penetration ?? 0);
     const flatCrit = Math.min(base.crit + (bonus.crit ?? 0), 1);
     const flatCritDmg = base.critDmg + (bonus.critDmg ?? 0);
@@ -172,7 +193,7 @@ export const CardStore = {
 
     return {
       atk:         Math.round((flatAtk + condAtk) * (1 + (bonus.atkPct ?? 0))),
-      maxHp:       Math.round(flatHp * (1 + (bonus.hpPct ?? 0) + condHpPct)),
+      maxHp:       Math.round(flatHp * (1 + (bonus.hpPct ?? 0) + condHpPct + (bonus.maxHpPct ?? 0))),
       def:         Math.round((base.def + (bonus.def ?? 0) + meleeDef) * (1 + (bonus.defPct ?? 0))),
       speed:       base.speed     + (bonus.speed    ?? 0),
       crit:        flatCrit,
@@ -193,26 +214,42 @@ export const CardStore = {
       dmgVsSlime:       bonus.dmgVsSlime,
       dmgVsBoss:        bonus.dmgVsBoss,
       whirlwindRangePct:    bonus.whirlwindRangePct,
+      whirlwindDmgPct:      bonus.whirlwindDmgPct,
       slash180DmgPct:       bonus.slash180DmgPct,
       burnMaxStackBonus:    bonus.burnMaxStackBonus,
       dashDistBonus:        bonus.dashDistBonus,
+      dashDmgPct:           bonus.dashDmgPct,
       multiHitNoStagger:    bonus.multiHitNoStagger,
+      multiHitDmgPct:       bonus.multiHitDmgPct,
       chargeSlamStunChance: bonus.chargeSlamStunChance,
+      chargeSlamDmgPct:     bonus.chargeSlamDmgPct,
       boomerangRangePct:    bonus.boomerangRangePct,
+      boomerangDmgPct:      bonus.boomerangDmgPct,
       auraRadiusPct:        bonus.auraRadiusPct,
+      auraDmgPct:           bonus.auraDmgPct,
       projectileDistBonus:  bonus.projectileDistBonus,
+      projectileDmgPct:     bonus.projectileDmgPct,
       allDmgPct:            bonus.allDmgPct,
       takenDmgPct:          bonus.takenDmgPct,
       dropRateMult:         bonus.dropRateMult || 1,
       condDotStackBonus:    bonus.condDotStackBonus,
       orbitFireBalls:       bonus.orbitFireBalls,
       orbitIceBalls:        bonus.orbitIceBalls,
+      orbitBallDmgPct:      bonus.orbitBallDmgPct,
       periodicKnives:       bonus.periodicKnives,
       overkillSplash:       bonus.overkillSplash,
       lightningStrike:      bonus.lightningStrike,
+      onHitLightningChance: bonus.onHitLightningChance,
+      lightningDmgBonus:    bonus.lightningDmgBonus,
       divineShieldChance:   bonus.divineShieldChance,
+      infiniteDivineShield: bonus.infiniteDivineShield,
       summonFlowerChance:   bonus.summonFlowerChance,
+      flowerSummonMode:     bonus.flowerSummonMode,
+      lavaSlimeCompanion:   bonus.lavaSlimeCompanion,
       freeRevive:           bonus.freeRevive,
+      maxHpPct:             bonus.maxHpPct,
+      weaponRefineAtk:      bonus.weaponRefineAtk,
+      weaponRefineHp:       bonus.weaponRefineHp,
     };
   },
 

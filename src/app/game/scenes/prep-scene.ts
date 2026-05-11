@@ -150,6 +150,38 @@ export class PrepScene extends Phaser.Scene {
       'card_elite_plant3_a',        // 免費復活
     ];
     _TEST_ELITE_CARDS.forEach(id => CardStore.addCard(id, 2));
+
+    // ── TEST ONLY: 所有王卡 ×1 加入背包 ──────────────────────────────────────
+    const _TEST_BOSS_CARDS = [
+      'card_boss_slime_green_a',    // 吸血+5%
+      'card_boss_slime_green_b',    // HP+15%條件
+      'card_boss_slime_green_c',    // 旋轉球傷害+100%
+      'card_boss_slime_red_a',      // 爆擊率+25%
+      'card_boss_slime_red_b',      // 爆擊傷害+20%條件
+      'card_boss_slime_red_c',      // 五連斬無僵直+傷害
+      'card_boss_slime_blue_a',     // 瞬步斬距離+傷害
+      'card_boss_slime_blue_b',     // 風刃距離+傷害
+      'card_boss_slime_blue_c',     // 移動速度+50/HP-20%
+      'card_boss_slime_white_a',    // 掉落率×1.5
+      'card_boss_slime_white_b',    // 半月斬傷害+30%
+      'card_boss_slime_white_c',    // HP+30精煉加血
+      'card_boss_zombie_slime_a',   // 玻璃砲+50%/+40%
+      'card_boss_zombie_slime_b',   // 燃燒DOT條件
+      'card_boss_zombie_slime_c',   // 燃燒上限+5
+      'card_boss_lava_slime_a',     // 攻擊力+15穿甲條件
+      'card_boss_lava_slime_b',     // 攻擊觸發落雷
+      'card_boss_lava_slime_c',     // 蓄力重擊暈眩+傷害
+      'card_boss_flower_one_a',     // ATK+4精煉加攻
+      'card_boss_flower_one_b',     // 旋風斬範圍+傷害
+      'card_boss_flower_one_c',     // 迴旋飛刃範圍+傷害
+      'card_boss_flower_two_a',     // 召喚花怪攻擊模式
+      'card_boss_flower_two_b',     // 血環範圍+傷害
+      'card_boss_flower_two_c',     // 對Boss/菁英傷害+25%
+      'card_boss_flower_three_a',   // 閃避率+40%
+      'card_boss_flower_three_b',   // 無限神盾護體
+      'card_boss_flower_three_c',   // 岩漿史萊姆夥伴
+    ];
+    _TEST_BOSS_CARDS.forEach(id => CardStore.addCard(id, 1));
     // ── END TEST ──────────────────────────────────────────────────────────────
 
     this.generateItemIcons();

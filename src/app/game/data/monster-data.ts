@@ -396,22 +396,22 @@ export const CARD_DEFS: CardDef[] = [
   // 綠史萊姆王：防禦特化 / 條件HP / 條件ATK
   { id: 'card_boss_slime_green_a', name: '綠史萊姆王卡片(A)', monsterId: 'boss_slime_green', element: 'none', tint: 0x44cc44, effect: { lifesteal: 0.05 }, desc: '吸血 +5%' },
   { id: 'card_boss_slime_green_b', name: '綠史萊姆王卡片(B)', monsterId: 'boss_slime_green', element: 'none', tint: 0x44cc44, effect: { hpPct: 0.15, condHpPct: 0.15 }, desc: 'HP +15%；最大HP≥800時，HP再 +15%' },
-  { id: 'card_boss_slime_green_c', name: '綠史萊姆王卡片(C)', monsterId: 'boss_slime_green', element: 'none', tint: 0x44cc44, effect: { atk: 15, condPenAtk: 30 }, desc: '攻擊力 +15；穿甲≥100時，攻擊力再 +30' },
+  { id: 'card_boss_slime_green_c', name: '綠史萊姆王卡片(C)', monsterId: 'boss_slime_green', element: 'none', tint: 0x44cc44, effect: { orbitBallDmgPct: 1.00 }, desc: '旋轉球（火球/冰球）傷害 +100%' },
 
   // 紅史萊姆王：爆擊特化 / 條件爆傷 / 半月斬
   { id: 'card_boss_slime_red_a', name: '紅史萊姆王卡片(A)', monsterId: 'boss_slime_red', element: 'none', tint: 0xff5522, effect: { crit: 0.25 }, desc: '爆擊機率 +25%' },
   { id: 'card_boss_slime_red_b', name: '紅史萊姆王卡片(B)', monsterId: 'boss_slime_red', element: 'none', tint: 0xff5522, effect: { critDmg: 0.20, condCritDmgBonus: 0.20 }, desc: '爆擊傷害 +20%；爆擊率≥50%時，爆擊傷害再 +20%' },
-  { id: 'card_boss_slime_red_c', name: '紅史萊姆王卡片(C)', monsterId: 'boss_slime_red', element: 'none', tint: 0xff5522, effect: { slash180DmgPct: 0.30 }, desc: '半月斬傷害 +30%' },
+  { id: 'card_boss_slime_red_c', name: '紅史萊姆王卡片(C)', monsterId: 'boss_slime_red', element: 'none', tint: 0xff5522, effect: { multiHitNoStagger: 1, multiHitDmgPct: 0.25 }, desc: '五連斬不再有僵直，五連斬傷害 +25%' },
 
   // 藍史萊姆王：瞬步斬 / 風刃 / 旋風斬
   { id: 'card_boss_slime_blue_a', name: '藍史萊姆王卡片(A)', monsterId: 'boss_slime_blue', element: 'none', tint: 0x44aaff, effect: { dashDistBonus: 45, dashDmgPct: 0.30 }, desc: '瞬步斬距離 +45，瞬步斬傷害 +30%' },
   { id: 'card_boss_slime_blue_b', name: '藍史萊姆王卡片(B)', monsterId: 'boss_slime_blue', element: 'none', tint: 0x44aaff, effect: { projectileDistBonus: 50, projectileDmgPct: 0.20 }, desc: '風刃距離 +50，風刃傷害 +20%' },
-  { id: 'card_boss_slime_blue_c', name: '藍史萊姆王卡片(C)', monsterId: 'boss_slime_blue', element: 'none', tint: 0x44aaff, effect: { whirlwindRangePct: 0.30, whirlwindDmgPct: 0.30 }, desc: '旋風斬攻擊範圍 +30%，旋風斬傷害 +30%' },
+  { id: 'card_boss_slime_blue_c', name: '藍史萊姆王卡片(C)', monsterId: 'boss_slime_blue', element: 'none', tint: 0x44aaff, effect: { speed: 50, maxHpPct: -0.20 }, desc: '移動速度 +50，最大HP -20%' },
 
   // 白史萊姆王：掉落率 / 迴旋飛刃 / 血環
   { id: 'card_boss_slime_white_a', name: '白史萊姆王卡片(A)', monsterId: 'boss_slime_white', element: 'none', tint: 0xaaaaaa, effect: { dropRateMult: 1.5 }, desc: '掉落率 ×1.5' },
-  { id: 'card_boss_slime_white_b', name: '白史萊姆王卡片(B)', monsterId: 'boss_slime_white', element: 'none', tint: 0xaaaaaa, effect: { boomerangRangePct: 0.30, boomerangDmgPct: 0.20 }, desc: '迴旋飛刃命中範圍 +30%，迴旋飛刃傷害 +20%' },
-  { id: 'card_boss_slime_white_c', name: '白史萊姆王卡片(C)', monsterId: 'boss_slime_white', element: 'none', tint: 0xaaaaaa, effect: { auraRadiusPct: 0.40, auraDmgPct: 0.30 }, desc: '血環範圍 +40%，血環傷害 +30%' },
+  { id: 'card_boss_slime_white_b', name: '白史萊姆王卡片(B)', monsterId: 'boss_slime_white', element: 'none', tint: 0xaaaaaa, effect: { slash180DmgPct: 0.30 }, desc: '半月斬傷害 +30%' },
+  { id: 'card_boss_slime_white_c', name: '白史萊姆王卡片(C)', monsterId: 'boss_slime_white', element: 'none', tint: 0xaaaaaa, effect: { hp: 30, weaponRefineHp: 30 }, desc: 'HP +30；武器每精煉 +2，HP再 +30' },
 
   // 殭屍史萊姆王：玻璃砲 / 條件DoT / 燃燒上限
   { id: 'card_boss_zombie_slime_a', name: '殭屍史萊姆王卡片(A)', monsterId: 'boss_zombie_slime', element: 'none', tint: 0x88aa44, effect: { allDmgPct: 0.50, takenDmgPct: 0.40 }, desc: '所有傷害 +50%（不含燃燒）、受到傷害 +40%' },
@@ -419,24 +419,24 @@ export const CARD_DEFS: CardDef[] = [
   { id: 'card_boss_zombie_slime_c', name: '殭屍史萊姆王卡片(C)', monsterId: 'boss_zombie_slime', element: 'none', tint: 0x88aa44, effect: { burnMaxStackBonus: 5 }, desc: '燃燒上限 +5層' },
 
   // 熔岩史萊姆王：Boss傷害 / 五連斬無僵直 / 蓄力暈眩
-  { id: 'card_boss_lava_slime_a', name: '熔岩史萊姆王卡片(A)', monsterId: 'boss_lava_slime', element: 'none', tint: 0xff6622, effect: { dmgVsEliteOrBoss: 0.25 }, desc: '對Boss/菁英傷害 +25%' },
-  { id: 'card_boss_lava_slime_b', name: '熔岩史萊姆王卡片(B)', monsterId: 'boss_lava_slime', element: 'none', tint: 0xff6622, effect: { multiHitNoStagger: 1, multiHitDmgPct: 0.25 }, desc: '五連斬不再有僵直，五連斬傷害 +25%' },
+  { id: 'card_boss_lava_slime_a', name: '熔岩史萊姆王卡片(A)', monsterId: 'boss_lava_slime', element: 'none', tint: 0xff6622, effect: { atk: 15, condPenAtk: 30 }, desc: '攻擊力 +15；穿甲≥100時，攻擊力再 +30' },
+  { id: 'card_boss_lava_slime_b', name: '熔岩史萊姆王卡片(B)', monsterId: 'boss_lava_slime', element: 'none', tint: 0xff6622, effect: { onHitLightningChance: 0.50, lightningDmgBonus: 0.40 }, desc: '攻擊有50%機率對隨機敵人落雷（ATK×50%），落雷傷害 +40%' },
   { id: 'card_boss_lava_slime_c', name: '熔岩史萊姆王卡片(C)', monsterId: 'boss_lava_slime', element: 'none', tint: 0xff6622, effect: { chargeSlamStunChance: 0.50, chargeSlamDmgPct: 0.25 }, desc: '蓄力重擊有50%機率造成暈眩2秒，蓄力重擊傷害 +25%' },
 
   // 食人花王：彈幕特化
   { id: 'card_boss_flower_one_a', name: '食人花王卡片(A)', monsterId: 'boss_flower_one', element: 'none', tint: 0xff88cc, effect: { atk: 4, weaponRefineAtk: 4 }, desc: 'ATK +4；武器每精煉 +2，ATK再 +4' },
-  { id: 'card_boss_flower_one_b', name: '食人花王卡片(B)', monsterId: 'boss_flower_one', element: 'none', tint: 0xff88cc, effect: { onHitLightningChance: 0.50, lightningDmgBonus: 0.40 }, desc: '攻擊有50%機率對隨機敵人落雷（ATK×50%），落雷傷害 +40%' },
-  { id: 'card_boss_flower_one_c', name: '食人花王卡片(C)', monsterId: 'boss_flower_one', element: 'none', tint: 0xff88cc, effect: { orbitBallDmgPct: 1.00 }, desc: '旋轉球（火球/冰球）傷害 +100%' },
+  { id: 'card_boss_flower_one_b', name: '食人花王卡片(B)', monsterId: 'boss_flower_one', element: 'none', tint: 0xff88cc, effect: { whirlwindRangePct: 0.30, whirlwindDmgPct: 0.30 }, desc: '旋風斬攻擊範圍 +30%，旋風斬傷害 +30%' },
+  { id: 'card_boss_flower_one_c', name: '食人花王卡片(C)', monsterId: 'boss_flower_one', element: 'none', tint: 0xff88cc, effect: { boomerangRangePct: 0.30, boomerangDmgPct: 0.20 }, desc: '迴旋飛刃命中範圍 +30%，迴旋飛刃傷害 +20%' },
 
   // 藤蔓花王：陷阱特化
   { id: 'card_boss_flower_two_a', name: '藤蔓花王卡片(A)', monsterId: 'boss_flower_two', element: 'none', tint: 0x66ff88, effect: { flowerSummonMode: 1 }, desc: '取消原本攻擊模式，改為召喚花怪攻擊（最多3隻，CD 1.5s，ATK×60%，HP×100%）' },
-  { id: 'card_boss_flower_two_b', name: '藤蔓花王卡片(B)', monsterId: 'boss_flower_two', element: 'none', tint: 0x66ff88, effect: { lavaSlimeCompanion: 1 }, desc: '召喚岩漿史萊姆夥伴（HP×120%、ATK×70%、40px巡邏、100px追擊，死亡8秒後重生）' },
-  { id: 'card_boss_flower_two_c', name: '藤蔓花王卡片(C)', monsterId: 'boss_flower_two', element: 'none', tint: 0x66ff88, effect: { hp: 30, weaponRefineHp: 30 }, desc: 'HP +30；武器每精煉 +2，HP再 +30' },
+  { id: 'card_boss_flower_two_b', name: '藤蔓花王卡片(B)', monsterId: 'boss_flower_two', element: 'none', tint: 0x66ff88, effect: { auraRadiusPct: 0.40, auraDmgPct: 0.30 }, desc: '血環範圍 +40%，血環傷害 +30%' },
+  { id: 'card_boss_flower_two_c', name: '藤蔓花王卡片(C)', monsterId: 'boss_flower_two', element: 'none', tint: 0x66ff88, effect: { dmgVsEliteOrBoss: 0.25 }, desc: '對Boss/菁英傷害 +25%' },
 
   // 不死花王：召喚/生存特化
   { id: 'card_boss_flower_three_a', name: '不死花王卡片(A)', monsterId: 'boss_flower_three', element: 'none', tint: 0xffaa44, effect: { evasion: 0.40 }, desc: '閃避率 +40%' },
   { id: 'card_boss_flower_three_b', name: '不死花王卡片(B)', monsterId: 'boss_flower_three', element: 'none', tint: 0xffaa44, effect: { infiniteDivineShield: 1 }, desc: '無限神盾護體（DEF+20，永久持續）' },
-  { id: 'card_boss_flower_three_c', name: '不死花王卡片(C)', monsterId: 'boss_flower_three', element: 'none', tint: 0xffaa44, effect: { speed: 50, maxHpPct: -0.20 }, desc: '移動速度 +50，最大HP -20%' },
+  { id: 'card_boss_flower_three_c', name: '不死花王卡片(C)', monsterId: 'boss_flower_three', element: 'none', tint: 0xffaa44, effect: { lavaSlimeCompanion: 1 }, desc: '召喚岩漿史萊姆夥伴（HP×120%、ATK×70%、40px巡邏、100px追擊，死亡8秒後重生）' },
 ];
 
 // ── Helpers ────────────────────────────────────────────────────────────────

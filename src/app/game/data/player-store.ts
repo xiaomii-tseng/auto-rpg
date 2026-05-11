@@ -36,14 +36,21 @@ export interface EffectiveStats {
   dmgVsBoss?:        number;
   // ── 技能特化 ──
   whirlwindRangePct?:    number;
+  whirlwindDmgPct?:      number;
   slash180DmgPct?:       number;
   burnMaxStackBonus?:    number;
   dashDistBonus?:        number;
+  dashDmgPct?:           number;
   multiHitNoStagger?:    number;
+  multiHitDmgPct?:       number;
   chargeSlamStunChance?: number;
+  chargeSlamDmgPct?:     number;
   boomerangRangePct?:    number;
+  boomerangDmgPct?:      number;
   auraRadiusPct?:        number;
+  auraDmgPct?:           number;
   projectileDistBonus?:  number;
+  projectileDmgPct?:     number;
   // ── 玻璃砲 ──
   allDmgPct?:    number;
   takenDmgPct?:  number;
@@ -52,14 +59,23 @@ export interface EffectiveStats {
   // ── 條件 DoT ──
   condDotStackBonus?: number;
   // ── 特殊機制（卡片觸發效果）──
-  orbitFireBalls?:      number;
-  orbitIceBalls?:       number;
-  periodicKnives?:      number;
-  overkillSplash?:      number;
-  lightningStrike?:     number;
-  divineShieldChance?:  number;
-  summonFlowerChance?:  number;
-  freeRevive?:          number;
+  orbitFireBalls?:       number;
+  orbitIceBalls?:        number;
+  orbitBallDmgPct?:      number;
+  periodicKnives?:       number;
+  overkillSplash?:       number;
+  lightningStrike?:      number;
+  onHitLightningChance?: number;
+  lightningDmgBonus?:    number;
+  divineShieldChance?:   number;
+  infiniteDivineShield?: number;
+  summonFlowerChance?:   number;
+  flowerSummonMode?:     number;
+  lavaSlimeCompanion?:   number;
+  freeRevive?:           number;
+  maxHpPct?:             number;
+  weaponRefineAtk?:      number;
+  weaponRefineHp?:       number;
 }
 
 type EquippedMap = { [K in EquipSlot]: EquipmentItem | null };

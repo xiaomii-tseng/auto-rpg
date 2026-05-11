@@ -87,6 +87,7 @@ export class GameScene extends Phaser.Scene {
   private _divineShieldTimer?: Phaser.Time.TimerEvent;
   private _divineShieldGfx?: Phaser.GameObjects.Graphics;
   private _divineShieldRollUntil = 0;  // 每次攻擊動作只判定一次（300ms 鎖）
+  private _onHitLightningCooldown = 0;  // 攻擊觸發落雷冷卻
   private _freeRevivesUsed = 0;
   private _reviveDialogActive = false;
   private _allyMinions: MinionSlime[] = [];          // 有序陣列，上限 3，最舊的先移除
@@ -641,6 +642,16 @@ export class GameScene extends Phaser.Scene {
     if ((stats.lightningStrike ?? 0) > 0) {
       this.time.addEvent({ delay: 2000, repeat: -1, callback: () => this.fireLightningStrike() });
     }
+
+    // 無限神盾護體：立即啟動
+    if ((stats.infiniteDivineShield ?? 0) > 0) {
+      this.triggerDivineShield();
+    }
+
+    // 岩漿史萊姆夥伴
+    if ((stats.lavaSlimeCompanion ?? 0) > 0) {
+      this.spawnLavaSlimeCompanion();
+    }
   }
 
   private updateOrbitBalls(delta: number): void {
@@ -676,7 +687,8 @@ export class GameScene extends Phaser.Scene {
         if ((b.lastHit.get(t) ?? 0) + HIT_CD > now) continue;
         if (Phaser.Math.Distance.Between(bx, by, t.x, t.y) > HIT_RANGE) continue;
         b.lastHit.set(t, now);
-        const mult = (b.type === 'fire' ? 0.30 : 0.25) / Math.sqrt(nTotal);
+        const orbitDmgMult = 1 + (CardStore.getTotalStats().orbitBallDmgPct ?? 0);
+        const mult = (b.type === 'fire' ? 0.30 : 0.25) / Math.sqrt(nTotal) * orbitDmgMult;
         this.dealDamage(t, mult, bx, by, 'down');
         if (b.type === 'ice' && !(t as MinionSlime).isDead) {
           (t as MinionSlime).slowMult = 0.80;
@@ -817,6 +829,36 @@ export class GameScene extends Phaser.Scene {
 
       this.dealDamage(target, dmgMult, this.player.x, this.player.y, 'down');
     }
+  }
+
+  private fireOnHitLightning(stats: import('../data/player-store').EffectiveStats): void {
+    if (!this.player.active || this.gameOver) return;
+    const targets = this.getHittableTargets();
+    if (targets.length === 0) return;
+    const target = targets[Math.floor(Math.random() * targets.length)];
+    const tx = target.x, ty = target.y;
+    const dmgMult = 0.50 * (1 + (stats.lightningDmgBonus ?? 0));
+
+    const bolt = this.add.graphics().setDepth(60);
+    const drawBolt = (alpha: number) => {
+      bolt.clear();
+      bolt.lineStyle(P(3), 0xffffff, alpha);
+      bolt.beginPath(); bolt.moveTo(tx, ty - P(80));
+      bolt.lineTo(tx + P(4), ty - P(50)); bolt.lineTo(tx - P(3), ty - P(30));
+      bolt.lineTo(tx + P(2), ty - P(10)); bolt.lineTo(tx, ty);
+      bolt.strokePath();
+      bolt.lineStyle(P(6), 0xaaddff, alpha * 0.4);
+      bolt.beginPath(); bolt.moveTo(tx, ty - P(80)); bolt.lineTo(tx, ty);
+      bolt.strokePath();
+    };
+    drawBolt(1);
+    this.tweens.add({ targets: bolt, alpha: 0, duration: 350, ease: 'Quad.In', onComplete: () => bolt.destroy() });
+
+    const ring = this.add.graphics({ x: tx, y: ty }).setDepth(59);
+    ring.lineStyle(P(2), 0xaaddff, 1); ring.strokeCircle(0, 0, P(12));
+    this.tweens.add({ targets: ring, scaleX: 2.5, scaleY: 2.5, alpha: 0, duration: 300, onComplete: () => ring.destroy() });
+
+    this.dealDamage(target, dmgMult, this.player.x, this.player.y, 'down');
   }
 
   private overkillSplash(ox: number, oy: number, overkill: number): void {
@@ -971,6 +1013,10 @@ export class GameScene extends Phaser.Scene {
     this._divineShieldGfx = this.add.graphics().setDepth(27);
 
     this._divineShieldTimer = this.time.delayedCall(1750, () => {
+      if ((CardStore.getTotalStats().infiniteDivineShield ?? 0) > 0 && !this.gameOver) {
+        this.triggerDivineShield();
+        return;
+      }
       // 消散動畫
       const fade = this._divineShieldGfx;
       this._divineShieldGfx = undefined;
@@ -1069,6 +1115,131 @@ export class GameScene extends Phaser.Scene {
       if (i !== -1) this._allyMinions.splice(i, 1);
       this._allyGroup.remove(ally, false, false);
       origOnDead?.();
+    };
+  }
+
+  private tryFlowerSummonModeAttack(): void {
+    const cd = 1500;
+    if (!this.player.lockCooldown(cd)) return;
+    const ALLY_CAP = 3;
+    if (this._allyMinions.length >= ALLY_CAP) return;
+
+    const star  = this.questStar ?? 1;
+    const defId = star >= 3 ? 'elite_plant1' : 'plant1_s';
+    const angle = Math.random() * Math.PI * 2;
+    const dist  = P(Phaser.Math.Between(40, 70));
+    const ax    = this.player.x + Math.cos(angle) * dist;
+    const ay    = this.player.y + Math.sin(angle) * dist;
+    const ally  = this.spawnMinionAtForBoss(defId, ax, ay, defId.startsWith('elite_'));
+    if (!ally) return;
+
+    ally.isAlly = true;
+    const ps = CardStore.getTotalStats();
+    ally.setAllyStats(Math.max(1, Math.round(ps.maxHp * 1.00)), Math.max(1, Math.round(ps.atk * 0.60)));
+    ally.attackCooldownMs = 1500;
+    this._allyMinions.push(ally);
+    this._allyGroup.add(ally);
+    ally.setTint(0x88ffcc);
+
+    ally.getTargetPos = () => {
+      let nearest: MinionSlime | null = null;
+      let minD = Infinity;
+      for (const m of this.allMinions) {
+        if (m.isDead || this._allyMinions.includes(m)) continue;
+        const d = Phaser.Math.Distance.Between(ally.x, ally.y, m.x, m.y);
+        if (d < minD) { minD = d; nearest = m; }
+      }
+      if (nearest) return [nearest.x, nearest.y];
+      if (this.bossActive && this.boss.active) return [this.boss.x, this.boss.y];
+      return [ally.x, ally.y];
+    };
+
+    ally.onFire = (type, mx, my, tx, ty) => {
+      this.spawnMinionAttack(type, mx, my, tx, ty, ally.atk, ally.isElite);
+      const wx = mx * DPR, wy = my * DPR;
+      for (const c of this.minionProjGroup.getChildren()) {
+        const img = c as Phaser.Physics.Arcade.Image;
+        if (!(img as any).isAllyProj && img.active &&
+            Phaser.Math.Distance.Between(img.x, img.y, wx, wy) < P(8)) {
+          (img as any).isAllyProj = true;
+          const dmg = (img as any).dmg as number;
+          const hitTimer = this.time.addEvent({
+            delay: 30, loop: true,
+            callback: () => {
+              if (!img.active) { hitTimer.destroy(); return; }
+              for (const t of this.getHittableTargets()) {
+                if (Phaser.Math.Distance.Between(img.x, img.y, t.x, t.y) < P(12)) {
+                  hitTimer.destroy();
+                  img.destroy();
+                  if (!(t as MinionSlime).isDead) {
+                    t.takeDamage(dmg);
+                    this.spawnDamageNumber(t.x, t.y, dmg, false, 1);
+                  }
+                  break;
+                }
+              }
+            },
+          });
+        }
+      }
+    };
+
+    ally.onDead = () => {
+      const i = this._allyMinions.indexOf(ally);
+      if (i !== -1) this._allyMinions.splice(i, 1);
+      this._allyGroup.remove(ally, false, false);
+    };
+  }
+
+  private spawnLavaSlimeCompanion(): void {
+    const angle   = Math.random() * Math.PI * 2;
+    const dist    = P(Phaser.Math.Between(50, 80));
+    const sx      = this.player.x + Math.cos(angle) * dist;
+    const sy      = this.player.y + Math.sin(angle) * dist;
+    const companion = this.spawnMinionAtForBoss('slime_lava_s', sx, sy, false);
+    if (!companion) return;
+
+    const ps = CardStore.getTotalStats();
+    companion.isAlly = true;
+    companion.setAllyStats(Math.max(1, Math.round(ps.maxHp * 1.20)), Math.max(1, Math.round(ps.atk * 0.70)));
+    this._allyMinions.push(companion);
+    this._allyGroup.add(companion);
+    companion.setTint(0xff8844);
+
+    let patrolTarget = { x: sx, y: sy };
+
+    companion.getTargetPos = () => {
+      const aggroR = P(100);
+      let nearest: MinionSlime | null = null;
+      let minD = Infinity;
+      for (const m of this.allMinions) {
+        if (m.isDead || this._allyMinions.includes(m)) continue;
+        const d = Phaser.Math.Distance.Between(companion.x, companion.y, m.x, m.y);
+        if (d < aggroR && d < minD) { minD = d; nearest = m; }
+      }
+      if (nearest) return [nearest.x, nearest.y];
+      if (this.bossActive && this.boss.active &&
+          Phaser.Math.Distance.Between(companion.x, companion.y, this.boss.x, this.boss.y) < aggroR) {
+        return [this.boss.x, this.boss.y];
+      }
+      if (Phaser.Math.Distance.Between(companion.x, companion.y, patrolTarget.x, patrolTarget.y) < P(8)) {
+        const a = Math.random() * Math.PI * 2;
+        const r = Math.random() * P(40);
+        patrolTarget = {
+          x: Phaser.Math.Clamp(sx + Math.cos(a) * r, P(32), this.worldW - P(32)),
+          y: Phaser.Math.Clamp(sy + Math.sin(a) * r, P(32), this.worldH - P(32)),
+        };
+      }
+      return [patrolTarget.x, patrolTarget.y];
+    };
+
+    companion.onDead = () => {
+      const i = this._allyMinions.indexOf(companion);
+      if (i !== -1) this._allyMinions.splice(i, 1);
+      this._allyGroup.remove(companion, false, false);
+      if (!this.gameOver) {
+        this.time.delayedCall(8000, () => { if (!this.gameOver) this.spawnLavaSlimeCompanion(); });
+      }
     };
   }
 
@@ -1355,6 +1526,10 @@ export class GameScene extends Phaser.Scene {
   // ── Attack dispatcher ────────────────────────────────────
 
   private meleeAttack(tx: number, ty: number): void {
+    if ((CardStore.getTotalStats().flowerSummonMode ?? 0) > 0) {
+      this.tryFlowerSummonModeAttack();
+      return;
+    }
     const behavior = PlayerStore.getEquipped().sword?.behavior ?? 'slash180';
     if (behavior === 'aura') return;
     switch (behavior) {
@@ -1436,6 +1611,13 @@ export class GameScene extends Phaser.Scene {
     // 召喚友軍花怪觸發（每張卡 15% 機率，2張合計 30%）
     const summonChance = stats.summonFlowerChance ?? 0;
     if (summonChance > 0 && Math.random() < summonChance) this.trySummonAllyFlower();
+
+    // 攻擊觸發落雷
+    const onHitLightning = stats.onHitLightningChance ?? 0;
+    if (onHitLightning > 0 && this.time.now > this._onHitLightningCooldown && Math.random() < onHitLightning) {
+      this._onHitLightningCooldown = this.time.now + 200;
+      this.fireOnHitLightning(stats);
+    }
   }
 
   private hitInArea(
@@ -1529,7 +1711,7 @@ export class GameScene extends Phaser.Scene {
     const px = this.player.x, py = this.player.y;
     const D = this.player.depth;
     this.player.playWhirlwind(() => {
-      this.hitInArea(px, py, RANGE, 0.8, 360, 0, 'down');
+      this.hitInArea(px, py, RANGE, 0.8 * (1 + (stats.whirlwindDmgPct ?? 0)), 360, 0, 'down');
       this.fxWhirlwind(px, py, RANGE, D);
     });
   }
@@ -1615,7 +1797,7 @@ export class GameScene extends Phaser.Scene {
           if (hitTargets.has(t)) continue;
           if (Phaser.Math.Distance.Between(this.player.x, this.player.y, t.x, t.y) > P(28)) continue;
           hitTargets.add(t);
-          this.dealDamage(t, 0.91, this.player.x, this.player.y, dir);
+          this.dealDamage(t, 0.91 * (1 + (CardStore.getTotalStats().dashDmgPct ?? 0)), this.player.x, this.player.y, dir);
         }
       },
     });
@@ -1640,7 +1822,7 @@ export class GameScene extends Phaser.Scene {
         if (hitTargets.has(t)) continue;
         if (Phaser.Math.Distance.Between(px, py, t.x, t.y) > HIT_R) continue;
         hitTargets.add(t);
-        this.dealDamage(t, 0.55, px, py, dir);
+        this.dealDamage(t, 0.55 * (1 + (stats0.projectileDmgPct ?? 0)), px, py, dir);
       }
     });
   }
@@ -1666,7 +1848,7 @@ export class GameScene extends Phaser.Scene {
       this.time.delayedCall(delay, () => {
         const px = this.player.x, py = this.player.y;
         const D = this.player.depth;
-        this.hitInArea(px, py, MELEE_RANGE, 0.29, arc, deg, dir);
+        this.hitInArea(px, py, MELEE_RANGE, 0.29 * (1 + (stats.multiHitDmgPct ?? 0)), arc, deg, dir);
         this.fxMultiHitSlash(px, py, D, rad0, hitIdx, MELEE_RANGE);
       });
     });
@@ -1702,21 +1884,23 @@ export class GameScene extends Phaser.Scene {
       {
         onHitOut: (bx, by) => {
           let hit = false;
+          const boomMult = 1 + (bStats.boomerangDmgPct ?? 0);
           for (const t of this.getHittableTargets()) {
             if (hitOut.has(t)) continue;
             if (Phaser.Math.Distance.Between(bx, by, t.x, t.y) > HIT_R) continue;
             hitOut.add(t); hit = true;
-            this.dealDamage(t, 0.60, bx, by, dir);
+            this.dealDamage(t, 0.60 * boomMult, bx, by, dir);
           }
           return hit;
         },
-        onSpinTick: (bx, by) => this.hitInArea(bx, by, SPIN_R, 0.30, 360, 0, dir),
+        onSpinTick: (bx, by) => this.hitInArea(bx, by, SPIN_R, 0.30 * (1 + (bStats.boomerangDmgPct ?? 0)), 360, 0, dir),
         onHitBack: (bx, by) => {
+          const boomMult = 1 + (bStats.boomerangDmgPct ?? 0);
           for (const t of this.getHittableTargets()) {
             if (hitBack.has(t)) continue;
             if (Phaser.Math.Distance.Between(bx, by, t.x, t.y) > HIT_R) continue;
             hitBack.add(t);
-            this.dealDamage(t, 0.60, bx, by, dir);
+            this.dealDamage(t, 0.60 * boomMult, bx, by, dir);
           }
         },
       },
@@ -1870,7 +2054,7 @@ export class GameScene extends Phaser.Scene {
 
     const stats = CardStore.getTotalStats();
     const RANGE = this.AURA_RANGE * (1 + (stats.auraRadiusPct ?? 0));
-    const baseDmg = this.player.maxHpValue * 0.065;
+    const baseDmg = this.player.maxHpValue * 0.065 * (1 + (stats.auraDmgPct ?? 0));
     const px = this.player.x, py = this.player.y;
 
     for (const m of this.allMinions) {
@@ -1940,10 +2124,10 @@ export class GameScene extends Phaser.Scene {
         const px = this.player.x, py = this.player.y;
         const D = this.player.depth;
         this.fxChargeSlam(px, py, SLAM_RANGE, D);
-        this.hitInArea(px, py, SLAM_RANGE, 1.235, 360, 0, dir);
+        const slamStats = CardStore.getTotalStats();
+        this.hitInArea(px, py, SLAM_RANGE, 1.235 * (1 + (slamStats.chargeSlamDmgPct ?? 0)), 360, 0, dir);
 
         // 暈眩效果
-        const slamStats = CardStore.getTotalStats();
         if ((slamStats.chargeSlamStunChance ?? 0) > 0 && Math.random() < slamStats.chargeSlamStunChance!) {
           for (const t of this.getHittableTargets()) {
             if (Phaser.Math.Distance.Between(px, py, t.x, t.y) <= SLAM_RANGE) {
