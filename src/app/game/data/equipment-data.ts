@@ -60,14 +60,21 @@ export interface StatBonus {
   dmgVsBoss?:         number;  // 對 Boss 專屬 +X%
   // ── 技能特化 ──
   whirlwindRangePct?:   number;  // 旋風斬範圍 ×(1+X)
+  whirlwindDmgPct?:     number;  // 旋風斬傷害 ×(1+X)
   slash180DmgPct?:      number;  // 半月斬傷害 ×(1+X)
   burnMaxStackBonus?:   number;  // 燃燒上限 +X 層
   dashDistBonus?:       number;  // 瞬步斬距離 +X
+  dashDmgPct?:          number;  // 瞬步斬傷害 ×(1+X)
   multiHitNoStagger?:   number;  // 五連斬無僵直（1 = 啟用）
+  multiHitDmgPct?:      number;  // 五連斬傷害 ×(1+X)
   chargeSlamStunChance?:number;  // 蓄力重擊暈眩機率
+  chargeSlamDmgPct?:    number;  // 蓄力重擊傷害 ×(1+X)
   boomerangRangePct?:   number;  // 迴旋飛刃範圍 ×(1+X)
+  boomerangDmgPct?:     number;  // 迴旋飛刃傷害 ×(1+X)
   auraRadiusPct?:       number;  // 血環半徑 ×(1+X)
+  auraDmgPct?:          number;  // 血環傷害 ×(1+X)
   projectileDistBonus?: number;  // 風刃距離 +X
+  projectileDmgPct?:    number;  // 風刃傷害 ×(1+X)
   // ── 條件判斷加成（在 getTotalStats 內 resolve）──
   condCritDmgBonus?:    number;  // 爆擊率≥50% 時 critDmg +X
   condPenAtk?:          number;  // 穿甲≥100 時 ATK +X
@@ -88,6 +95,16 @@ export interface StatBonus {
   divineShieldChance?:  number;  // 攻擊時觸發神盾護體機率（DEF+20持續3秒，機率疊加）
   summonFlowerChance?:  number;  // 攻擊時召喚友軍花怪機率（依當前星級）
   freeRevive?:          number;  // 每局免費復活次數（滿血，無敵1秒）
+  // ── Boss卡片專屬效果 ──
+  maxHpPct?:            number;  // 最大HP百分比變化（可負數，-0.2=-20%）
+  orbitBallDmgPct?:     number;  // 旋轉球（火球/冰球）傷害加成（1.0=+100%）
+  onHitLightningChance?:number;  // 攻擊觸發落雷機率（隨機目標，ATK×50%×lightningDmgBonus）
+  lightningDmgBonus?:   number;  // 落雷傷害加成（1.0=+100%，套用在落雷傷害上）
+  infiniteDivineShield?:number;  // 無限神盾護體（1=啟用，受傷後立即重新觸發）
+  weaponRefineAtk?:     number;  // 武器每精煉+2、ATK+X（累計）
+  weaponRefineHp?:      number;  // 武器每精煉+2、HP+X（累計）
+  flowerSummonMode?:    number;  // 取消原攻擊，改為召喚花怪模式（最多3隻，CD 1.5s，ATK×60%，HP×100%）
+  lavaSlimeCompanion?:  number;  // 岩漿史萊姆夥伴（HP×120%，ATK×70%，40px巡邏，100px aggro，8s重生）
 }
 
 // ── Affix system ───────────────────────────────────────────────────────────────
