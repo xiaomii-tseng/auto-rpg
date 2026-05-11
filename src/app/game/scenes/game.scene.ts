@@ -817,21 +817,19 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  private overkillSplash(ox: number, oy: number, overkill: number, chain = false): void {
+  private overkillSplash(ox: number, oy: number, overkill: number): void {
     const R = P(18);
     const stats = CardStore.getTotalStats();
-    const canChain = !chain && (stats.overkillSplash ?? 0) >= 2;
+    const canChain = (stats.overkillSplash ?? 0) >= 2;
 
     for (const t of this.getHittableTargets()) {
       if (Phaser.Math.Distance.Between(ox, oy, t.x, t.y) > R) continue;
-      const prev = (t as MinionSlime).hp ?? 0;
       this.dealDamage(t, 0, ox, oy, 'down');
       const chainOverkill = (t as MinionSlime).takeDamage(overkill);
       this.spawnDamageNumber(t.x, t.y, overkill, false, 1);
       if (canChain && chainOverkill > 0) {
-        this.time.delayedCall(80, () => this.overkillSplash(t.x, t.y, chainOverkill, true));
+        this.time.delayedCall(80, () => this.overkillSplash(t.x, t.y, chainOverkill));
       }
-      void prev;
     }
     // 紫色火焰圈 VFX
     const cx = ox, cy = oy;
