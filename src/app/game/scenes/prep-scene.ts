@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { InventoryStore } from '../data/inventory-store';
 import { PlayerStore } from '../data/player-store';
 import { PotionBarStore } from '../data/potion-bar-store';
-import { ITEM_POTION_HEALTH_S, ITEM_POTION_HEALTH_M, ITEM_POTION_HEALTH_L, ITEM_POTION_REVIVE, ITEM_POTION_ATK, ITEM_POTION_DEF, ITEM_POTION_SPEED, ITEM_STONE_BROKEN, ITEM_STONE_INTACT, ITEM_STONE_GUARD, ITEM_BLANK_CARD } from '../data/monster-data';
+import { ITEM_POTION_HEALTH_S, ITEM_POTION_HEALTH_M, ITEM_POTION_HEALTH_L, ITEM_POTION_REVIVE, ITEM_POTION_ATK, ITEM_POTION_DEF, ITEM_POTION_SPEED, ITEM_STONE_BROKEN, ITEM_STONE_INTACT, ITEM_STONE_GUARD, ITEM_BLANK_CARD, ITEM_QUEST_REROLL } from '../data/monster-data';
 import { generateEquipment, randomQuality, QUALITY_NAMES, QUALITY_COLORS, SLOT_NAMES, STAT_NAMES, BEHAVIOR_NAMES, BEHAVIOR_INFO, EquipSlot, EquipmentItem, applyEnhancement, revertEnhancement, ENHANCE_COST, ENHANCE_RATE, ENHANCE_COMPLETE_BONUS, ENHANCE_DEMOTE_FROM, ENHANCE_MAX } from '../data/equipment-data';
 import { SaveStore } from '../data/save-store';
 import { CardStore, CARD_SLOT_COUNT } from '../data/card-store';
@@ -4024,16 +4024,17 @@ export class PrepScene extends Phaser.Scene {
 
     // ── Shop items ──────────────────────────────────────────
     const SHOP_ITEMS: { id: string; name: string; price: number; desc: string; color: number }[] = [
-      { id: ITEM_POTION_HEALTH_S, name: '小型回復藥水', price: 100,  desc: '使用後回復 50 HP',              color: 0x44ff88 },
-      { id: ITEM_POTION_HEALTH_M, name: '中型回復藥水', price: 290,  desc: '使用後回復 100 HP',             color: 0x44ddff },
-      { id: ITEM_POTION_HEALTH_L, name: '大型回復藥水', price: 370,  desc: '使用後回復 200 HP',             color: 0xff88ff },
-      { id: ITEM_POTION_REVIVE,   name: '復活藥水',     price: 800, desc: '在範圍內復活隊友',              color: 0xffee44 },
+      { id: ITEM_POTION_HEALTH_S, name: '小型回復藥水', price: 100,  desc: '回復 50 HP',              color: 0x44ff88 },
+      { id: ITEM_POTION_HEALTH_M, name: '中型回復藥水', price: 290,  desc: '回復 100 HP',             color: 0x44ddff },
+      { id: ITEM_POTION_HEALTH_L, name: '大型回復藥水', price: 370,  desc: '回復 200 HP',             color: 0xff88ff },
+      { id: ITEM_POTION_REVIVE,   name: '復活藥水',     price: 800, desc: '復活',              color: 0xffee44 },
       { id: ITEM_POTION_ATK,      name: '攻擊力藥水',   price: 300,  desc: '傷害 +20%，持續 30 秒',         color: 0xff6644 },
       { id: ITEM_POTION_DEF,      name: '防禦力藥水',   price: 300,  desc: 'DEF +20，持續 30 秒',           color: 0x44aaff },
       { id: ITEM_POTION_SPEED,    name: '速度藥水',     price: 300,  desc: '移動速度 +20，持續 30 秒',       color: 0xffdd22 },
-      { id: ITEM_STONE_BROKEN, name: '破碎強化石', price: 150,  desc: '強化裝備時消耗，失敗不會降級',         color: 0x88ccff },
+      { id: ITEM_STONE_BROKEN, name: '破碎強化石', price: 150,  desc: '強化裝備時消耗',         color: 0x88ccff },
       { id: ITEM_STONE_INTACT, name: '完整強化石', price: 300,  desc: '強化時提升成功率 +8%',                  color: 0x66ffcc },
-      { id: ITEM_STONE_GUARD,  name: '防退石',     price: 300,  desc: '強化失敗時防止裝備降級',               color: 0xff99aa },
+      { id: ITEM_STONE_GUARD,   name: '防退石',       price: 300, desc: '強化失敗時防止裝備降級',               color: 0xff99aa },
+      { id: ITEM_QUEST_REROLL,  name: '任務重製石',   price: 100, desc: '重置當前任務列表，重新刷新任務',         color: 0xffcc44 },
       { id: '__gacha__',       name: '裝備抽取',   price: 1000, desc: '隨機生成 3 件裝備，選一件收入背包', color: 0xddaa00 },
       { id: '__card_gacha__', name: '卡片抽取',   price: 0,    desc: '隨機抽取 1 張卡片（一般84% / 菁英15% / Boss1%）', color: 0xaa44ff },
     ];

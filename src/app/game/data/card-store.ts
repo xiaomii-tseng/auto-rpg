@@ -224,6 +224,7 @@ export const CardStore = {
       dmgVsAnyElement:  bonus.dmgVsAnyElement,
       dmgVsEliteOrBoss: bonus.dmgVsEliteOrBoss,
       dmgVsSlime:       bonus.dmgVsSlime,
+      dmgVsPlant:       bonus.dmgVsPlant,
       dmgVsBoss:        bonus.dmgVsBoss,
       whirlwindRangePct:    bonus.whirlwindRangePct,
       whirlwindDmgPct:      bonus.whirlwindDmgPct,

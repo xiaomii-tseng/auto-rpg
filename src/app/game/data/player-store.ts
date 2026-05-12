@@ -33,6 +33,7 @@ export interface EffectiveStats {
   dmgVsAnyElement?:  number;
   dmgVsEliteOrBoss?: number;
   dmgVsSlime?:       number;
+  dmgVsPlant?:       number;
   dmgVsBoss?:        number;
   // ── 技能特化 ──
   whirlwindRangePct?:    number;

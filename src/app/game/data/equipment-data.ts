@@ -57,6 +57,7 @@ export interface StatBonus {
   dmgVsAnyElement?:   number;  // 對火/水/草 +X%
   dmgVsEliteOrBoss?:  number;  // 對菁英/Boss +X%
   dmgVsSlime?:        number;  // 對史萊姆種族 +X%
+  dmgVsPlant?:        number;  // 對花草種族 +X%
   dmgVsBoss?:         number;  // 對 Boss 專屬 +X%
   // ── 技能特化 ──
   whirlwindRangePct?:   number;  // 旋風斬範圍 ×(1+X)

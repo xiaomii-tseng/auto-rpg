@@ -60,6 +60,7 @@ export const ITEM_BLANK_CARD   = 'blank_card';      // 空白卡片
 export const ITEM_STONE_BROKEN = 'stone_broken';    // 破損強化石
 export const ITEM_STONE_INTACT = 'stone_intact';    // 完整強化石
 export const ITEM_STONE_GUARD = 'stone_guard';     // 防退石
+export const ITEM_QUEST_REROLL = 'quest_reroll';   // 任務重製石
 export const ITEM_POTION_HEALTH_S = 'potion_health_s'; // 小型回復藥水 HP+50
 export const ITEM_POTION_HEALTH_M = 'potion_health_m'; // 中型回復藥水 HP+100
 export const ITEM_POTION_HEALTH_L = 'potion_health_l'; // 大型回復藥水 HP+200
@@ -333,30 +334,50 @@ export const MONSTER_DEFS: MonsterDef[] = [
 
 export const CARD_DEFS: CardDef[] = [
 
-  // ── 小史萊姆卡 A/B/C ──
-  { id: 'card_slime_green_s_a', name: '綠史萊姆小卡片(A)', monsterId: 'slime_green_s', element: 'none', tint: 0x44cc44, effect: { crit: 0.03 }, desc: '爆擊機率 +3%' },
-  { id: 'card_slime_green_s_b', name: '綠史萊姆小卡片(B)', monsterId: 'slime_green_s', element: 'none', tint: 0x44cc44, effect: { hp: 25 }, desc: '最大HP +25' },
-  { id: 'card_slime_green_s_c', name: '綠史萊姆小卡片(C)', monsterId: 'slime_green_s', element: 'none', tint: 0x44cc44, effect: { hpPct: 0.05 }, desc: '最大HP +5%' },
+  // ── 綠史萊姆小卡（生命主題）──
+  { id: 'card_slime_green_s_a', name: '綠史萊姆小卡片(A)', monsterId: 'slime_green_s', element: 'none', tint: 0x44cc44, effect: { hpPct: 0.05 }, desc: '最大HP +5%' },
+  { id: 'card_slime_green_s_b', name: '綠史萊姆小卡片(B)', monsterId: 'slime_green_s', element: 'none', tint: 0x44cc44, effect: { hpRegen: 0.5 }, desc: 'HP 恢復 +0.5' },
+  { id: 'card_slime_green_s_c', name: '綠史萊姆小卡片(C)', monsterId: 'slime_green_s', element: 'none', tint: 0x44cc44, effect: { maxHpPct: 0.03, hp: 10 }, desc: '最大HP +3%、最大HP +10' },
 
+  // ── 紅史萊姆小卡（爆擊主題）──
   { id: 'card_slime_red_s_a', name: '紅史萊姆小卡片(A)', monsterId: 'slime_red_s', element: 'none', tint: 0xff5522, effect: { atk: 5 }, desc: '攻擊力 +5' },
-  { id: 'card_slime_red_s_b', name: '紅史萊姆小卡片(B)', monsterId: 'slime_red_s', element: 'none', tint: 0xff5522, effect: { critDmg: 0.08 }, desc: '爆擊傷害 +8%' },
-  { id: 'card_slime_red_s_c', name: '紅史萊姆小卡片(C)', monsterId: 'slime_red_s', element: 'none', tint: 0xff5522, effect: { crit: 0.02, critDmg: 0.03 }, desc: '爆擊機率 +2%、爆擊傷害 +3%' },
+  { id: 'card_slime_red_s_b', name: '紅史萊姆小卡片(B)', monsterId: 'slime_red_s', element: 'none', tint: 0xff5522, effect: { crit: 0.03 }, desc: '爆擊機率 +3%' },
+  { id: 'card_slime_red_s_c', name: '紅史萊姆小卡片(C)', monsterId: 'slime_red_s', element: 'none', tint: 0xff5522, effect: { critDmg: 0.08 }, desc: '爆擊傷害 +8%' },
 
-  { id: 'card_slime_blue_s_a', name: '藍史萊姆小卡片(A)', monsterId: 'slime_blue_s', element: 'none', tint: 0x44aaff, effect: { def: 5 }, desc: '防禦力 +5' },
+  // ── 藍史萊姆小卡（防禦主題）──
+  { id: 'card_slime_blue_s_a', name: '藍史萊姆小卡片(A)', monsterId: 'slime_blue_s', element: 'none', tint: 0x44aaff, effect: { defPct: 0.10 }, desc: '防禦力 +10%' },
   { id: 'card_slime_blue_s_b', name: '藍史萊姆小卡片(B)', monsterId: 'slime_blue_s', element: 'none', tint: 0x44aaff, effect: { evasion: 0.02 }, desc: '閃避率 +2%' },
-  { id: 'card_slime_blue_s_c', name: '藍史萊姆小卡片(C)', monsterId: 'slime_blue_s', element: 'none', tint: 0x44aaff, effect: { defPct: 0.10 }, desc: '防禦力 +10%' },
+  { id: 'card_slime_blue_s_c', name: '藍史萊姆小卡片(C)', monsterId: 'slime_blue_s', element: 'none', tint: 0x44aaff, effect: { def: 5 }, desc: '防禦力 +5' },
 
+  // ── 白史萊姆小卡（速度/效率）──
   { id: 'card_slime_white_s_a', name: '白史萊姆小卡片(A)', monsterId: 'slime_white_s', element: 'none', tint: 0xaaaaaa, effect: { speed: 10 }, desc: '移動速度 +10' },
   { id: 'card_slime_white_s_b', name: '白史萊姆小卡片(B)', monsterId: 'slime_white_s', element: 'none', tint: 0xaaaaaa, effect: { atkSpeed: 0.06 }, desc: '攻擊速度 +6%' },
   { id: 'card_slime_white_s_c', name: '白史萊姆小卡片(C)', monsterId: 'slime_white_s', element: 'none', tint: 0xaaaaaa, effect: { speed: 4, atkPct: 0.01 }, desc: '移動速度 +4、攻擊力 +1%' },
 
-  { id: 'card_slime_zombie_s_a', name: '殭屍史萊姆小卡片(A)', monsterId: 'slime_zombie_s', element: 'none', tint: 0x88aa44, effect: { atkPct: 0.03 }, desc: '攻擊力 +3%' },
-  { id: 'card_slime_zombie_s_b', name: '殭屍史萊姆小卡片(B)', monsterId: 'slime_zombie_s', element: 'none', tint: 0x88aa44, effect: { evasion: 0.01, atk: 2 }, desc: '閃避率 +1%、攻擊力 +2' },
-  { id: 'card_slime_zombie_s_c', name: '殭屍史萊姆小卡片(C)', monsterId: 'slime_zombie_s', element: 'none', tint: 0x88aa44, effect: { dotBonus: 0.03 }, desc: '持續傷害 +3%' },
+  // ── 殭屍史萊姆小卡（毒/DoT）──
+  { id: 'card_slime_zombie_s_a', name: '殭屍史萊姆小卡片(A)', monsterId: 'slime_zombie_s', element: 'none', tint: 0x88aa44, effect: { dotBonus: 0.03 }, desc: '持續傷害 +3%' },
+  { id: 'card_slime_zombie_s_b', name: '殭屍史萊姆小卡片(B)', monsterId: 'slime_zombie_s', element: 'none', tint: 0x88aa44, effect: { dotBonus: 0.01, atk: 3 }, desc: '持續傷害 +1%、攻擊力 +3' },
+  { id: 'card_slime_zombie_s_c', name: '殭屍史萊姆小卡片(C)', monsterId: 'slime_zombie_s', element: 'none', tint: 0x88aa44, effect: { lifesteal: 0.002 }, desc: '吸血 +0.2%' },
 
+  // ── 熔岩史萊姆小卡（穿甲/燃燒）──
   { id: 'card_slime_lava_s_a', name: '熔岩史萊姆小卡片(A)', monsterId: 'slime_lava_s', element: 'none', tint: 0xff6622, effect: { penetration: 18 }, desc: '穿甲 +18' },
-  { id: 'card_slime_lava_s_b', name: '熔岩史萊姆小卡片(B)', monsterId: 'slime_lava_s', element: 'none', tint: 0xff6622, effect: { dotBonus: 0.01, atk: 3 }, desc: '持續傷害 +1%、攻擊力 +3' },
-  { id: 'card_slime_lava_s_c', name: '熔岩史萊姆小卡片(C)', monsterId: 'slime_lava_s', element: 'none', tint: 0xff6622, effect: { penetration: 8, atk: 3 }, desc: '穿甲 +8、攻擊力 +3' },
+  { id: 'card_slime_lava_s_b', name: '熔岩史萊姆小卡片(B)', monsterId: 'slime_lava_s', element: 'none', tint: 0xff6622, effect: { penetration: 8, atk: 3 }, desc: '穿甲 +8、攻擊力 +3' },
+  { id: 'card_slime_lava_s_c', name: '熔岩史萊姆小卡片(C)', monsterId: 'slime_lava_s', element: 'none', tint: 0xff6622, effect: { dotBonus: 0.02, speed: 2 }, desc: '持續傷害 +2%、移動速度 +2' },
+
+  // ── 小食人花卡（狩獵/特攻）──
+  { id: 'card_plant1_s_a', name: '小食人花卡片(A)', monsterId: 'plant1_s', element: 'grass', tint: 0xffffff, effect: { dmgVsPlant: 0.12 }, desc: '對花草種族傷害 +12%' },
+  { id: 'card_plant1_s_b', name: '小食人花卡片(B)', monsterId: 'plant1_s', element: 'grass', tint: 0xffffff, effect: { dmgVsEliteOrBoss: 0.08 }, desc: '對菁英/Boss 傷害 +8%' },
+  { id: 'card_plant1_s_c', name: '小食人花卡片(C)', monsterId: 'plant1_s', element: 'grass', tint: 0xffffff, effect: { atkPct: 0.03 }, desc: '攻擊力 +3%' },
+
+  // ── 小藤蔓花卡（機動/牽制）──
+  { id: 'card_plant2_s_a', name: '小藤蔓花卡片(A)', monsterId: 'plant2_s', element: 'water', tint: 0xffffff, effect: { speed: 5, def: 3 }, desc: '移動速度 +5、防禦力 +3' },
+  { id: 'card_plant2_s_b', name: '小藤蔓花卡片(B)', monsterId: 'plant2_s', element: 'water', tint: 0xffffff, effect: { evasion: 0.01, speed: 1, def: 2 }, desc: '閃避率 +1%、移動速度 +1、防禦力 +2' },
+  { id: 'card_plant2_s_c', name: '小藤蔓花卡片(C)', monsterId: 'plant2_s', element: 'water', tint: 0xffffff, effect: { evasion: 0.01, atk: 2 }, desc: '閃避率 +1%、攻擊力 +2' },
+
+  // ── 小不死花卡（韌性/復原）──
+  { id: 'card_plant3_s_a', name: '小不死花卡片(A)', monsterId: 'plant3_s', element: 'fire',  tint: 0xffffff, effect: { hp: 25 }, desc: '最大HP +25' },
+  { id: 'card_plant3_s_b', name: '小不死花卡片(B)', monsterId: 'plant3_s', element: 'fire',  tint: 0xffffff, effect: { hpRegen: 0.2, speed: 2 }, desc: 'HP 恢復 +0.2、移動速度 +2' },
+  { id: 'card_plant3_s_c', name: '小不死花卡片(C)', monsterId: 'plant3_s', element: 'fire',  tint: 0xffffff, effect: { crit: 0.02, critDmg: 0.03 }, desc: '爆擊機率 +2%、爆擊傷害 +3%' },
 
   // ── 菁英史萊姆卡 A/B/C ──
   { id: 'card_elite_slime_green_a', name: '綠史萊姆菁英卡片(A)', monsterId: 'elite_slime_green', element: 'none', tint: 0x00ff88, effect: { orbitIceBalls: 2 }, desc: '玩家周圍出現2顆旋轉冰球（ATK×25%傷害+緩速20%，球數增加時傷害自動降低，1秒傷害CD/怪）' },

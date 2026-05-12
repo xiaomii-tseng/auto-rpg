@@ -1698,7 +1698,8 @@ export class GameScene extends Phaser.Scene {
     if (stats.dmgVsNone && tgtElem === 'none') targetMult += stats.dmgVsNone;
     if (stats.dmgVsAnyElement && tgtElem !== 'none') targetMult += stats.dmgVsAnyElement;
     if (stats.dmgVsEliteOrBoss && tgtTier >= 3) targetMult += stats.dmgVsEliteOrBoss;
-    if (stats.dmgVsSlime) targetMult += stats.dmgVsSlime;
+    if (stats.dmgVsSlime && (target as any).race === 'slime') targetMult += stats.dmgVsSlime;
+    if (stats.dmgVsPlant && (target as any).race === 'plant') targetMult += stats.dmgVsPlant;
     if (stats.dmgVsBoss && isBoss) targetMult += stats.dmgVsBoss;
 
     const allMult = 1 + (stats.allDmgPct ?? 0);
@@ -2893,6 +2894,7 @@ export class GameScene extends Phaser.Scene {
         m.attackMode = 'triple';
         m.rangedRange = Math.round(220 * DPR);
       }
+      if (isPlant) m.race = 'plant';
       m.setPatrolCenter(isPlant ? spawnX : wx, isPlant ? spawnY : wy);
       m.getTargetPos = () => this.nearestTargetPos(m.x, m.y);
       m.onDead = () => this.handleMinionDrop(defId, m.x, m.y);
