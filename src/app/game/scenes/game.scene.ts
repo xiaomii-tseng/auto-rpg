@@ -148,6 +148,13 @@ export class GameScene extends Phaser.Scene {
   private minionProjGroup!: Phaser.Physics.Arcade.Group;
   private homingProjs: Phaser.Physics.Arcade.Image[] = [];
   private hitBatches = new Map<number, number>(); // batchId → hitTimestamp
+  // ── 花怪召喚充能 ──────────────────────────────────────────
+  private _flowerCharges = 3;
+  private _flowerMaxCharges = 3;
+  private _flowerChargeAccum = 0;
+  private readonly _FLOWER_CHARGE_MS = 3000;
+  private _flowerChargeGfx?: Phaser.GameObjects.Graphics;
+  private _flowerChargeTxt?: Phaser.GameObjects.Text;
   private plantZones: { type: 'circle' | 'vine'; x: number; y: number; r: number; len?: number; ang?: number; dmg: number; lastTick: number; tickInterval: number; expiresAt: number; gfx: Phaser.GameObjects.Graphics }[] = [];
 
   constructor() {
@@ -467,6 +474,7 @@ export class GameScene extends Phaser.Scene {
       if (!this.bossActive) return;
       const dSq = Phaser.Math.Distance.BetweenPointsSquared({ x, y }, this.player);
       if (dSq <= Boss.AOE_RADIUS ** 2) this.player.takeDamage(this.boss.scaleDmg(50));
+      this.damageAlliesNear(x, y, Boss.AOE_RADIUS, this.boss.scaleDmg(50));
     };
     this.boss.onRangedBarrageTrailTick = (x1, y1, x2, y2, radius, dmg) => {
       if (!this.bossActive) return;
@@ -477,6 +485,13 @@ export class GameScene extends Phaser.Scene {
       const nx = x1 + t * abx - this.player.x;
       const ny = y1 + t * aby - this.player.y;
       if (nx * nx + ny * ny <= radius * radius) this.player.takeDamage(dmg);
+      for (const ally of this._allyMinions) {
+        if (ally.isDead) continue;
+        const apxa = ally.x - x1, apya = ally.y - y1;
+        const ta = Math.max(0, Math.min(1, (apxa * abx + apya * aby) / (abx * abx + aby * aby || 1)));
+        const nxa = x1 + ta * abx - ally.x, nya = y1 + ta * aby - ally.y;
+        if (nxa * nxa + nya * nya <= radius * radius) ally.takeDamage(dmg);
+      }
     };
 
     const bossGroup = this.physics.add.group();
@@ -487,6 +502,15 @@ export class GameScene extends Phaser.Scene {
     this.physics.add.overlap(bossGroup, this.player, () => {
       if (!this.bossActive) return;
       if (this.boss.currentState === 'DASHING') this.player.takeDamage(this.boss.scaleDmg(45));
+    });
+    this.physics.add.overlap(bossGroup, this._allyGroup, (_b, allyObj) => {
+      if (!this.bossActive) return;
+      const ally = allyObj as MinionSlime;
+      if (this.boss.currentState !== 'DASHING' || ally.isDead) return;
+      const now = this.time.now;
+      if (now - ((ally as any)._lastDashHit ?? 0) < 300) return;
+      (ally as any)._lastDashHit = now;
+      ally.takeDamage(this.boss.scaleDmg(45));
     });
 
     this.physics.add.collider(this.player, this.wallLayer);
@@ -507,6 +531,7 @@ export class GameScene extends Phaser.Scene {
     this.physics.add.overlap(this.minionProjGroup, this.player, (_p, proj) => {
       const p = proj as Phaser.Physics.Arcade.Image;
       if (!p.active) return;
+      if ((p as any).isAllyProj) return;  // 友軍發射的彈道不打玩家
       const blindDist = (p as any).blindDist as number | undefined;
       if (blindDist && blindDist > 0) {
         const dist = Phaser.Math.Distance.Between((p as any).spawnX, (p as any).spawnY, p.x, p.y);
@@ -1046,44 +1071,50 @@ export class GameScene extends Phaser.Scene {
 
     const ps = CardStore.getTotalStats();
     ally.isAlly = true;
-    ally.setAllyStats(Math.max(1, Math.round(ps.maxHp * 1.00)), Math.max(1, Math.round(ps.atk * 0.60)));
+    ally.setAllyStats(Math.max(1, Math.round(ps.maxHp * 1.00)), Math.max(1, Math.round(ps.atk * 0.35)));
     ally.attackCooldownMs = 800;
+    ally.rangedRange = P(400);
     this._allyMinions.push(ally);
     this._allyGroup.add(ally);
     ally.setTint(0x88ffcc);
 
     ally.getTargetPos = () => {
-      let nearest: MinionSlime | null = null;
+      let bestX = ally.x, bestY = ally.y;
       let minD = Infinity;
       for (const m of this.allMinions) {
         if (m.isDead || this._allyMinions.includes(m)) continue;
         const d = Phaser.Math.Distance.Between(ally.x, ally.y, m.x, m.y);
-        if (d < minD) { minD = d; nearest = m; }
+        if (d < minD) { minD = d; bestX = m.x; bestY = m.y; }
       }
-      if (nearest) return [nearest.x, nearest.y];
-      if (this.bossActive && this.boss.active) return [this.boss.x, this.boss.y];
-      return [ally.x, ally.y];
+      // 也把 boss 納入候選，選最近的
+      if (this.bossActive && this.boss.active) {
+        const d = Phaser.Math.Distance.Between(ally.x, ally.y, this.boss.x, this.boss.y);
+        if (d < minD) { bestX = this.boss.x; bestY = this.boss.y; }
+      }
+      return [bestX, bestY];
     };
 
     ally.onFire = (type, mx, my, tx, ty) => {
       this.spawnMinionAttack(type, mx, my, tx, ty, ally.atk, ally.isElite);
       const wx = mx * DPR, wy = my * DPR;
+      const hitTargets = new Set<object>(); // 同一波所有子彈共用，每個目標只打一次
       for (const c of this.minionProjGroup.getChildren()) {
         const img = c as Phaser.Physics.Arcade.Image;
         if (!(img as any).isAllyProj && img.active &&
             Phaser.Math.Distance.Between(img.x, img.y, wx, wy) < P(8)) {
           (img as any).isAllyProj = true;
+          img.setTint(0x44ff88);
           const dmg = (img as any).dmg as number;
           const hitTimer = this.time.addEvent({
             delay: 30, loop: true,
             callback: () => {
               if (!img.active) { hitTimer.destroy(); return; }
               for (const t of this.getHittableTargets()) {
-                if (Phaser.Math.Distance.Between(img.x, img.y, t.x, t.y) < P(18)) {
-                  (t as any).takeDamage?.(dmg);
-                  img.destroy();
-                  hitTimer.destroy();
-                  return;
+                if (!hitTargets.has(t) && Phaser.Math.Distance.Between(img.x, img.y, t.x, t.y) < P(18)) {
+                  const isBoss = (t as any) === this.boss;
+                  (t as any).takeDamage?.(isBoss ? Math.round(dmg * 0.5) : dmg);
+                  hitTargets.add(t);
+                  this.time.delayedCall(600, () => hitTargets.delete(t));
                 }
               }
             },
@@ -1126,8 +1157,10 @@ export class GameScene extends Phaser.Scene {
   }
 
   private tryFlowerSummonModeAttack(): void {
-    const cd = 1500;
-    if (!this.player.lockCooldown(cd)) return;
+    if (this._flowerCharges <= 0) return;
+    this._flowerCharges--;
+    this._flowerChargeAccum = 0; // 重置 CD 計時
+
     const stats = CardStore.getTotalStats();
     const ALLY_CAP = 2 + (stats.summonFlowerCap ?? 0) + Math.floor((stats.summonFlowerCapPair ?? 0) / 2);
 
@@ -1503,6 +1536,62 @@ export class GameScene extends Phaser.Scene {
       g.fillStyle(0xffffff, 0.9);
       g.fillCircle(ex, ey, P(3));
     }
+
+    // ── 花怪充能回復 + 按鈕 UI ────────────────────────────────
+    if ((CardStore.getTotalStats().flowerSummonMode ?? 0) > 0) {
+      if (this._flowerCharges < this._flowerMaxCharges) {
+        this._flowerChargeAccum += this.game.loop.delta;
+        if (this._flowerChargeAccum >= this._FLOWER_CHARGE_MS) {
+          this._flowerChargeAccum -= this._FLOWER_CHARGE_MS;
+          this._flowerCharges = Math.min(this._flowerCharges + 1, this._flowerMaxCharges);
+        }
+      }
+      this.updateFlowerBtnUI();
+    }
+  }
+
+  // ── 花怪按鈕充能 UI ─────────────────────────────────────────
+
+  private updateFlowerBtnUI(): void {
+    const g = this._flowerChargeGfx;
+    const t = this._flowerChargeTxt;
+    if (!g || !t) return;
+    g.clear();
+    const cx = this.scale.width - P(70);
+    const cy = this.scale.height - P(70);
+    const r  = P(52);
+
+    // 充能圓弧（從上方順時針，顯示下一格充能進度）
+    if (this._flowerCharges < this._flowerMaxCharges) {
+      const pct = this._flowerChargeAccum / this._FLOWER_CHARGE_MS;
+      const startA = -Math.PI / 2;
+      const endA   = startA + pct * Math.PI * 2;
+      g.lineStyle(P(4), 0x88ffaa, 0.85);
+      g.beginPath();
+      g.arc(cx, cy, r - P(5), startA, endA, false);
+      g.strokePath();
+    }
+
+    // 充能圓點（底部 3 點）
+    const dotR = P(5);
+    const dotSpacing = P(14);
+    const dotY = cy + r - P(24);
+    for (let i = 0; i < this._flowerMaxCharges; i++) {
+      const dx = cx + (i - (this._flowerMaxCharges - 1) / 2) * dotSpacing;
+      if (i < this._flowerCharges) {
+        g.fillStyle(0x88ffaa, 0.95);
+      } else {
+        g.fillStyle(0x224422, 0.70);
+      }
+      g.fillCircle(dx, dotY, dotR);
+      g.lineStyle(P(1), 0x44cc66, 0.6);
+      g.strokeCircle(dx, dotY, dotR);
+    }
+
+    // 充能數字（圓點上方）
+    t.setPosition(cx, dotY - P(14));
+    t.setText(`${this._flowerCharges}/${this._flowerMaxCharges}`);
+    t.setColor(this._flowerCharges === 0 ? '#886644' : '#ccffcc');
   }
 
   // ── Attack dispatcher ────────────────────────────────────
@@ -1945,18 +2034,31 @@ export class GameScene extends Phaser.Scene {
     for (const z of this.plantZones) {
       if (now < z.lastTick + z.tickInterval) continue;
       z.lastTick = now;
-      let hit = false;
+      let playerHit = false;
+      const allyHits: MinionSlime[] = [];
       if (z.type === 'circle') {
-        hit = Phaser.Math.Distance.Between(z.x, z.y, this.player.x, this.player.y) <= z.r;
+        playerHit = Phaser.Math.Distance.Between(z.x, z.y, this.player.x, this.player.y) <= z.r;
+        for (const ally of this._allyMinions) {
+          if (!ally.isDead && Phaser.Math.Distance.Between(z.x, z.y, ally.x, ally.y) <= z.r)
+            allyHits.push(ally);
+        }
       } else {
-        // vine: line segment check (axis-aligned from boss in 4 cardinal dirs)
+        // vine: line segment check
         const nx = Math.cos(z.ang!), ny = Math.sin(z.ang!);
         const dx = this.player.x - z.x, dy = this.player.y - z.y;
         const proj = dx * nx + dy * ny;
         const perp = Math.abs(dx * (-ny) + dy * nx);
-        hit = proj >= 0 && proj <= z.len! && perp <= z.r;
+        playerHit = proj >= 0 && proj <= z.len! && perp <= z.r;
+        for (const ally of this._allyMinions) {
+          if (ally.isDead) continue;
+          const adx = ally.x - z.x, ady = ally.y - z.y;
+          const ap = adx * nx + ady * ny;
+          const aperp = Math.abs(adx * (-ny) + ady * nx);
+          if (ap >= 0 && ap <= z.len! && aperp <= z.r) allyHits.push(ally);
+        }
       }
-      if (hit) this.player.takeDamage(z.dmg);
+      if (playerHit) this.player.takeDamage(z.dmg);
+      for (const ally of allyHits) ally.takeDamage(z.dmg);
     }
 
     // burnMaxStackBonus 卡片效果
@@ -2408,6 +2510,28 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  private damageAlliesNear(x: number, y: number, radius: number, dmg: number): void {
+    for (const ally of this._allyMinions) {
+      if (ally.isDead) continue;
+      if (Phaser.Math.Distance.Between(x, y, ally.x, ally.y) <= radius) ally.takeDamage(dmg);
+    }
+  }
+
+  // 範圍傷害：同時打 player 和範圍內所有友軍
+  private hitInRadius(x: number, y: number, r: number, dmg: number): void {
+    const dSq = Phaser.Math.Distance.BetweenPointsSquared({ x, y }, this.player);
+    if (dSq <= r * r) this.player.takeDamage(dmg);
+    this.damageAlliesNear(x, y, r, dmg);
+  }
+
+  // 全場傷害：打 player 和所有友軍（不依位置）
+  private hitGlobal(dmg: number): void {
+    this.player.takeDamage(dmg);
+    for (const ally of this._allyMinions) {
+      if (!ally.isDead) ally.takeDamage(dmg);
+    }
+  }
+
   private nearestTargetPos(fromX: number, fromY: number): [number, number] {
     let best: [number, number] = [this.player.x, this.player.y];
     let bestDist = Phaser.Math.Distance.Between(fromX, fromY, this.player.x, this.player.y);
@@ -2437,8 +2561,7 @@ export class GameScene extends Phaser.Scene {
       };
       b.onPoisonTick = (x, y, r, dmg) => {
         if (!this.bossActive) return;
-        const dSq = Phaser.Math.Distance.BetweenPointsSquared({ x, y }, this.player);
-        if (dSq <= r * r) this.player.takeDamage(dmg);
+        this.hitInRadius(x, y, r, dmg);
       };
       return b;
     }
@@ -2446,18 +2569,19 @@ export class GameScene extends Phaser.Scene {
       const b = new BossRedSlime(this, cx, cy, totalHp, bossDef.element, bossDef.spriteKey, bossDef.tint);
       b.onJumpHit = (x, y, r, dmg) => {
         if (!this.bossActive) return;
-        const dSq = Phaser.Math.Distance.BetweenPointsSquared({ x, y }, this.player);
-        if (dSq <= r * r) this.player.takeDamage(dmg);
+        this.hitInRadius(x, y, r, dmg);
       };
       b.onFanHit = (bx, by, angle, half, range, dmg) => {
         if (!this.bossActive) return;
-        const dx = this.player.x - bx;
-        const dy = this.player.y - by;
-        const dst = Math.sqrt(dx * dx + dy * dy);
-        if (dst > range) return;
-        const playerAngle = Math.atan2(dy, dx);
-        const diff = Phaser.Math.Angle.Wrap(playerAngle - angle);
-        if (Math.abs(diff) <= half) this.player.takeDamage(dmg);
+        const checkFan = (tx: number, ty: number) => {
+          const dx = tx - bx, dy = ty - by;
+          if (Math.sqrt(dx * dx + dy * dy) > range) return false;
+          return Math.abs(Phaser.Math.Angle.Wrap(Math.atan2(dy, dx) - angle)) <= half;
+        };
+        if (checkFan(this.player.x, this.player.y)) this.player.takeDamage(dmg);
+        for (const ally of this._allyMinions) {
+          if (!ally.isDead && checkFan(ally.x, ally.y)) ally.takeDamage(dmg);
+        }
       };
       return b;
     }
@@ -2465,20 +2589,16 @@ export class GameScene extends Phaser.Scene {
       const b = new BossBlueSlime(this, cx, cy, totalHp, bossDef.element, bossDef.spriteKey, bossDef.tint);
       b.onSpikeHit = (x, y, dmg) => {
         if (!this.bossActive) return;
-        const dSq = Phaser.Math.Distance.BetweenPointsSquared({ x, y }, this.player);
-        if (dSq <= P(18) * P(18)) this.player.takeDamage(dmg);
+        this.hitInRadius(x, y, P(18), dmg);
       };
       b.onMineExplode = (x, y, r, dmg) => {
         if (!this.bossActive) return;
-        const dSq = Phaser.Math.Distance.BetweenPointsSquared({ x, y }, this.player);
-        if (dSq > r * r) return;
-        this.player.takeDamage(dmg);
-        this.player.speedMult = 0.4;
-        this.player.setTint(0x88ccff);
-        this.time.delayedCall(2000, () => {
-          this.player.speedMult = 1;
-          this.player.clearTint();
-        });
+        this.hitInRadius(x, y, r, dmg);
+        if (Phaser.Math.Distance.BetweenPointsSquared({ x, y }, this.player) <= r * r) {
+          this.player.speedMult = 0.4;
+          this.player.setTint(0x88ccff);
+          this.time.delayedCall(2000, () => { this.player.speedMult = 1; this.player.clearTint(); });
+        }
       };
       return b;
     }
@@ -2486,12 +2606,11 @@ export class GameScene extends Phaser.Scene {
       const b = new BossWhiteSlime(this, cx, cy, totalHp, bossDef.element, bossDef.spriteKey, bossDef.tint);
       b.onCrossHit = (dmg) => {
         if (!this.bossActive) return;
-        this.player.takeDamage(dmg);
+        this.hitGlobal(dmg);
       };
       b.onOrbExplode = (x, y, r, dmg) => {
         if (!this.bossActive) return;
-        const dSq = Phaser.Math.Distance.BetweenPointsSquared({ x, y }, this.player);
-        if (dSq <= r * r) this.player.takeDamage(dmg);
+        this.hitInRadius(x, y, r, dmg);
       };
       return b;
     }
@@ -2503,7 +2622,7 @@ export class GameScene extends Phaser.Scene {
       };
       b.onPoisonFanHit = (dmg) => {
         if (!this.bossActive) return;
-        this.player.takeDamage(dmg);
+        this.hitGlobal(dmg);
       };
       return b;
     }
@@ -2511,12 +2630,11 @@ export class GameScene extends Phaser.Scene {
       const b = new BossLavaSlime(this, cx, cy, totalHp, bossDef.element, bossDef.spriteKey, bossDef.tint);
       b.onBarrageHit = (dmg) => {
         if (!this.bossActive) return;
-        this.player.takeDamage(dmg);
+        this.hitGlobal(dmg);
       };
       b.onPillarExplode = (x, y, r, dmg) => {
         if (!this.bossActive) return;
-        const dSq = Phaser.Math.Distance.BetweenPointsSquared({ x, y }, this.player);
-        if (dSq <= r * r) this.player.takeDamage(dmg);
+        this.hitInRadius(x, y, r, dmg);
       };
       return b;
     }
@@ -2623,6 +2741,14 @@ export class GameScene extends Phaser.Scene {
     this.physics.add.overlap(m, this.player, () => {
       if (!m.isDead && m.isDashing) this.player.takeDamage(m.atk * 3);
     });
+    this.physics.add.overlap(m, this._allyGroup, (_m, allyObj) => {
+      const ally = allyObj as MinionSlime;
+      if (m.isDead || !m.isDashing || ally.isDead) return;
+      const now = this.time.now;
+      if (now - ((ally as any)._lastDashHit ?? 0) < 300) return;
+      (ally as any)._lastDashHit = now;
+      ally.takeDamage(m.atk * 3);
+    });
     if (!NetworkService.connected || NetworkService.isHost) {
       m.onFire = (type, mx, my, tx, ty) => {
         this.spawnMinionAttack(type, mx, my, tx, ty, m.atk, m.isElite);
@@ -2721,6 +2847,14 @@ export class GameScene extends Phaser.Scene {
       this.physics.add.collider(m, this.wallLayer);
       this.physics.add.overlap(m, this.player, () => {
         if (!m.isDead && m.isDashing) this.player.takeDamage(m.atk * 3);
+      });
+      this.physics.add.overlap(m, this._allyGroup, (_m, allyObj) => {
+        const ally = allyObj as MinionSlime;
+        if (m.isDead || !m.isDashing || ally.isDead) return;
+        const now = this.time.now;
+        if (now - ((ally as any)._lastDashHit ?? 0) < 300) return;
+        (ally as any)._lastDashHit = now;
+        ally.takeDamage(m.atk * 3);
       });
       if (!NetworkService.connected || NetworkService.isHost) {
         m.onFire = (type, mx, my, tx, ty) => {
@@ -3229,6 +3363,7 @@ export class GameScene extends Phaser.Scene {
   // ── Game-end handlers ─────────────────────────────────
 
   private handleBossDefeated(): void {
+    this.bossActive = false;
     // Fade out boss HP bar UI
     const barTargets = [
       this.bossHpGfx, this.bossHpLabel, this.bossDebuffGfx,
@@ -4014,6 +4149,7 @@ export class GameScene extends Phaser.Scene {
 
   private addAttackButton(): void {
     if ((PlayerStore.getEquipped().sword?.behavior ?? 'slash180') === 'aura') return;
+    const isFlower = (CardStore.getTotalStats().flowerSummonMode ?? 0) > 0;
     const r = P(52);
     const getBtnCenter = () => ({
       x: this.scale.width - P(70),
@@ -4022,65 +4158,89 @@ export class GameScene extends Phaser.Scene {
 
     const gfx = this.add.graphics().setScrollFactor(0).setDepth(100).setAlpha(0.25);
 
+    // 花怪模式：充能 UI 覆蓋層（每幀更新）
+    if (isFlower) {
+      this._flowerChargeGfx = this.add.graphics().setScrollFactor(0).setDepth(101);
+      this._flowerChargeTxt = this.add.text(0, 0, '', {
+        fontSize: `${Math.round(P(14))}px`, fontStyle: 'bold',
+        color: '#ccffcc', stroke: '#003300', strokeThickness: 2,
+      }).setScrollFactor(0).setDepth(102).setOrigin(0.5, 0.5);
+    }
+
     const drawBtn = (pressed: boolean) => {
       gfx.clear();
       const { x: cx, y: cy } = getBtnCenter();
       const oy = pressed ? P(1) : 0;
+      const flowerNow = (CardStore.getTotalStats().flowerSummonMode ?? 0) > 0;
 
       // Drop shadow
       gfx.fillStyle(0x000000, 0.5);
       gfx.fillCircle(cx + P(3), cy + P(3), r);
 
-      // Outer ring (dark border)
-      gfx.fillStyle(0x150000, 1);
-      gfx.fillCircle(cx, cy, r);
-
-      // Bevel highlight ring (top-left offset)
-      if (!pressed) {
-        gfx.fillStyle(0xb82800, 1);
-        gfx.fillCircle(cx - P(1), cy - P(1), r - P(2));
+      if (flowerNow) {
+        // ── 花怪模式背景（綠色調）──
+        gfx.fillStyle(0x001500, 1);
+        gfx.fillCircle(cx, cy, r);
+        if (!pressed) {
+          gfx.fillStyle(0x006600, 1);
+          gfx.fillCircle(cx - P(1), cy - P(1), r - P(2));
+        }
+        gfx.fillStyle(pressed ? 0x003300 : 0x005500, 1);
+        gfx.fillCircle(cx + (pressed ? P(1) : 0), cy + (pressed ? P(1) : 0), r - (pressed ? P(2) : P(4)));
+        if (!pressed) {
+          gfx.fillStyle(0x44ff44, 0.22);
+          gfx.fillCircle(cx - P(5), cy - P(10), P(13));
+        }
+        // ── 花朵像素圖示 ──
+        const fx = cx, fy = cy - P(20) + oy;
+        // 花瓣（6片）
+        gfx.fillStyle(0xffaacc, 1);
+        for (let i = 0; i < 6; i++) {
+          const a = (i / 6) * Math.PI * 2;
+          gfx.fillCircle(fx + Math.cos(a) * P(9), fy + Math.sin(a) * P(9), P(5));
+        }
+        // 花蕊
+        gfx.fillStyle(0xffee44, 1);
+        gfx.fillCircle(fx, fy, P(6));
+        gfx.fillStyle(0xffff99, 1);
+        gfx.fillCircle(fx - P(1), fy - P(1), P(3));
+        // 莖
+        gfx.fillStyle(0x44aa44, 1);
+        gfx.fillRect(fx - P(1.5), fy + P(5) + oy, P(3), P(10));
+      } else {
+        // ── 一般劍按鈕 ──
+        gfx.fillStyle(0x150000, 1);
+        gfx.fillCircle(cx, cy, r);
+        if (!pressed) {
+          gfx.fillStyle(0xb82800, 1);
+          gfx.fillCircle(cx - P(1), cy - P(1), r - P(2));
+        }
+        gfx.fillStyle(pressed ? 0x4a0e00 : 0x6a1500, 1);
+        gfx.fillCircle(cx + (pressed ? P(1) : 0), cy + (pressed ? P(1) : 0), r - (pressed ? P(2) : P(4)));
+        if (!pressed) {
+          gfx.fillStyle(0xff6633, 0.28);
+          gfx.fillCircle(cx - P(5), cy - P(10), P(13));
+        }
+        const ox = cx;
+        gfx.fillStyle(0xdddddd, 1);
+        gfx.fillRect(ox - P(2), cy - P(18) + oy, P(4), P(24));
+        gfx.fillStyle(0xffffff, 1);
+        gfx.fillRect(ox - P(1), cy - P(17) + oy, P(1), P(18));
+        gfx.fillStyle(0xbbbbbb, 1);
+        gfx.fillRect(ox - P(1), cy - P(20) + oy, P(2), P(2));
+        gfx.fillStyle(0xddaa00, 1);
+        gfx.fillRect(ox - P(9), cy + P(5) + oy, P(18), P(4));
+        gfx.fillStyle(0x997700, 1);
+        gfx.fillRect(ox - P(9), cy + P(5) + oy, P(3), P(4));
+        gfx.fillRect(ox + P(6), cy + P(5) + oy, P(3), P(4));
+        gfx.fillStyle(0x884422, 1);
+        gfx.fillRect(ox - P(2), cy + P(9) + oy, P(4), P(9));
+        gfx.fillStyle(0xaa6633, 1);
+        gfx.fillRect(ox - P(2), cy + P(11) + oy, P(4), P(2));
+        gfx.fillRect(ox - P(2), cy + P(14) + oy, P(4), P(2));
+        gfx.fillStyle(0xddaa00, 1);
+        gfx.fillRect(ox - P(4), cy + P(18) + oy, P(8), P(4));
       }
-
-      // Main fill
-      gfx.fillStyle(pressed ? 0x4a0e00 : 0x6a1500, 1);
-      gfx.fillCircle(cx + (pressed ? P(1) : 0), cy + (pressed ? P(1) : 0), r - (pressed ? P(2) : P(4)));
-
-      // Inner glow highlight (top area)
-      if (!pressed) {
-        gfx.fillStyle(0xff6633, 0.28);
-        gfx.fillCircle(cx - P(5), cy - P(10), P(13));
-      }
-
-      // ── Pixel sword icon ──────────────────────────────
-      const ox = cx;
-
-      // blade (silver)
-      gfx.fillStyle(0xdddddd, 1);
-      gfx.fillRect(ox - P(2), cy - P(18) + oy, P(4), P(24));
-      // blade shine
-      gfx.fillStyle(0xffffff, 1);
-      gfx.fillRect(ox - P(1), cy - P(17) + oy, P(1), P(18));
-      // blade tip
-      gfx.fillStyle(0xbbbbbb, 1);
-      gfx.fillRect(ox - P(1), cy - P(20) + oy, P(2), P(2));
-
-      // guard (gold)
-      gfx.fillStyle(0xddaa00, 1);
-      gfx.fillRect(ox - P(9), cy + P(5) + oy, P(18), P(4));
-      gfx.fillStyle(0x997700, 1);
-      gfx.fillRect(ox - P(9), cy + P(5) + oy, P(3), P(4));
-      gfx.fillRect(ox + P(6), cy + P(5) + oy, P(3), P(4));
-
-      // grip (brown)
-      gfx.fillStyle(0x884422, 1);
-      gfx.fillRect(ox - P(2), cy + P(9) + oy, P(4), P(9));
-      gfx.fillStyle(0xaa6633, 1);
-      gfx.fillRect(ox - P(2), cy + P(11) + oy, P(4), P(2));
-      gfx.fillRect(ox - P(2), cy + P(14) + oy, P(4), P(2));
-
-      // pommel (gold)
-      gfx.fillStyle(0xddaa00, 1);
-      gfx.fillRect(ox - P(4), cy + P(18) + oy, P(8), P(4));
     };
 
     drawBtn(false);
@@ -5231,8 +5391,7 @@ export class GameScene extends Phaser.Scene {
           if (progress >= 1) {
             tick.destroy();
             gfx.destroy();
-            if (Phaser.Math.Distance.Between(p.x, p.y, this.player.x, this.player.y) <= r)
-              this.player.takeDamage(dmg);
+            this.hitInRadius(p.x, p.y, r, dmg);
             this.blossomExplodeVfx(p.x, p.y, r);
           }
         },
@@ -5297,8 +5456,7 @@ export class GameScene extends Phaser.Scene {
         // 傷害（每 350ms 判定一次）
         if (dmgAccum >= 350) {
           dmgAccum = 0;
-          if (Phaser.Math.Distance.Between(bx, by, this.player.x, this.player.y) <= DMG_R)
-            this.player.takeDamage(dmg);
+          this.hitInRadius(bx, by, DMG_R, dmg);
         }
 
         if (elapsed >= LIFE) {
@@ -5471,11 +5629,13 @@ export class GameScene extends Phaser.Scene {
 
           drawOrb(px, py);
 
-          // 打到玩家：爆炸並造成傷害
-          if (Phaser.Math.Distance.Between(px, py, this.player.x, this.player.y) <= HIT_R) {
+          // 打到玩家或友軍：爆炸並造成傷害
+          const orbHit = Phaser.Math.Distance.Between(px, py, this.player.x, this.player.y) <= HIT_R
+            || this._allyMinions.some(a => !a.isDead && Phaser.Math.Distance.Between(px, py, a.x, a.y) <= HIT_R);
+          if (orbHit) {
             moveTimer.destroy();
             gfx.destroy();
-            this.player.takeDamage(dmg);
+            this.hitInRadius(px, py, HIT_R, dmg);
             this.poisonOrbExplodeVfx(px, py, r);
             return;
           }
@@ -5886,8 +6046,7 @@ export class GameScene extends Phaser.Scene {
       });
     }
 
-    if (Phaser.Math.Distance.Between(this.player.x, this.player.y, wx, wy) <= R)
-      this.player.takeDamage(dmg);
+    this.hitInRadius(wx, wy, R, dmg);
   }
 
   private spikeAt(tx: number, ty: number, atk: number, isElite = false, sizeMult = 1): void {
@@ -6022,8 +6181,7 @@ export class GameScene extends Phaser.Scene {
         ease: 'Quad.In', onComplete: () => burst.destroy(),
       });
 
-      if (Phaser.Math.Distance.Between(this.player.x, this.player.y, tx, ty) <= R)
-        this.player.takeDamage(dmg);
+      this.hitInRadius(tx, ty, R, dmg);
     });
   }
 
