@@ -384,7 +384,7 @@ export const CARD_DEFS: CardDef[] = [
   { id: 'card_elite_plant1_b', name: '菁英食人花卡片(B)', monsterId: 'elite_plant1', element: 'grass', tint: 0xff88cc, effect: { hp: 40 }, desc: '最大HP +40' },
   { id: 'card_elite_plant1_c', name: '菁英食人花卡片(C)', monsterId: 'elite_plant1', element: 'grass', tint: 0xff88cc, effect: { dmgVsSlime: 0.15 }, desc: '對史萊姆種族傷害 +15%' },
 
-  { id: 'card_elite_plant2_a', name: '菁英藤蔓花卡片(A)', monsterId: 'elite_plant2', element: 'water', tint: 0x66ff88, effect: { summonFlowerChance: 0.10 }, desc: '每次命中有10%機率召喚1朵友軍食人花（ATK×60%、HP×100%，上限2朵，存活8秒，0.8秒攻擊一次）。攜帶2張時機率提升至20%' },
+  { id: 'card_elite_plant2_a', name: '菁英藤蔓花卡片(A)', monsterId: 'elite_plant2', element: 'water', tint: 0x66ff88, effect: { summonFlowerChance: 0.10, summonFlowerCapPair: 1 }, desc: '每次命中有10%機率召喚1朵友軍不死花（ATK×60%、HP×100%，存活15秒，0.8秒攻擊一次）。攜帶2張時機率提升至20%，友軍上限+1（基礎2→3）' },
   { id: 'card_elite_plant2_b', name: '菁英藤蔓花卡片(B)', monsterId: 'elite_plant2', element: 'water', tint: 0x66ff88, effect: { evasion: 0.03, hp: 30 }, desc: '閃避率 +3%、最大HP +30' },
   { id: 'card_elite_plant2_c', name: '菁英藤蔓花卡片(C)', monsterId: 'elite_plant2', element: 'water', tint: 0x66ff88, effect: { atk: 6, weaponEnhance8Atk: 6 }, desc: '攻擊力 +6，武器≥+8時攻擊力再+6' },
 
@@ -429,7 +429,7 @@ export const CARD_DEFS: CardDef[] = [
   { id: 'card_boss_flower_one_c', name: '食人花王卡片(C)', monsterId: 'boss_flower_one', element: 'none', tint: 0xff88cc, effect: { boomerangRangePct: 0.30, boomerangDmgPct: 0.20 }, desc: '迴旋飛刃命中範圍 +30%，迴旋飛刃傷害 +20%' },
 
   // 藤蔓花王：陷阱特化
-  { id: 'card_boss_flower_two_a', name: '藤蔓花王卡片(A)', monsterId: 'boss_flower_two', element: 'none', tint: 0x66ff88, effect: { flowerSummonMode: 1 }, desc: '取消原本攻擊模式，改為召喚花怪攻擊（最多3隻，CD 1.5s，ATK×60%，HP×100%）' },
+  { id: 'card_boss_flower_two_a', name: '藤蔓花王卡片(A)', monsterId: 'boss_flower_two', element: 'none', tint: 0x66ff88, effect: { flowerSummonMode: 1, summonFlowerCap: 1 }, desc: '取消原本攻擊模式，改為召喚花怪攻擊（ATK×60%，HP×100%）。召喚物上限+1' },
   { id: 'card_boss_flower_two_b', name: '藤蔓花王卡片(B)', monsterId: 'boss_flower_two', element: 'none', tint: 0x66ff88, effect: { auraRadiusPct: 0.40, auraDmgPct: 0.30 }, desc: '血環範圍 +40%，血環傷害 +30%' },
   { id: 'card_boss_flower_two_c', name: '藤蔓花王卡片(C)', monsterId: 'boss_flower_two', element: 'none', tint: 0x66ff88, effect: { dmgVsEliteOrBoss: 0.25 }, desc: '對Boss/菁英傷害 +25%' },
 

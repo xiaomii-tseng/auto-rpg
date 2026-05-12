@@ -512,38 +512,41 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
     const pct = this.hp / this.maxHp;
 
     if (this.isAlly) {
+      // 友軍：綠色血條
       const bw = P(30), bh = P(4);
       const bx = this.x - bw / 2;
       const by = this.y - P(32);
-      this.hpBarGfx.fillStyle(0x001a33, 0.8);
+      this.hpBarGfx.fillStyle(0x002200, 0.85);
       this.hpBarGfx.fillRect(bx, by, bw, bh);
-      const color = pct > 0.5 ? 0x3399ff : pct > 0.25 ? 0x0066cc : 0x0033aa;
+      const color = pct > 0.5 ? 0x44ee44 : pct > 0.25 ? 0x88cc00 : 0x226600;
       this.hpBarGfx.fillStyle(color);
       this.hpBarGfx.fillRect(bx, by, bw * pct, bh);
-      this.hpBarGfx.lineStyle(P(1), 0x6699ff, 0.8);
+      this.hpBarGfx.lineStyle(P(1), 0x88ff88, 0.7);
       this.hpBarGfx.strokeRect(bx, by, bw, bh);
       this.drawDebuffIcons(this.x, by + bh + P(9));
     } else if (this.isElite) {
+      // 菁英：紅色血條 + 金色外框
       const bw = P(44), bh = P(6);
       const bx = this.x - bw / 2;
       const by = this.y - P(35);
       this.hpBarGfx.fillStyle(0x1a0000, 0.9);
       this.hpBarGfx.fillRect(bx, by, bw, bh);
-      const color = pct > 0.5 ? 0xffcc00 : pct > 0.25 ? 0xff8800 : 0xff2200;
+      const color = pct > 0.5 ? 0xee2222 : pct > 0.25 ? 0xcc1111 : 0x880000;
       this.hpBarGfx.fillStyle(color);
       this.hpBarGfx.fillRect(bx, by, bw * pct, bh);
       this.hpBarGfx.lineStyle(P(2), 0xddaa00, 1);
       this.hpBarGfx.strokeRect(bx, by, bw, bh);
-      this.hpBarGfx.lineStyle(P(1), 0xffffff, 0.25);
+      this.hpBarGfx.lineStyle(P(1), 0xffffff, 0.2);
       this.hpBarGfx.lineBetween(bx + P(1), by + P(1), bx + bw * pct - P(1), by + P(1));
       this.drawDebuffIcons(this.x, by + bh + P(9));
     } else {
+      // 一般小怪：紅色血條
       const bw = P(30), bh = P(4);
       const bx = this.x - bw / 2;
       const by = this.y - P(32);
-      this.hpBarGfx.fillStyle(0x330000, 0.8);
+      this.hpBarGfx.fillStyle(0x1a0000, 0.8);
       this.hpBarGfx.fillRect(bx, by, bw, bh);
-      const color = pct > 0.5 ? 0x44cc44 : pct > 0.25 ? 0xffaa00 : 0xff2200;
+      const color = pct > 0.5 ? 0xee2222 : pct > 0.25 ? 0xcc1111 : 0x880000;
       this.hpBarGfx.fillStyle(color);
       this.hpBarGfx.fillRect(bx, by, bw * pct, bh);
       this.hpBarGfx.lineStyle(P(1), 0x000000, 0.5);

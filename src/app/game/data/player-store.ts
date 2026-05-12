@@ -70,6 +70,8 @@ export interface EffectiveStats {
   divineShieldChance?:   number;
   infiniteDivineShield?: number;
   summonFlowerChance?:   number;
+  summonFlowerCap?:      number;
+  summonFlowerCapPair?:  number;
   flowerSummonMode?:     number;
   lavaSlimeCompanion?:   number;
   freeRevive?:           number;

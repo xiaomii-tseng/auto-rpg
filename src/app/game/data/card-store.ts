@@ -154,6 +154,8 @@ export const CardStore = {
       b.divineShieldChance   = (b.divineShieldChance   ?? 0) + (e.divineShieldChance   ?? 0);
       b.infiniteDivineShield = (b.infiniteDivineShield ?? 0) + (e.infiniteDivineShield ?? 0);
       b.summonFlowerChance   = (b.summonFlowerChance   ?? 0) + (e.summonFlowerChance   ?? 0);
+      b.summonFlowerCap      = (b.summonFlowerCap      ?? 0) + (e.summonFlowerCap      ?? 0);
+      b.summonFlowerCapPair  = (b.summonFlowerCapPair  ?? 0) + (e.summonFlowerCapPair  ?? 0);
       b.flowerSummonMode     = (b.flowerSummonMode     ?? 0) + (e.flowerSummonMode     ?? 0);
       b.lavaSlimeCompanion   = (b.lavaSlimeCompanion   ?? 0) + (e.lavaSlimeCompanion   ?? 0);
       b.freeRevive           = (b.freeRevive           ?? 0) + (e.freeRevive           ?? 0);
@@ -244,6 +246,8 @@ export const CardStore = {
       divineShieldChance:   bonus.divineShieldChance,
       infiniteDivineShield: bonus.infiniteDivineShield,
       summonFlowerChance:   bonus.summonFlowerChance,
+      summonFlowerCap:      bonus.summonFlowerCap,
+      summonFlowerCapPair:  bonus.summonFlowerCapPair,
       flowerSummonMode:     bonus.flowerSummonMode,
       lavaSlimeCompanion:   bonus.lavaSlimeCompanion,
       freeRevive:           bonus.freeRevive,

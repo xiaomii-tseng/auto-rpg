@@ -94,6 +94,8 @@ export interface StatBonus {
   lightningStrike?:     number;  // 每秒落雷最遠敵人（1=啟用，ATK×12%）
   divineShieldChance?:  number;  // 攻擊時觸發神盾護體機率（DEF+20持續3秒，機率疊加）
   summonFlowerChance?:  number;  // 攻擊時召喚友軍花怪機率（依當前星級）
+  summonFlowerCap?:     number;  // 友軍花怪上限 +N（基礎上限2，立即生效）
+  summonFlowerCapPair?: number;  // 友軍花怪上限 pair 加成（累積2才+1，菁英卡用）
   freeRevive?:          number;  // 每局免費復活次數（滿血，無敵1秒）
   // ── Boss卡片專屬效果 ──
   maxHpPct?:            number;  // 最大HP百分比變化（可負數，-0.2=-20%）

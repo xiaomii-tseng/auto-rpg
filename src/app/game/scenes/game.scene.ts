@@ -1036,118 +1036,18 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
-  private trySummonAllyFlower(): void {
-    const ALLY_CAP = 2;
-
-    // 上限2：未滿才召喚，不替換
-    if (this._allyMinions.length >= ALLY_CAP) return;
-
-    const star    = this.questStar ?? 1;
-    const defId   = star >= 3 ? 'elite_plant1' : 'plant1_s';
-    const angle   = Math.random() * Math.PI * 2;
-    const dist    = P(Phaser.Math.Between(40, 70));
-    const ax      = this.player.x + Math.cos(angle) * dist;
-    const ay      = this.player.y + Math.sin(angle) * dist;
-    const isElite = defId.startsWith('elite_');
-    const ally    = this.spawnMinionAtForBoss(defId, ax, ay, isElite);
-    if (!ally) return;
-
-    ally.isAlly = true;  // 先設，drawHpBar 才能用藍色
-    // 花怪能力值：玩家 ATK×60%、HP×100%
-    const ps = CardStore.getTotalStats();
-    ally.setAllyStats(Math.max(1, Math.round(ps.maxHp * 1.00)), Math.max(1, Math.round(ps.atk * 0.60)));
-    ally.attackCooldownMs = 800;  // 固定0.8秒攻擊一次
-
-    this._allyMinions.push(ally);
-    this._allyGroup.add(ally);
-    ally.setTint(0x88ffcc);  // 友軍綠色標示
-
-    // 追擊最近的敵方單位
-    ally.getTargetPos = () => {
-      let nearest: MinionSlime | null = null;
-      let minD = Infinity;
-      for (const m of this.allMinions) {
-        if (m.isDead || this._allyMinions.includes(m)) continue;
-        const d = Phaser.Math.Distance.Between(ally.x, ally.y, m.x, m.y);
-        if (d < minD) { minD = d; nearest = m; }
-      }
-      if (nearest) return [nearest.x, nearest.y];
-      if (this.bossActive && this.boss.active) return [this.boss.x, this.boss.y];
-      return [ally.x, ally.y];
-    };
-
-    // 覆寫 onFire：發射彈道後，讓彈道真正飛行並碰到敵人才扣血
-    ally.onFire = (type, mx, my, tx, ty) => {
-      // 發射視覺彈道
-      this.spawnMinionAttack(type, mx, my, tx, ty, ally.atk, ally.isElite);
-
-      // 標記剛生成的彈道，防止打到友軍，並對每顆彈道加入敵人碰撞偵測
-      const wx = mx * DPR, wy = my * DPR;
-      for (const c of this.minionProjGroup.getChildren()) {
-        const img = c as Phaser.Physics.Arcade.Image;
-        if (!(img as any).isAllyProj && img.active &&
-            Phaser.Math.Distance.Between(img.x, img.y, wx, wy) < P(8)) {
-          (img as any).isAllyProj = true;
-          const dmg = (img as any).dmg as number;
-          // 每 30ms 偵測是否飛到敵人身上
-          const hitTimer = this.time.addEvent({
-            delay: 30, loop: true,
-            callback: () => {
-              if (!img.active) { hitTimer.destroy(); return; }
-              for (const t of this.getHittableTargets()) {
-                if (Phaser.Math.Distance.Between(img.x, img.y, t.x, t.y) < P(18)) {
-                  (t as any).takeDamage?.(dmg);
-                  img.destroy();
-                  hitTimer.destroy();
-                  return;
-                }
-              }
-            },
-          });
-        }
-      }
-    };
-
-    // 8秒後強制消滅
-    const removeAlly = () => {
-      if (ally.isDead) return;
-      const i = this._allyMinions.indexOf(ally);
-      if (i !== -1) this._allyMinions.splice(i, 1);
-      this._allyGroup.remove(ally, false, false);
-      ally.onDead = undefined;
-      ally.forceKill();
-    };
-    this.time.delayedCall(8000, removeAlly);
-
-    // 友軍死亡時從陣列移除
-    const origOnDead = ally.onDead;
-    ally.onDead = () => {
-      const i = this._allyMinions.indexOf(ally);
-      if (i !== -1) this._allyMinions.splice(i, 1);
-      this._allyGroup.remove(ally, false, false);
-      origOnDead?.();
-    };
-  }
-
-  private tryFlowerSummonModeAttack(): void {
-    const cd = 1500;
-    if (!this.player.lockCooldown(cd)) return;
-    const ALLY_CAP = 3;
-    if (this._allyMinions.length >= ALLY_CAP) return;
-
-    const star  = this.questStar ?? 1;
-    const defId = star >= 3 ? 'elite_plant1' : 'plant1_s';
-    const angle = Math.random() * Math.PI * 2;
-    const dist  = P(Phaser.Math.Between(40, 70));
+  private spawnAllyFlower(defId: string, lifetimeMs: number, spawnAngle?: number): void {
+    const angle = spawnAngle ?? Math.random() * Math.PI * 2;
+    const dist  = spawnAngle !== undefined ? P(20) : P(Phaser.Math.Between(40, 70));
     const ax    = this.player.x + Math.cos(angle) * dist;
     const ay    = this.player.y + Math.sin(angle) * dist;
     const ally  = this.spawnMinionAtForBoss(defId, ax, ay, defId.startsWith('elite_'));
     if (!ally) return;
 
-    ally.isAlly = true;
     const ps = CardStore.getTotalStats();
+    ally.isAlly = true;
     ally.setAllyStats(Math.max(1, Math.round(ps.maxHp * 1.00)), Math.max(1, Math.round(ps.atk * 0.60)));
-    ally.attackCooldownMs = 1500;
+    ally.attackCooldownMs = 800;
     this._allyMinions.push(ally);
     this._allyGroup.add(ally);
     ally.setTint(0x88ffcc);
@@ -1179,14 +1079,11 @@ export class GameScene extends Phaser.Scene {
             callback: () => {
               if (!img.active) { hitTimer.destroy(); return; }
               for (const t of this.getHittableTargets()) {
-                if (Phaser.Math.Distance.Between(img.x, img.y, t.x, t.y) < P(12)) {
-                  hitTimer.destroy();
+                if (Phaser.Math.Distance.Between(img.x, img.y, t.x, t.y) < P(18)) {
+                  (t as any).takeDamage?.(dmg);
                   img.destroy();
-                  if (!(t as MinionSlime).isDead) {
-                    t.takeDamage(dmg);
-                    this.spawnDamageNumber(t.x, t.y, dmg, false, 1);
-                  }
-                  break;
+                  hitTimer.destroy();
+                  return;
                 }
               }
             },
@@ -1195,11 +1092,57 @@ export class GameScene extends Phaser.Scene {
       }
     };
 
+    const removeAlly = () => {
+      if (ally.isDead) return;
+      const i = this._allyMinions.indexOf(ally);
+      if (i !== -1) this._allyMinions.splice(i, 1);
+      this._allyGroup.remove(ally, false, false);
+      ally.onDead = undefined;
+      ally.forceKill();
+    };
+    this.time.delayedCall(lifetimeMs, removeAlly);
+
+    const origOnDead = ally.onDead;
     ally.onDead = () => {
       const i = this._allyMinions.indexOf(ally);
       if (i !== -1) this._allyMinions.splice(i, 1);
       this._allyGroup.remove(ally, false, false);
+      origOnDead?.();
     };
+  }
+
+  private trySummonAllyFlower(): void {
+    const stats = CardStore.getTotalStats();
+    const ALLY_CAP = 2 + (stats.summonFlowerCap ?? 0) + Math.floor((stats.summonFlowerCapPair ?? 0) / 2);
+
+    if (this._allyMinions.length >= ALLY_CAP) {
+      const oldest = this._allyMinions.shift()!;
+      this._allyGroup.remove(oldest, false, false);
+      oldest.onDead = undefined;
+      oldest.forceKill();
+    }
+
+    this.spawnAllyFlower('plant3_s', 15000);
+  }
+
+  private tryFlowerSummonModeAttack(): void {
+    const cd = 1500;
+    if (!this.player.lockCooldown(cd)) return;
+    const stats = CardStore.getTotalStats();
+    const ALLY_CAP = 2 + (stats.summonFlowerCap ?? 0) + Math.floor((stats.summonFlowerCapPair ?? 0) / 2);
+
+    if (this._allyMinions.length >= ALLY_CAP) {
+      const oldest = this._allyMinions.shift()!;
+      this._allyGroup.remove(oldest, false, false);
+      oldest.onDead = undefined;
+      oldest.forceKill();
+    }
+
+    // 手動拖曳方向優先，否則用玩家面向
+    const dirMap: Record<string, number> = { right: 0, down: Math.PI / 2, left: Math.PI, up: -Math.PI / 2 };
+    const spawnAngle = this._forceAttackAngle ?? dirMap[this.player.lastDir] ?? 0;
+    this._forceAttackAngle = null;
+    this.spawnAllyFlower('plant3_s', 15000, spawnAngle);
   }
 
   private spawnLavaSlimeCompanion(): void {
@@ -1302,13 +1245,14 @@ export class GameScene extends Phaser.Scene {
     else if (this.keys.down.isDown || this.keys.s.isDown) vy = 1;
 
     const isDashBehavior = (PlayerStore.getEquipped().sword?.behavior ?? 'slash180') === 'dashPierce';
+    const isFlowerMode = (CardStore.getTotalStats().flowerSummonMode ?? 0) > 0;
 
-    if (isDashBehavior) {
-      if (Phaser.Input.Keyboard.JustDown(this.keys.space)) {
+    if (Phaser.Input.Keyboard.JustDown(this.keys.space)) {
+      if (isFlowerMode) {
+        this.tryFlowerSummonModeAttack();
+      } else if (isDashBehavior) {
         this.attackDashPierce(0, 0);
-      }
-    } else {
-      if (Phaser.Input.Keyboard.JustDown(this.keys.space)) {
+      } else {
         const { x: tx, y: ty } = this.getAttackTarget();
         this.meleeAttack(tx, ty);
       }
@@ -4191,8 +4135,13 @@ export class GameScene extends Phaser.Scene {
       const dy = ptr.y - this._atkDragStartY;
       const dist = Math.sqrt(dx * dx + dy * dy);
       const isDash = (PlayerStore.getEquipped().sword?.behavior ?? 'slash180') === 'dashPierce';
+      const isFlowerModeBtn = (CardStore.getTotalStats().flowerSummonMode ?? 0) > 0;
 
-      if (isDash) {
+      if (isFlowerModeBtn) {
+        // flowerSummonMode 覆蓋所有攻擊模式
+        this._forceAttackAngle = dist >= this._atkDragThreshold ? Math.atan2(dy, dx) : null;
+        this.tryFlowerSummonModeAttack();
+      } else if (isDash) {
         if (dist >= this._atkDragThreshold) this._forceAttackAngle = Math.atan2(dy, dx);
         this.attackDashPierce(0, 0);
       } else if (dist >= this._atkDragThreshold) {
@@ -5132,14 +5081,14 @@ export class GameScene extends Phaser.Scene {
 
   private createSlimeAnims(): void {
     const dirs: Array<'down' | 'up' | 'left' | 'right'> = ['down', 'up', 'left', 'right'];
-    // cols × rows: idle=6×4, walk=8×4, run=8×4, attack=10×4, hurt=5×4, death=10×4
-    const buildAnims = (prefix: string) => {
+    // cols × rows: idle=6×4, walk=8×4, run=8×4, attack=varies×4, hurt=5×4, death=10×4
+    const buildAnims = (prefix: string, attackCols = 10) => {
       if (this.anims.exists(`${prefix}_idle_down`)) return;
       const defs = [
         { action: 'idle', cols: 6, fps: 8, repeat: -1 },
         { action: 'walk', cols: 8, fps: 10, repeat: -1 },
         { action: 'run', cols: 8, fps: 14, repeat: -1 },
-        { action: 'attack', cols: 10, fps: 10, repeat: -1 },
+        { action: 'attack', cols: attackCols, fps: 10, repeat: -1 },
         { action: 'hurt', cols: 5, fps: 14, repeat: 0 },
         { action: 'death', cols: 10, fps: 8, repeat: 0 },
       ];
@@ -5155,9 +5104,9 @@ export class GameScene extends Phaser.Scene {
         });
       });
     };
-    buildAnims('slime');
-    buildAnims('slime2');
-    buildAnims('slime3');
+    buildAnims('slime');        // attack: 10 cols
+    buildAnims('slime2', 11);   // attack: 11 cols
+    buildAnims('slime3', 9);    // attack: 9 cols
 
     // Plant monsters — different frame counts: idle=4, attack=7, hurt=5, death=10
     const buildPlantAnims = (prefix: string) => {

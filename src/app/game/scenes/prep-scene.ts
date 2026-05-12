@@ -3321,7 +3321,7 @@ export class PrepScene extends Phaser.Scene {
 
       // Full-panel dim backdrop — click to close
       const dimBg = this.add.rectangle(0, 0, W, H, 0x000000, 0.6).setInteractive();
-      dimBg.on('pointerdown', () => { pop.destroy(); detailPopup = null; });
+      dimBg.on('pointerdown', (_p: any, _lx: any, _ly: any, ev: any) => { ev.stopPropagation(); pop.destroy(); detailPopup = null; });
       pop.add(dimBg);
 
       // ── Card body ─────────────────────────────────────
@@ -3413,13 +3413,52 @@ export class PrepScene extends Phaser.Scene {
       dg.lineBetween(-PDW / 2 + P(16), DIVIDER_Y, PDW / 2 - P(16), DIVIDER_Y);
       pop.add(dg);
 
-      // ── Effect description ────────────────────────────
-      pop.add(this.add.text(0, DIVIDER_Y + P(10), def.desc, {
+      // ── Effect description（可捲動）────────────────────
+      const DESC_TOP    = DIVIDER_Y + P(10);
+      const DESC_BOT    = PDH / 2 - P(68);   // 留給裝備上限 + 按鈕的空間
+      const DESC_H      = DESC_BOT - DESC_TOP;
+      const descWrap    = PDW - P(28);
+
+      // 先用小字測量實際高度
+      const descTxt = this.add.text(0, DESC_TOP, def.desc, {
         fontSize: F(15), fontStyle: 'bold', color: '#c8a060',
         stroke: '#1a0800', strokeThickness: 1,
-        wordWrap: { width: PDW - P(24), useAdvancedWrap: true }, align: 'center',
-        maxLines: 3,
-      }).setOrigin(0.5, 0));
+        wordWrap: { width: descWrap, useAdvancedWrap: true }, align: 'center',
+      }).setOrigin(0.5, 0);
+      pop.add(descTxt);
+
+      // 卡片面板攔截點擊（防止穿透到後方元素）
+      const cardBlocker = this.add.rectangle(0, 0, PDW, PDH, 0x000000, 0)
+        .setInteractive()
+        .on('pointerdown', (_p: any, _lx: any, _ly: any, ev: any) => ev.stopPropagation());
+      pop.add(cardBlocker);
+
+      // 若文字超出區域，加裁切遮罩並支援拖動捲動
+      if (descTxt.height > DESC_H) {
+        // 遮罩使用世界座標（container 位於 W/2, H/2）
+        const maskShape = (this.make.graphics as any)({ x: 0, y: 0, add: false }) as Phaser.GameObjects.Graphics;
+        maskShape.fillStyle(0xffffff);
+        maskShape.fillRect(W / 2 - PDW / 2 + P(4), H / 2 + DESC_TOP, PDW - P(8), DESC_H);
+        descTxt.setMask(maskShape.createGeometryMask());
+
+        let dragStartY = 0, txtStartY = 0;
+        const minY = DESC_TOP - (descTxt.height - DESC_H);
+        const maxY = DESC_TOP;
+
+        // 拖動區域：透明互動矩形覆蓋描述文字區域
+        const scrollHit = this.add.rectangle(0, DESC_TOP + DESC_H / 2, PDW - P(8), DESC_H, 0x000000, 0)
+          .setInteractive()
+          .on('pointerdown', (_p: any, _lx: any, _ly: any, ev: any) => {
+            ev.stopPropagation();
+            dragStartY = (_p as Phaser.Input.Pointer).y;
+            txtStartY = descTxt.y;
+          })
+          .on('pointermove', (ptr: Phaser.Input.Pointer) => {
+            if (!ptr.isDown) return;
+            descTxt.setY(Phaser.Math.Clamp(txtStartY + (ptr.y - dragStartY), minY, maxY));
+          });
+        pop.add(scrollHit);
+      }
 
       // ── Tier & stack limit info ────────────────────────
       const detMonTier   = getMonsterDef(def.monsterId)?.tier ?? 1;
@@ -3678,12 +3717,13 @@ export class PrepScene extends Phaser.Scene {
 
       // Drag scroll
       this.input.on('pointermove', (ptr: Phaser.Input.Pointer) => {
-        if (!ptr.isDown) return;
+        if (!ptr.isDown || detailPopup) return;
         applyScroll(ptr.prevPosition.y - ptr.y);
       });
 
       // Wheel scroll
       this.input.on('wheel', (_ptr: unknown, _objs: unknown, _dx: number, dy: number) => {
+        if (detailPopup) return;
         applyScroll(dy * 0.6);
       });
     };
