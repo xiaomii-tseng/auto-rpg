@@ -2318,7 +2318,7 @@ export class GameScene extends Phaser.Scene {
       if (Math.random() < card.rate * cardDropMult) this.spawnCardDrop(x, y, card.cardId);
     }
     const starEquipMult = 1 + (this.questStar - 1) * 0.25;
-    const equipRate = (isElite ? 0.02 : 1) * starEquipMult;
+    const equipRate = (isElite ? 0.02 : 0.007) * starEquipMult;
     if (Math.random() < equipRate) {
       const ALL_SLOTS: EquipSlot[] = ['hat', 'outfit', 'shoes', 'ring1', 'ring2', 'sword'];
       const slot = ALL_SLOTS[Math.floor(Math.random() * ALL_SLOTS.length)];

@@ -25,7 +25,7 @@ export const STAR_UNLOCK_LEVEL: Record<number, number> = {
 };
 
 export const STAR_REWARD_MULT: Record<number, number> = {
-  1: 1.0, 2: 1.5, 3: 2.2, 4: 3.0, 5: 4.0,
+  1: 1.0, 2: 2.25, 3: 3.5, 4: 4.75, 5: 6.0,
 };
 
 export const STAR_STAT_MULT: Record<number, number> = {
