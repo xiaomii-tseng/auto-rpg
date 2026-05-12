@@ -252,6 +252,15 @@ export class GameScene extends Phaser.Scene {
     this._divineShieldTimer = undefined;
     this._freeRevivesUsed = 0;
     this._allyMinions = [];
+    this.bossDebuffTexts.clear();
+    this.hitBatches.clear();
+    this.homingProjs = [];
+    this._minionTargets.clear();
+    this.activeFires = [];
+    this.plantZones.forEach(z => z.gfx?.destroy());
+    this.plantZones = [];
+    this.pickupLog.forEach(t => t.destroy());
+    this.pickupLog = [];
 
     this.generateWaypoints();   // sets this.worldW / worldH / waypoints
 
@@ -1062,6 +1071,10 @@ export class GameScene extends Phaser.Scene {
   }
 
   private spawnAllyFlower(defId: string, lifetimeMs: number, spawnAngle?: number): void {
+    const _capStats = CardStore.getTotalStats();
+    const ALLY_CAP = 2 + (_capStats.summonFlowerCap ?? 0) + Math.floor((_capStats.summonFlowerCapPair ?? 0) / 2);
+    if (this._allyMinions.length >= ALLY_CAP) return;
+
     const angle = spawnAngle ?? Math.random() * Math.PI * 2;
     const dist  = spawnAngle !== undefined ? P(20) : P(Phaser.Math.Between(40, 70));
     const ax    = this.player.x + Math.cos(angle) * dist;
@@ -1071,7 +1084,7 @@ export class GameScene extends Phaser.Scene {
 
     const ps = CardStore.getTotalStats();
     ally.isAlly = true;
-    ally.setAllyStats(Math.max(1, Math.round(ps.maxHp * 1.00)), Math.max(1, Math.round(ps.atk * 0.35)));
+    ally.setAllyStats(Math.max(1, Math.round(ps.maxHp * 1.00)), Math.max(1, Math.round(ps.atk * 0.45)));
     ally.attackCooldownMs = 800;
     ally.rangedRange = P(400);
     this._allyMinions.push(ally);
@@ -1104,7 +1117,8 @@ export class GameScene extends Phaser.Scene {
             Phaser.Math.Distance.Between(img.x, img.y, wx, wy) < P(8)) {
           (img as any).isAllyProj = true;
           img.setTint(0x44ff88);
-          const dmg = (img as any).dmg as number;
+          (img as any).dmg = ally.atk; // 覆寫 spawnMinionAttack 附加的倍率，直接用 ally.atk
+          const dmg = ally.atk;
           const hitTimer = this.time.addEvent({
             delay: 30, loop: true,
             callback: () => {
@@ -1112,7 +1126,7 @@ export class GameScene extends Phaser.Scene {
               for (const t of this.getHittableTargets()) {
                 if (!hitTargets.has(t) && Phaser.Math.Distance.Between(img.x, img.y, t.x, t.y) < P(18)) {
                   const isBoss = (t as any) === this.boss;
-                  (t as any).takeDamage?.(isBoss ? Math.round(dmg * 0.5) : dmg);
+                  (t as any).takeDamage?.(isBoss ? Math.round(dmg * 0.775) : dmg);
                   hitTargets.add(t);
                   this.time.delayedCall(600, () => hitTargets.delete(t));
                 }
@@ -1823,7 +1837,8 @@ export class GameScene extends Phaser.Scene {
       this.dashAimAngle = this._forceAttackAngle;
       this._forceAttackAngle = null;
     } else {
-      const { rad } = this.resolveAttackDir(P(240));
+      const dashReach = P(78) + (CardStore.getTotalStats().dashDistBonus ?? 0) + P(28);
+      const { rad } = this.resolveAttackDir(dashReach);
       this.dashAimAngle = rad;
     }
     this.executeDashPierce(this.dashAimAngle);

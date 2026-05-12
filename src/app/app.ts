@@ -1,4 +1,4 @@
-import { Component, AfterViewInit } from '@angular/core';
+import { Component, AfterViewInit, NgZone, inject } from '@angular/core';
 import Phaser from 'phaser';
 import { PrepScene } from './game/scenes/prep-scene';
 import { GameScene } from './game/scenes/game.scene';
@@ -11,6 +11,8 @@ import { InventoryStore } from './game/data/inventory-store';
   styleUrl: './app.scss',
 })
 export class App implements AfterViewInit {
+
+  private readonly ngZone = inject(NgZone);
 
   ngAfterViewInit(): void {
     const wrapper = document.getElementById('game-wrapper')!;
@@ -40,7 +42,7 @@ export class App implements AfterViewInit {
     }
 
     const dpr = (window as any).__gameDpr as number;
-    const game = new Phaser.Game({
+    const game = this.ngZone.runOutsideAngular(() => new Phaser.Game({
       type: Phaser.AUTO,
       parent: 'game-container',
       backgroundColor: '#0d0d1a',
@@ -54,7 +56,7 @@ export class App implements AfterViewInit {
         default: 'arcade',
         arcade: { gravity: { x: 0, y: 0 }, debug: false },
       },
-    });
+    }));
 
     game.events.once('ready', () => {
       game.canvas.style.width  = `${gameW}px`;
