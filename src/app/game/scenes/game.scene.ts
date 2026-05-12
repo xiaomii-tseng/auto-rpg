@@ -572,6 +572,11 @@ export class GameScene extends Phaser.Scene {
     this.player.setCollideWorldBounds(true);
     (this.boss.body as Phaser.Physics.Arcade.Body).setCollideWorldBounds(true);
 
+    // 友軍花怪群組 — 必須在 overlap 註冊前建立，避免第二場時使用已銷毀的舊群組
+    this._allyGroup = this.physics.add.group();
+    // Minion projectile group
+    this.minionProjGroup = this.physics.add.group();
+
     this.physics.add.overlap(bossGroup, this.player, () => {
       if (!this.bossActive) return;
       if (this.boss.currentState === 'DASHING') this.player.takeDamage(this.boss.scaleDmg(45));
@@ -588,11 +593,6 @@ export class GameScene extends Phaser.Scene {
 
     this.physics.add.collider(this.player, this.wallLayer);
     this.physics.add.collider(this.boss, this.wallLayer);
-
-    // Minion projectile group
-    this.minionProjGroup = this.physics.add.group();
-    // 友軍花怪群組 — 供敵方彈道 overlap 偵測使用
-    this._allyGroup = this.physics.add.group();
     this.physics.add.overlap(this.minionProjGroup, this._allyGroup, (proj, _ally) => {
       const p    = proj as Phaser.Physics.Arcade.Image;
       const ally = _ally as MinionSlime;
