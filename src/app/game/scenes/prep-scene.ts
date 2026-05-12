@@ -137,56 +137,10 @@ export class PrepScene extends Phaser.Scene {
       // 新玩家：隨機送一把普通品質武器
       const startSword = generateEquipment('sword', 'normal');
       PlayerStore.equipDirect('sword', startSword);
-      InventoryStore.addGold(100);
+      InventoryStore.addGold(100000);
       InventoryStore.addItem('quest_reroll', '任務重製石', 10);
     }
 
-    // ── TEST ONLY: 所有菁英卡 ×2 加入背包（測試特殊效果用，完成後移除此段）──
-    const _TEST_ELITE_CARDS = [
-      'card_elite_slime_green_a',   // 旋轉冰球
-      'card_elite_slime_red_a',     // 神盾護體
-      'card_elite_slime_blue_a',    // 落雷
-      'card_elite_slime_white_a',   // 6方位飛刀
-      'card_elite_slime_zombie_a',  // 旋轉火球
-      'card_elite_slime_lava_a',    // 溢出傷害
-      'card_elite_plant1_a',        // HP回復+3
-      'card_elite_plant2_a',        // 召喚友軍花怪
-      'card_elite_plant3_a',        // 免費復活
-    ];
-    _TEST_ELITE_CARDS.forEach(id => CardStore.addCard(id, 2));
-
-    // ── TEST ONLY: 所有王卡 ×1 加入背包 ──────────────────────────────────────
-    const _TEST_BOSS_CARDS = [
-      'card_boss_slime_green_a',    // 吸血+5%
-      'card_boss_slime_green_b',    // HP+15%條件
-      'card_boss_slime_green_c',    // 旋轉球傷害+100%
-      'card_boss_slime_red_a',      // 爆擊率+25%
-      'card_boss_slime_red_b',      // 爆擊傷害+20%條件
-      'card_boss_slime_red_c',      // 五連斬無僵直+傷害
-      'card_boss_slime_blue_a',     // 瞬步斬距離+傷害
-      'card_boss_slime_blue_b',     // 風刃距離+傷害
-      'card_boss_slime_blue_c',     // 移動速度+50/HP-20%
-      'card_boss_slime_white_a',    // 掉落率×1.5
-      'card_boss_slime_white_b',    // 半月斬傷害+30%
-      'card_boss_slime_white_c',    // HP+30精煉加血
-      'card_boss_zombie_slime_a',   // 玻璃砲+50%/+40%
-      'card_boss_zombie_slime_b',   // 燃燒DOT條件
-      'card_boss_zombie_slime_c',   // 燃燒上限+5
-      'card_boss_lava_slime_a',     // 攻擊力+15穿甲條件
-      'card_boss_lava_slime_b',     // 攻擊觸發落雷
-      'card_boss_lava_slime_c',     // 蓄力重擊暈眩+傷害
-      'card_boss_flower_one_a',     // ATK+4精煉加攻
-      'card_boss_flower_one_b',     // 旋風斬範圍+傷害
-      'card_boss_flower_one_c',     // 迴旋飛刃範圍+傷害
-      'card_boss_flower_two_a',     // 召喚花怪攻擊模式
-      'card_boss_flower_two_b',     // 血環範圍+傷害
-      'card_boss_flower_two_c',     // 對Boss/菁英傷害+25%
-      'card_boss_flower_three_a',   // 閃避率+40%
-      'card_boss_flower_three_b',   // 無限神盾護體
-      'card_boss_flower_three_c',   // 岩漿史萊姆夥伴
-    ];
-    _TEST_BOSS_CARDS.forEach(id => CardStore.addCard(id, 1));
-    // ── END TEST ──────────────────────────────────────────────────────────────
 
     this.generateItemIcons();
 

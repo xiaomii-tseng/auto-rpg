@@ -6,7 +6,7 @@ import { QuestStore } from './quest-store';
 import { PotionBarStore } from './potion-bar-store';
 
 const SAVE_KEY = 'auto_rpg_save';
-const VERSION  = 10;
+const VERSION  = 11;
 let   _loaded  = false;
 
 interface SaveData {
@@ -67,7 +67,7 @@ export const SaveStore = {
       const raw = localStorage.getItem(SAVE_KEY);
       if (!raw) return false;
       const data: SaveData = JSON.parse(raw);
-      if (data.version !== VERSION && data.version !== VERSION - 1) return false;
+      if (data.version !== VERSION) return false;
 
       // Restore consolidated fields so existing getPlayerName() / SkinStore.get() still work
       if (data.playerName) localStorage.setItem('playerName',    data.playerName);

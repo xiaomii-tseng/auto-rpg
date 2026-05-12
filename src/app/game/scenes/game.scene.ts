@@ -18,12 +18,12 @@ import { InventoryStore } from '../data/inventory-store';
 import { SaveStore } from '../data/save-store';
 import { CardStore } from '../data/card-store';
 import { getMonsterDef, getCardDef, DropEntry, MonsterDef } from '../data/monster-data';
-import { getElementMultiplier, ELEMENT_NAMES, ELEMENT_COLORS, QUALITY_NAMES, QUALITY_COLORS, SLOT_NAMES, STAT_NAMES, BEHAVIOR_NAMES, generateEquipment, randomQuality, EquipSlot, EquipmentItem } from '../data/equipment-data';
+import { getElementMultiplier, ELEMENT_NAMES, ELEMENT_COLORS, QUALITY_NAMES, QUALITY_COLORS, SLOT_NAMES, STAT_NAMES, BEHAVIOR_NAMES, generateEquipment, randomQuality, getItemStats, EquipSlot, EquipmentItem } from '../data/equipment-data';
 import { QuestStore, STAR_HP_MULT, STAR_STAT_MULT, STAR_DROP_MULT, STAR_DEF_MULT, STAR_EXP_MULT, STAR_EQUIP_QUALITY } from '../data/quest-store';
 import { ELITE_HP_MULT, ELITE_SCALE_MOD } from '../data/monster-data';
 import { NetworkService } from '../network/network.service';
 import { PotionBarStore } from '../data/potion-bar-store';
-import { ITEM_POTION_HEALTH_S, ITEM_POTION_HEALTH_M, ITEM_POTION_HEALTH_L, ITEM_POTION_REVIVE, ITEM_POTION_ATK, ITEM_POTION_DEF, ITEM_POTION_SPEED, getHealthPotionForStar } from '../data/monster-data';
+import { ITEM_POTION_HEALTH_S, ITEM_POTION_HEALTH_M, ITEM_POTION_HEALTH_L, ITEM_POTION_REVIVE, ITEM_POTION_ATK, ITEM_POTION_DEF, ITEM_POTION_SPEED, ITEM_STONE_BROKEN, ITEM_STONE_INTACT, ITEM_STONE_GUARD, ITEM_QUEST_REROLL, ITEM_BLANK_CARD, getHealthPotionForStar } from '../data/monster-data';
 import type { MapParams } from '../../../../shared/types';
 
 const CO_OP_HP_MULT = 1.6;
@@ -53,8 +53,28 @@ interface LootDrop {
   readyAt: number;
 }
 
-// 品質權重 55/38/15/2（正規化）
+// 品質權重 47/35/15/3（正規化）
 const EQUIP_DROP_QUALITY = { normal: 0.47, good: 0.35, fine: 0.15 };
+
+const ITEM_DESCS: Record<string, string> = {
+  [ITEM_STONE_BROKEN]:    '強化裝備時消耗',
+  [ITEM_STONE_INTACT]:    '強化時提升成功率 +8%',
+  [ITEM_STONE_GUARD]:     '強化失敗時防止裝備降級',
+  [ITEM_QUEST_REROLL]:    '重置當前任務列表',
+  [ITEM_BLANK_CARD]:      '10張可在商店抽一次卡片',
+  [ITEM_POTION_HEALTH_S]: '回復 50 HP',
+  [ITEM_POTION_HEALTH_M]: '回復 100 HP',
+  [ITEM_POTION_HEALTH_L]: '回復 200 HP',
+  [ITEM_POTION_REVIVE]:   '戰鬥中復活一次',
+  [ITEM_POTION_ATK]:      '傷害 +20%，持續 30 秒',
+  [ITEM_POTION_DEF]:      'DEF +20，持續 30 秒',
+  [ITEM_POTION_SPEED]:    '移動速度 +20，持續 30 秒',
+};
+
+type SessionLootEntry =
+  | { type: 'item';  itemId: string; itemName: string; qty: number }
+  | { type: 'card';  cardId: string; itemName: string }
+  | { type: 'equip'; equip: EquipmentItem; itemName: string };
 
 export class GameScene extends Phaser.Scene {
   private player!: Player;
@@ -135,6 +155,8 @@ export class GameScene extends Phaser.Scene {
   private exitBtnGfx!: Phaser.GameObjects.Graphics;
   private exitBtnTxt!: Phaser.GameObjects.Text;
   private exitBtnHit!: Phaser.GameObjects.Rectangle;
+  private _sessionLoot: SessionLootEntry[] = [];
+  private _lootBadge?: Phaser.GameObjects.Text;
   private exitBlinkTween?: Phaser.Tweens.Tween;
   private completedQuestId?: string;
   private guestReward?: { isEquipReward: boolean; gold: number; star: number };
@@ -256,6 +278,7 @@ export class GameScene extends Phaser.Scene {
     this.bossActive = false;
     this.allMinions = [];
     this.lootDrops = [];
+    this._sessionLoot = [];
     this._flowerThreeMinions.clear();
     this._pendingFlowerSeeds = 0;
     this._slowZones = [];
@@ -2294,7 +2317,7 @@ export class GameScene extends Phaser.Scene {
       if (Math.random() < card.rate * cardDropMult) this.spawnCardDrop(x, y, card.cardId);
     }
     const starEquipMult = 1 + (this.questStar - 1) * 0.25;
-    const equipRate = (isElite ? 1.00 : 0.007) * starEquipMult;
+    const equipRate = (isElite ? 1.0 : 1.0) * starEquipMult;
     if (Math.random() < equipRate) {
       const ALL_SLOTS: EquipSlot[] = ['hat', 'outfit', 'shoes', 'ring1', 'ring2', 'sword'];
       const slot = ALL_SLOTS[Math.floor(Math.random() * ALL_SLOTS.length)];
@@ -3532,13 +3555,216 @@ export class GameScene extends Phaser.Scene {
     g.strokeRoundedRect(bx, by, bw, bh, P(6));
     this.exitBtnGfx = g;
 
-    this.exitBtnTxt = this.add.text(cx, cy, '✕ 退出', {
+    this.exitBtnTxt = this.add.text(cx, cy, '退出', {
       fontSize: F(15), fontStyle: 'bold', color: '#ee4444', stroke: '#000', strokeThickness: 2,
     }).setOrigin(0.5).setScrollFactor(0).setDepth(9801);
 
     this.exitBtnHit = this.add.rectangle(cx, cy, bw, bh)
       .setScrollFactor(0).setDepth(9802).setInteractive({ useHandCursor: true });
     this.exitBtnHit.on('pointerdown', () => this.exitToLobby());
+
+    // ── 戰利品按鈕（左上角）──
+    const lbw = bw;
+    const lbx = pad;
+    const lcx = lbx + lbw / 2;
+    const lg = this.add.graphics().setScrollFactor(0).setDepth(9800);
+    lg.fillStyle(0x180a02, 0.95);
+    lg.fillRoundedRect(lbx, by, lbw, bh, P(6));
+    lg.lineStyle(P(2), 0xffcc44, 0.75);
+    lg.strokeRoundedRect(lbx, by, lbw, bh, P(6));
+    this.add.text(lcx, cy, '戰利品', {
+      fontSize: F(15), fontStyle: 'bold', color: '#f0d090', stroke: '#1a0800', strokeThickness: 2,
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(9801);
+    this._lootBadge = undefined;
+    this.add.rectangle(lcx, cy, lbw, bh)
+      .setScrollFactor(0).setDepth(9803).setInteractive({ useHandCursor: true })
+      .on('pointerdown', () => this.showLootPanel());
+  }
+
+  private showLootPanel(): void {
+    const W = this.scale.width, H = this.scale.height;
+    const PW = Math.min(P(340), W - P(20));
+    const PH = Math.min(P(480), H - P(20));
+    const D = 9900;
+    const px = W / 2, py = H / 2;
+
+    const hitAreas: Phaser.GameObjects.Rectangle[] = [];
+    const closeAll = () => { overlay.destroy(); pop.destroy(); hitAreas.forEach(h => h.destroy()); };
+
+    // Overlay 獨立於 container，避免吃掉 container 內的事件
+    const overlay = this.add.rectangle(px, py, W, H, 0x000000, 0.55)
+      .setScrollFactor(0).setDepth(D).setInteractive()
+      .on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+        const dx = Math.abs(pointer.x - px);
+        const dy = Math.abs(pointer.y - py);
+        if (dx > PW / 2 || dy > PH / 2) closeAll();
+      });
+
+    const pop = this.add.container(0, 0).setScrollFactor(0).setDepth(D + 1);
+
+    const bg = this.add.graphics();
+    bg.fillStyle(0x1a0e04, 0.97);
+    bg.fillRoundedRect(px - PW / 2, py - PH / 2, PW, PH, P(10));
+    bg.lineStyle(P(1.5), 0x886633, 0.8);
+    bg.strokeRoundedRect(px - PW / 2, py - PH / 2, PW, PH, P(10));
+    pop.add(bg);
+
+    pop.add(this.add.text(px, py - PH / 2 + P(20), '戰利品', {
+      fontSize: F(17), fontStyle: 'bold', color: '#e8c870', stroke: '#1a0800', strokeThickness: 2,
+    }).setOrigin(0.5));
+
+    // 叉叉：用 Rectangle hit area 加大可點擊範圍
+    const closeX = px + PW / 2 - P(14);
+    const closeY = py - PH / 2 + P(16);
+    pop.add(this.add.text(closeX, closeY, '✕', {
+      fontSize: F(16), fontStyle: 'bold', color: '#cc4444', stroke: '#000', strokeThickness: 2,
+    }).setOrigin(0.5));
+    this.add.rectangle(closeX, closeY, P(40), P(40))
+      .setScrollFactor(0).setDepth(D + 2).setInteractive({ useHandCursor: true })
+      .on('pointerdown', closeAll);
+
+    const HEADER_H = P(44);
+    const ROW_H = P(56), ROW_PAD = P(6);
+    const listTop = py - PH / 2 + HEADER_H;
+    const listH = PH - HEADER_H;
+    const contentH = this._sessionLoot.length * (ROW_H + ROW_PAD);
+    let scrollY = 0;
+    const maxScroll = Math.max(0, contentH - listH);
+
+    const maskGfx = this.add.graphics().setScrollFactor(0);
+    maskGfx.fillStyle(0xffffff);
+    maskGfx.fillRect(px - PW / 2, listTop, PW, listH);
+    const mask = maskGfx.createGeometryMask();
+    pop.once(Phaser.GameObjects.Events.DESTROY, () => maskGfx.destroy());
+
+    const scroll = this.add.container(0, listTop).setScrollFactor(0).setMask(mask);
+    pop.add(scroll);
+
+    if (this._sessionLoot.length === 0) {
+      scroll.add(this.add.text(px, ROW_H, '本局尚未撿到任何戰利品', {
+        fontSize: F(14), color: '#886644', stroke: '#1a0800', strokeThickness: 1,
+      }).setOrigin(0.5));
+    }
+
+    this._sessionLoot.forEach((entry, i) => {
+      const ry = i * (ROW_H + ROW_PAD);
+      const lx = px - PW / 2 + P(8);
+      const rw = PW - P(16);
+
+      const rowBg = this.add.graphics();
+      rowBg.fillStyle(0x2a1800, 0.7);
+      rowBg.fillRoundedRect(lx, ry, rw, ROW_H, P(5));
+      rowBg.lineStyle(P(1), 0x664422, 0.4);
+      rowBg.strokeRoundedRect(lx, ry, rw, ROW_H, P(5));
+      scroll.add(rowBg);
+
+      // Icon
+      const iconX = lx + P(10) + P(20);
+      const iconY = ry + ROW_H / 2;
+      let iconKey = '';
+      let nameColor = '#e8c870';
+      if (entry.type === 'item') {
+        iconKey = `icon_${entry.itemId}`;
+      } else if (entry.type === 'card') {
+        iconKey = 'icon_card';
+        nameColor = '#88ccff';
+      } else {
+        iconKey = entry.equip.texture;
+        nameColor = `#${(QUALITY_COLORS[entry.equip.quality] ?? 0xffffff).toString(16).padStart(6, '0')}`;
+      }
+      if (this.textures.exists(iconKey))
+        scroll.add(this.add.image(iconX, iconY, iconKey).setDisplaySize(P(36), P(36)));
+
+      // Name
+      const tx = lx + P(10) + P(44);
+      scroll.add(this.add.text(tx, iconY - P(9), entry.itemName, {
+        fontSize: F(14), fontStyle: 'bold', color: nameColor, stroke: '#1a0800', strokeThickness: 1,
+      }).setOrigin(0, 0.5));
+
+      // Sub-label
+      let sub = '';
+      if (entry.type === 'item') sub = `×${entry.qty}`;
+      else if (entry.type === 'card') sub = '卡片';
+      else sub = `${QUALITY_NAMES[entry.equip.quality]} ${SLOT_NAMES[entry.equip.slot]}`;
+      scroll.add(this.add.text(tx, iconY + P(9), sub, {
+        fontSize: F(12), color: '#997755', stroke: '#1a0800', strokeThickness: 1,
+      }).setOrigin(0, 0.5));
+
+      // Hit area — standalone scene object to avoid double-container input bug
+      const hit = this.add.rectangle(lx + rw / 2, listTop + ry + ROW_H / 2, rw, ROW_H)
+        .setScrollFactor(0).setDepth(D + 1)
+        .setInteractive({ useHandCursor: true })
+        .on('pointerdown', () => this.showLootDetail(entry));
+      hitAreas.push(hit);
+    });
+
+    // Scroll
+    const onWheel = (_p: any, _g: any, _dx: any, dy: number) => {
+      if (!pop.active) return;
+      scrollY = Math.max(0, Math.min(maxScroll, scrollY + dy * 0.6));
+      scroll.y = listTop - scrollY;
+    };
+    this.input.on('wheel', onWheel);
+    pop.once(Phaser.GameObjects.Events.DESTROY, () => {
+      this.input.off('wheel', onWheel);
+      if (overlay.active) overlay.destroy();
+    });
+  }
+
+  private showLootDetail(entry: SessionLootEntry): void {
+    const W = this.scale.width, H = this.scale.height;
+    const PW = P(300), D = 9950;
+    const px = W / 2, py = H / 2;
+
+    const det = this.add.container(0, 0).setScrollFactor(0).setDepth(D);
+
+    det.add(this.add.rectangle(px, py, W, H, 0x000000, 0.45).setInteractive()
+      .on('pointerdown', () => det.destroy()));
+
+    // Build lines
+    const lines: { text: string; color: string; size: number; bold: boolean }[] = [];
+
+    if (entry.type === 'item') {
+      lines.push({ text: entry.itemName, color: '#e8c870', size: 16, bold: true });
+      lines.push({ text: `持有數量：×${entry.qty}`, color: '#aaaaaa', size: 13, bold: false });
+      const desc = ITEM_DESCS[entry.itemId] ?? '';
+      if (desc) lines.push({ text: desc, color: '#ccaa66', size: 13, bold: false });
+    } else if (entry.type === 'card') {
+      const cardDef = getCardDef(entry.cardId);
+      lines.push({ text: entry.itemName, color: '#88ccff', size: 16, bold: true });
+      if (cardDef) {
+        lines.push({ text: cardDef.desc, color: '#ccaa66', size: 13, bold: false });
+      }
+    } else {
+      const eq = entry.equip;
+      const qColor = `#${(QUALITY_COLORS[eq.quality] ?? 0xffffff).toString(16).padStart(6, '0')}`;
+      lines.push({ text: `${QUALITY_NAMES[eq.quality]}${SLOT_NAMES[eq.slot]}`, color: qColor, size: 16, bold: true });
+      if (eq.enhancement > 0) lines.push({ text: `強化等級 +${eq.enhancement}`, color: '#88ff88', size: 13, bold: false });
+      const stats = getItemStats(eq);
+      for (const [k, v] of Object.entries(stats)) {
+        if (v === undefined) continue;
+        const label = (STAT_NAMES as Record<string, string>)[k] ?? k;
+        const val   = (v > 0 ? '+' : '') + (Number.isInteger(v) ? v : (v * 100).toFixed(1) + '%');
+        lines.push({ text: `${label} ${val}`, color: '#ccddbb', size: 13, bold: false });
+      }
+      if (eq.behavior) lines.push({ text: `行為：${(BEHAVIOR_NAMES as Record<string, string>)[eq.behavior] ?? eq.behavior}`, color: '#aabbcc', size: 12, bold: false });
+    }
+
+    const PH = P(32) + lines.length * P(24) + P(20);
+    const bg = this.add.graphics();
+    bg.fillStyle(0x120800, 0.98);
+    bg.fillRoundedRect(px - PW / 2, py - PH / 2, PW, PH, P(8));
+    bg.lineStyle(P(1.5), 0xaa7733, 0.9);
+    bg.strokeRoundedRect(px - PW / 2, py - PH / 2, PW, PH, P(8));
+    det.add(bg);
+
+    lines.forEach((l, i) => {
+      det.add(this.add.text(px, py - PH / 2 + P(16) + i * P(24), l.text, {
+        fontSize: F(l.size), fontStyle: l.bold ? 'bold' : 'normal',
+        color: l.color, stroke: '#1a0800', strokeThickness: 1,
+        wordWrap: { width: PW - P(24) },
+      }).setOrigin(0.5, 0));
+    });
   }
 
   private activateRewardButton(): void {
@@ -3888,15 +4114,21 @@ export class GameScene extends Phaser.Scene {
       if (d > P(48) || Date.now() < loot.readyAt) return true;
       if (loot.cardId) {
         CardStore.addCard(loot.cardId);
+        this._sessionLoot.push({ type: 'card', cardId: loot.cardId, itemName: loot.itemName });
         this.showPickupText(loot.obj.x, loot.obj.y, loot.itemName, 1);
       } else if (loot.equip) {
         PlayerStore.addOwned(loot.equip);
         SaveStore.save();
+        this._sessionLoot.push({ type: 'equip', equip: loot.equip, itemName: loot.itemName });
         this.showPickupText(loot.obj.x, loot.obj.y, loot.itemName, 1);
       } else {
         InventoryStore.addItem(loot.itemId, loot.itemName, loot.qty);
+        const existing = this._sessionLoot.find(e => e.type === 'item' && e.itemId === loot.itemId);
+        if (existing && existing.type === 'item') existing.qty += loot.qty;
+        else this._sessionLoot.push({ type: 'item', itemId: loot.itemId, itemName: loot.itemName, qty: loot.qty });
         this.showPickupText(loot.obj.x, loot.obj.y, loot.itemName, loot.qty);
       }
+      this._lootBadge?.setText(String(this._sessionLoot.length));
       loot.obj.destroy();
       return false;
     });
