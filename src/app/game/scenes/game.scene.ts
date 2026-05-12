@@ -48,9 +48,13 @@ interface LootDrop {
   itemId: string;
   itemName: string;
   qty: number;
-  cardId?: string;   // set for card drops; pickup calls CardStore.addCard() instead
-  readyAt: number;   // timestamp after which pickup is allowed
+  cardId?: string;
+  equip?: EquipmentItem;
+  readyAt: number;
 }
+
+// 品質權重 55/38/15/2（正規化）
+const EQUIP_DROP_QUALITY = { normal: 0.47, good: 0.35, fine: 0.15 };
 
 export class GameScene extends Phaser.Scene {
   private player!: Player;
@@ -204,6 +208,7 @@ export class GameScene extends Phaser.Scene {
     if (!this.textures.exists('icon_stone_intact')) this.load.image('icon_stone_intact', 'other/ore1.webp');
     if (!this.textures.exists('icon_stone_guard')) this.load.image('icon_stone_guard', 'other/ore3.webp');
     if (!this.textures.exists('icon_quest_reroll')) this.load.image('icon_quest_reroll', 'other/ore4.webp');
+    if (!this.textures.exists('icon_equip_drop'))   this.load.image('icon_equip_drop',   'other/fight.webp');
     if (!this.textures.exists('icon_gold')) this.load.image('icon_gold', 'other/coin.webp');
     if (!this.textures.exists('icon_potion_health_s')) this.load.image('icon_potion_health_s', 'other/coin.webp');
     if (!this.textures.exists('icon_potion_health_m')) this.load.image('icon_potion_health_m', 'other/coin.webp');
@@ -2288,6 +2293,13 @@ export class GameScene extends Phaser.Scene {
     for (const card of def.cards) {
       if (Math.random() < card.rate * cardDropMult) this.spawnCardDrop(x, y, card.cardId);
     }
+    const starEquipMult = 1 + (this.questStar - 1) * 0.25;
+    const equipRate = (isElite ? 1.00 : 0.007) * starEquipMult;
+    if (Math.random() < equipRate) {
+      const ALL_SLOTS: EquipSlot[] = ['hat', 'outfit', 'shoes', 'ring1', 'ring2', 'sword'];
+      const slot = ALL_SLOTS[Math.floor(Math.random() * ALL_SLOTS.length)];
+      this.spawnEquipDrop(x, y, generateEquipment(slot, randomQuality(EQUIP_DROP_QUALITY)));
+    }
     const expMult = STAR_EXP_MULT[this.questStar] ?? 1;
     const gained = PlayerStore.addExp(Math.round(def.exp * expMult));
     if (gained > 0) this.showLevelUp(PlayerStore.getLevel());
@@ -3450,6 +3462,12 @@ export class GameScene extends Phaser.Scene {
       for (const card of bossDef.cards) {
         if (Math.random() < card.rate * bossCardMult) this.spawnCardDrop(this.boss.x, this.boss.y, card.cardId);
       }
+      const bossEquipRate = 0.40 * (1 + (this.questStar - 1) * 0.25);
+      if (Math.random() < Math.min(1, bossEquipRate)) {
+        const ALL_SLOTS: EquipSlot[] = ['hat', 'outfit', 'shoes', 'ring1', 'ring2', 'sword'];
+        const slot = ALL_SLOTS[Math.floor(Math.random() * ALL_SLOTS.length)];
+        this.spawnEquipDrop(this.boss.x, this.boss.y, generateEquipment(slot, randomQuality(EQUIP_DROP_QUALITY)));
+      }
     }
 
     // Exp (no gold — gold comes from quest claim)
@@ -3843,6 +3861,23 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  private spawnEquipDrop(cx: number, cy: number, equip: EquipmentItem): void {
+    const ox = Phaser.Math.Between(-P(22), P(22));
+    const oy = Phaser.Math.Between(-P(10), P(10));
+    const tx = cx + ox, ty = cy + oy + P(18);
+    const imgKey = this.textures.exists(equip.texture) ? equip.texture : 'icon_equip_drop';
+    const img = this.add.image(tx, cy - P(24), imgKey)
+      .setDisplaySize(P(28), P(28)).setDepth(ty + 4);
+    this.tweens.add({
+      targets: img, y: ty, duration: 420, ease: 'Bounce.Out',
+      onComplete: () => {
+        this.tweens.add({ targets: img, y: ty - P(4), duration: 700, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+      },
+    });
+    const name = `${QUALITY_NAMES[equip.quality]}${SLOT_NAMES[equip.slot]}`;
+    this.lootDrops.push({ obj: img, itemId: '__equip__', itemName: name, qty: 1, readyAt: Date.now() + 600, equip });
+  }
+
   private checkLootPickup(): void {
     if (this.lootDrops.length === 0) return;
     this.lootDrops = this.lootDrops.filter(loot => {
@@ -3853,6 +3888,10 @@ export class GameScene extends Phaser.Scene {
       if (d > P(48) || Date.now() < loot.readyAt) return true;
       if (loot.cardId) {
         CardStore.addCard(loot.cardId);
+        this.showPickupText(loot.obj.x, loot.obj.y, loot.itemName, 1);
+      } else if (loot.equip) {
+        PlayerStore.addOwned(loot.equip);
+        SaveStore.save();
         this.showPickupText(loot.obj.x, loot.obj.y, loot.itemName, 1);
       } else {
         InventoryStore.addItem(loot.itemId, loot.itemName, loot.qty);

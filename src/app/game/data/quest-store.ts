@@ -54,11 +54,11 @@ export const STAR_EXP_MULT: Record<number, number> = {
 
 // Equipment quality weights by star (for quest equip rewards)
 export const STAR_EQUIP_QUALITY: Record<number, Record<string, number>> = {
-  1: { normal: 0.60, good: 0.30, fine: 0.10, perfect: 0.00 },
-  2: { normal: 0.40, good: 0.40, fine: 0.18, perfect: 0.02 },
-  3: { normal: 0.20, good: 0.40, fine: 0.30, perfect: 0.10 },
-  4: { normal: 0.05, good: 0.25, fine: 0.50, perfect: 0.20 },
-  5: { normal: 0.00, good: 0.10, fine: 0.50, perfect: 0.40 },
+  1: { normal: 0.70, good: 0.30, fine: 0.00 },
+  2: { normal: 0.55, good: 0.35, fine: 0.10 },
+  3: { normal: 0.35, good: 0.35, fine: 0.25 },
+  4: { normal: 0.15, good: 0.30, fine: 0.45 },
+  5: { normal: 0.00, good: 0.25, fine: 0.50 },
 };
 
 function smoothStep(a: number, b: number, x: number): number {
@@ -123,8 +123,12 @@ function pickStar(playerLevel: number): number {
 
 function generateQuests(): Quest[] {
   const playerLevel = PlayerStore.getLevel();
-  const shuffled    = [...BOSS_POOL].sort(() => Math.random() - 0.5);
-  const picked      = shuffled.slice(0, 3);
+  const maxNaturalStar = Math.max(...Object.entries(getStarWeights(playerLevel))
+    .filter(([, w]) => w > 0).map(([s]) => Number(s)));
+  const eligiblePool = BOSS_POOL.filter(id => (BOSS_MIN_STAR[id] ?? 1) <= maxNaturalStar);
+  const pool = eligiblePool.length >= 3 ? eligiblePool : BOSS_POOL;
+  const shuffled = [...pool].sort(() => Math.random() - 0.5);
+  const picked   = shuffled.slice(0, 3);
 
   return picked.map((bossId, i) => {
     const def  = MONSTER_DEFS.find(m => m.id === bossId)!;
@@ -208,11 +212,16 @@ export const QuestStore = {
     const idx = _quests.findIndex(q => q.id === questId && q.status !== 'accepted');
     if (idx === -1) return;
     _equipOptionsCache.delete(questId);
+    const playerLevel = PlayerStore.getLevel();
+    const maxNaturalStar = Math.max(...Object.entries(getStarWeights(playerLevel))
+      .filter(([, w]) => w > 0).map(([s]) => Number(s)));
+    const eligiblePool = BOSS_POOL.filter(id => (BOSS_MIN_STAR[id] ?? 1) <= maxNaturalStar);
+    const pool    = eligiblePool.length >= 1 ? eligiblePool : BOSS_POOL;
     const used    = _quests.filter((_, i) => i !== idx).map(q => q.bossId);
-    const choices = BOSS_POOL.filter(id => !used.includes(id));
+    const choices = pool.filter(id => !used.includes(id));
     const bossId  = choices.length > 0
       ? choices[Math.floor(Math.random() * choices.length)]
-      : BOSS_POOL[Math.floor(Math.random() * BOSS_POOL.length)];
+      : pool[Math.floor(Math.random() * pool.length)];
     const def    = MONSTER_DEFS.find(m => m.id === bossId)!;
     const star   = Math.max(BOSS_MIN_STAR[bossId] ?? 1, pickStar(PlayerStore.getLevel()));
     const base   = (Math.floor(Math.random() * 21) + 30) * 10;

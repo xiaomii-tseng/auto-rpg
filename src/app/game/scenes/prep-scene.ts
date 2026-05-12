@@ -4166,16 +4166,19 @@ export class PrepScene extends Phaser.Scene {
           this.openCardGachaPanel();
           return;
         }
-        if (!InventoryStore.spendGold(item.price)) return;
         if (item.id === '__gacha__') {
+          if (!InventoryStore.spendGold(item.price)) return;
           SaveStore.save();
           container.destroy();
           this.openGachaEquipPanel();
           return;
         }
-        InventoryStore.addItem(item.id, item.name, 1);
-        SaveStore.save();
-        refreshGold();
+        this.showQtyBuyPopup(item, (qty) => {
+          if (!InventoryStore.spendGold(item.price * qty)) return;
+          InventoryStore.addItem(item.id, item.name, qty);
+          SaveStore.save();
+          refreshGold();
+        });
       });
       scrollCont.add(hit);
     });
@@ -4208,13 +4211,123 @@ export class PrepScene extends Phaser.Scene {
     });
   }
 
+  private showQtyBuyPopup(
+    item: { id: string; name: string; price: number; desc: string; color: number },
+    onConfirm: (qty: number) => void,
+  ): void {
+    const W = this.scale.width, H = this.scale.height;
+    const PW = P(310), PH = P(240);
+    const D = 1100;
+
+    const pop = this.add.container(W / 2, H / 2).setDepth(D);
+
+    // Overlay
+    const overlay = this.add.rectangle(0, 0, W, H, 0x000000, 0.55).setInteractive();
+    overlay.on('pointerdown', () => pop.destroy());
+    pop.add(overlay);
+
+    // Panel
+    const bg = this.add.graphics();
+    bg.fillStyle(WD, 0.97);
+    bg.fillRoundedRect(-PW / 2, -PH / 2, PW, PH, P(10));
+    bg.lineStyle(P(1.5), item.color, 0.75);
+    bg.strokeRoundedRect(-PW / 2, -PH / 2, PW, PH, P(10));
+    pop.add(bg);
+
+    const colorHex = `#${item.color.toString(16).padStart(6, '0')}`;
+
+    // Title
+    pop.add(this.add.text(0, -PH / 2 + P(22), item.name, {
+      fontSize: F(16), fontStyle: 'bold', color: colorHex,
+      stroke: '#1a0800', strokeThickness: 2,
+    }).setOrigin(0.5));
+
+    // Player gold
+    const goldText = this.add.text(0, -PH / 2 + P(50), `💰 ${InventoryStore.getGold().toLocaleString()} 金幣`, {
+      fontSize: F(13), color: '#d4a044', stroke: '#1a0800', strokeThickness: 1,
+    }).setOrigin(0.5);
+    pop.add(goldText);
+    const onGoldChange = () => goldText.setText(`💰 ${InventoryStore.getGold().toLocaleString()} 金幣`);
+    InventoryStore.onChange(onGoldChange);
+    pop.once(Phaser.GameObjects.Events.DESTROY, () => InventoryStore.offChange(onGoldChange));
+
+    // Qty state
+    let qty = 1;
+    const MAX_QTY = 99;
+
+    const qtyLabel = this.add.text(0, -PH / 2 + P(94), '1', {
+      fontSize: F(22), fontStyle: 'bold', color: '#ffffff', stroke: '#1a0800', strokeThickness: 2,
+    }).setOrigin(0.5);
+    pop.add(qtyLabel);
+
+    const totalLabel = this.add.text(0, -PH / 2 + P(168), '', {
+      fontSize: F(14), fontStyle: 'bold', color: '#e8c870', stroke: '#1a0800', strokeThickness: 1,
+    }).setOrigin(0.5);
+    pop.add(totalLabel);
+
+    const updateDisplay = () => {
+      qtyLabel.setText(qty.toString());
+      const total = qty * item.price;
+      const canAfford = InventoryStore.getGold() >= total;
+      totalLabel.setText(`合計：${total.toLocaleString()} 金幣`);
+      totalLabel.setColor(canAfford ? '#e8c870' : '#ff5555');
+    };
+    updateDisplay();
+
+    // Helper: small button
+    const BW = P(40), BH = P(32);
+    const makeBtn = (x: number, y: number, label: string, w: number, h: number,
+                     fgColor: string, borderColor: number, onClick: () => void) => {
+      const g = this.add.graphics();
+      const draw = (hover: boolean) => {
+        g.clear();
+        g.fillStyle(hover ? 0x5a3008 : 0x2a1800, 1);
+        g.fillRoundedRect(x - w / 2, y - h / 2, w, h, P(4));
+        g.lineStyle(P(1), borderColor, hover ? 1 : 0.55);
+        g.strokeRoundedRect(x - w / 2, y - h / 2, w, h, P(4));
+      };
+      draw(false);
+      pop.add(g);
+      pop.add(this.add.text(x, y, label, {
+        fontSize: F(15), fontStyle: 'bold', color: fgColor, stroke: '#1a0800', strokeThickness: 2,
+      }).setOrigin(0.5));
+      const hit = this.add.rectangle(x, y, w, h).setInteractive({ useHandCursor: true });
+      hit.on('pointerover', () => draw(true));
+      hit.on('pointerout',  () => draw(false));
+      hit.on('pointerdown', onClick);
+      pop.add(hit);
+    };
+
+    const qtyY = -PH / 2 + P(94);
+    makeBtn(-P(70), qtyY, '－', BW, BH, '#e8c870', GOLD, () => { if (qty > 1)       { qty--; updateDisplay(); } });
+    makeBtn( P(70), qtyY, '＋', BW, BH, '#e8c870', GOLD, () => { if (qty < MAX_QTY) { qty++; updateDisplay(); } });
+
+    // Quick-add row
+    const quickVals = [1, 5, 10];
+    const QBW = P(64), QBH = P(26);
+    const qRow = -PH / 2 + P(136);
+    quickVals.forEach((v, i) => {
+      const qx = (i - 1) * (QBW + P(10));
+      makeBtn(qx, qRow, `+${v}`, QBW, QBH, '#ccaa66', 0x886622, () => { qty = Math.min(MAX_QTY, qty + v); updateDisplay(); });
+    });
+
+    // Cancel / Confirm
+    const CBW = P(108), CBH = P(36), cbY = PH / 2 - P(28);
+    makeBtn(-P(68), cbY, '取消',   CBW, CBH, '#cc6666', 0x883333, () => pop.destroy());
+    makeBtn( P(68), cbY, '確認購買', CBW, CBH, '#e8c870', GOLD,    () => {
+      if (InventoryStore.getGold() < qty * item.price) return;
+      onConfirm(qty);
+      pop.destroy();
+    });
+  }
+
   private openGachaEquipPanel(): void {
     const W = this.scale.width, H = this.scale.height;
     const D = 5000;
     const objs: Phaser.GameObjects.GameObject[] = [];
     const close = () => objs.forEach(o => o.destroy());
 
-    const weights = { normal: 0.60, good: 0.35, fine: 0.10, perfect: 0.05 };
+    const weights = { normal: 0.47, good: 0.35, fine: 0.15 };
     const ALL_SLOTS: EquipSlot[] = ['hat', 'outfit', 'shoes', 'ring1', 'ring2', 'sword'];
     const pickedSlots = [...ALL_SLOTS].sort(() => Math.random() - 0.5).slice(0, 3);
     const items: EquipmentItem[] = pickedSlots.map(s => generateEquipment(s, randomQuality(weights)));
