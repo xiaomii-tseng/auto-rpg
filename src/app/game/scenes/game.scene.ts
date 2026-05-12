@@ -71,9 +71,7 @@ export class GameScene extends Phaser.Scene {
   private teleporting = false;
 
   // 瞬步斬瞄準模式
-  private dashAimActive = false;
   private dashAimAngle = 0;
-  private dashAimGfx?: Phaser.GameObjects.Graphics;
   private worldW = 0;
   private worldH = 0;
 
@@ -90,6 +88,13 @@ export class GameScene extends Phaser.Scene {
   private _onHitLightningCooldown = 0;  // 攻擊觸發落雷冷卻
   private _freeRevivesUsed = 0;
   private _reviveDialogActive = false;
+  private _atkDragPointerId = -1;
+  private _atkDragStartX = 0;
+  private _atkDragStartY = 0;
+  private _atkDirGfx?: Phaser.GameObjects.Graphics;
+  private _atkDragThreshold = 0;  // 初始化後設為 P(15)
+  private _forceAttackAngle: number | null = null;  // 手動拖動攻擊方向（rad），null = 自動
+  private _atkDragAngle: number | null = null;       // 目前正在拖動的角度，null = 未拖動
   private _allyMinions: MinionSlime[] = [];          // 有序陣列，上限 3，最舊的先移除
   private _allyGroup!: Phaser.Physics.Arcade.Group;  // 用於 projectile overlap 偵測
   private _slowZones: { x: number; y: number; r: number; expires: number; gfx: Phaser.GameObjects.Graphics }[] = [];
@@ -1302,18 +1307,6 @@ export class GameScene extends Phaser.Scene {
       if (Phaser.Input.Keyboard.JustDown(this.keys.space)) {
         this.attackDashPierce(0, 0);
       }
-      if (this.dashAimActive) {
-        if (Math.sqrt(vx * vx + vy * vy) > 0.15) {
-          this.dashAimAngle = Math.atan2(vy, vx);
-        }
-        this.updateDashAimIndicator();
-        if (Phaser.Input.Keyboard.JustUp(this.keys.space)) {
-          this.dashAimActive = false;
-          this.dashAimGfx?.destroy();
-          this.dashAimGfx = undefined;
-          this.executeDashPierce(this.dashAimAngle);
-        }
-      }
     } else {
       if (Phaser.Input.Keyboard.JustDown(this.keys.space)) {
         const { x: tx, y: ty } = this.getAttackTarget();
@@ -1527,6 +1520,45 @@ export class GameScene extends Phaser.Scene {
         g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2, y2); g.strokePath();
       }
     }
+
+    // 攻擊方向指示（固定在螢幕中心，玩家永遠在此）
+    if (this._atkDirGfx && this._atkDragAngle !== null && this.player.active) {
+      const g      = this._atkDirGfx;
+      const angle  = this._atkDragAngle;
+      const px = this.player.x - this.cameras.main.scrollX;
+      const py = this.player.y - this.cameras.main.scrollY;
+      const innerR = P(22), outerR = P(46);
+      const sx = px + Math.cos(angle) * innerR, sy = py + Math.sin(angle) * innerR;
+      const ex = px + Math.cos(angle) * outerR, ey = py + Math.sin(angle) * outerR;
+      const headLen = P(10), headAngle = 0.5;
+
+      g.clear();
+
+      // 點狀提示圈
+      const dotCount = 12;
+      for (let i = 0; i < dotCount; i++) {
+        const a = (i / dotCount) * Math.PI * 2;
+        g.fillStyle(0xffffff, Math.abs(Math.cos(a - angle)) * 0.3 + 0.1);
+        g.fillCircle(px + Math.cos(a) * innerR, py + Math.sin(a) * innerR, P(2));
+      }
+
+      // 箭頭桿
+      g.lineStyle(P(2.5), 0xffe066, 0.95);
+      g.beginPath(); g.moveTo(sx, sy); g.lineTo(ex, ey); g.strokePath();
+
+      // 箭頭頭
+      g.lineStyle(P(2.5), 0xffe066, 0.95);
+      g.beginPath();
+      g.moveTo(ex, ey);
+      g.lineTo(ex - headLen * Math.cos(angle - headAngle), ey - headLen * Math.sin(angle - headAngle));
+      g.moveTo(ex, ey);
+      g.lineTo(ex - headLen * Math.cos(angle + headAngle), ey - headLen * Math.sin(angle + headAngle));
+      g.strokePath();
+
+      // 尖端亮點
+      g.fillStyle(0xffffff, 0.9);
+      g.fillCircle(ex, ey, P(3));
+    }
   }
 
   // ── Attack dispatcher ────────────────────────────────────
@@ -1650,6 +1682,18 @@ export class GameScene extends Phaser.Scene {
   private resolveAttackDir(range: number): { dir: 'down' | 'left' | 'right' | 'up'; deg: number; rad: number; tx: number; ty: number } {
     const radMap: Record<string, number> = { right: 0, down: Math.PI / 2, left: Math.PI, up: -Math.PI / 2 };
     const degMap: Record<string, number> = { right: 0, down: 90, left: 180, up: 270 };
+
+    // 手動拖動方向優先
+    if (this._forceAttackAngle !== null) {
+      const rad = this._forceAttackAngle;
+      this._forceAttackAngle = null;
+      const dx = Math.cos(rad), dy = Math.sin(rad);
+      const dir: 'down' | 'left' | 'right' | 'up' =
+        Math.abs(dx) >= Math.abs(dy) ? (dx < 0 ? 'left' : 'right') : (dy < 0 ? 'up' : 'down');
+      const deg = Phaser.Math.RadToDeg(rad < 0 ? rad + Math.PI * 2 : rad);
+      return { dir, deg, rad, tx: this.player.x + dx * range, ty: this.player.y + dy * range };
+    }
+
     const candidates = [
       ...this.allMinions.filter(m => !m.isDead && !this._allyMinions.includes(m)),
       ...(this.bossActive && this.boss.active ? [this.boss] : []),
@@ -1739,54 +1783,23 @@ export class GameScene extends Phaser.Scene {
     return { x: safeX, y: safeY };
   }
 
-  private updateDashAimIndicator(): void {
-    const g = this.dashAimGfx;
-    if (!g) return;
-    g.clear();
-    const sx = this.player.x, sy = this.player.y;
-    const rad = this.dashAimAngle;
-    const { x: endX, y: endY } = this.calcDashEndpoint(sx, sy, rad);
-    const totalDist = Phaser.Math.Distance.Between(sx, sy, endX, endY);
-
-    // 虛線箭桿
-    const SEG = P(7), GAP = P(4);
-    let d = P(12);
-    while (d < totalDist - P(10)) {
-      const t1 = d / totalDist, t2 = Math.min((d + SEG) / totalDist, 1);
-      g.lineStyle(P(2), 0x66aaff, 0.75);
-      g.lineBetween(sx + (endX - sx) * t1, sy + (endY - sy) * t1,
-        sx + (endX - sx) * t2, sy + (endY - sy) * t2);
-      d += SEG + GAP;
-    }
-
-    // 箭頭
-    const perp = rad + Math.PI / 2;
-    const AL = P(11), AW = P(6);
-    g.fillStyle(0x88ccff, 0.95);
-    g.fillTriangle(
-      endX, endY,
-      endX - Math.cos(rad) * AL + Math.cos(perp) * AW, endY - Math.sin(rad) * AL + Math.sin(perp) * AW,
-      endX - Math.cos(rad) * AL - Math.cos(perp) * AW, endY - Math.sin(rad) * AL - Math.sin(perp) * AW,
-    );
-
-    // 落點圓圈
-    g.fillStyle(0xaaddff, 0.28);
-    g.fillCircle(endX, endY, P(11));
-    g.lineStyle(P(1), 0x88ccff, 0.85);
-    g.strokeCircle(endX, endY, P(11));
-  }
-
   private attackDashPierce(_tx: number, _ty: number): void {
     const cd = Math.round(650 / (1 + CardStore.getTotalStats().atkSpeed));
     if (!this.player.lockCooldown(cd)) return;
-    const dirMap: Record<string, number> = { right: 0, down: Math.PI / 2, left: Math.PI, up: -Math.PI / 2 };
-    this.dashAimAngle = dirMap[this.player.lastDir];
-    this.dashAimActive = true;
-    if (!this.dashAimGfx) this.dashAimGfx = this.add.graphics().setDepth(this.player.depth + 2);
+    if (this._forceAttackAngle !== null) {
+      this.dashAimAngle = this._forceAttackAngle;
+      this._forceAttackAngle = null;
+    } else {
+      const { rad } = this.resolveAttackDir(P(240));
+      this.dashAimAngle = rad;
+    }
+    this.executeDashPierce(this.dashAimAngle);
   }
 
   private executeDashPierce(rad: number): void {
-    const dir = this.player.lastDir;
+    const dx = Math.cos(rad), dy = Math.sin(rad);
+    const dir: 'down' | 'left' | 'right' | 'up' =
+      Math.abs(dx) >= Math.abs(dy) ? (dx < 0 ? 'left' : 'right') : (dy < 0 ? 'up' : 'down');
     this.player.startAttackAnim(`player_attack_${dir}`);
     const sx = this.player.x, sy = this.player.y;
     const { x: endX, y: endY } = this.calcDashEndpoint(sx, sy, rad);
@@ -4130,6 +4143,7 @@ export class GameScene extends Phaser.Scene {
 
     // Use scene-level pointer events so multi-touch works on iOS
     const activeIds = new Set<number>();
+    this._atkDragThreshold = P(15);
 
     const onDown = (ptr: Phaser.Input.Pointer) => {
       const { x: cx, y: cy } = getBtnCenter();
@@ -4137,38 +4151,73 @@ export class GameScene extends Phaser.Scene {
       activeIds.add(ptr.id);
       drawBtn(true);
       if (this.gameOver) return;
-      const isDash = (PlayerStore.getEquipped().sword?.behavior ?? 'slash180') === 'dashPierce';
-      if (isDash) {
-        this.attackDashPierce(0, 0);
+      // 記錄拖動起始點（用按下位置）
+      this._atkDragPointerId = ptr.id;
+      this._atkDragStartX = ptr.x;
+      this._atkDragStartY = ptr.y;
+    };
+
+    const onMove = (ptr: Phaser.Input.Pointer) => {
+      if (ptr.id !== this._atkDragPointerId) return;
+      const dx = ptr.x - this._atkDragStartX;
+      const dy = ptr.y - this._atkDragStartY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const { x: cx, y: cy } = getBtnCenter();
+
+      if (dist >= this._atkDragThreshold) {
+        this._atkDragAngle = Math.atan2(dy, dx);
+        if (!this._atkDirGfx) {
+          this._atkDirGfx = this.add.graphics().setScrollFactor(0).setDepth(102);
+        }
       } else {
-        const { x: tx, y: ty } = this.getAttackTarget();
-        this.meleeAttack(tx, ty);
+        this._atkDragAngle = null;
+        this._atkDirGfx?.clear();
       }
     };
 
     const onUp = (ptr: Phaser.Input.Pointer) => {
       if (!activeIds.has(ptr.id)) return;
       activeIds.delete(ptr.id);
-      if (activeIds.size === 0) {
-        drawBtn(false);
-        if (this.dashAimActive) {
-          this.dashAimActive = false;
-          this.dashAimGfx?.destroy();
-          this.dashAimGfx = undefined;
-          this.executeDashPierce(this.dashAimAngle);
-        }
+
+      // 清除方向箭頭
+      this._atkDirGfx?.clear();
+      this._atkDragAngle = null;
+      this._atkDragPointerId = -1;
+
+      if (activeIds.size === 0) drawBtn(false);
+      if (this.gameOver) return;
+
+      const dx = ptr.x - this._atkDragStartX;
+      const dy = ptr.y - this._atkDragStartY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const isDash = (PlayerStore.getEquipped().sword?.behavior ?? 'slash180') === 'dashPierce';
+
+      if (isDash) {
+        if (dist >= this._atkDragThreshold) this._forceAttackAngle = Math.atan2(dy, dx);
+        this.attackDashPierce(0, 0);
+      } else if (dist >= this._atkDragThreshold) {
+        // 手動方向攻擊：設定強制角度，meleeAttack 內的 resolveAttackDir 會優先使用
+        this._forceAttackAngle = Math.atan2(dy, dx);
+        this.meleeAttack(this.player.x, this.player.y);
+      } else {
+        // 自動鎖定
+        const { x: tx, y: ty } = this.getAttackTarget();
+        this.meleeAttack(tx, ty);
       }
     };
 
     this.input.on('pointerdown', onDown);
+    this.input.on('pointermove', onMove);
     this.input.on('pointerup', onUp);
 
     const onResize = () => drawBtn(false);
     this.scale.on('resize', onResize);
     this.events.once('shutdown', () => {
       this.input.off('pointerdown', onDown);
+      this.input.off('pointermove', onMove);
       this.input.off('pointerup', onUp);
       this.scale.off('resize', onResize);
+      this._atkDirGfx?.destroy();
     });
   }
 
