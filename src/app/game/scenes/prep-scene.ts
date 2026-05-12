@@ -3996,9 +3996,9 @@ export class PrepScene extends Phaser.Scene {
       { id: '__card_gacha__', name: '卡片抽取', price: 0,    desc: '消耗空白卡片×10，抽 1 張卡片',    color: 0xaa44ff },
     ];
     const POTION_ITEMS: ShopItem[] = [
-      { id: ITEM_POTION_HEALTH_S, name: '小型回復藥水', price: 100, desc: '回復 50 HP',          color: 0x44ff88 },
-      { id: ITEM_POTION_HEALTH_M, name: '中型回復藥水', price: 290, desc: '回復 100 HP',         color: 0x44ddff },
-      { id: ITEM_POTION_HEALTH_L, name: '大型回復藥水', price: 370, desc: '回復 200 HP',         color: 0xff88ff },
+      { id: ITEM_POTION_HEALTH_S, name: '小型回復藥水', price: 80, desc: '回復 50 HP',          color: 0x44ff88 },
+      { id: ITEM_POTION_HEALTH_M, name: '中型回復藥水', price: 200, desc: '回復 100 HP',         color: 0x44ddff },
+      { id: ITEM_POTION_HEALTH_L, name: '大型回復藥水', price: 450, desc: '回復 200 HP',         color: 0xff88ff },
       { id: ITEM_POTION_REVIVE,   name: '復活藥水',     price: 800, desc: '戰鬥中自動復活一次',   color: 0xffee44 },
       { id: ITEM_POTION_ATK,      name: '攻擊力藥水',   price: 300, desc: '傷害+20%，持續30秒',   color: 0xff6644 },
       { id: ITEM_POTION_DEF,      name: '防禦力藥水',   price: 300, desc: 'DEF+20，持續30秒',     color: 0x44aaff },
