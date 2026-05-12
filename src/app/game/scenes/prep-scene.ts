@@ -11,6 +11,7 @@ import { getCardDef, getMonsterDef, monsterCardScale, monsterDetailScale, CARD_D
 import { QuestStore, Quest, STAR_EQUIP_QUALITY, getStarWeights } from '../data/quest-store';
 import { NetworkService } from '../network/network.service';
 import { SkinStore, SKINS } from '../data/skin-store';
+import { VERSION } from '../version';
 
 
 const DPR = (window as any).__gameDpr as number;
@@ -381,6 +382,19 @@ export class PrepScene extends Phaser.Scene {
         fontSize: F(15), fontStyle: 'bold',
         color: '#f0d090', stroke: '#1a0800', strokeThickness: 2,
       }).setOrigin(0, 0.5).setDepth(6);
+
+    // ── Version badge (left, mirrors gold badge) ──────────
+    const verBg = this.add.graphics().setDepth(5);
+    verBg.fillStyle(0x0e0600, 0.9);
+    verBg.fillRoundedRect(P(4), BADGE_Y, BADGE_W, BADGE_H, { tl: 0, tr: 0, bl: 10, br: 10 });
+    verBg.lineStyle(1.5, GOLD, 0.35);
+    verBg.strokeRoundedRect(P(4), BADGE_Y, BADGE_W, BADGE_H, { tl: 0, tr: 0, bl: 10, br: 10 });
+    verBg.fillStyle(GOLD, 0.10);
+    verBg.fillRect(P(4), BADGE_Y, BADGE_W, 2);
+    this.add.text(P(4) + BADGE_W / 2, TXT_CY, VERSION, {
+      fontSize: F(13), fontStyle: 'bold',
+      color: '#8a7050', stroke: '#1a0800', strokeThickness: 2,
+    }).setOrigin(0.5, 0.5).setDepth(6);
 
     // ── Settings button ───────────────────────────────────
     const sg = this.add.graphics();
