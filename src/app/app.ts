@@ -72,6 +72,7 @@ export class App implements AfterViewInit {
       InventoryStore.addItem('quest_reroll', '任務重製石', n);
       console.log(`已新增 ${n} 顆任務重製石，目前共 ${InventoryStore.getItemQty('quest_reroll')} 顆`);
     };
+
   }
 
   private patchRotationInput(game: Phaser.Game, isPortrait: boolean): void {

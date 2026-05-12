@@ -23,7 +23,7 @@ import { QuestStore, STAR_HP_MULT, STAR_STAT_MULT, STAR_DROP_MULT, STAR_DEF_MULT
 import { ELITE_HP_MULT, ELITE_SCALE_MOD } from '../data/monster-data';
 import { NetworkService } from '../network/network.service';
 import { PotionBarStore } from '../data/potion-bar-store';
-import { ITEM_POTION_HEALTH_S, ITEM_POTION_HEALTH_M, ITEM_POTION_HEALTH_L, ITEM_POTION_REVIVE, getHealthPotionForStar } from '../data/monster-data';
+import { ITEM_POTION_HEALTH_S, ITEM_POTION_HEALTH_M, ITEM_POTION_HEALTH_L, ITEM_POTION_REVIVE, ITEM_POTION_ATK, ITEM_POTION_DEF, ITEM_POTION_SPEED, getHealthPotionForStar } from '../data/monster-data';
 import type { MapParams } from '../../../../shared/types';
 
 const CO_OP_HP_MULT = 1.6;
@@ -156,6 +156,12 @@ export class GameScene extends Phaser.Scene {
   private _flowerChargeGfx?: Phaser.GameObjects.Graphics;
   private _flowerChargeTxt?: Phaser.GameObjects.Text;
   private plantZones: { type: 'circle' | 'vine'; x: number; y: number; r: number; len?: number; ang?: number; dmg: number; lastTick: number; tickInterval: number; expiresAt: number; gfx: Phaser.GameObjects.Graphics }[] = [];
+  private _sessionQty: Map<string, number> = new Map();
+  private _atkBuffActive = false;
+  private _atkBuffTimer?: Phaser.Time.TimerEvent;
+  private _buffExpiry: Map<string, number> = new Map();
+  private _buffHudTexts: Phaser.GameObjects.Text[] = [];
+  private _lastBuffHudRefresh = 0;
 
   constructor() {
     super({ key: 'GameScene' });
@@ -200,7 +206,12 @@ export class GameScene extends Phaser.Scene {
     if (!this.textures.exists('icon_quest_reroll')) this.load.image('icon_quest_reroll', 'other/ore4.webp');
     if (!this.textures.exists('icon_gold')) this.load.image('icon_gold', 'other/coin.webp');
     if (!this.textures.exists('icon_potion_health_s')) this.load.image('icon_potion_health_s', 'other/coin.webp');
-    if (!this.textures.exists('icon_potion_revive')) this.load.image('icon_potion_revive', 'other/coin.webp');
+    if (!this.textures.exists('icon_potion_health_m')) this.load.image('icon_potion_health_m', 'other/coin.webp');
+    if (!this.textures.exists('icon_potion_health_l')) this.load.image('icon_potion_health_l', 'other/coin.webp');
+    if (!this.textures.exists('icon_potion_revive'))   this.load.image('icon_potion_revive',   'other/coin.webp');
+    if (!this.textures.exists('icon_potion_atk'))      this.load.image('icon_potion_atk',      'other/coin.webp');
+    if (!this.textures.exists('icon_potion_def'))      this.load.image('icon_potion_def',      'other/coin.webp');
+    if (!this.textures.exists('icon_potion_speed'))    this.load.image('icon_potion_speed',    'other/coin.webp');
     this.generateTextures();
   }
 
@@ -261,6 +272,30 @@ export class GameScene extends Phaser.Scene {
     this.plantZones = [];
     this.pickupLog.forEach(t => t.destroy());
     this.pickupLog = [];
+
+    // ── 每場藥水使用上限 ─────────────────────────────────────
+    this._atkBuffActive = false;
+    this._atkBuffTimer?.destroy();
+    this._atkBuffTimer = undefined;
+    this._buffExpiry.clear();
+    this._buffHudTexts.forEach(t => t.destroy());
+    this._buffHudTexts = [];
+    const HEAL_CAP  = 5;
+    const BUFF_CAP  = 3;
+    const REVIVE_CAP = 1;
+    const capMap: Record<string, number> = {
+      [ITEM_POTION_HEALTH_S]: HEAL_CAP,
+      [ITEM_POTION_HEALTH_M]: HEAL_CAP,
+      [ITEM_POTION_HEALTH_L]: HEAL_CAP,
+      [ITEM_POTION_REVIVE]:   REVIVE_CAP,
+      [ITEM_POTION_ATK]:      BUFF_CAP,
+      [ITEM_POTION_DEF]:      BUFF_CAP,
+      [ITEM_POTION_SPEED]:    BUFF_CAP,
+    };
+    this._sessionQty.clear();
+    for (const [id, cap] of Object.entries(capMap)) {
+      this._sessionQty.set(id, Math.min(InventoryStore.getItemQty(id), cap));
+    }
 
     this.generateWaypoints();   // sets this.worldW / worldH / waypoints
 
@@ -621,10 +656,10 @@ export class GameScene extends Phaser.Scene {
     // 燃燒狀態 tick（400ms，處理疊層與傷害）
     this.time.addEvent({ delay: 400, repeat: -1, callback: this.tickBurns, callbackScope: this });
 
-    // 血環被動計時器（攻速越高 tick 越快，基礎 250ms 最快 150ms）
+    // 血環被動計時器（線性：0%攻速=300ms，75%攻速=200ms，超過75%仍維持200ms）
     const scheduleAuraTick = () => {
-      const spd = 1 + CardStore.getTotalStats().atkSpeed;
-      const delay = Math.max(150, Math.round(250 / spd));
+      const atkSpd = CardStore.getTotalStats().atkSpeed;
+      const delay = Math.max(200, Math.round(300 - (atkSpd / 0.75) * 100));
       this.auraTimer = this.time.delayedCall(delay, () => { this.tickAura(); scheduleAuraTick(); });
     };
     scheduleAuraTick();
@@ -1264,6 +1299,11 @@ export class GameScene extends Phaser.Scene {
   override update(): void {
     if (this.gameOver || this.teleporting) return;
 
+    if (this._buffExpiry.size > 0 && this.time.now - this._lastBuffHudRefresh > 500) {
+      this._lastBuffHudRefresh = this.time.now;
+      this.refreshBuffHud();
+    }
+
     // Guest: lerp all minions toward host-provided positions
     if (NetworkService.connected && !NetworkService.isHost) {
       for (const m of this.allMinions) {
@@ -1662,7 +1702,8 @@ export class GameScene extends Phaser.Scene {
     if (stats.dmgVsBoss && isBoss) targetMult += stats.dmgVsBoss;
 
     const allMult = 1 + (stats.allDmgPct ?? 0);
-    const dmg = Math.round(stats.atk * Phaser.Math.FloatBetween(0.85, 1.15) * dmgMult * (isCrit ? (1 + stats.critDmg) : 1) * elemMult * targetMult * allMult);
+    const atkBuffMult = this._atkBuffActive ? 1.2 : 1;
+    const dmg = Math.round(stats.atk * Phaser.Math.FloatBetween(0.85, 1.15) * dmgMult * (isCrit ? (1 + stats.critDmg) : 1) * elemMult * targetMult * allMult * atkBuffMult);
     const pen = isBoss ? stats.penetration : 0;
 
     let overkill = 0;
@@ -2233,8 +2274,13 @@ export class GameScene extends Phaser.Scene {
     const isElite = def.tier >= 3 && def.tier < 5;
     const { id: hpId, name: hpName } = getHealthPotionForStar(this.questStar);
     const potionDrops: import('../data/monster-data').DropEntry[] = [
-      { itemId: hpId, itemName: hpName, rate: isElite ? 0.02 : 0.01, qtyMin: 1, qtyMax: 1 },
-      ...(isElite ? [{ itemId: ITEM_POTION_REVIVE, itemName: '復活藥水', rate: 0.004, qtyMin: 1, qtyMax: 1 }] : []),
+      { itemId: hpId,              itemName: hpName,     rate: isElite ? 0.02 : 0.01, qtyMin: 1, qtyMax: 1 },
+      ...(isElite ? [
+        { itemId: ITEM_POTION_REVIVE, itemName: '復活藥水', rate: 0.004, qtyMin: 1, qtyMax: 1 },
+        { itemId: ITEM_POTION_ATK,   itemName: '攻擊力藥水', rate: 0.008, qtyMin: 1, qtyMax: 1 },
+        { itemId: ITEM_POTION_DEF,   itemName: '防禦力藥水', rate: 0.008, qtyMin: 1, qtyMax: 1 },
+        { itemId: ITEM_POTION_SPEED, itemName: '速度藥水',   rate: 0.008, qtyMin: 1, qtyMax: 1 },
+      ] : []),
     ];
     this.spawnLoot(x, y, [...def.drops, ...potionDrops]);
     const cardDropMult = CardStore.getTotalStats().dropRateMult ?? 1;
@@ -2659,15 +2705,7 @@ export class GameScene extends Phaser.Scene {
         if (!this.bossActive) return;
         this.fireBossPetal(fromX, fromY, angle, speed, dmg, blindDist, large);
       };
-      b.onRepelPlayer = (bossX, bossY) => {
-        if (!this.bossActive) return;
-        const angle = Phaser.Math.Angle.Between(bossX, bossY, this.player.x, this.player.y);
-        const pushDist = P(70);
-        this.player.setPosition(
-          this.player.x + Math.cos(angle) * pushDist,
-          this.player.y + Math.sin(angle) * pushDist,
-        );
-      };
+      b.onRepelPlayer = () => { /* 暫時停用 */ };
       return b;
     }
     if (bossDef.id === 'boss_flower_two') {
@@ -3398,8 +3436,11 @@ export class GameScene extends Phaser.Scene {
       const dropMult = STAR_DROP_MULT[this.questStar] ?? 1;
       const { id: hpId, name: hpName } = getHealthPotionForStar(this.questStar);
       const bossPotionDrops: import('../data/monster-data').DropEntry[] = [
-        { itemId: hpId, itemName: hpName, rate: 0.30, qtyMin: 1, qtyMax: 1 },
+        { itemId: hpId,              itemName: hpName,     rate: 0.30, qtyMin: 1, qtyMax: 1 },
         { itemId: ITEM_POTION_REVIVE, itemName: '復活藥水', rate: 0.05, qtyMin: 1, qtyMax: 1 },
+        { itemId: ITEM_POTION_ATK,   itemName: '攻擊力藥水', rate: 0.15, qtyMin: 1, qtyMax: 1 },
+        { itemId: ITEM_POTION_DEF,   itemName: '防禦力藥水', rate: 0.15, qtyMin: 1, qtyMax: 1 },
+        { itemId: ITEM_POTION_SPEED, itemName: '速度藥水',   rate: 0.15, qtyMin: 1, qtyMax: 1 },
       ];
       const scaledDrops = [...bossDef.drops, ...bossPotionDrops].map(d => ({ ...d, rate: Math.min(1, d.rate * dropMult) }));
       this.spawnLoot(this.boss.x, this.boss.y, scaledDrops);
@@ -3814,12 +3855,6 @@ export class GameScene extends Phaser.Scene {
       } else {
         InventoryStore.addItem(loot.itemId, loot.itemName, loot.qty);
         this.showPickupText(loot.obj.x, loot.obj.y, loot.itemName, loot.qty);
-        const potionIds = [ITEM_POTION_HEALTH_S, ITEM_POTION_HEALTH_M, ITEM_POTION_HEALTH_L, ITEM_POTION_REVIVE];
-        if (potionIds.includes(loot.itemId)) {
-          const slots = PotionBarStore.getSlots();
-          const emptyIdx = slots.findIndex(s => s === null);
-          if (emptyIdx !== -1) PotionBarStore.setSlot(emptyIdx as 0 | 1, loot.itemId);
-        }
       }
       loot.obj.destroy();
       return false;
@@ -3909,7 +3944,10 @@ export class GameScene extends Phaser.Scene {
       [ITEM_POTION_HEALTH_S]: 0x44ff88,
       [ITEM_POTION_HEALTH_M]: 0x44ddff,
       [ITEM_POTION_HEALTH_L]: 0xff88ff,
-      [ITEM_POTION_REVIVE]: 0xffee44,
+      [ITEM_POTION_REVIVE]:   0xffee44,
+      [ITEM_POTION_ATK]:      0xff6644,
+      [ITEM_POTION_DEF]:      0x44aaff,
+      [ITEM_POTION_SPEED]:    0xffdd22,
     };
     const W = this.scale.width, H = this.scale.height;
     const slotCy = H - P(164);
@@ -3939,7 +3977,7 @@ export class GameScene extends Phaser.Scene {
         const cy = H2 - P(164);
         const bx = cx - SZ / 2, by = cy - SZ / 2;
         const itemId = PotionBarStore.getSlot(idx as 0 | 1);
-        const qty = itemId ? InventoryStore.getItemQty(itemId) : 0;
+        const qty = itemId ? (this._sessionQty.get(itemId) ?? 0) : 0;
         const color = itemId ? (POTION_COLORS[itemId] ?? 0x888888) : 0x554422;
         const { bg, icon, qtyTxt } = slotObjs[idx];
 
@@ -3970,7 +4008,13 @@ export class GameScene extends Phaser.Scene {
 
   private usePotionSlot(itemId: string, rangeColor: number): void {
     if (this.gameOver && itemId !== ITEM_POTION_REVIVE) return;
-    if (!InventoryStore.spendItem(itemId, 1)) return;
+    const sessionQty = this._sessionQty.get(itemId) ?? 0;
+    if (sessionQty <= 0) return;
+    this._sessionQty.set(itemId, sessionQty - 1);  // 先遞減，才不會讓 onChange→redraw 讀到舊值
+    if (!InventoryStore.spendItem(itemId, 1)) {
+      this._sessionQty.set(itemId, sessionQty);    // 萬一 spend 失敗就還原
+      return;
+    }
 
     const range = P(this.POTION_RANGE);
     const sealType = itemId === ITEM_POTION_REVIVE ? 'revive' : 'heal';
@@ -3996,9 +4040,85 @@ export class GameScene extends Phaser.Scene {
           this.partnerSprite.play(`partner_idle_${this._partnerPrevDir}`, true);
         }
       }
+    } else if (itemId === ITEM_POTION_ATK) {
+      this._atkBuffActive = true;
+      this._atkBuffTimer?.destroy();
+      this._atkBuffTimer = this.time.delayedCall(30000, () => {
+        this._atkBuffActive = false;
+        this._buffExpiry.delete(ITEM_POTION_ATK);
+        this.refreshBuffHud();
+      });
+      this._buffExpiry.set(ITEM_POTION_ATK, this.time.now + 30000);
+      this.refreshBuffHud();
+      this.showBuffText('ATK +20%', rangeColor);
+    } else if (itemId === ITEM_POTION_DEF) {
+      this.player.defBonus = 20;
+      this.time.delayedCall(30000, () => {
+        this.player.defBonus = 0;
+        this._buffExpiry.delete(ITEM_POTION_DEF);
+        this.refreshBuffHud();
+      });
+      this._buffExpiry.set(ITEM_POTION_DEF, this.time.now + 30000);
+      this.refreshBuffHud();
+      this.showBuffText('DEF +20', rangeColor);
+    } else if (itemId === ITEM_POTION_SPEED) {
+      this.player.speedBonus = 20;
+      this.time.delayedCall(30000, () => {
+        this.player.speedBonus = 0;
+        this._buffExpiry.delete(ITEM_POTION_SPEED);
+        this.refreshBuffHud();
+      });
+      this._buffExpiry.set(ITEM_POTION_SPEED, this.time.now + 30000);
+      this.refreshBuffHud();
+      this.showBuffText('SPD +20', rangeColor);
     }
 
     SaveStore.save();
+  }
+
+  private refreshBuffHud(): void {
+    this._buffHudTexts.forEach(t => t.destroy());
+    this._buffHudTexts = [];
+
+    const W = this.scale.width;
+    const bw = P(88), bh = P(28), pad = P(8);
+    const startY = pad + bh + P(6);
+    const lineH  = P(18);
+
+    const BUFF_LABELS: Record<string, string> = {
+      [ITEM_POTION_ATK]:   'ATK+20%',
+      [ITEM_POTION_DEF]:   'DEF+20',
+      [ITEM_POTION_SPEED]: 'SPD+20',
+    };
+    const BUFF_COLORS: Record<string, string> = {
+      [ITEM_POTION_ATK]:   '#ff8866',
+      [ITEM_POTION_DEF]:   '#66aaff',
+      [ITEM_POTION_SPEED]: '#ffdd44',
+    };
+
+    let row = 0;
+    for (const [id, expiry] of this._buffExpiry) {
+      const remaining = Math.max(0, Math.ceil((expiry - this.time.now) / 1000));
+      const label = `${BUFF_LABELS[id] ?? id} ${remaining}s`;
+      const txt = this.add.text(W - pad, startY + row * lineH, label, {
+        fontSize: F(11), fontStyle: 'bold',
+        color: BUFF_COLORS[id] ?? '#ffffff',
+        stroke: '#000', strokeThickness: 2,
+      }).setOrigin(1, 0).setScrollFactor(0).setDepth(9803);
+      this._buffHudTexts.push(txt);
+      row++;
+    }
+  }
+
+  private showBuffText(label: string, color: number): void {
+    const hex = '#' + color.toString(16).padStart(6, '0');
+    const txt = this.add.text(this.player.x, this.player.y - P(30), label, {
+      fontSize: F(14), fontStyle: 'bold', color: hex, stroke: '#000', strokeThickness: 3,
+    }).setOrigin(0.5).setDepth(200);
+    this.tweens.add({
+      targets: txt, y: txt.y - P(40), alpha: 0, duration: 1200,
+      onComplete: () => txt.destroy(),
+    });
   }
 
   private showMagicSeal(x: number, y: number, radius: number, color: number, type: 'heal' | 'revive'): void {

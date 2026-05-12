@@ -56,6 +56,7 @@ export const ELEMENT_TINTS: Record<Element, number> = {
 };
 
 // ── Enhancement stone item IDs (referenced by game.scene & inventory) ──────
+export const ITEM_BLANK_CARD   = 'blank_card';      // 空白卡片
 export const ITEM_STONE_BROKEN = 'stone_broken';    // 破損強化石
 export const ITEM_STONE_INTACT = 'stone_intact';    // 完整強化石
 export const ITEM_STONE_GUARD = 'stone_guard';     // 防退石
@@ -63,6 +64,9 @@ export const ITEM_POTION_HEALTH_S = 'potion_health_s'; // 小型回復藥水 HP+
 export const ITEM_POTION_HEALTH_M = 'potion_health_m'; // 中型回復藥水 HP+100
 export const ITEM_POTION_HEALTH_L = 'potion_health_l'; // 大型回復藥水 HP+200
 export const ITEM_POTION_REVIVE = 'potion_revive';   // 復活藥水
+export const ITEM_POTION_ATK   = 'potion_atk';      // 攻擊力藥水 ATK+20% 30秒
+export const ITEM_POTION_DEF   = 'potion_def';      // 防禦力藥水 DEF+20 30秒
+export const ITEM_POTION_SPEED = 'potion_speed';    // 速度藥水 Speed+20 30秒
 
 export function getHealthPotionForStar(questStar: number): { id: string; name: string; healAmt: number } {
   if (questStar >= 5) return { id: ITEM_POTION_HEALTH_L, name: '大型回復藥水', healAmt: 200 };
@@ -88,7 +92,7 @@ export const monsterCardScale = monsterScale;
 export const monsterDetailScale = monsterScale;
 
 // ── Elite monster multipliers ──────────────────────────────────────────────
-export const ELITE_HP_MULT = 3.0;
+export const ELITE_HP_MULT = 1.75;
 export const ELITE_SCALE_MOD = +(MONSTER_SCALE_ELITE / MONSTER_SCALE_SMALL).toFixed(4);
 
 // ── Shared drop tables ─────────────────────────────────────────────────────

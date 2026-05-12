@@ -8,7 +8,7 @@ export const BASE_CRIT       = 0;
 export const BASE_ATTACK_ARC = 180;
 
 const LEVEL_ATK     = 2;
-const LEVEL_HP      = 15;
+const LEVEL_HP      = 10;
 const BASE_HP_REGEN = 2;
 const LEVEL_HP_REGEN = 0.05;
 
@@ -91,7 +91,7 @@ const equipped: EquippedMap = {
   sword:  null,
 };
 
-let level = 15;
+let level = 1;
 let exp   = 0;
 const owned:     EquipmentItem[] = [];
 const listeners: Array<() => void> = [];
@@ -136,6 +136,14 @@ export const PlayerStore = {
   addOwned(item: EquipmentItem): void {
     owned.push(item);
     this.notify();
+  },
+
+  removeOwned(item: EquipmentItem): boolean {
+    const idx = owned.indexOf(item);
+    if (idx === -1) return false;
+    owned.splice(idx, 1);
+    this.notify();
+    return true;
   },
 
   getOwned(): ReadonlyArray<EquipmentItem> {

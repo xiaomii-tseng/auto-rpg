@@ -34,6 +34,16 @@ export const CardStore = {
     return inventory.get(cardId) ?? 0;
   },
 
+  removeFromInventory(cardId: string, qty = 1): boolean {
+    const cur = inventory.get(cardId) ?? 0;
+    if (cur < qty) return false;
+    const next = cur - qty;
+    if (next <= 0) inventory.delete(cardId);
+    else inventory.set(cardId, next);
+    this.notify();
+    return true;
+  },
+
   getInventory(): { cardId: string; qty: number }[] {
     return Array.from(inventory.entries())
       .filter(([, qty]) => qty > 0)

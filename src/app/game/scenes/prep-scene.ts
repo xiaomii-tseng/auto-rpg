@@ -2,12 +2,12 @@ import Phaser from 'phaser';
 import { InventoryStore } from '../data/inventory-store';
 import { PlayerStore } from '../data/player-store';
 import { PotionBarStore } from '../data/potion-bar-store';
-import { ITEM_POTION_HEALTH_S, ITEM_POTION_HEALTH_M, ITEM_POTION_HEALTH_L, ITEM_POTION_REVIVE } from '../data/monster-data';
+import { ITEM_POTION_HEALTH_S, ITEM_POTION_HEALTH_M, ITEM_POTION_HEALTH_L, ITEM_POTION_REVIVE, ITEM_POTION_ATK, ITEM_POTION_DEF, ITEM_POTION_SPEED, ITEM_STONE_BROKEN, ITEM_STONE_INTACT, ITEM_STONE_GUARD, ITEM_BLANK_CARD } from '../data/monster-data';
 import { generateEquipment, randomQuality, QUALITY_NAMES, QUALITY_COLORS, SLOT_NAMES, STAT_NAMES, BEHAVIOR_NAMES, BEHAVIOR_INFO, EquipSlot, EquipmentItem, applyEnhancement, revertEnhancement, ENHANCE_COST, ENHANCE_RATE, ENHANCE_COMPLETE_BONUS, ENHANCE_DEMOTE_FROM, ENHANCE_MAX } from '../data/equipment-data';
 import { SaveStore } from '../data/save-store';
 import { CardStore, CARD_SLOT_COUNT } from '../data/card-store';
 
-import { getCardDef, getMonsterDef, monsterCardScale, monsterDetailScale } from '../data/monster-data';
+import { getCardDef, getMonsterDef, monsterCardScale, monsterDetailScale, CARD_DEFS } from '../data/monster-data';
 import { QuestStore, Quest, STAR_EQUIP_QUALITY, getStarWeights } from '../data/quest-store';
 import { NetworkService } from '../network/network.service';
 import { SkinStore, SKINS } from '../data/skin-store';
@@ -110,7 +110,11 @@ export class PrepScene extends Phaser.Scene {
     if (!this.textures.exists('icon_potion_health_m'))  this.load.image('icon_potion_health_m',  'other/coin.webp');
     if (!this.textures.exists('icon_potion_health_l'))  this.load.image('icon_potion_health_l',  'other/coin.webp');
     if (!this.textures.exists('icon_potion_revive'))    this.load.image('icon_potion_revive',    'other/coin.webp');
-    if (!this.textures.exists('icon_gold'))          this.load.image('icon_gold',          'other/coin.webp');
+    if (!this.textures.exists('icon_potion_atk'))       this.load.image('icon_potion_atk',       'other/coin.webp');
+    if (!this.textures.exists('icon_potion_def'))       this.load.image('icon_potion_def',       'other/coin.webp');
+    if (!this.textures.exists('icon_potion_speed'))     this.load.image('icon_potion_speed',     'other/coin.webp');
+    if (!this.textures.exists('icon_gold'))           this.load.image('icon_gold',           'other/coin.webp');
+    if (!this.textures.exists('icon_blank_card'))     this.load.image('icon_blank_card',     'other/card.webp');
   }
 
   create(): void {
@@ -2038,15 +2042,25 @@ export class PrepScene extends Phaser.Scene {
       dg.fillStyle(WH, 0.3); dg.fillRect(rightColX, areaTop + P(51) + statBlockH, rightColW, 1);
       det.add(dg);
 
-      // 脫下 | 強化
+      // 脫下 | 強化 | 分解
       const btnH = P(38), btnW = P(136), btnGap = P(8);
       const btnY = areaTop + areaH - P(28);
-      drawBtn(det, rcx - btnW / 2 - btnGap / 2, btnY, btnW, btnH,
+      drawBtn(det, rcx - btnW / 2 - btnGap / 2, btnY - P(46), btnW, btnH,
         '脫  下', 0x3a1a1a, 0xcc4444, '#ee8888',
         () => { PlayerStore.unequip(equipSlot); closeEquipped(); });
-      drawBtn(det, rcx + btnW / 2 + btnGap / 2, btnY, btnW, btnH,
+      drawBtn(det, rcx + btnW / 2 + btnGap / 2, btnY - P(46), btnW, btnH,
         '強  化', 0x3a2800, 0xf0c040, '#ffe066',
         () => showEnhanceModal(item, () => { closeEquipped(); showEquippedDetail(item, equipSlot); }));
+      const dismantleQtyE = ({ normal: 2, good: 3, fine: 4, perfect: 5 } as Record<string, number>)[item.quality] ?? 2;
+      drawBtn(det, rcx, btnY, P(200), btnH,
+        `分  解  (+${dismantleQtyE} 破損強化石)`, 0x2a1a0a, 0x996633, '#cc9955',
+        () => {
+          PlayerStore.unequip(equipSlot);
+          PlayerStore.removeOwned(item);
+          InventoryStore.addItem(ITEM_STONE_BROKEN, '破損強化石', dismantleQtyE);
+          SaveStore.save();
+          closeEquipped();
+        });
     };
 
     // ── buildTopSlots：3欄×2列六宮格 ─────────────────────
@@ -2060,12 +2074,19 @@ export class PrepScene extends Phaser.Scene {
         const sy   = eGridY + row * (slotSz + slotGap);
         const item = eq[s.slotKey];
 
+        const qColor = item ? (QUALITY_COLORS[item.quality] ?? GOLD) : WL;
         const sg = this.add.graphics();
         sg.fillStyle(WB, 1); sg.fillRect(sx, sy, slotSz, slotSz);
         sg.fillStyle(item ? WMI : WM, 1); sg.fillRect(sx + P(2), sy + P(2), slotSz - P(4), slotSz - P(4));
-        sg.lineStyle(1.5, item ? GOLD : WL, item ? 0.5 : 0.4);
+        sg.lineStyle(item ? P(2) : 1.5, item ? qColor : WL, item ? 0.85 : 0.4);
         sg.strokeRect(sx, sy, slotSz, slotSz);
-        sg.fillStyle(s.color, 0.55); sg.fillRect(sx, sy, slotSz, P(3));
+        if (item) {
+          sg.lineStyle(P(1), qColor, 0.35);
+          sg.strokeRect(sx + P(2), sy + P(2), slotSz - P(4), slotSz - P(4));
+          sg.fillStyle(qColor, 0.5); sg.fillRect(sx, sy, slotSz, P(3));
+        } else {
+          sg.fillStyle(s.color, 0.55); sg.fillRect(sx, sy, slotSz, P(3));
+        }
         topSlotsLayer.add(sg);
 
         if (item && this.textures.exists(item.texture)) {
@@ -2345,10 +2366,19 @@ export class PrepScene extends Phaser.Scene {
 
       const btnH = P(38), btnW = P(136), btnGap = P(8);
       const btnY = areaTop + areaH - P(28);
+      const dismantleQty = ({ normal: 2, good: 3, fine: 4, perfect: 5 } as Record<string, number>)[item.quality] ?? 2;
+      const dismantleBtn = () => drawBtn(det, rcx, btnY, P(200), btnH,
+        `分  解  (+${dismantleQty} 破損強化石)`, 0x2a1a0a, 0x996633, '#cc9955',
+        () => {
+          PlayerStore.removeOwned(item);
+          InventoryStore.addItem(ITEM_STONE_BROKEN, '破損強化石', dismantleQty);
+          SaveStore.save();
+          closeItem();
+        });
 
       if (item.slot === 'ring1') {
-        // ── 飾品：飾品1/2 兩個槽位按鈕 + 強化按鈕 ──────────
-        const slotBtnY = btnY - P(46);
+        // ── 飾品：飾品1/2 兩個槽位按鈕 + 強化 + 分解 ────────
+        const slotBtnY = btnY - P(92);
         const hW  = (btnW - 4) / 2;
         const cx1 = rcx - btnW / 2 + hW / 2;
         const cx2 = rcx + btnW / 2 - hW / 2;
@@ -2384,13 +2414,14 @@ export class PrepScene extends Phaser.Scene {
           else { PlayerStore.equipToSlot(item, 'ring2'); SaveStore.save(); closeItem(); }
         });
         det.add(hit2);
-        drawBtn(det, rcx, btnY, btnW, btnH,
+        drawBtn(det, rcx, btnY - P(46), btnW, btnH,
           '強  化', 0x3a2800, 0xf0c040, '#ffe066',
           () => showEnhanceModal(item, () => { closeItem(); showItemDetail(item); }));
+        dismantleBtn();
       } else {
-        // ── 一般裝備：裝備 | 強化 ──────────────────────────
+        // ── 一般裝備：裝備 | 強化 + 分解 ──────────────────────
         const currentEquipped = PlayerStore.getEquipped()[item.slot as import('../data/equipment-data').EquipSlot];
-        drawBtn(det, rcx - btnW / 2 - btnGap / 2, btnY, btnW, btnH,
+        drawBtn(det, rcx - btnW / 2 - btnGap / 2, btnY - P(46), btnW, btnH,
           '裝  備', 0x5a3800, GOLD, '#e8c070',
           () => {
             if (currentEquipped) {
@@ -2399,9 +2430,10 @@ export class PrepScene extends Phaser.Scene {
               PlayerStore.equip(item); SaveStore.save(); closeItem();
             }
           });
-        drawBtn(det, rcx + btnW / 2 + btnGap / 2, btnY, btnW, btnH,
+        drawBtn(det, rcx + btnW / 2 + btnGap / 2, btnY - P(46), btnW, btnH,
           '強  化', 0x3a2800, 0xf0c040, '#ffe066',
           () => showEnhanceModal(item, () => { closeItem(); showItemDetail(item); }));
+        dismantleBtn();
       }
     };
 
@@ -2447,12 +2479,12 @@ export class PrepScene extends Phaser.Scene {
         const row  = Math.floor(idx / cols);
         const cx2  = gridLeft + col * (cellSz + cellGap);
         const cy2  = row * (cellSz + cellGap);   // relative to scrollCnt
-        const col2 = slotDefs[activeTab].color;
-
+        const qc = QUALITY_COLORS[item.quality] ?? WL;
         gg.fillStyle(WB, 1); gg.fillRect(cx2, cy2, cellSz, cellSz);
         gg.fillStyle(WM, 0.8); gg.fillRect(cx2 + P(2), cy2 + P(2), cellSz - P(4), cellSz - P(4));
-        gg.fillStyle(col2, 0.5); gg.fillRect(cx2, cy2, cellSz, P(3));
-        gg.lineStyle(1.5, WL, 0.35); gg.strokeRect(cx2, cy2, cellSz, cellSz);
+        gg.fillStyle(qc, 0.5); gg.fillRect(cx2, cy2, cellSz, P(3));
+        gg.lineStyle(P(2), qc, 0.8); gg.strokeRect(cx2, cy2, cellSz, cellSz);
+        gg.lineStyle(P(1), qc, 0.25); gg.strokeRect(cx2 + P(2), cy2 + P(2), cellSz - P(4), cellSz - P(4));
 
         if (this.textures.exists(item.texture))
           scrollCnt.add(
@@ -2537,6 +2569,7 @@ export class PrepScene extends Phaser.Scene {
       if (ptr.x < W / 2 - PW / 2 || ptr.x > W / 2 + PW / 2 ||
           ptr.y < H / 2 - PH / 2 || ptr.y > H / 2 + PH / 2) {
         InventoryStore.offChange(onItemChange);
+        PotionBarStore.offChange(redrawPotionSlots);
         container.destroy();
       }
     });
@@ -2582,14 +2615,21 @@ export class PrepScene extends Phaser.Scene {
     }).setOrigin(0.5).setInteractive({ hitArea: new Phaser.Geom.Rectangle(-P(18), -P(16), P(44), P(44)), hitAreaCallback: Phaser.Geom.Rectangle.Contains, useHandCursor: true });
     closeBtn.on('pointerdown', () => {
       InventoryStore.offChange(onItemChange);
+      PotionBarStore.offChange(redrawPotionSlots);
       container.destroy();
     });
     container.add(closeBtn);
 
     // ── Potion bar config ─────────────────────────────────
+    const HEAL_IDS = new Set([ITEM_POTION_HEALTH_S, ITEM_POTION_HEALTH_M, ITEM_POTION_HEALTH_L]);
     const POTION_ITEMS = [
       { id: ITEM_POTION_HEALTH_S, name: '小型回復藥水' },
+      { id: ITEM_POTION_HEALTH_M, name: '中型回復藥水' },
+      { id: ITEM_POTION_HEALTH_L, name: '大型回復藥水' },
       { id: ITEM_POTION_REVIVE,   name: '復活藥水' },
+      { id: ITEM_POTION_ATK,      name: '攻擊力藥水' },
+      { id: ITEM_POTION_DEF,      name: '防禦力藥水' },
+      { id: ITEM_POTION_SPEED,    name: '速度藥水' },
     ];
     const potionSecY  = py + P(44);
     const potionSlotSZ = P(80), potionSlotGap = P(8);
@@ -2651,7 +2691,7 @@ export class PrepScene extends Phaser.Scene {
       const hit = this.add.rectangle(cx2, sy + potionSlotSZ / 2, potionSlotSZ, potionSlotSZ)
         .setInteractive({ useHandCursor: true });
       container.add(hit);
-      hit.on('pointerdown', () => {
+      hit.on('pointerup', () => {
         // show picker overlay inside the panel
         const pickObjs: Phaser.GameObjects.GameObject[] = [];
         const closePick = () => pickObjs.forEach(o => o.destroy());
@@ -2699,9 +2739,15 @@ export class PrepScene extends Phaser.Scene {
         pickObjs.push(clearBtn);
         container.add(clearBtn);
 
-        // list available potions (exclude whatever the other slot already has)
+        // list available potions (exclude whatever the other slot already has;
+        // also exclude all heal types if the other slot is already a heal type)
         const otherSlot = PotionBarStore.getSlot(idx === 0 ? 1 : 0 as 0 | 1);
-        const available = POTION_ITEMS.filter(p => InventoryStore.getItemQty(p.id) > 0 && p.id !== otherSlot);
+        const otherIsHeal = otherSlot !== null && HEAL_IDS.has(otherSlot);
+        const available = POTION_ITEMS.filter(p =>
+          InventoryStore.getItemQty(p.id) > 0 &&
+          p.id !== otherSlot &&
+          !(otherIsHeal && HEAL_IDS.has(p.id))
+        );
         if (available.length === 0) {
           const empty = this.add.text(0, py + P(100), '背包中沒有藥水', {
             fontSize: F(15), fontStyle: 'bold', color: '#7a5830', stroke: '#1a0800', strokeThickness: 1,
@@ -2709,46 +2755,82 @@ export class PrepScene extends Phaser.Scene {
           pickObjs.push(empty);
           container.add(empty);
         } else {
+          const rowH      = P(70) + P(8);
+          const listTop   = py + P(88);
+          const listVisH  = PH - P(92);
+          const totalH    = available.length * rowH;
+          const maxScroll = Math.max(0, totalH - listVisH);
+
+          // mask: world coords (container is centred at W/2, H/2)
+          const maskGfx = this.add.graphics();
+          maskGfx.fillRect(W / 2 + px + P(4), H / 2 + listTop, PW - P(8), listVisH);
+          const listMask = new Phaser.Display.Masks.GeometryMask(this, maskGfx);
+          pickObjs.push(maskGfx);
+
+          // sub-container holds scrollable rows (coords relative to container)
+          const listCt = this.add.container(0, 0);
+          pickObjs.push(listCt);
+          container.add(listCt);
+
+          let scrollY = 0;
+          let dragStartPY = 0;
+          let dragStartScroll = 0;
+          let isDragging = false;
+
           available.forEach((p, pi) => {
-            const ey   = py + P(88) + pi * (P(70) + P(8));
+            const ey = listTop + pi * rowH;
             const rowBg = this.add.graphics();
             rowBg.fillStyle(0x2a1e00, 1);
             rowBg.fillRoundedRect(px + P(10), ey, PW - P(20), P(64), P(6));
             rowBg.lineStyle(P(1), 0x554422, 0.6);
             rowBg.strokeRoundedRect(px + P(10), ey, PW - P(20), P(64), P(6));
-            pickObjs.push(rowBg);
-            container.add(rowBg);
+            rowBg.setMask(listMask);
+            listCt.add(rowBg);
 
             if (this.textures.exists(`icon_${p.id}`)) {
               const img = this.add.image(px + P(46), ey + P(32), `icon_${p.id}`)
-                .setDisplaySize(P(44), P(44));
-              pickObjs.push(img);
-              container.add(img);
+                .setDisplaySize(P(44), P(44)).setMask(listMask);
+              listCt.add(img);
             }
 
             const nameTxt = this.add.text(px + P(80), ey + P(18), p.name, {
               fontSize: F(14), fontStyle: 'bold', color: '#ffe090', stroke: '#1a0800', strokeThickness: 2,
-            });
-            pickObjs.push(nameTxt);
-            container.add(nameTxt);
+            }).setMask(listMask);
+            listCt.add(nameTxt);
 
             const qtyTxt = this.add.text(px + P(80), ey + P(38), `數量：${InventoryStore.getItemQty(p.id)}`, {
               fontSize: F(13), color: '#ffe866', stroke: '#1a0800', strokeThickness: 1,
-            });
-            pickObjs.push(qtyTxt);
-            container.add(qtyTxt);
+            }).setMask(listMask);
+            listCt.add(qtyTxt);
 
             const rowHit = this.add.rectangle(px + P(10) + (PW - P(20)) / 2, ey + P(32), PW - P(20), P(64))
-              .setInteractive({ useHandCursor: true });
-            pickObjs.push(rowHit);
-            container.add(rowHit);
-            rowHit.on('pointerover',  () => rowBg.setAlpha(0.7));
-            rowHit.on('pointerout',   () => rowBg.setAlpha(1));
-            rowHit.on('pointerdown', () => {
-              PotionBarStore.setSlot(idx as 0 | 1, p.id);
-              SaveStore.save();
-              redrawPotionSlots();
-              closePick();
+              .setInteractive({ useHandCursor: true }).setMask(listMask);
+            listCt.add(rowHit);
+            rowHit.on('pointerover', () => { if (!isDragging) rowBg.setAlpha(0.7); });
+            rowHit.on('pointerout',  () => rowBg.setAlpha(1));
+            rowHit.on('pointerdown', (ptr: Phaser.Input.Pointer) => {
+              dragStartPY = ptr.y;
+              dragStartScroll = scrollY;
+              isDragging = false;
+            });
+            rowHit.on('pointermove', (ptr: Phaser.Input.Pointer) => {
+              if (!ptr.isDown) return;
+              const dist = ptr.y - dragStartPY;
+              if (Math.abs(dist) > P(6)) {
+                isDragging = true;
+                rowBg.setAlpha(1);
+                scrollY = Phaser.Math.Clamp(dragStartScroll - dist, 0, maxScroll);
+                listCt.y = -scrollY;
+              }
+            });
+            rowHit.on('pointerup', () => {
+              if (!isDragging) {
+                PotionBarStore.setSlot(idx as 0 | 1, p.id);
+                SaveStore.save();
+                redrawPotionSlots();
+                closePick();
+              }
+              isDragging = false;
             });
           });
         }
@@ -3311,7 +3393,7 @@ export class PrepScene extends Phaser.Scene {
     ) => {
       detailPopup?.destroy();
       const PDW      = P(200);
-      const PDH      = P(310);
+      const PDH      = P(360);
       const BANNER_H = P(52);
       const D2       = D + 10;
 
@@ -3415,7 +3497,7 @@ export class PrepScene extends Phaser.Scene {
 
       // ── Effect description（可捲動）────────────────────
       const DESC_TOP    = DIVIDER_Y + P(10);
-      const DESC_BOT    = PDH / 2 - P(68);   // 留給裝備上限 + 按鈕的空間
+      const DESC_BOT    = PDH / 2 - P(110);  // 留給裝備上限 + 兩排按鈕的空間
       const DESC_H      = DESC_BOT - DESC_TOP;
       const descWrap    = PDW - P(28);
 
@@ -3466,7 +3548,7 @@ export class PrepScene extends Phaser.Scene {
       const detLimit     = CardStore.getStackLimit(cardId);
       const detEquipped  = CardStore.getEquipped().filter(s => s === cardId).length;
       const detTierColor = detMonTier >= 5 ? '#ffd060' : detMonTier === 3 ? '#80c8ff' : '#88dd88';
-      pop.add(this.add.text(0, PDH / 2 - P(56), `裝備上限 ${detEquipped}/${detLimit}`, {
+      pop.add(this.add.text(0, PDH / 2 - P(100), `裝備上限 ${detEquipped}/${detLimit}`, {
         fontSize: F(15), fontStyle: 'bold', color: detTierColor,
         stroke: '#1a0800', strokeThickness: 1, align: 'center',
       }).setOrigin(0.5, 0.5));
@@ -3474,7 +3556,30 @@ export class PrepScene extends Phaser.Scene {
       // ── Action buttons ────────────────────────────────
       const isEquipped = equippedSlot !== null;
       const atDetLimit = !isEquipped && detEquipped >= detLimit;
-      const BH = P(32), btnY = PDH / 2 - P(28);
+      const BH = P(30), btnY = PDH / 2 - P(68), dismantleY = PDH / 2 - P(28);
+
+      // 分解按鈕（共用）
+      const dismantleQty = detMonTier >= 5 ? 10 : detMonTier === 3 ? 3 : 1;
+      const addDismantleBtn = () => {
+        const BW2 = PDW - P(40);
+        const dg = this.add.graphics();
+        dg.fillStyle(0x2a1a0a, 1);    dg.fillRect(-BW2 / 2, dismantleY - BH / 2, BW2, BH);
+        dg.lineStyle(P(1.5), 0x996633, 0.85); dg.strokeRect(-BW2 / 2, dismantleY - BH / 2, BW2, BH);
+        pop.add(dg);
+        pop.add(this.add.text(0, dismantleY, `分  解  (+${dismantleQty} 空白卡片)`, {
+          fontSize: F(13), fontStyle: 'bold', color: '#cc9955', stroke: '#000', strokeThickness: 2,
+        }).setOrigin(0.5));
+        const hit = this.add.rectangle(0, dismantleY, BW2, BH).setInteractive({ useHandCursor: true });
+        hit.on('pointerdown', (ptr: Phaser.Input.Pointer) => {
+          ptr.event.stopPropagation();
+          if (isEquipped) CardStore.unequip(equippedSlot!);
+          else CardStore.removeFromInventory(cardId, 1);
+          InventoryStore.addItem(ITEM_BLANK_CARD, '空白卡片', dismantleQty);
+          SaveStore.save();
+          pop.destroy(); detailPopup = null;
+        });
+        pop.add(hit);
+      };
 
       if (isEquipped) {
         // 裝備中：「取下」左、「替換」右
@@ -3507,6 +3612,7 @@ export class PrepScene extends Phaser.Scene {
             enterInventoryPick(equippedSlot!, cardId);
           });
         }
+        addDismantleBtn();
       } else {
         // 庫存中：「配置」或「已達上限」
         const BW = PDW - P(40);
@@ -3529,6 +3635,7 @@ export class PrepScene extends Phaser.Scene {
           });
           pop.add(btnHit);
         }
+        addDismantleBtn();
       }
     };
 
@@ -3861,8 +3968,8 @@ export class PrepScene extends Phaser.Scene {
   }
 
   private showShopPanel(W: number, H: number): void {
-    const PW = Math.min(P(320), W - P(20));
-    const PH = Math.min(P(500), H - P(40));
+    const PW = Math.min(P(400), W - P(20));
+    const PH = Math.min(P(560), H - P(40));
     const D  = 500;
 
     const container = this.add.container(W / 2, H / 2).setDepth(D);
@@ -3917,23 +4024,31 @@ export class PrepScene extends Phaser.Scene {
 
     // ── Shop items ──────────────────────────────────────────
     const SHOP_ITEMS: { id: string; name: string; price: number; desc: string; color: number }[] = [
-      { id: ITEM_POTION_HEALTH_S, name: '小型回復藥水', price:  500, desc: '使用後回復 50 HP',  color: 0x44ff88 },
-      { id: ITEM_POTION_HEALTH_M, name: '中型回復藥水', price: 1500, desc: '使用後回復 100 HP', color: 0x44ddff },
-      { id: ITEM_POTION_HEALTH_L, name: '大型回復藥水', price: 3000, desc: '使用後回復 200 HP', color: 0xff88ff },
-      { id: ITEM_POTION_REVIVE,   name: '復活藥水',     price: 5000, desc: '在範圍內復活隊友',  color: 0xffee44 },
+      { id: ITEM_POTION_HEALTH_S, name: '小型回復藥水', price: 100,  desc: '使用後回復 50 HP',              color: 0x44ff88 },
+      { id: ITEM_POTION_HEALTH_M, name: '中型回復藥水', price: 290,  desc: '使用後回復 100 HP',             color: 0x44ddff },
+      { id: ITEM_POTION_HEALTH_L, name: '大型回復藥水', price: 370,  desc: '使用後回復 200 HP',             color: 0xff88ff },
+      { id: ITEM_POTION_REVIVE,   name: '復活藥水',     price: 800, desc: '在範圍內復活隊友',              color: 0xffee44 },
+      { id: ITEM_POTION_ATK,      name: '攻擊力藥水',   price: 300,  desc: '傷害 +20%，持續 30 秒',         color: 0xff6644 },
+      { id: ITEM_POTION_DEF,      name: '防禦力藥水',   price: 300,  desc: 'DEF +20，持續 30 秒',           color: 0x44aaff },
+      { id: ITEM_POTION_SPEED,    name: '速度藥水',     price: 300,  desc: '移動速度 +20，持續 30 秒',       color: 0xffdd22 },
+      { id: ITEM_STONE_BROKEN, name: '破碎強化石', price: 150,  desc: '強化裝備時消耗，失敗不會降級',         color: 0x88ccff },
+      { id: ITEM_STONE_INTACT, name: '完整強化石', price: 300,  desc: '強化時提升成功率 +8%',                  color: 0x66ffcc },
+      { id: ITEM_STONE_GUARD,  name: '防退石',     price: 300,  desc: '強化失敗時防止裝備降級',               color: 0xff99aa },
+      { id: '__gacha__',       name: '裝備抽取',   price: 1000, desc: '隨機生成 3 件裝備，選一件收入背包', color: 0xddaa00 },
+      { id: '__card_gacha__', name: '卡片抽取',   price: 0,    desc: '隨機抽取 1 張卡片（一般84% / 菁英15% / Boss1%）', color: 0xaa44ff },
     ];
 
-    const ROW_H   = P(80);
-    const ROW_PAD = P(8);
-    const ICON_SZ = P(56);
-    const HEADER_H = P(56);  // height of header area (title + gold)
+    const ROW_H    = P(112);
+    const ROW_PAD  = P(8);
+    const ICON_SZ  = P(56);
+    const HEADER_H = P(62);  // title + gold
 
     // Gold display
     let goldLabel: Phaser.GameObjects.Text;
     const refreshGold = () => {
       goldLabel?.setText(`💰 ${InventoryStore.getGold().toLocaleString()} 金幣`);
     };
-    goldLabel = this.add.text(0, py + P(40), '', {
+    goldLabel = this.add.text(0, py + P(42), '', {
       fontSize: F(14), fontStyle: 'bold', color: '#d4a044', stroke: '#1a0800', strokeThickness: 1,
     }).setOrigin(0.5, 0);
     refreshGold();
@@ -3949,80 +4064,114 @@ export class PrepScene extends Phaser.Scene {
     let   scrollY  = 0;
     const maxScroll = Math.max(0, contentH - viewH);
 
-    // Mask in world coordinates (clips the scroll area)
     const maskGfx = this.add.graphics();
     maskGfx.fillStyle(0xffffff);
     maskGfx.fillRect(W / 2 + px, H / 2 + py + HEADER_H, PW, viewH);
     const scrollMask = maskGfx.createGeometryMask();
     container.once(Phaser.GameObjects.Events.DESTROY, () => maskGfx.destroy());
 
-    // Container for scrollable rows (origin at top of content area)
     const scrollCont = this.add.container(0, py + HEADER_H);
     scrollCont.setMask(scrollMask);
     container.add(scrollCont);
 
+    const BW = P(64), BH = P(30);
+    const lx = -PW / 2;
+    const rowInnerW = PW - P(16);
+
     SHOP_ITEMS.forEach((item, i) => {
       const ry  = i * (ROW_H + ROW_PAD);
-      const mid = ry + ROW_H / 2;
-      const lx  = -PW / 2;  // left edge (equivalent to px)
+      const lx2 = lx + P(8);
 
       // Row background
       const rowGfx = this.add.graphics();
       rowGfx.fillStyle(WM, 0.6);
-      rowGfx.fillRoundedRect(lx + P(8), ry, PW - P(16), ROW_H, P(6));
-      rowGfx.lineStyle(P(1), WL, 0.35);
-      rowGfx.strokeRoundedRect(lx + P(8), ry, PW - P(16), ROW_H, P(6));
-      rowGfx.fillStyle(item.color, 0.85);
-      rowGfx.fillRoundedRect(lx + P(8), ry, P(4), ROW_H, P(3));
+      rowGfx.fillRoundedRect(lx2, ry, rowInnerW, ROW_H, P(6));
+      rowGfx.lineStyle(P(1), WL, 0.3);
+      rowGfx.strokeRoundedRect(lx2, ry, rowInnerW, ROW_H, P(6));
+      rowGfx.fillStyle(item.color, 0.8);
+      rowGfx.fillRoundedRect(lx2, ry, P(4), ROW_H, P(3));
       scrollCont.add(rowGfx);
 
-      // Icon
-      const iconX = lx + P(20) + ICON_SZ / 2;
+      // Icon (left, vertically centred)
+      const iconX  = lx2 + P(12) + ICON_SZ / 2;
+      const iconCY = ry + ROW_H / 2;
       const iconBg = this.add.graphics();
       iconBg.fillStyle(0x0a0800, 0.6);
-      iconBg.fillRoundedRect(iconX - ICON_SZ / 2, mid - ICON_SZ / 2, ICON_SZ, ICON_SZ, P(5));
+      iconBg.fillRoundedRect(iconX - ICON_SZ / 2, iconCY - ICON_SZ / 2, ICON_SZ, ICON_SZ, P(5));
       iconBg.lineStyle(P(1), item.color, 0.45);
-      iconBg.strokeRoundedRect(iconX - ICON_SZ / 2, mid - ICON_SZ / 2, ICON_SZ, ICON_SZ, P(5));
+      iconBg.strokeRoundedRect(iconX - ICON_SZ / 2, iconCY - ICON_SZ / 2, ICON_SZ, ICON_SZ, P(5));
       scrollCont.add(iconBg);
       const iconKey = `icon_${item.id}`;
       if (this.textures.exists(iconKey))
-        scrollCont.add(this.add.image(iconX, mid, iconKey).setDisplaySize(P(40), P(40)));
+        scrollCont.add(this.add.image(iconX, iconCY, iconKey).setDisplaySize(P(40), P(40)));
 
-      // Text
-      const tx = iconX + ICON_SZ / 2 + P(10);
+      // ── Text block (right of icon) ──
+      const tx  = iconX + ICON_SZ / 2 + P(10);
+      const bx  = lx2 + rowInnerW - BW / 2 - P(8);   // buy button centre X
       const colorHex = `#${item.color.toString(16).padStart(6, '0')}`;
-      scrollCont.add(this.add.text(tx, mid - P(20), item.name, {
-        fontSize: F(14), fontStyle: 'bold', color: colorHex, stroke: '#1a0800', strokeThickness: 2,
-      }).setOrigin(0, 0));
-      scrollCont.add(this.add.text(tx, mid - P(4), item.desc, {
-        fontSize: F(12), color: '#a08060', stroke: '#1a0800', strokeThickness: 1,
-      }).setOrigin(0, 0));
-      scrollCont.add(this.add.text(tx, mid + P(12), `${item.price} 金幣`, {
-        fontSize: F(13), fontStyle: 'bold', color: '#d4a044', stroke: '#1a0800', strokeThickness: 1,
+
+      // Name + buy button on same top band
+      const topBandY = ry + P(12);
+      scrollCont.add(this.add.text(tx, topBandY, item.name, {
+        fontSize: F(14), fontStyle: 'bold', color: colorHex,
+        stroke: '#1a0800', strokeThickness: 2,
       }).setOrigin(0, 0));
 
-      // Buy button
-      const BW = P(56), BH = P(28);
-      const bx = PW / 2 - P(16) - BW / 2;
+      // Description: word-wrapped, below name, stops before buy button
+      const descMaxW = rowInnerW - (ICON_SZ + P(24)) - BW - P(16);
+      scrollCont.add(this.add.text(tx, topBandY + P(22), item.desc, {
+        fontSize: F(15), fontStyle: 'bold', color: '#b09070', stroke: '#1a0800', strokeThickness: 1,
+        wordWrap: { width: descMaxW },
+      }).setOrigin(0, 0));
+
+      // Price at bottom-left of text block
+      const isCardGacha = item.id === '__card_gacha__';
+      const priceIconKey = isCardGacha ? 'icon_blank_card' : 'icon_coin';
+      const priceLabel   = isCardGacha ? '空白卡片 ×10' : `${item.price.toLocaleString()} 金幣`;
+      const priceColor   = isCardGacha ? '#cc88ff' : '#d4a044';
+      const priceIconSz  = P(14);
+      const priceIconX   = tx + priceIconSz / 2;
+      const priceY       = ry + ROW_H - P(18);
+      if (this.textures.exists(priceIconKey))
+        scrollCont.add(this.add.image(priceIconX, priceY, priceIconKey).setDisplaySize(priceIconSz, priceIconSz).setOrigin(0.5, 1));
+      scrollCont.add(this.add.text(tx + priceIconSz + P(3), priceY, priceLabel, {
+        fontSize: F(12), fontStyle: 'bold', color: priceColor, stroke: '#1a0800', strokeThickness: 1,
+      }).setOrigin(0, 1));
+
+      // Buy button (right side, vertically centred)
       const btnGfx = this.add.graphics();
       const drawBtn = (hover: boolean) => {
         btnGfx.clear();
         btnGfx.fillStyle(hover ? 0x5a3008 : 0x2a1800, 1);
-        btnGfx.fillRoundedRect(bx - BW / 2, mid - BH / 2, BW, BH, P(5));
+        btnGfx.fillRoundedRect(bx - BW / 2, iconCY - BH / 2, BW, BH, P(5));
         btnGfx.lineStyle(P(1), GOLD, hover ? 1 : 0.6);
-        btnGfx.strokeRoundedRect(bx - BW / 2, mid - BH / 2, BW, BH, P(5));
+        btnGfx.strokeRoundedRect(bx - BW / 2, iconCY - BH / 2, BW, BH, P(5));
       };
       drawBtn(false);
       scrollCont.add(btnGfx);
-      scrollCont.add(this.add.text(bx, mid, '購買', {
+      scrollCont.add(this.add.text(bx, iconCY, '購買', {
         fontSize: F(14), fontStyle: 'bold', color: '#e8c870', stroke: '#1a0800', strokeThickness: 2,
       }).setOrigin(0.5));
 
-      const hit = this.add.rectangle(bx, mid, BW, BH).setInteractive({ useHandCursor: true });
+      const hit = this.add.rectangle(bx, iconCY, BW, BH).setInteractive({ useHandCursor: true });
       hit.on('pointerover',  () => drawBtn(true));
       hit.on('pointerout',   () => drawBtn(false));
       hit.on('pointerdown',  () => {
+        if (item.id === '__card_gacha__') {
+          if (InventoryStore.getItemQty(ITEM_BLANK_CARD) < 10) return;
+          InventoryStore.spendItem(ITEM_BLANK_CARD, 10);
+          SaveStore.save();
+          container.destroy();
+          this.openCardGachaPanel();
+          return;
+        }
         if (!InventoryStore.spendGold(item.price)) return;
+        if (item.id === '__gacha__') {
+          SaveStore.save();
+          container.destroy();
+          this.openGachaEquipPanel();
+          return;
+        }
         InventoryStore.addItem(item.id, item.name, 1);
         SaveStore.save();
         refreshGold();
@@ -4055,6 +4204,196 @@ export class PrepScene extends Phaser.Scene {
     container.once(Phaser.GameObjects.Events.DESTROY, () => {
       this.input.off('pointerdown', onDragStart);
       this.input.off('pointermove', onDragMove);
+    });
+  }
+
+  private openGachaEquipPanel(): void {
+    const W = this.scale.width, H = this.scale.height;
+    const D = 5000;
+    const objs: Phaser.GameObjects.GameObject[] = [];
+    const close = () => objs.forEach(o => o.destroy());
+
+    const weights = { normal: 0.60, good: 0.35, fine: 0.10, perfect: 0.05 };
+    const ALL_SLOTS: EquipSlot[] = ['hat', 'outfit', 'shoes', 'ring1', 'ring2', 'sword'];
+    const pickedSlots = [...ALL_SLOTS].sort(() => Math.random() - 0.5).slice(0, 3);
+    const items: EquipmentItem[] = pickedSlots.map(s => generateEquipment(s, randomQuality(weights)));
+
+    objs.push(this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.78)
+      .setDepth(D).setInteractive());
+
+    const CARD_W = P(145), CARD_H = P(240), GAP = P(10);
+    const MW = CARD_W * 3 + GAP * 4, MH = CARD_H + P(52) + GAP * 2;
+    const mx = W / 2 - MW / 2, my = H / 2 - MH / 2;
+
+    const mg = this.add.graphics().setDepth(D + 1);
+    objs.push(mg);
+    mg.fillStyle(0x1a1200, 0.97); mg.fillRoundedRect(mx, my, MW, MH, P(10));
+    mg.lineStyle(P(2), 0xddaa00, 1); mg.strokeRoundedRect(mx, my, MW, MH, P(10));
+    mg.fillStyle(0x2a1e00, 1); mg.fillRoundedRect(mx, my, MW, P(44), { tl: P(10), tr: P(10), bl: 0, br: 0 });
+    mg.lineStyle(P(1), 0xddaa00, 0.35); mg.lineBetween(mx, my + P(44), mx + MW, my + P(44));
+
+    objs.push(this.add.text(W / 2, my + P(22), '選擇裝備', {
+      fontSize: F(16), fontStyle: 'bold', color: '#ffe066', stroke: '#000', strokeThickness: 2,
+    }).setOrigin(0.5).setDepth(D + 2));
+
+    items.forEach((item, idx) => {
+      const cx = mx + GAP + idx * (CARD_W + GAP);
+      const cy = my + P(44) + GAP;
+      const qColor = QUALITY_COLORS[item.quality];
+      const qHex = '#' + qColor.toString(16).padStart(6, '0');
+
+      const rg = this.add.graphics().setDepth(D + 2);
+      objs.push(rg);
+      const drawCard = (hover: boolean) => {
+        rg.clear();
+        rg.fillStyle(hover ? 0x2a2010 : 0x1a1400, 1);
+        rg.fillRoundedRect(cx, cy, CARD_W, CARD_H, P(7));
+        rg.lineStyle(hover ? P(3) : P(2), qColor, hover ? 1 : 0.75);
+        rg.strokeRoundedRect(cx, cy, CARD_W, CARD_H, P(7));
+        rg.fillStyle(qColor, 0.35);
+        rg.fillRoundedRect(cx, cy, CARD_W, P(5), { tl: P(7), tr: P(7), bl: 0, br: 0 });
+      };
+      drawCard(false);
+
+      const imgBg = this.add.graphics().setDepth(D + 3);
+      objs.push(imgBg);
+      imgBg.fillStyle(0x0a0600, 0.7);
+      imgBg.fillRoundedRect(cx + (CARD_W - P(80)) / 2, cy + P(12), P(80), P(80), P(5));
+      imgBg.lineStyle(P(1), qColor, 0.5);
+      imgBg.strokeRoundedRect(cx + (CARD_W - P(80)) / 2, cy + P(12), P(80), P(80), P(5));
+
+      if (this.textures.exists(item.texture))
+        objs.push(this.add.image(cx + CARD_W / 2, cy + P(52), item.texture)
+          .setDisplaySize(P(68), P(68)).setDepth(D + 4));
+
+      objs.push(this.add.text(cx + CARD_W / 2, cy + P(96), SLOT_NAMES[item.slot], {
+        fontSize: F(14), fontStyle: 'bold', color: '#e8c070', stroke: '#0a0600', strokeThickness: 2,
+      }).setOrigin(0.5, 0).setDepth(D + 3));
+
+      objs.push(this.add.text(cx + CARD_W / 2, cy + P(114), QUALITY_NAMES[item.quality], {
+        fontSize: F(14), fontStyle: 'bold', color: qHex, stroke: '#0a0600', strokeThickness: 2,
+      }).setOrigin(0.5, 0).setDepth(D + 3));
+
+      const affixLines = item.affixes.map(a => {
+        const isPct = ['crit', 'atkSpeed', 'lifesteal', 'evasion'].includes(a.stat);
+        return `${STAT_NAMES[a.stat]} +${isPct ? (a.value * 100).toFixed(1) + '%' : a.value}`;
+      });
+      if (item.behavior) affixLines.push(BEHAVIOR_NAMES[item.behavior]);
+      objs.push(this.add.text(cx + CARD_W / 2, cy + P(132), affixLines.join('\n'), {
+        fontSize: F(13), fontStyle: 'bold', color: '#88cc88',
+        stroke: '#0a0600', strokeThickness: 2,
+        align: 'center', lineSpacing: 3,
+        wordWrap: { width: CARD_W - P(10) },
+      }).setOrigin(0.5, 0).setDepth(D + 3));
+
+      const hit = this.add.rectangle(cx + CARD_W / 2, cy + CARD_H / 2, CARD_W, CARD_H)
+        .setDepth(D + 5).setInteractive({ useHandCursor: true });
+      objs.push(hit);
+      hit.on('pointerover', () => drawCard(true));
+      hit.on('pointerout',  () => drawCard(false));
+      hit.on('pointerdown', () => {
+        PlayerStore.addOwned(item);
+        SaveStore.save();
+        close();
+      });
+    });
+  }
+
+  private openCardGachaPanel(): void {
+    const W = this.scale.width, H = this.scale.height;
+    const D = 5000;
+    const objs: Phaser.GameObjects.GameObject[] = [];
+    const close = () => objs.forEach(o => o.destroy());
+
+    // Draw tier
+    const roll = Math.random();
+    const tier = roll < 0.01 ? 'boss' : roll < 0.16 ? 'elite' : 'normal';
+    const pool = CARD_DEFS.filter(c =>
+      tier === 'boss'  ? c.monsterId.startsWith('boss_')  :
+      tier === 'elite' ? c.monsterId.startsWith('elite_') :
+      !c.monsterId.startsWith('elite_') && !c.monsterId.startsWith('boss_')
+    );
+    const drawn = pool[Math.floor(Math.random() * pool.length)];
+
+    objs.push(this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.82).setDepth(D).setInteractive());
+
+    const PW = P(240), PH = P(340);
+    const mx = W / 2 - PW / 2, my = H / 2 - PH / 2;
+
+    const tierColor  = tier === 'boss' ? 0xf0c040 : tier === 'elite' ? 0x9aacb8 : 0xb87333;
+    const tierLabel  = tier === 'boss' ? 'Boss 卡' : tier === 'elite' ? '菁英卡' : '一般卡';
+    const tierHex    = '#' + tierColor.toString(16).padStart(6, '0');
+
+    const mg = this.add.graphics().setDepth(D + 1);
+    objs.push(mg);
+    mg.fillStyle(0x120c04, 0.97);    mg.fillRoundedRect(mx, my, PW, PH, P(10));
+    mg.lineStyle(P(2), tierColor, 1); mg.strokeRoundedRect(mx, my, PW, PH, P(10));
+    mg.fillStyle(0x201408, 1);        mg.fillRoundedRect(mx, my, PW, P(44), { tl: P(10), tr: P(10), bl: 0, br: 0 });
+    mg.lineStyle(P(1), tierColor, 0.4); mg.lineBetween(mx, my + P(44), mx + PW, my + P(44));
+
+    objs.push(this.add.text(W / 2, my + P(22), '卡片抽取結果', {
+      fontSize: F(16), fontStyle: 'bold', color: '#ffe066', stroke: '#000', strokeThickness: 2,
+    }).setOrigin(0.5).setDepth(D + 2));
+
+    // Tier badge
+    objs.push(this.add.text(W / 2, my + P(56), tierLabel, {
+      fontSize: F(14), fontStyle: 'bold', color: tierHex, stroke: '#000', strokeThickness: 2,
+    }).setOrigin(0.5, 0).setDepth(D + 2));
+
+    // Card frame
+    const CARD_W = P(120), CARD_H = P(160);
+    const cx = W / 2, cy = my + P(88) + CARD_H / 2;
+    const cg = this.add.graphics().setDepth(D + 2);
+    objs.push(cg);
+    cg.fillStyle(WMI, 1);        cg.fillRect(cx - CARD_W / 2, cy - CARD_H / 2, CARD_W, CARD_H);
+    cg.lineStyle(P(3), tierColor, 0.95); cg.strokeRect(cx - CARD_W / 2, cy - CARD_H / 2, CARD_W, CARD_H);
+    cg.lineStyle(P(1), tierColor, 0.4);  cg.strokeRect(cx - CARD_W / 2 + P(4), cy - CARD_H / 2 + P(4), CARD_W - P(8), CARD_H - P(8));
+
+    // Monster sprite
+    const monDef = getMonsterDef(drawn.monsterId);
+    if (monDef) {
+      const spriteKey = `${monDef.spriteKey}_idle`;
+      const animKey   = `cgacha_idle_${drawn.monsterId}`;
+      const idleEnd   = monDef.spriteKey.startsWith('plant') ? 3 : 5;
+      try {
+        if (!this.anims.exists(animKey) && this.textures.exists(spriteKey))
+          this.anims.create({ key: animKey, frames: this.anims.generateFrameNumbers(spriteKey, { start: 0, end: idleEnd }), frameRate: 8, repeat: -1 });
+        const sp = this.add.sprite(cx, cy - P(14), spriteKey, 0).setScale(1.4 * DPR).setDepth(D + 3);
+        if (monDef.tint !== 0xffffff) sp.setTint(monDef.tint);
+        if (this.anims.exists(animKey)) sp.play(animKey);
+        objs.push(sp);
+      } catch { /* skip */ }
+    }
+
+    // Card name
+    objs.push(this.add.text(cx, cy + CARD_H / 2 - P(16), drawn.name, {
+      fontSize: F(13), fontStyle: 'bold', color: '#f0d080', stroke: '#000', strokeThickness: 2,
+      wordWrap: { width: CARD_W - P(8) }, align: 'center',
+    }).setOrigin(0.5, 1).setDepth(D + 3));
+
+    // Confirm button
+    const BY = my + PH - P(22), BW = P(120), BH = P(32);
+    const btnGfx = this.add.graphics().setDepth(D + 2);
+    objs.push(btnGfx);
+    const drawConfirmBtn = (hover: boolean) => {
+      btnGfx.clear();
+      btnGfx.fillStyle(hover ? 0x204820 : 0x0e2a0e, 1);
+      btnGfx.fillRoundedRect(W / 2 - BW / 2, BY - BH / 2, BW, BH, P(6));
+      btnGfx.lineStyle(P(1.5), 0x44cc44, hover ? 1 : 0.7);
+      btnGfx.strokeRoundedRect(W / 2 - BW / 2, BY - BH / 2, BW, BH, P(6));
+    };
+    drawConfirmBtn(false);
+    objs.push(this.add.text(W / 2, BY, '加入背包', {
+      fontSize: F(15), fontStyle: 'bold', color: '#88ff88', stroke: '#000', strokeThickness: 2,
+    }).setOrigin(0.5).setDepth(D + 3));
+    const hit = this.add.rectangle(W / 2, BY, BW, BH).setDepth(D + 4).setInteractive({ useHandCursor: true });
+    objs.push(hit);
+    hit.on('pointerover', () => drawConfirmBtn(true));
+    hit.on('pointerout',  () => drawConfirmBtn(false));
+    hit.on('pointerdown', () => {
+      CardStore.addCard(drawn.id, 1);
+      SaveStore.save();
+      close();
     });
   }
 
