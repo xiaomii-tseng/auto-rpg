@@ -827,7 +827,13 @@ export class GameScene extends Phaser.Scene {
       ring.lineStyle(P(2), 0xaaddff, 1); ring.strokeCircle(0, 0, P(12));
       this.tweens.add({ targets: ring, scaleX: 2.5, scaleY: 2.5, alpha: 0, duration: 300, onComplete: () => ring.destroy() });
 
-      this.dealDamage(target, dmgMult, this.player.x, this.player.y, 'down');
+      // 以落點為中心 14px 範圍內所有目標都受傷
+      const splashR = P(12);
+      for (const t of this.getHittableTargets()) {
+        if (Phaser.Math.Distance.Between(tx, ty, t.x, t.y) <= splashR) {
+          this.dealDamage(t, dmgMult, tx, ty, 'down');
+        }
+      }
     }
   }
 

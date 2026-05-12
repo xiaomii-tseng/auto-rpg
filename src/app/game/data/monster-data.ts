@@ -420,7 +420,7 @@ export const CARD_DEFS: CardDef[] = [
 
   // 熔岩史萊姆王：Boss傷害 / 五連斬無僵直 / 蓄力暈眩
   { id: 'card_boss_lava_slime_a', name: '熔岩史萊姆王卡片(A)', monsterId: 'boss_lava_slime', element: 'none', tint: 0xff6622, effect: { atk: 15, condPenAtk: 30 }, desc: '攻擊力 +15；穿甲≥100時，攻擊力再 +30' },
-  { id: 'card_boss_lava_slime_b', name: '熔岩史萊姆王卡片(B)', monsterId: 'boss_lava_slime', element: 'none', tint: 0xff6622, effect: { onHitLightningChance: 0.50, lightningDmgBonus: 0.40 }, desc: '攻擊有50%機率對隨機敵人落雷（ATK×50%），落雷傷害 +40%' },
+  { id: 'card_boss_lava_slime_b', name: '熔岩史萊姆王卡片(B)', monsterId: 'boss_lava_slime', element: 'none', tint: 0xff6622, effect: { onHitLightningChance: 0.50, lightningDmgBonus: 0.80 }, desc: '攻擊有50%機率對隨機敵人落雷（ATK×50%），落雷傷害 +80%' },
   { id: 'card_boss_lava_slime_c', name: '熔岩史萊姆王卡片(C)', monsterId: 'boss_lava_slime', element: 'none', tint: 0xff6622, effect: { chargeSlamStunChance: 0.50, chargeSlamDmgPct: 0.25 }, desc: '蓄力重擊有50%機率造成暈眩2秒，蓄力重擊傷害 +25%' },
 
   // 食人花王：彈幕特化
