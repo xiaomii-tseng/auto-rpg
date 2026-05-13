@@ -128,16 +128,24 @@ export interface EquipmentItem {
   behavior?:   AttackBehavior;  // sword slot only（必定出現）
   enhancement: number;          // 0~10
   enhanceLog:  number[][];      // 每次強化提升的詞綴 index，用於退階還原
+  baseAffixes?: Affix[];        // 第一次精煉前的詞綴快照，供重鑄還原用
 }
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
-export const QUALITY_RANGES: Record<EquipQuality, [number, number]> = {
-  normal:  [0.6, 1.0],
-  good:    [0.8, 1.2],
-  fine:    [1.0, 1.4],
-  perfect: [1.4, 1.4],
+// 品質決定詞綴數量（非武器）；武器在此基礎上額外加固定 ATK 詞綴
+export const QUALITY_AFFIX_COUNT: Record<EquipQuality, number> = {
+  normal: 1, good: 2, fine: 3, perfect: 4,
 };
+
+// 所有品質共用同一數值範圍，鐘型分布（3次均值）
+export const UNIFIED_ROLL_RANGE: [number, number] = [0.4, 1.6];
+
+function rollBell(): number {
+  const [lo, hi] = UNIFIED_ROLL_RANGE;
+  const r = (Math.random() + Math.random() + Math.random()) / 3;
+  return lo + r * (hi - lo);
+}
 
 export const QUALITY_NAMES: Record<EquipQuality, string> = {
   normal: '普通', good: '良好', fine: '精良', perfect: '完美',
@@ -330,16 +338,15 @@ export function slotToCategory(slot: EquipSlot): EquipCategory {
   return (slot === 'ring1' || slot === 'ring2') ? 'ring' : slot as EquipCategory;
 }
 
-function pickAffixes(category: EquipCategory, quality: EquipQuality): Affix[] {
+function pickAffixes(category: EquipCategory, count: number): Affix[] {
   const pool = [...SLOT_AFFIX_POOL[category]];
-  const [lo, hi] = QUALITY_RANGES[quality];
   const chosen: StatKey[] = [];
-  while (chosen.length < 2 && pool.length > 0) {
+  while (chosen.length < count && pool.length > 0) {
     const i = Math.floor(Math.random() * pool.length);
     chosen.push(pool.splice(i, 1)[0]);
   }
   return chosen.map(stat => {
-    const raw = STAT_BASE[stat] * (lo + Math.random() * (hi - lo));
+    const raw = STAT_BASE[stat] * rollBell();
     const value = PCT_STATS.has(stat)
       ? Math.round(raw * 1000) / 1000
       : Math.round(raw);
@@ -357,14 +364,12 @@ export function generateEquipment(slot: EquipSlot, quality: EquipQuality): Equip
   let behavior: AttackBehavior | undefined;
 
   if (slot === 'sword') {
-    // 武器：攻擊力固定第一條 + 攻擊模式 + 2 條隨機
-    const [lo, hi] = QUALITY_RANGES[quality];
-    const atkRaw = STAT_BASE.atk * (lo + Math.random() * (hi - lo));
-    const fixedAtk: Affix = { stat: 'atk', value: Math.round(atkRaw) };
-    affixes  = [fixedAtk, ...pickAffixes('sword', quality)];
+    // 武器：ATK 固定第一條 + 攻擊模式 + 品質決定的隨機詞綴數
+    const fixedAtk: Affix = { stat: 'atk', value: Math.round(STAT_BASE.atk * rollBell()) };
+    affixes  = [fixedAtk, ...pickAffixes('sword', QUALITY_AFFIX_COUNT[quality])];
     behavior = ATTACK_BEHAVIORS[Math.floor(Math.random() * ATTACK_BEHAVIORS.length)];
   } else {
-    affixes  = pickAffixes(cat, quality);
+    affixes  = pickAffixes(cat, QUALITY_AFFIX_COUNT[quality]);
     behavior = undefined;
   }
 
@@ -383,11 +388,26 @@ export function generateEquipment(slot: EquipSlot, quality: EquipQuality): Equip
 
 export function randomQuality(weights?: Partial<Record<EquipQuality, number>>): EquipQuality {
   const w = { normal: 0.50, good: 0.30, fine: 0.15, perfect: 0.05, ...weights };
-  const roll = Math.random();
+  const total = (w.normal ?? 0) + (w.good ?? 0) + (w.fine ?? 0) + (w.perfect ?? 0);
+  const roll = Math.random() * total;
   if (roll < w.normal!)                          return 'normal';
   if (roll < w.normal! + w.good!)                return 'good';
   if (roll < w.normal! + w.good! + w.fine!)      return 'fine';
   return 'perfect';
+}
+
+export type MonsterType = 'small' | 'elite' | 'boss';
+
+const DROP_QUALITY_BASE: Record<MonsterType, Record<EquipQuality, number>> = {
+  small: { normal: 70, good: 25, fine: 4.5, perfect: 0.2 },
+  elite: { normal: 50, good: 35, fine: 13,  perfect: 1.0 },
+  boss:  { normal: 25, good: 40, fine: 28,  perfect: 0.7 },
+};
+
+export function getDropQualityWeights(type: MonsterType, star: number): Record<EquipQuality, number> {
+  const b = DROP_QUALITY_BASE[type];
+  const IR = Math.pow(1.3, star - 1);
+  return { normal: b.normal, good: b.good, fine: b.fine * IR, perfect: b.perfect * IR * IR };
 }
 
 export function getItemStats(item: EquipmentItem): Partial<Record<StatKey, number>> {
@@ -398,47 +418,59 @@ export function getItemStats(item: EquipmentItem): Partial<Record<StatKey, numbe
   return out;
 }
 
-// ── Enhancement system constants ───────────────────────────────────────────────
+// ── Refinement system constants ────────────────────────────────────────────────
 
 export const ENHANCE_MAX = 10;
 
-// 每次強化消耗的破損強化石數量（期望總花費 ≈ 150 顆，含防退石全程保護）
 export const ENHANCE_COST: Record<number, number> = {
   0: 1, 1: 2, 2: 2, 3: 3, 4: 3,
-  5: 4, 6: 4, 7: 4, 8: 5, 9: 5,
+  5: 4, 6: 4, 7: 5, 8: 5, 9: 7,
 };
 
+// 失敗不退階，成功率略低於原版
 export const ENHANCE_RATE: Record<number, number> = {
-  0: 1.00, 1: 0.90, 2: 0.85, 3: 0.80, 4: 0.60,
-  5: 0.45, 6: 0.30, 7: 0.20, 8: 0.15, 9: 0.08,
+  0: 0.90, 1: 0.80, 2: 0.75, 3: 0.65, 4: 0.50,
+  5: 0.35, 6: 0.22, 7: 0.14, 8: 0.10, 9: 0.06,
 };
 
-// 完整強化石加成成功率
 export const ENHANCE_COMPLETE_BONUS = 0.08;
 
-// 等級 >= 此值時失敗會退階（最多退到 +4）
-export const ENHANCE_DEMOTE_FROM = 5;
+// 每次精煉各詞綴的隨機增幅範圍（線性，套用於基底值，對標現行 +10 水準）
+export const REFINE_INCREMENT_RANGE: Record<StatKey, [number, number]> = {
+  atk:         [2,      6     ],
+  hp:          [4,      12    ],
+  def:         [2,      6     ],
+  crit:        [0.007,  0.017 ],
+  speed:       [2,      6     ],
+  atkSpeed:    [0.007,  0.017 ],
+  lifesteal:   [0.0015, 0.004 ],
+  evasion:     [0.003,  0.010 ],
+  critDmg:     [0.012,  0.028 ],
+  hpRegen:     [0.5,    1.2   ],
+  dotBonus:    [0.025,  0.060 ],
+  penetration: [2,      6     ],
+};
 
-// 強化成功：回傳被提升的詞綴 index 陣列
+// 精煉成功：隨機命中 1~2 條詞綴，各自套用隨機增幅
 export function applyEnhancement(item: EquipmentItem): number[] {
   if (item.enhancement >= ENHANCE_MAX) return [];
+  if (!item.baseAffixes) item.baseAffixes = item.affixes.map(a => ({ ...a }));
 
-  let indices: number[];
-  if (item.slot === 'sword' && item.affixes[0]?.stat === 'atk' && item.affixes.length >= 2) {
-    // 攻擊力（index 0）必定提升＋隨機一條其他
-    const randIdx = 1 + Math.floor(Math.random() * (item.affixes.length - 1));
-    indices = [0, randIdx];
-  } else {
-    indices = [Math.floor(Math.random() * item.affixes.length)];
+  const count = item.affixes.length <= 1 ? 1 : (Math.random() < 0.25 ? 2 : 1);
+  const pool  = item.affixes.map((_, i) => i);
+  const indices: number[] = [];
+  while (indices.length < count && pool.length > 0) {
+    const pick = Math.floor(Math.random() * pool.length);
+    indices.push(pool.splice(pick, 1)[0]);
   }
 
-  const mult = ENHANCE_LEVEL_MULT[item.enhancement + 1] ?? 1;
   for (const idx of indices) {
     const { stat } = item.affixes[idx];
-    const inc = ENHANCE_INCREMENT[stat] * mult;
+    const [lo, hi] = REFINE_INCREMENT_RANGE[stat];
+    const inc = lo + Math.random() * (hi - lo);
     item.affixes[idx].value = PCT_STATS.has(stat)
       ? Math.round((item.affixes[idx].value + inc) * 1000) / 1000
-      : item.affixes[idx].value + inc;
+      : Math.round(item.affixes[idx].value + inc);
   }
 
   item.enhancement++;
@@ -447,19 +479,30 @@ export function applyEnhancement(item: EquipmentItem): number[] {
   return indices;
 }
 
-// 退階：還原上一次強化（供失敗退階使用）
+// 重鑄：還原到精煉前的原始詞綴值，消耗由呼叫方處理
+export function recastItem(item: EquipmentItem): void {
+  const base = item.baseAffixes;
+  if (base) {
+    item.affixes = base.map(a => ({ ...a }));
+    item.baseAffixes = undefined;
+  }
+  item.enhancement = 0;
+  item.enhanceLog  = [];
+}
+
+// 保留供存檔相容性（目前不再因失敗呼叫）
 export function revertEnhancement(item: EquipmentItem): void {
   if (item.enhancement <= 0) return;
-  const log = item.enhanceLog ?? [];
+  const log     = item.enhanceLog ?? [];
   const indices = log.length > 0 ? log.pop()! : [];
-  const mult = ENHANCE_LEVEL_MULT[item.enhancement] ?? 1;
   for (const idx of indices) {
     if (idx >= item.affixes.length) continue;
     const { stat } = item.affixes[idx];
-    const inc = ENHANCE_INCREMENT[stat] * mult;
+    const [lo, hi] = REFINE_INCREMENT_RANGE[stat];
+    const avg = (lo + hi) / 2;
     item.affixes[idx].value = PCT_STATS.has(stat)
-      ? Math.round((item.affixes[idx].value - inc) * 1000) / 1000
-      : item.affixes[idx].value - inc;
+      ? Math.round((item.affixes[idx].value - avg) * 1000) / 1000
+      : Math.round(item.affixes[idx].value - avg);
   }
   item.enhancement--;
 }

@@ -19,12 +19,12 @@ import { InventoryStore } from '../data/inventory-store';
 import { SaveStore } from '../data/save-store';
 import { CardStore } from '../data/card-store';
 import { getMonsterDef, getCardDef, DropEntry, MonsterDef } from '../data/monster-data';
-import { getElementMultiplier, ELEMENT_NAMES, ELEMENT_COLORS, QUALITY_NAMES, QUALITY_COLORS, SLOT_NAMES, STAT_NAMES, BEHAVIOR_NAMES, generateEquipment, randomQuality, getItemStats, EquipSlot, EquipmentItem } from '../data/equipment-data';
+import { getElementMultiplier, ELEMENT_NAMES, ELEMENT_COLORS, QUALITY_NAMES, QUALITY_COLORS, SLOT_NAMES, STAT_NAMES, BEHAVIOR_NAMES, generateEquipment, randomQuality, getDropQualityWeights, getItemStats, EquipSlot, EquipmentItem, MonsterType } from '../data/equipment-data';
 import { QuestStore, STAR_HP_MULT, STAR_STAT_MULT, STAR_DROP_MULT, STAR_DEF_MULT, STAR_EXP_MULT, STAR_EQUIP_QUALITY } from '../data/quest-store';
 import { ELITE_HP_MULT, ELITE_SCALE_MOD } from '../data/monster-data';
 import { NetworkService } from '../network/network.service';
 import { PotionBarStore } from '../data/potion-bar-store';
-import { ITEM_POTION_HEALTH_S, ITEM_POTION_HEALTH_M, ITEM_POTION_HEALTH_L, ITEM_POTION_REVIVE, ITEM_POTION_ATK, ITEM_POTION_DEF, ITEM_POTION_SPEED, ITEM_STONE_BROKEN, ITEM_STONE_INTACT, ITEM_STONE_GUARD, ITEM_QUEST_REROLL, ITEM_BLANK_CARD, getHealthPotionForStar } from '../data/monster-data';
+import { ITEM_POTION_HEALTH_S, ITEM_POTION_HEALTH_M, ITEM_POTION_HEALTH_L, ITEM_POTION_REVIVE, ITEM_POTION_ATK, ITEM_POTION_DEF, ITEM_POTION_SPEED, ITEM_STONE_BROKEN, ITEM_STONE_INTACT, ITEM_STONE_RECAST, ITEM_QUEST_REROLL, ITEM_BLANK_CARD, getHealthPotionForStar } from '../data/monster-data';
 import type { MapParams } from '../../../../shared/types';
 
 const CO_OP_HP_MULT = 1.6;
@@ -52,15 +52,16 @@ interface LootDrop {
   cardId?: string;
   equip?: EquipmentItem;
   readyAt: number;
+  badge?: Phaser.GameObjects.Graphics;
 }
 
 // 品質權重 47/35/15/3（正規化）
-const EQUIP_DROP_QUALITY = { normal: 0.47, good: 0.35, fine: 0.15 };
+const EQUIP_ALL_SLOTS: EquipSlot[] = ['hat', 'outfit', 'shoes', 'ring1', 'ring2', 'sword'];
 
 const ITEM_DESCS: Record<string, string> = {
   [ITEM_STONE_BROKEN]:    '強化裝備時消耗',
   [ITEM_STONE_INTACT]:    '強化時提升成功率 +8%',
-  [ITEM_STONE_GUARD]:     '強化失敗時防止裝備降級',
+  [ITEM_STONE_RECAST]:     '消耗1顆可重鑄裝備，回歸精煉前數值',
   [ITEM_QUEST_REROLL]:    '重置當前任務列表',
   [ITEM_BLANK_CARD]:      '10張可在商店抽一次卡片',
   [ITEM_POTION_HEALTH_S]: '回復 50 HP',
@@ -2419,12 +2420,14 @@ export class GameScene extends Phaser.Scene {
     for (const card of def.cards) {
       if (Math.random() < card.rate * cardDropMult) this.spawnCardDrop(x, y, card.cardId);
     }
-    const starEquipMult = 1 + (this.questStar - 1) * 0.25;
-    const equipRate = (isElite ? 0.02 : 0.007) * starEquipMult;
-    if (Math.random() < equipRate) {
-      const ALL_SLOTS: EquipSlot[] = ['hat', 'outfit', 'shoes', 'ring1', 'ring2', 'sword'];
-      const slot = ALL_SLOTS[Math.floor(Math.random() * ALL_SLOTS.length)];
-      this.spawnEquipDrop(x, y, generateEquipment(slot, randomQuality(EQUIP_DROP_QUALITY)));
+    const IQ = Math.pow(1.3, this.questStar - 1);
+    const monType: MonsterType = isElite ? 'elite' : 'small';
+    const qualW = getDropQualityWeights(monType, this.questStar);
+    let dropCount = isElite ? 1 : 0;
+    if (Math.random() < Math.min(1, (isElite ? 0.25 : 0.15) * IQ)) dropCount++;
+    for (let i = 0; i < dropCount; i++) {
+      const slot = EQUIP_ALL_SLOTS[Math.floor(Math.random() * EQUIP_ALL_SLOTS.length)];
+      this.spawnEquipDrop(x, y, generateEquipment(slot, randomQuality(qualW)));
     }
     const expMult = STAR_EXP_MULT[this.questStar] ?? 1;
     const gained = PlayerStore.addExp(Math.round(def.exp * expMult));
@@ -3610,11 +3613,16 @@ export class GameScene extends Phaser.Scene {
       for (const card of bossDef.cards) {
         if (Math.random() < card.rate * bossCardMult) this.spawnCardDrop(this.boss.x, this.boss.y, card.cardId);
       }
-      const bossEquipRate = 0.40 * (1 + (this.questStar - 1) * 0.25);
-      if (Math.random() < Math.min(1, bossEquipRate)) {
-        const ALL_SLOTS: EquipSlot[] = ['hat', 'outfit', 'shoes', 'ring1', 'ring2', 'sword'];
-        const slot = ALL_SLOTS[Math.floor(Math.random() * ALL_SLOTS.length)];
-        this.spawnEquipDrop(this.boss.x, this.boss.y, generateEquipment(slot, randomQuality(EQUIP_DROP_QUALITY)));
+      const bossIQ = Math.pow(1.3, this.questStar - 1);
+      const bossQualW = getDropQualityWeights('boss', this.questStar);
+      let bossDropCount = 4;
+      const bossBonusChance = Math.min(1, 0.30 * bossIQ);
+      for (let i = 0; i < 6; i++) {
+        if (Math.random() < bossBonusChance) bossDropCount++;
+      }
+      for (let i = 0; i < bossDropCount; i++) {
+        const slot = EQUIP_ALL_SLOTS[Math.floor(Math.random() * EQUIP_ALL_SLOTS.length)];
+        this.spawnEquipDrop(this.boss.x, this.boss.y, generateEquipment(slot, randomQuality(bossQualW)));
       }
     }
 
@@ -4284,16 +4292,29 @@ export class GameScene extends Phaser.Scene {
     const oy = Phaser.Math.Between(-P(10), P(10));
     const tx = cx + ox, ty = cy + oy + P(18);
     const imgKey = this.textures.exists(equip.texture) ? equip.texture : 'icon_equip_drop';
+    const qColor = QUALITY_COLORS[equip.quality];
+    const r = P(17);
+
+    const drawBadge = (gfx: Phaser.GameObjects.Graphics) => {
+      gfx.clear();
+      gfx.fillStyle(0x111111, 0.72).fillCircle(0, 0, r);
+      gfx.lineStyle(P(equip.quality === 'normal' ? 1.5 : 2.5), qColor, 1).strokeCircle(0, 0, r);
+    };
+    const badge = this.add.graphics().setDepth(ty + 3);
+    badge.x = tx; badge.y = cy - P(24);
+    drawBadge(badge);
+
     const img = this.add.image(tx, cy - P(24), imgKey)
-      .setDisplaySize(P(28), P(28)).setDepth(ty + 4);
+      .setDisplaySize(P(26), P(26)).setDepth(ty + 4);
+
     this.tweens.add({
-      targets: img, y: ty, duration: 420, ease: 'Bounce.Out',
+      targets: [badge, img], y: ty, duration: 420, ease: 'Bounce.Out',
       onComplete: () => {
-        this.tweens.add({ targets: img, y: ty - P(4), duration: 700, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+        this.tweens.add({ targets: [badge, img], y: ty - P(4), duration: 700, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
       },
     });
     const name = SLOT_NAMES[equip.slot];
-    this.lootDrops.push({ obj: img, itemId: '__equip__', itemName: name, qty: 1, readyAt: Date.now() + 600, equip });
+    this.lootDrops.push({ obj: img, itemId: '__equip__', itemName: name, qty: 1, readyAt: Date.now() + 600, equip, badge });
   }
 
   private checkLootPickup(): void {
@@ -4321,6 +4342,7 @@ export class GameScene extends Phaser.Scene {
         this.showPickupText(loot.obj.x, loot.obj.y, loot.itemName, loot.qty);
       }
       this._lootBadge?.setText(String(this._sessionLoot.length));
+      loot.badge?.destroy();
       loot.obj.destroy();
       return false;
     });
@@ -6363,7 +6385,7 @@ export class GameScene extends Phaser.Scene {
         burst.emitParticleAt(0, 0, 18);
         this.time.delayedCall(450, () => { if (burst.active) burst.destroy(); });
         // Spawn random flower minion (10% elite) with extended range
-        const isElite = Math.random() < 0.10;
+        const isElite = Math.random() < 0.08;
         const pool = isElite
           ? ['elite_plant1', 'elite_plant2', 'elite_plant3']
           : ['plant1_s', 'plant2_s', 'plant3_s'];

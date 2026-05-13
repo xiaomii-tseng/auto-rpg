@@ -59,7 +59,7 @@ export const ELEMENT_TINTS: Record<Element, number> = {
 export const ITEM_BLANK_CARD   = 'blank_card';      // 空白卡片
 export const ITEM_STONE_BROKEN = 'stone_broken';    // 破損強化石
 export const ITEM_STONE_INTACT = 'stone_intact';    // 完整強化石
-export const ITEM_STONE_GUARD = 'stone_guard';     // 防退石
+export const ITEM_STONE_RECAST = 'stone_guard';    // 重鑄石（id 保持 stone_guard 避免存檔破壞）
 export const ITEM_QUEST_REROLL = 'quest_reroll';   // 任務重製石
 export const ITEM_POTION_HEALTH_S = 'potion_health_s'; // 小型回復藥水 HP+50
 export const ITEM_POTION_HEALTH_M = 'potion_health_m'; // 中型回復藥水 HP+100
@@ -98,7 +98,7 @@ export const ELITE_SCALE_MOD = +(MONSTER_SCALE_ELITE / MONSTER_SCALE_SMALL).toFi
 
 // ── Shared drop tables ─────────────────────────────────────────────────────
 //
-// 目標：+7 ≈ 10 趟、+10 ≈ 43 趟（含防退石全保護）
+// 目標：+7 ≈ 10 趟、+10 ≈ 43 趟（含重鑄石全保護）
 // 每趟估計：~60小怪、~8菁英、1Boss
 // 破損石/趟 = 60×0.02×1 + 8×0.04×2.5 + 0.35×4.5 = 1.2+0.8+1.575 ≈ 3.58
 
@@ -109,13 +109,13 @@ const smallDrops: DropEntry[] = [
 const eliteDrops: DropEntry[] = [
   { itemId: ITEM_STONE_BROKEN, itemName: '破損強化石', rate: 0.10, qtyMin: 1, qtyMax: 1 },
   { itemId: ITEM_STONE_INTACT, itemName: '完整強化石', rate: 0.02, qtyMin: 1, qtyMax: 1 },
-  { itemId: ITEM_STONE_GUARD, itemName: '防退石', rate: 0.02, qtyMin: 1, qtyMax: 1 },
+  { itemId: ITEM_STONE_RECAST, itemName: '重鑄石', rate: 0.02, qtyMin: 1, qtyMax: 1 },
 ];
 
 const bossDrops: DropEntry[] = [
   { itemId: ITEM_STONE_BROKEN, itemName: '破損強化石', rate: 1.00, qtyMin: 1, qtyMax: 1 },
   { itemId: ITEM_STONE_INTACT, itemName: '完整強化石', rate: 0.30, qtyMin: 1, qtyMax: 1 },
-  { itemId: ITEM_STONE_GUARD, itemName: '防退石', rate: 0.10, qtyMin: 1, qtyMax: 1 },
+  { itemId: ITEM_STONE_RECAST, itemName: '重鑄石', rate: 0.10, qtyMin: 1, qtyMax: 1 },
 ];
 
 // ── Monster definitions ────────────────────────────────────────────────────

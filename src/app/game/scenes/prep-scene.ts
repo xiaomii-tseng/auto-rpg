@@ -2,8 +2,8 @@ import Phaser from 'phaser';
 import { InventoryStore } from '../data/inventory-store';
 import { PlayerStore } from '../data/player-store';
 import { PotionBarStore } from '../data/potion-bar-store';
-import { ITEM_POTION_HEALTH_S, ITEM_POTION_HEALTH_M, ITEM_POTION_HEALTH_L, ITEM_POTION_REVIVE, ITEM_POTION_ATK, ITEM_POTION_DEF, ITEM_POTION_SPEED, ITEM_STONE_BROKEN, ITEM_STONE_INTACT, ITEM_STONE_GUARD, ITEM_BLANK_CARD, ITEM_QUEST_REROLL } from '../data/monster-data';
-import { generateEquipment, randomQuality, QUALITY_NAMES, QUALITY_COLORS, SLOT_NAMES, STAT_NAMES, BEHAVIOR_NAMES, BEHAVIOR_INFO, EquipSlot, EquipmentItem, applyEnhancement, revertEnhancement, ENHANCE_COST, ENHANCE_RATE, ENHANCE_COMPLETE_BONUS, ENHANCE_DEMOTE_FROM, ENHANCE_MAX } from '../data/equipment-data';
+import { ITEM_POTION_HEALTH_S, ITEM_POTION_HEALTH_M, ITEM_POTION_HEALTH_L, ITEM_POTION_REVIVE, ITEM_POTION_ATK, ITEM_POTION_DEF, ITEM_POTION_SPEED, ITEM_STONE_BROKEN, ITEM_STONE_INTACT, ITEM_BLANK_CARD, ITEM_QUEST_REROLL } from '../data/monster-data';
+import { generateEquipment, randomQuality, QUALITY_NAMES, QUALITY_COLORS, SLOT_NAMES, STAT_NAMES, BEHAVIOR_NAMES, BEHAVIOR_INFO, EquipSlot, EquipmentItem, applyEnhancement, recastItem, ENHANCE_COST, ENHANCE_RATE, ENHANCE_COMPLETE_BONUS, ENHANCE_MAX } from '../data/equipment-data';
 import { SaveStore } from '../data/save-store';
 import { CardStore, CARD_SLOT_COUNT } from '../data/card-store';
 
@@ -1649,6 +1649,160 @@ export class PrepScene extends Phaser.Scene {
       closeT.on('pointerdown', () => closeModal());
     };
 
+    const showRefineChoiceModal = (item: EquipmentItem, onClose: () => void) => {
+      const { width: W, height: H } = this.scale;
+      const D = 970;
+      const objs: Phaser.GameObjects.GameObject[] = [];
+      const o = <T extends Phaser.GameObjects.GameObject>(x: T): T => { objs.push(x); return x; };
+      const closeChoice = () => { objs.forEach(x => x.destroy()); };
+
+      const bw = P(160), bh = P(42), gap = P(10);
+      const cx = W / 2, cy = H / 2;
+
+      o(this.add.graphics().setDepth(D)).fillStyle(0x000000, 0.55).fillRect(0, 0, W, H);
+      o(this.add.graphics().setDepth(D + 1))
+        .fillStyle(0x1a1208, 0.97).fillRoundedRect(cx - P(180), cy - P(60), P(360), P(120), P(10))
+        .lineStyle(P(2), 0x997733, 0.8).strokeRoundedRect(cx - P(180), cy - P(60), P(360), P(120), P(10));
+
+      o(this.add.text(cx, cy - P(38), '選擇操作', {
+        fontSize: F(16), fontStyle: 'bold', color: '#ffe066', stroke: '#1a0800', strokeThickness: 2,
+      }).setOrigin(0.5).setDepth(D + 2));
+
+      // 精煉按鈕
+      const refineG = o(this.add.graphics().setDepth(D + 2));
+      refineG.fillStyle(0x3a2800, 1).fillRect(cx - bw - gap / 2, cy - bh / 2, bw, bh);
+      refineG.lineStyle(P(2), 0xf0c040, 0.8).strokeRect(cx - bw - gap / 2, cy - bh / 2, bw, bh);
+      o(this.add.text(cx - bw / 2 - gap / 2, cy, '強  化', {
+        fontSize: F(15), fontStyle: 'bold', color: '#ffe066', stroke: '#1a0800', strokeThickness: 2,
+      }).setOrigin(0.5).setDepth(D + 3));
+      o(this.add.rectangle(cx - bw / 2 - gap / 2, cy, bw, bh).setDepth(D + 4).setInteractive({ useHandCursor: true }))
+        .on('pointerdown', () => { closeChoice(); showEnhanceModal(item, onClose); });
+
+      // 重鑄按鈕
+      const recastG = o(this.add.graphics().setDepth(D + 2));
+      recastG.fillStyle(0x1a0a2a, 1).fillRect(cx + gap / 2, cy - bh / 2, bw, bh);
+      recastG.lineStyle(P(2), 0xbb66ff, 0.8).strokeRect(cx + gap / 2, cy - bh / 2, bw, bh);
+      o(this.add.text(cx + bw / 2 + gap / 2, cy, '重  鑄', {
+        fontSize: F(15), fontStyle: 'bold', color: '#cc88ff', stroke: '#0a0018', strokeThickness: 2,
+      }).setOrigin(0.5).setDepth(D + 3));
+      o(this.add.rectangle(cx + bw / 2 + gap / 2, cy, bw, bh).setDepth(D + 4).setInteractive({ useHandCursor: true }))
+        .on('pointerdown', () => {
+          if (!item.baseAffixes && (item.enhancement ?? 0) === 0) {
+            closeChoice();
+            const no: Phaser.GameObjects.GameObject[] = [];
+            const on2 = <T extends Phaser.GameObjects.GameObject>(x: T): T => { no.push(x); return x; };
+            const closeNotice = () => no.forEach(x => x.destroy());
+            on2(this.add.graphics().setDepth(D)).fillStyle(0x000000, 0.55).fillRect(0, 0, W, H);
+            on2(this.add.graphics().setDepth(D + 1))
+              .fillStyle(0x120820, 0.97).fillRoundedRect(cx - P(150), cy - P(50), P(300), P(100), P(10))
+              .lineStyle(P(2), 0x886699, 0.8).strokeRoundedRect(cx - P(150), cy - P(50), P(300), P(100), P(10));
+            on2(this.add.text(cx, cy - P(20), '此裝備尚未精煉，無需重鑄', {
+              fontSize: F(13), color: '#cc99ff', stroke: '#0a0018', strokeThickness: 1,
+            }).setOrigin(0.5).setDepth(D + 2));
+            on2(this.add.graphics().setDepth(D + 2))
+              .fillStyle(0x2a1a0a, 1).fillRect(cx - P(55), cy + P(8), P(110), P(32))
+              .lineStyle(P(2), 0x997733, 0.8).strokeRect(cx - P(55), cy + P(8), P(110), P(32));
+            on2(this.add.text(cx, cy + P(8) + P(16), '關  閉', {
+              fontSize: F(13), fontStyle: 'bold', color: '#ffe066', stroke: '#1a0800', strokeThickness: 2,
+            }).setOrigin(0.5).setDepth(D + 3));
+            on2(this.add.rectangle(cx, cy + P(8) + P(16), P(110), P(32))
+              .setDepth(D + 4).setInteractive({ useHandCursor: true }))
+              .on('pointerdown', () => { closeNotice(); onClose(); });
+            return;
+          }
+          const recastStones = InventoryStore.getItemQty('stone_guard');
+          // 確認框
+          closeChoice();
+          const co: Phaser.GameObjects.GameObject[] = [];
+          const oc = <T extends Phaser.GameObjects.GameObject>(x: T): T => { co.push(x); return x; };
+          const closeConfirm = () => co.forEach(x => x.destroy());
+          oc(this.add.graphics().setDepth(D)).fillStyle(0x000000, 0.55).fillRect(0, 0, W, H);
+          oc(this.add.graphics().setDepth(D + 1))
+            .fillStyle(0x120820, 0.97).fillRoundedRect(cx - P(160), cy - P(80), P(320), P(160), P(10))
+            .lineStyle(P(2), 0xbb66ff, 0.8).strokeRoundedRect(cx - P(160), cy - P(80), P(320), P(160), P(10));
+          oc(this.add.text(cx, cy - P(52), '確定重鑄？', {
+            fontSize: F(16), fontStyle: 'bold', color: '#cc88ff', stroke: '#0a0018', strokeThickness: 2,
+          }).setOrigin(0.5).setDepth(D + 2));
+          oc(this.add.text(cx, cy - P(26), '消耗 1 顆重鑄石，所有精煉回歸 +0', {
+            fontSize: F(12), color: '#aaaaaa', stroke: '#0a0018', strokeThickness: 1,
+          }).setOrigin(0.5).setDepth(D + 2));
+          oc(this.add.text(cx, cy - P(6), `目前持有：${recastStones} 顆${recastStones <= 0 ? '  （不足）' : ''}`, {
+            fontSize: F(12), color: recastStones > 0 ? '#aa88cc' : '#ff6666', stroke: '#0a0018', strokeThickness: 1,
+          }).setOrigin(0.5).setDepth(D + 2));
+          const cbw = P(120), cbh = P(40);
+          // 確定
+          oc(this.add.graphics().setDepth(D + 2))
+            .fillStyle(0x2a0a3a, 1).fillRect(cx - cbw - P(8), cy + P(22), cbw, cbh)
+            .lineStyle(P(2), 0xbb66ff, 0.8).strokeRect(cx - cbw - P(8), cy + P(22), cbw, cbh);
+          oc(this.add.text(cx - cbw / 2 - P(8), cy + P(22) + cbh / 2, '確  定', {
+            fontSize: F(14), fontStyle: 'bold', color: '#cc88ff', stroke: '#0a0018', strokeThickness: 2,
+          }).setOrigin(0.5).setDepth(D + 3));
+          oc(this.add.rectangle(cx - cbw / 2 - P(8), cy + P(22) + cbh / 2, cbw, cbh)
+            .setDepth(D + 4).setInteractive({ useHandCursor: true }))
+            .on('pointerdown', () => {
+              if (InventoryStore.getItemQty('stone_guard') <= 0) {
+                closeConfirm();
+                const no: Phaser.GameObjects.GameObject[] = [];
+                const on2 = <T extends Phaser.GameObjects.GameObject>(x: T): T => { no.push(x); return x; };
+                const closeNotice = () => no.forEach(x => x.destroy());
+                on2(this.add.graphics().setDepth(D)).fillStyle(0x000000, 0.55).fillRect(0, 0, W, H);
+                on2(this.add.graphics().setDepth(D + 1))
+                  .fillStyle(0x120820, 0.97).fillRoundedRect(cx - P(140), cy - P(50), P(280), P(100), P(10))
+                  .lineStyle(P(2), 0xff6666, 0.8).strokeRoundedRect(cx - P(140), cy - P(50), P(280), P(100), P(10));
+                on2(this.add.text(cx, cy - P(22), '重鑄石不足', {
+                  fontSize: F(16), fontStyle: 'bold', color: '#ff6666', stroke: '#0a0018', strokeThickness: 2,
+                }).setOrigin(0.5).setDepth(D + 2));
+                on2(this.add.graphics().setDepth(D + 2))
+                  .fillStyle(0x2a1a0a, 1).fillRect(cx - P(60), cy + P(6), P(120), P(34))
+                  .lineStyle(P(2), 0x997733, 0.8).strokeRect(cx - P(60), cy + P(6), P(120), P(34));
+                on2(this.add.text(cx, cy + P(6) + P(17), '關  閉', {
+                  fontSize: F(13), fontStyle: 'bold', color: '#ffe066', stroke: '#1a0800', strokeThickness: 2,
+                }).setOrigin(0.5).setDepth(D + 3));
+                on2(this.add.rectangle(cx, cy + P(6) + P(17), P(120), P(34))
+                  .setDepth(D + 4).setInteractive({ useHandCursor: true }))
+                  .on('pointerdown', () => { closeNotice(); showRefineChoiceModal(item, onClose); });
+                return;
+              }
+              InventoryStore.spendItem('stone_guard', 1);
+              recastItem(item);
+              PlayerStore.notify(); SaveStore.save();
+              closeConfirm();
+              const ro: Phaser.GameObjects.GameObject[] = [];
+              const or2 = <T extends Phaser.GameObjects.GameObject>(x: T): T => { ro.push(x); return x; };
+              or2(this.add.graphics().setDepth(D)).fillStyle(0x000000, 0.55).fillRect(0, 0, W, H);
+              or2(this.add.graphics().setDepth(D + 1))
+                .fillStyle(0x120820, 0.97).fillRoundedRect(cx - P(150), cy - P(50), P(300), P(100), P(10))
+                .lineStyle(P(2), 0xbb66ff, 0.8).strokeRoundedRect(cx - P(150), cy - P(50), P(300), P(100), P(10));
+              or2(this.add.text(cx, cy - P(20), '重鑄完成！精煉已回歸初始值', {
+                fontSize: F(13), fontStyle: 'bold', color: '#cc88ff', stroke: '#0a0018', strokeThickness: 2,
+              }).setOrigin(0.5).setDepth(D + 2));
+              or2(this.add.graphics().setDepth(D + 2))
+                .fillStyle(0x2a0a3a, 1).fillRect(cx - P(55), cy + P(8), P(110), P(32))
+                .lineStyle(P(2), 0xbb66ff, 0.8).strokeRect(cx - P(55), cy + P(8), P(110), P(32));
+              or2(this.add.text(cx, cy + P(8) + P(16), '確  認', {
+                fontSize: F(13), fontStyle: 'bold', color: '#cc88ff', stroke: '#0a0018', strokeThickness: 2,
+              }).setOrigin(0.5).setDepth(D + 3));
+              or2(this.add.rectangle(cx, cy + P(8) + P(16), P(110), P(32))
+                .setDepth(D + 4).setInteractive({ useHandCursor: true }))
+                .on('pointerdown', () => { ro.forEach(x => x.destroy()); onClose(); });
+            });
+          // 取消
+          oc(this.add.graphics().setDepth(D + 2))
+            .fillStyle(0x2a1a0a, 1).fillRect(cx + P(8), cy + P(22), cbw, cbh)
+            .lineStyle(P(2), 0x997733, 0.8).strokeRect(cx + P(8), cy + P(22), cbw, cbh);
+          oc(this.add.text(cx + cbw / 2 + P(8), cy + P(22) + cbh / 2, '取  消', {
+            fontSize: F(14), fontStyle: 'bold', color: '#ffe066', stroke: '#1a0800', strokeThickness: 2,
+          }).setOrigin(0.5).setDepth(D + 3));
+          oc(this.add.rectangle(cx + cbw / 2 + P(8), cy + P(22) + cbh / 2, cbw, cbh)
+            .setDepth(D + 4).setInteractive({ useHandCursor: true }))
+            .on('pointerdown', () => { closeConfirm(); showRefineChoiceModal(item, onClose); });
+        });
+
+      // 關閉背景點擊
+      o(this.add.rectangle(cx, cy, W, H).setDepth(D).setInteractive())
+        .on('pointerdown', () => { closeChoice(); onClose(); });
+    };
+
     const showEnhanceModal = (item: EquipmentItem, onClose: () => void) => {
       const { width: W, height: H } = this.scale;
       const mw = P(300);
@@ -1807,7 +1961,7 @@ export class PrepScene extends Phaser.Scene {
         const rate = Math.min(1, base + (useComplete ? ENHANCE_COMPLETE_BONUS : 0));
 
         levelTxt.setText(`+${lv}${!maxed ? `  →  +${lv + 1}` : '  （最高）'}`);
-        levelTxt.setColor(lv >= ENHANCE_DEMOTE_FROM ? '#ff9966' : '#ffe066');
+        levelTxt.setColor('#ffe066');
         item.affixes.forEach((a, i) => valTexts[i]?.setText(fmtVal(a.stat, a.value)));
 
         // 破損強化石：持有數 + 本次消耗
@@ -1826,8 +1980,8 @@ export class PrepScene extends Phaser.Scene {
             : `成功率  ${(rate * 100).toFixed(0)}%`;
           rateTxt.setText(rateStr);
           costTxt.setText('');
-          const isSword = item.slot === 'sword' && item.affixes.length >= 3;
-          hintTxt.setText(isSword ? '必定強化攻擊力，另隨機提升一條詞綴' : '隨機強化一條詞綴屬性');
+          const affixCount = item.affixes.length;
+          hintTxt.setText(affixCount <= 1 ? '隨機提升 1 條詞綴' : '75% 提升 1 條 ／ 25% 提升 2 條');
         } else {
           rateTxt.setText(''); costTxt.setText(''); hintTxt.setText('');
         }
@@ -1849,25 +2003,9 @@ export class PrepScene extends Phaser.Scene {
         if (canCmp) cmpHit.setInteractive({ useHandCursor: true }); else cmpHit.removeInteractive();
         if (!canCmp) useComplete = false;
 
-        // 防退石：持有數 + 消耗說明（失敗時才消耗）
-        const guardQty = InventoryStore.getItemQty('stone_guard');
-        const canGrd = !maxed && lv >= ENHANCE_DEMOTE_FROM && guardQty > 0;
-        const showGrd = !maxed && lv >= ENHANCE_DEMOTE_FROM;
-        grdChkG.clear();
-        grdChkG.fillStyle(useGuard ? 0x3a2208 : 0x1a1208, 1);
-        grdChkG.lineStyle(1, useGuard ? 0xcc7722 : 0x554433, 1);
-        grdChkG.fillRect(mx + P(8), grdY - P(7), P(14), P(14)); grdChkG.strokeRect(mx + P(8), grdY - P(7), P(14), P(14));
-        grdChkT.setText(useGuard && showGrd ? '✓' : '');
-        grdLbl.setText(
-          showGrd
-            ? `防退石 ×${guardQty}  失敗消耗1 → 防退`
-            : '防退石  ─  (需+5以上)'
-        );
-        grdLbl.setColor(showGrd && guardQty === 0 ? '#ff6666' : '#ccbbaa');
-        const grdAlpha = showGrd ? (guardQty > 0 ? 1 : 0.5) : 0.25;
-        grdChkG.setAlpha(grdAlpha); grdChkT.setAlpha(grdAlpha); grdLbl.setAlpha(grdAlpha);
-        if (canGrd) grdHit.setInteractive({ useHandCursor: true }); else grdHit.removeInteractive();
-        if (!canGrd) useGuard = false;
+        // 防退石：功能保留待後續重新設計，目前隱藏
+        grdChkG.setAlpha(0); grdChkT.setAlpha(0); grdLbl.setAlpha(0);
+        grdHit.removeInteractive();
       };
       refresh();
 
@@ -1921,7 +2059,7 @@ export class PrepScene extends Phaser.Scene {
               onComplete: () => ft.destroy(),
             });
             // 持久顯示：數字往左移，右側放綠色加成
-            valTexts[idx].setX(mx + mw - P(52));
+            valTexts[idx].setX(mx + mw - P(80));
             const gt = es(this.add.text(mx + mw - P(10), gy, fmtGain(item.affixes[idx].stat, gain), {
               fontSize: F(15), fontStyle: 'bold', color: '#44ff88',
               stroke: '#003300', strokeThickness: 2,
@@ -1931,22 +2069,8 @@ export class PrepScene extends Phaser.Scene {
           const names = boosted.map(idx => STAT_NAMES[item.affixes[idx].stat]).join('、');
           resultTxt.setText(`✓ 成功！${names} 提升`).setColor('#44ff88');
         } else {
-          if (lv >= ENHANCE_DEMOTE_FROM) {
-            if (useGuard && InventoryStore.getItemQty('stone_guard') > 0) {
-              InventoryStore.spendItem('stone_guard', 1);
-              playFlash(0xff8800);
-              resultTxt.setText('✗ 失敗（防退石保護）').setColor('#ffaa44');
-            } else {
-              revertEnhancement(item);
-              PlayerStore.notify();
-              playFlash(0xff2222);
-              this.cameras.main.shake(200, 0.004);
-              resultTxt.setText(`✗ 失敗，退至 +${item.enhancement}`).setColor('#ff4444');
-            }
-          } else {
-            playFlash(0xff4422);
-            resultTxt.setText('✗ 強化失敗').setColor('#ff6644');
-          }
+          playFlash(0xff4422);
+          resultTxt.setText('✗ 強化失敗').setColor('#ff6644');
           SaveStore.save(); refresh();
         }
       });
@@ -2020,15 +2144,14 @@ export class PrepScene extends Phaser.Scene {
         '脫  下', 0x3a1a1a, 0xcc4444, '#ee8888',
         () => { PlayerStore.unequip(equipSlot); closeEquipped(); });
       drawBtn(det, rcx + btnW / 2 + btnGap / 2, btnY - P(46), btnW, btnH,
-        '強  化', 0x3a2800, 0xf0c040, '#ffe066',
-        () => showEnhanceModal(item, () => { closeEquipped(); showEquippedDetail(item, equipSlot); }));
-      const dismantleQtyE = ({ normal: 2, good: 3, fine: 4, perfect: 5 } as Record<string, number>)[item.quality] ?? 2;
+        '精  煉', 0x3a2800, 0xf0c040, '#ffe066',
+        () => showRefineChoiceModal(item, () => { closeEquipped(); showEquippedDetail(item, equipSlot); }));
       drawBtn(det, rcx, btnY, P(200), btnH,
-        `分  解  (+${dismantleQtyE} 破損強化石)`, 0x2a1a0a, 0x996633, '#cc9955',
+        '分  解  (+1 破損強化石)', 0x2a1a0a, 0x996633, '#cc9955',
         () => {
           PlayerStore.unequip(equipSlot);
           PlayerStore.removeOwned(item);
-          InventoryStore.addItem(ITEM_STONE_BROKEN, '破損強化石', dismantleQtyE);
+          InventoryStore.addItem(ITEM_STONE_BROKEN, '破損強化石', 1);
           SaveStore.save();
           closeEquipped();
         });
@@ -2337,12 +2460,11 @@ export class PrepScene extends Phaser.Scene {
 
       const btnH = P(38), btnW = P(136), btnGap = P(8);
       const btnY = areaTop + areaH - P(28);
-      const dismantleQty = ({ normal: 2, good: 3, fine: 4, perfect: 5 } as Record<string, number>)[item.quality] ?? 2;
       const dismantleBtn = () => drawBtn(det, rcx, btnY, P(200), btnH,
-        `分  解  (+${dismantleQty} 破損強化石)`, 0x2a1a0a, 0x996633, '#cc9955',
+        '分  解  (+1 破損強化石)', 0x2a1a0a, 0x996633, '#cc9955',
         () => {
           PlayerStore.removeOwned(item);
-          InventoryStore.addItem(ITEM_STONE_BROKEN, '破損強化石', dismantleQty);
+          InventoryStore.addItem(ITEM_STONE_BROKEN, '破損強化石', 1);
           SaveStore.save();
           closeItem();
         });
@@ -2386,11 +2508,11 @@ export class PrepScene extends Phaser.Scene {
         });
         det.add(hit2);
         drawBtn(det, rcx, btnY - P(46), btnW, btnH,
-          '強  化', 0x3a2800, 0xf0c040, '#ffe066',
-          () => showEnhanceModal(item, () => { closeItem(); showItemDetail(item); }));
+          '精  煉', 0x3a2800, 0xf0c040, '#ffe066',
+          () => showRefineChoiceModal(item, () => { closeItem(); showItemDetail(item); }));
         dismantleBtn();
       } else {
-        // ── 一般裝備：裝備 | 強化 + 分解 ──────────────────────
+        // ── 一般裝備：裝備 | 精煉 + 分解 ──────────────────────
         const currentEquipped = PlayerStore.getEquipped()[item.slot as import('../data/equipment-data').EquipSlot];
         drawBtn(det, rcx - btnW / 2 - btnGap / 2, btnY - P(46), btnW, btnH,
           '裝  備', 0x5a3800, GOLD, '#e8c070',
@@ -2402,8 +2524,8 @@ export class PrepScene extends Phaser.Scene {
             }
           });
         drawBtn(det, rcx + btnW / 2 + btnGap / 2, btnY - P(46), btnW, btnH,
-          '強  化', 0x3a2800, 0xf0c040, '#ffe066',
-          () => showEnhanceModal(item, () => { closeItem(); showItemDetail(item); }));
+          '精  煉', 0x3a2800, 0xf0c040, '#ffe066',
+          () => showRefineChoiceModal(item, () => { closeItem(); showItemDetail(item); }));
         dismantleBtn();
       }
     };
@@ -4054,7 +4176,7 @@ export class PrepScene extends Phaser.Scene {
     const STONE_ITEMS: ShopItem[] = [
       { id: ITEM_STONE_BROKEN, name: '破碎強化石', price: 150, desc: '強化裝備時消耗', color: 0x88ccff },
       { id: ITEM_STONE_INTACT, name: '完整強化石', price: 300, desc: '強化成功率 +8%', color: 0x66ffcc },
-      { id: ITEM_STONE_GUARD, name: '防退石', price: 300, desc: '強化失敗防止降級', color: 0xff99aa },
+      { id: 'stone_guard', name: '重鑄石', price: 300, desc: '消耗1顆可重鑄裝備，回歸精煉前數值', color: 0xbb66ff },
       { id: ITEM_QUEST_REROLL, name: '任務重製石', price: 100, desc: '重置當前任務列表', color: 0xffcc44 },
     ];
     const TAB_DEFS: { label: string; items: ShopItem[] | null }[] = [

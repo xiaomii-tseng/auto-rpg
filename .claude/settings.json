@@ -59,7 +59,9 @@
       "Bash(awk -F: 'NR>1{line=$2; gsub\\(/.*F\\\\\\(/, \"\", $0\\); gsub\\(/\\\\\\).*/, \"\", $0\\); if \\($0+0 < 15 && line+0 >= 3940\\) print line\": F\\(\"$0\"\\)\"}')",
       "PowerShell($lines = Get-Content \"c:\\\\MyCode\\\\auto-rpg\\\\src\\\\app\\\\game\\\\scenes\\\\prep-scene.ts\"; for \\($i = 3939; $i -lt $lines.Count; $i++\\) { if \\($lines[$i] -match 'fontSize: F\\\\\\(\\(\\\\d+\\)\\\\\\)'\\) { $sz = [int]$Matches[1]; if \\($sz -lt 15\\) { Write-Host \"$\\($i+1\\): F\\($sz\\)\" } } })",
       "WebFetch(domain:herosiege.wiki.gg)",
-      "WebFetch(domain:steamcommunity.com)"
+      "WebFetch(domain:steamcommunity.com)",
+      "Bash(grep -v \"//.*隨機\\\\|//.*成功\")",
+      "Bash(grep -v \"//\")"
     ]
   }
 }
