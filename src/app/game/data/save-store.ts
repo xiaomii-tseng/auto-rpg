@@ -6,11 +6,11 @@ import { QuestStore } from './quest-store';
 import { PotionBarStore } from './potion-bar-store';
 
 const SAVE_KEY = 'auto_rpg_save';
-const VERSION  = 12;
+const VERSION  = '12.1.0';
 let   _loaded  = false;
 
 interface SaveData {
-  version: number;
+  version: string | number;
   playerName: string;
   skinId:     number;
   player: {
