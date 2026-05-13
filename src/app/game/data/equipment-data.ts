@@ -279,7 +279,7 @@ export const STAT_BASE: Record<StatKey, number> = {
   lifesteal:  0.005,
   evasion:    0.05,
   critDmg:     0.20,
-  hpRegen:     5,
+  hpRegen:     0.36,
   dotBonus:    0.08,
   penetration: 10,
 };
@@ -294,7 +294,7 @@ export const ENHANCE_INCREMENT: Record<StatKey, number> = {
   lifesteal: 0.0007,
   evasion:   0.0015,
   critDmg:   0.005,
-  hpRegen:   1,
+  hpRegen:   0.2,
   dotBonus:  0.010,
   penetration: 1,
 };
@@ -307,9 +307,9 @@ export const ENHANCE_LEVEL_MULT: Record<number, number> = {
 // 武器固定有攻擊力+攻擊模式，此 pool 只用於剩餘 2 條隨機詞墜
 export const SLOT_AFFIX_POOL: Record<EquipCategory, StatKey[]> = {
   sword:  ['hp', 'crit', 'critDmg', 'dotBonus', 'penetration', 'atkSpeed', 'lifesteal', 'evasion'],
-  hat:    ['hp', 'crit', 'atkSpeed', 'penetration', 'def'],
-  outfit: ['hp', 'def',  'lifesteal', 'dotBonus', 'evasion'],
-  shoes:  ['hp', 'def',  'speed',   'evasion',  'lifesteal'],
+  hat:    ['hp', 'crit', 'atkSpeed', 'penetration', 'def', 'hpRegen'],
+  outfit: ['hp', 'def',  'lifesteal', 'dotBonus', 'evasion', 'hpRegen'],
+  shoes:  ['hp', 'def',  'speed',   'evasion',  'lifesteal', 'hpRegen'],
   ring:   ['critDmg', 'dotBonus', 'penetration', 'crit', 'atkSpeed', 'lifesteal', 'evasion'],
 };
 
@@ -321,7 +321,7 @@ const TEXTURE_COUNT: Record<EquipCategory, number> = {
   hat: 5, outfit: 5, shoes: 5, ring: 5, sword: 5,
 };
 
-const PCT_STATS = new Set<StatKey>(['crit', 'atkSpeed', 'lifesteal', 'evasion', 'critDmg', 'dotBonus']);
+const PCT_STATS = new Set<StatKey>(['crit', 'atkSpeed', 'lifesteal', 'evasion', 'critDmg', 'dotBonus', 'hpRegen']);
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 

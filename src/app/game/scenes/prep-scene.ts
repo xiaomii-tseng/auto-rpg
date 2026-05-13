@@ -11,6 +11,7 @@ import { getCardDef, getMonsterDef, monsterCardScale, monsterDetailScale, CARD_D
 import { QuestStore, Quest, STAR_EQUIP_QUALITY, getStarWeights } from '../data/quest-store';
 import { NetworkService } from '../network/network.service';
 import { SkinStore, SKINS } from '../data/skin-store';
+import { VERSION } from '../version';
 
 
 const DPR = (window as any).__gameDpr as number;
@@ -115,6 +116,8 @@ export class PrepScene extends Phaser.Scene {
     if (!this.textures.exists('icon_potion_speed'))     this.load.image('icon_potion_speed',     'other/coin.webp');
     if (!this.textures.exists('icon_gold'))           this.load.image('icon_gold',           'other/coin.webp');
     if (!this.textures.exists('icon_blank_card'))     this.load.image('icon_blank_card',     'other/card.webp');
+    if (!this.textures.exists('icon___gacha__'))      this.load.image('icon___gacha__',      'other/chest2.webp');
+    if (!this.textures.exists('icon___card_gacha__')) this.load.image('icon___card_gacha__', 'other/chest1.webp');
   }
 
   create(): void {
@@ -137,7 +140,7 @@ export class PrepScene extends Phaser.Scene {
       // 新玩家：隨機送一把普通品質武器
       const startSword = generateEquipment('sword', 'normal');
       PlayerStore.equipDirect('sword', startSword);
-      InventoryStore.addGold(100000);
+      InventoryStore.addGold(50000);
       InventoryStore.addItem('quest_reroll', '任務重製石', 10);
     }
 
@@ -379,6 +382,19 @@ export class PrepScene extends Phaser.Scene {
         fontSize: F(15), fontStyle: 'bold',
         color: '#f0d090', stroke: '#1a0800', strokeThickness: 2,
       }).setOrigin(0, 0.5).setDepth(6);
+
+    // ── Version badge (left, mirrors gold badge) ──────────
+    const verBg = this.add.graphics().setDepth(5);
+    verBg.fillStyle(0x0e0600, 0.9);
+    verBg.fillRoundedRect(P(4), BADGE_Y, BADGE_W, BADGE_H, { tl: 0, tr: 0, bl: 10, br: 10 });
+    verBg.lineStyle(1.5, GOLD, 0.35);
+    verBg.strokeRoundedRect(P(4), BADGE_Y, BADGE_W, BADGE_H, { tl: 0, tr: 0, bl: 10, br: 10 });
+    verBg.fillStyle(GOLD, 0.10);
+    verBg.fillRect(P(4), BADGE_Y, BADGE_W, 2);
+    this.add.text(P(4) + BADGE_W / 2, TXT_CY, VERSION, {
+      fontSize: F(13), fontStyle: 'bold',
+      color: '#8a7050', stroke: '#1a0800', strokeThickness: 2,
+    }).setOrigin(0.5, 0.5).setDepth(6);
 
     // ── Settings button ───────────────────────────────────
     const sg = this.add.graphics();
@@ -2083,7 +2099,7 @@ export class PrepScene extends Phaser.Scene {
 
       const allRows = [
         [{ label: 'HP',   value: `${s.maxHp}`,                                   color: '#88ee88' }, { label: '攻擊',     value: `${s.atk}`,                               color: '#ff8855' }],
-        [{ label: 'HP回復', value: `${s.hpRegen.toFixed(1)}/s`,                  color: '#55ffaa' }, { label: '暴擊',     value: `${(s.crit * 100).toFixed(0)}%`,          color: '#ffaa44' }],
+        [{ label: 'HP回復', value: `${s.hpRegen.toFixed(2)}/s`,                  color: '#55ffaa' }, { label: '暴擊',     value: `${(s.crit * 100).toFixed(0)}%`,          color: '#ffaa44' }],
         [{ label: '防禦', value: `${s.def}`,                                      color: '#88aaff' }, { label: '攻速',     value: `${(s.atkSpeed * 100).toFixed(0)}%`,      color: '#ff88ff' }],
         [{ label: '閃避', value: `${(s.evasion * 100).toFixed(1)}%`,              color: '#aaddff' }, { label: '爆傷',     value: `${((1 + s.critDmg) * 100).toFixed(0)}%`, color: '#ffdd44' }],
         [{ label: '吸血', value: `${(s.lifesteal * 100).toFixed(2)}%`,            color: '#ff6699' }, { label: '持續傷害', value: `+${(s.dotBonus * 100).toFixed(0)}%`,     color: '#cc88ff' }],
@@ -2330,7 +2346,7 @@ export class PrepScene extends Phaser.Scene {
           closeItem();
         });
 
-      if (item.slot === 'ring1') {
+      if (item.slot === 'ring1' || item.slot === 'ring2') {
         // ── 飾品：飾品1/2 兩個槽位按鈕 + 強化 + 分解 ────────
         const slotBtnY = btnY - P(92);
         const hW  = (btnW - 4) / 2;
@@ -3932,9 +3948,8 @@ export class PrepScene extends Phaser.Scene {
     const backdrop = this.add.rectangle(0, 0, W, H, 0x000000, 0.78).setInteractive();
     backdrop.on('pointerdown', (ptr: Phaser.Input.Pointer) => {
       if (ptr.x < W / 2 - PW / 2 || ptr.x > W / 2 + PW / 2 ||
-          ptr.y < H / 2 - PH / 2 || ptr.y > H / 2 + PH / 2) {
+          ptr.y < H / 2 - PH / 2 || ptr.y > H / 2 + PH / 2)
         container.destroy();
-      }
     });
     container.add(backdrop);
 
@@ -3980,168 +3995,225 @@ export class PrepScene extends Phaser.Scene {
     closeBtn.on('pointerdown', () => container.destroy());
     container.add(closeBtn);
 
-    // ── Shop items ──────────────────────────────────────────
-    const SHOP_ITEMS: { id: string; name: string; price: number; desc: string; color: number }[] = [
-      { id: ITEM_POTION_HEALTH_S, name: '小型回復藥水', price: 100,  desc: '回復 50 HP',              color: 0x44ff88 },
-      { id: ITEM_POTION_HEALTH_M, name: '中型回復藥水', price: 290,  desc: '回復 100 HP',             color: 0x44ddff },
-      { id: ITEM_POTION_HEALTH_L, name: '大型回復藥水', price: 370,  desc: '回復 200 HP',             color: 0xff88ff },
-      { id: ITEM_POTION_REVIVE,   name: '復活藥水',     price: 800, desc: '復活',              color: 0xffee44 },
-      { id: ITEM_POTION_ATK,      name: '攻擊力藥水',   price: 300,  desc: '傷害 +20%，持續 30 秒',         color: 0xff6644 },
-      { id: ITEM_POTION_DEF,      name: '防禦力藥水',   price: 300,  desc: 'DEF +20，持續 30 秒',           color: 0x44aaff },
-      { id: ITEM_POTION_SPEED,    name: '速度藥水',     price: 300,  desc: '移動速度 +20，持續 30 秒',       color: 0xffdd22 },
-      { id: ITEM_STONE_BROKEN, name: '破碎強化石', price: 150,  desc: '強化裝備時消耗',         color: 0x88ccff },
-      { id: ITEM_STONE_INTACT, name: '完整強化石', price: 300,  desc: '強化時提升成功率 +8%',                  color: 0x66ffcc },
-      { id: ITEM_STONE_GUARD,   name: '防退石',       price: 300, desc: '強化失敗時防止裝備降級',               color: 0xff99aa },
-      { id: ITEM_QUEST_REROLL,  name: '任務重製石',   price: 100, desc: '重置當前任務列表，重新刷新任務',         color: 0xffcc44 },
-      { id: '__gacha__',       name: '裝備抽取',   price: 1000, desc: '隨機生成 3 件裝備，選一件收入背包', color: 0xddaa00 },
-      { id: '__card_gacha__', name: '卡片抽取',   price: 0,    desc: '隨機抽取 1 張卡片（一般84% / 菁英15% / Boss1%）', color: 0xaa44ff },
-    ];
-
-    const ROW_H    = P(112);
-    const ROW_PAD  = P(8);
-    const ICON_SZ  = P(56);
-    const HEADER_H = P(62);  // title + gold
-
     // Gold display
     let goldLabel: Phaser.GameObjects.Text;
-    const refreshGold = () => {
-      goldLabel?.setText(`💰 ${InventoryStore.getGold().toLocaleString()} 金幣`);
-    };
+    const refreshGold = () => goldLabel?.setText(`💰 ${InventoryStore.getGold().toLocaleString()} 金幣`);
     goldLabel = this.add.text(0, py + P(42), '', {
       fontSize: F(14), fontStyle: 'bold', color: '#d4a044', stroke: '#1a0800', strokeThickness: 1,
     }).setOrigin(0.5, 0);
     refreshGold();
     container.add(goldLabel);
-
     const onInvChange = () => refreshGold();
     InventoryStore.onChange(onInvChange);
     container.once(Phaser.GameObjects.Events.DESTROY, () => InventoryStore.offChange(onInvChange));
 
-    // ── Scrollable items area ──────────────────────────────
-    const viewH    = PH - HEADER_H;
-    const contentH = SHOP_ITEMS.length * (ROW_H + ROW_PAD);
-    let   scrollY  = 0;
-    const maxScroll = Math.max(0, contentH - viewH);
+    // ── Tab definitions ────────────────────────────────────
+    type ShopItem = { id: string; name: string; price: number; desc: string; color: number };
+    const GACHA_ITEMS: ShopItem[] = [
+      { id: '__gacha__',       name: '裝備抽取', price: 1000, desc: '隨機生成 3 件裝備，選一件收入背包', color: 0xddaa00 },
+      { id: '__card_gacha__', name: '卡片抽取', price: 0,    desc: '消耗空白卡片×10，抽 1 張卡片',    color: 0xaa44ff },
+    ];
+    const POTION_ITEMS: ShopItem[] = [
+      { id: ITEM_POTION_HEALTH_S, name: '小型回復藥水', price: 80, desc: '回復 50 HP',          color: 0x44ff88 },
+      { id: ITEM_POTION_HEALTH_M, name: '中型回復藥水', price: 200, desc: '回復 100 HP',         color: 0x44ddff },
+      { id: ITEM_POTION_HEALTH_L, name: '大型回復藥水', price: 450, desc: '回復 200 HP',         color: 0xff88ff },
+      { id: ITEM_POTION_REVIVE,   name: '復活藥水',     price: 800, desc: '戰鬥中自動復活一次',   color: 0xffee44 },
+      { id: ITEM_POTION_ATK,      name: '攻擊力藥水',   price: 300, desc: '傷害+20%，持續30秒',   color: 0xff6644 },
+      { id: ITEM_POTION_DEF,      name: '防禦力藥水',   price: 300, desc: 'DEF+20，持續30秒',     color: 0x44aaff },
+      { id: ITEM_POTION_SPEED,    name: '速度藥水',     price: 300, desc: '移動速度+20，持續30秒', color: 0xffdd22 },
+    ];
+    const STONE_ITEMS: ShopItem[] = [
+      { id: ITEM_STONE_BROKEN,  name: '破碎強化石', price: 150, desc: '強化裝備時消耗',       color: 0x88ccff },
+      { id: ITEM_STONE_INTACT,  name: '完整強化石', price: 300, desc: '強化成功率 +8%',       color: 0x66ffcc },
+      { id: ITEM_STONE_GUARD,   name: '防退石',     price: 300, desc: '強化失敗防止降級',     color: 0xff99aa },
+      { id: ITEM_QUEST_REROLL,  name: '任務重製石', price: 100, desc: '重置當前任務列表',     color: 0xffcc44 },
+    ];
+    const TAB_DEFS = [
+      { label: '抽獎', items: GACHA_ITEMS },
+      { label: '藥水', items: POTION_ITEMS },
+      { label: '強化石', items: STONE_ITEMS },
+    ];
 
+    // ── Tab bar ───────────────────────────────────────────
+    const TAB_BAR_TOP = py + P(62);
+    const TAB_H       = P(30);
+    const TAB_W       = PW / TAB_DEFS.length;
+    const HEADER_H    = P(62) + TAB_H + P(8);
+    const viewH       = PH - HEADER_H;
+
+    let activeTab = 0;
+    const tabGfx = this.add.graphics();
+    container.add(tabGfx);
+
+    const tabLabels: Phaser.GameObjects.Text[] = TAB_DEFS.map((tab, i) => {
+      const lbl = this.add.text(px + i * TAB_W + TAB_W / 2, TAB_BAR_TOP + TAB_H / 2, tab.label, {
+        fontSize: F(13), fontStyle: 'bold', color: '#a08050', stroke: '#1a0800', strokeThickness: 1,
+      }).setOrigin(0.5);
+      container.add(lbl);
+
+      const hit = this.add.rectangle(px + i * TAB_W + TAB_W / 2, TAB_BAR_TOP + TAB_H / 2, TAB_W, TAB_H)
+        .setInteractive({ useHandCursor: true });
+      hit.on('pointerdown', () => { if (activeTab !== i) { activeTab = i; drawTabs(); buildContent(TAB_DEFS[i].items); } });
+      container.add(hit);
+
+      return lbl;
+    });
+
+    const drawTabs = () => {
+      tabGfx.clear();
+      TAB_DEFS.forEach((_, i) => {
+        const tx = px + i * TAB_W;
+        const isActive = i === activeTab;
+        tabGfx.fillStyle(isActive ? 0x3a2010 : 0x180c02, 1);
+        tabGfx.fillRect(tx, TAB_BAR_TOP, TAB_W, TAB_H);
+        if (isActive) {
+          tabGfx.lineStyle(P(2), GOLD, 0.9);
+          tabGfx.lineBetween(tx, TAB_BAR_TOP, tx, TAB_BAR_TOP + TAB_H);
+          tabGfx.lineBetween(tx + TAB_W, TAB_BAR_TOP, tx + TAB_W, TAB_BAR_TOP + TAB_H);
+          tabGfx.lineBetween(tx, TAB_BAR_TOP, tx + TAB_W, TAB_BAR_TOP);
+          tabGfx.lineStyle(P(2), 0x3a2010, 1);
+          tabGfx.lineBetween(tx + 1, TAB_BAR_TOP + TAB_H, tx + TAB_W - 1, TAB_BAR_TOP + TAB_H);
+        } else {
+          tabGfx.lineStyle(1, WB, 0.5);
+          tabGfx.strokeRect(tx, TAB_BAR_TOP, TAB_W, TAB_H);
+        }
+        tabLabels[i]?.setColor(isActive ? '#ffe066' : '#a08050');
+      });
+    };
+    drawTabs();
+
+    // ── Scroll mask ───────────────────────────────────────
     const maskGfx = this.add.graphics();
     maskGfx.fillStyle(0xffffff);
     maskGfx.fillRect(W / 2 + px, H / 2 + py + HEADER_H, PW, viewH);
     const scrollMask = maskGfx.createGeometryMask();
     container.once(Phaser.GameObjects.Events.DESTROY, () => maskGfx.destroy());
 
-    const scrollCont = this.add.container(0, py + HEADER_H);
-    scrollCont.setMask(scrollMask);
-    container.add(scrollCont);
+    // ── Scrollable content ────────────────────────────────
+    const COLS     = 2;
+    const CELL_PAD = P(8);
+    const CELL_GAP = P(6);
+    const CELL_W   = Math.floor((PW - CELL_PAD * 2 - CELL_GAP * (COLS - 1)) / COLS);
+    const CELL_H   = P(116);
+    const ROW_PAD  = P(6);
+    const ICON_SZ  = P(40);
+    const BW = P(54), BH = P(26);
+    const startX   = -PW / 2 + CELL_PAD;
 
-    const BW = P(64), BH = P(30);
-    const lx = -PW / 2;
-    const rowInnerW = PW - P(16);
+    let scrollCont: Phaser.GameObjects.Container = this.add.container(0, 0);
+    let scrollY    = 0;
+    let maxScroll  = 0;
 
-    SHOP_ITEMS.forEach((item, i) => {
-      const ry  = i * (ROW_H + ROW_PAD);
-      const lx2 = lx + P(8);
+    const buildContent = (items: ShopItem[]) => {
+      scrollCont.destroy();
+      scrollY   = 0;
+      maxScroll = Math.max(0, Math.ceil(items.length / COLS) * (CELL_H + ROW_PAD) - ROW_PAD - viewH);
+      scrollCont = this.add.container(0, py + HEADER_H);
+      scrollCont.setMask(scrollMask);
+      container.add(scrollCont);
 
-      // Row background
-      const rowGfx = this.add.graphics();
-      rowGfx.fillStyle(WM, 0.6);
-      rowGfx.fillRoundedRect(lx2, ry, rowInnerW, ROW_H, P(6));
-      rowGfx.lineStyle(P(1), WL, 0.3);
-      rowGfx.strokeRoundedRect(lx2, ry, rowInnerW, ROW_H, P(6));
-      rowGfx.fillStyle(item.color, 0.8);
-      rowGfx.fillRoundedRect(lx2, ry, P(4), ROW_H, P(3));
-      scrollCont.add(rowGfx);
+      items.forEach((item, i) => {
+        const col = i % COLS;
+        const row = Math.floor(i / COLS);
+        const cx  = startX + col * (CELL_W + CELL_GAP);
+        const cy  = row * (CELL_H + ROW_PAD);
+        const colorHex = `#${item.color.toString(16).padStart(6, '0')}`;
 
-      // Icon (left, vertically centred)
-      const iconX  = lx2 + P(12) + ICON_SZ / 2;
-      const iconCY = ry + ROW_H / 2;
-      const iconBg = this.add.graphics();
-      iconBg.fillStyle(0x0a0800, 0.6);
-      iconBg.fillRoundedRect(iconX - ICON_SZ / 2, iconCY - ICON_SZ / 2, ICON_SZ, ICON_SZ, P(5));
-      iconBg.lineStyle(P(1), item.color, 0.45);
-      iconBg.strokeRoundedRect(iconX - ICON_SZ / 2, iconCY - ICON_SZ / 2, ICON_SZ, ICON_SZ, P(5));
-      scrollCont.add(iconBg);
-      const iconKey = `icon_${item.id}`;
-      if (this.textures.exists(iconKey))
-        scrollCont.add(this.add.image(iconX, iconCY, iconKey).setDisplaySize(P(40), P(40)));
+        const cellGfx = this.add.graphics();
+        cellGfx.fillStyle(WM, 0.6);
+        cellGfx.fillRoundedRect(cx, cy, CELL_W, CELL_H, P(6));
+        cellGfx.lineStyle(P(1), WL, 0.3);
+        cellGfx.strokeRoundedRect(cx, cy, CELL_W, CELL_H, P(6));
+        cellGfx.fillStyle(item.color, 0.8);
+        cellGfx.fillRoundedRect(cx, cy, P(4), CELL_H, P(3));
+        scrollCont.add(cellGfx);
 
-      // ── Text block (right of icon) ──
-      const tx  = iconX + ICON_SZ / 2 + P(10);
-      const bx  = lx2 + rowInnerW - BW / 2 - P(8);   // buy button centre X
-      const colorHex = `#${item.color.toString(16).padStart(6, '0')}`;
+        const iconCX = cx + P(10) + ICON_SZ / 2;
+        const iconCY = cy + P(10) + ICON_SZ / 2;
+        const iconBg = this.add.graphics();
+        iconBg.fillStyle(0x0a0800, 0.6);
+        iconBg.fillRoundedRect(cx + P(10), cy + P(10), ICON_SZ, ICON_SZ, P(5));
+        iconBg.lineStyle(P(1), item.color, 0.45);
+        iconBg.strokeRoundedRect(cx + P(10), cy + P(10), ICON_SZ, ICON_SZ, P(5));
+        scrollCont.add(iconBg);
+        const iconKey = `icon_${item.id}`;
+        if (this.textures.exists(iconKey))
+          scrollCont.add(this.add.image(iconCX, iconCY, iconKey).setDisplaySize(P(30), P(30)));
 
-      // Name + buy button on same top band
-      const topBandY = ry + P(12);
-      scrollCont.add(this.add.text(tx, topBandY, item.name, {
-        fontSize: F(14), fontStyle: 'bold', color: colorHex,
-        stroke: '#1a0800', strokeThickness: 2,
-      }).setOrigin(0, 0));
+        const tx      = cx + P(10) + ICON_SZ + P(8);
+        const txtMaxW = CELL_W - ICON_SZ - P(26);
+        scrollCont.add(this.add.text(tx, cy + P(8), item.name, {
+          fontSize: F(13), fontStyle: 'bold', color: colorHex,
+          stroke: '#1a0800', strokeThickness: 2,
+          wordWrap: { width: txtMaxW },
+        }).setOrigin(0, 0));
+        scrollCont.add(this.add.text(tx, cy + P(28), item.desc, {
+          fontSize: F(11), color: '#b09070', stroke: '#1a0800', strokeThickness: 1,
+          wordWrap: { width: txtMaxW },
+        }).setOrigin(0, 0));
 
-      // Description: word-wrapped, below name, stops before buy button
-      const descMaxW = rowInnerW - (ICON_SZ + P(24)) - BW - P(16);
-      scrollCont.add(this.add.text(tx, topBandY + P(22), item.desc, {
-        fontSize: F(15), fontStyle: 'bold', color: '#b09070', stroke: '#1a0800', strokeThickness: 1,
-        wordWrap: { width: descMaxW },
-      }).setOrigin(0, 0));
+        const isCardGacha  = item.id === '__card_gacha__';
+        const priceIconKey = isCardGacha ? 'icon_blank_card' : 'icon_coin';
+        const priceLabel   = isCardGacha ? '空白卡片×10' : `${item.price.toLocaleString()}金`;
+        const priceColor   = isCardGacha ? '#cc88ff' : '#d4a044';
+        const priceIconSz  = P(13);
+        const priceY       = cy + CELL_H - P(17);
+        const priceIconX   = cx + P(10) + priceIconSz / 2;
+        if (this.textures.exists(priceIconKey))
+          scrollCont.add(this.add.image(priceIconX, priceY, priceIconKey)
+            .setDisplaySize(priceIconSz, priceIconSz).setOrigin(0.5, 1));
+        scrollCont.add(this.add.text(cx + P(10) + priceIconSz + P(3), priceY, priceLabel, {
+          fontSize: F(11), fontStyle: 'bold', color: priceColor, stroke: '#1a0800', strokeThickness: 1,
+        }).setOrigin(0, 1));
 
-      // Price at bottom-left of text block
-      const isCardGacha = item.id === '__card_gacha__';
-      const priceIconKey = isCardGacha ? 'icon_blank_card' : 'icon_coin';
-      const priceLabel   = isCardGacha ? '空白卡片 ×10' : `${item.price.toLocaleString()} 金幣`;
-      const priceColor   = isCardGacha ? '#cc88ff' : '#d4a044';
-      const priceIconSz  = P(14);
-      const priceIconX   = tx + priceIconSz / 2;
-      const priceY       = ry + ROW_H - P(18);
-      if (this.textures.exists(priceIconKey))
-        scrollCont.add(this.add.image(priceIconX, priceY, priceIconKey).setDisplaySize(priceIconSz, priceIconSz).setOrigin(0.5, 1));
-      scrollCont.add(this.add.text(tx + priceIconSz + P(3), priceY, priceLabel, {
-        fontSize: F(12), fontStyle: 'bold', color: priceColor, stroke: '#1a0800', strokeThickness: 1,
-      }).setOrigin(0, 1));
+        const btnCX = cx + CELL_W - BW / 2 - P(6);
+        const btnCY = cy + CELL_H - BH / 2 - P(6);
+        const btnGfx = this.add.graphics();
+        const drawBtn = (hover: boolean) => {
+          btnGfx.clear();
+          btnGfx.fillStyle(hover ? 0x5a3008 : 0x2a1800, 1);
+          btnGfx.fillRoundedRect(btnCX - BW / 2, btnCY - BH / 2, BW, BH, P(5));
+          btnGfx.lineStyle(P(1), GOLD, hover ? 1 : 0.6);
+          btnGfx.strokeRoundedRect(btnCX - BW / 2, btnCY - BH / 2, BW, BH, P(5));
+        };
+        drawBtn(false);
+        scrollCont.add(btnGfx);
+        scrollCont.add(this.add.text(btnCX, btnCY, '購買', {
+          fontSize: F(13), fontStyle: 'bold', color: '#e8c870', stroke: '#1a0800', strokeThickness: 2,
+        }).setOrigin(0.5));
 
-      // Buy button (right side, vertically centred)
-      const btnGfx = this.add.graphics();
-      const drawBtn = (hover: boolean) => {
-        btnGfx.clear();
-        btnGfx.fillStyle(hover ? 0x5a3008 : 0x2a1800, 1);
-        btnGfx.fillRoundedRect(bx - BW / 2, iconCY - BH / 2, BW, BH, P(5));
-        btnGfx.lineStyle(P(1), GOLD, hover ? 1 : 0.6);
-        btnGfx.strokeRoundedRect(bx - BW / 2, iconCY - BH / 2, BW, BH, P(5));
-      };
-      drawBtn(false);
-      scrollCont.add(btnGfx);
-      scrollCont.add(this.add.text(bx, iconCY, '購買', {
-        fontSize: F(14), fontStyle: 'bold', color: '#e8c870', stroke: '#1a0800', strokeThickness: 2,
-      }).setOrigin(0.5));
-
-      const hit = this.add.rectangle(bx, iconCY, BW, BH).setInteractive({ useHandCursor: true });
-      hit.on('pointerover',  () => drawBtn(true));
-      hit.on('pointerout',   () => drawBtn(false));
-      hit.on('pointerdown',  () => {
-        if (item.id === '__card_gacha__') {
-          if (InventoryStore.getItemQty(ITEM_BLANK_CARD) < 10) return;
-          InventoryStore.spendItem(ITEM_BLANK_CARD, 10);
-          SaveStore.save();
-          container.destroy();
-          this.openCardGachaPanel();
-          return;
-        }
-        if (item.id === '__gacha__') {
-          if (!InventoryStore.spendGold(item.price)) return;
-          SaveStore.save();
-          container.destroy();
-          this.openGachaEquipPanel();
-          return;
-        }
-        this.showQtyBuyPopup(item, (qty) => {
-          if (!InventoryStore.spendGold(item.price * qty)) return;
-          InventoryStore.addItem(item.id, item.name, qty);
-          SaveStore.save();
-          refreshGold();
+        const hit = this.add.rectangle(btnCX, btnCY, BW, BH).setInteractive({ useHandCursor: true });
+        hit.on('pointerover',  () => drawBtn(true));
+        hit.on('pointerout',   () => drawBtn(false));
+        hit.on('pointerdown',  () => {
+          if (item.id === '__card_gacha__') {
+            if (InventoryStore.getItemQty(ITEM_BLANK_CARD) < 10) return;
+            InventoryStore.spendItem(ITEM_BLANK_CARD, 10);
+            SaveStore.save();
+            container.destroy();
+            this.openCardGachaPanel();
+            return;
+          }
+          if (item.id === '__gacha__') {
+            if (!InventoryStore.spendGold(item.price)) return;
+            SaveStore.save();
+            this.openGachaEquipPanel();
+            return;
+          }
+          this.showQtyBuyPopup(item, (qty) => {
+            if (!InventoryStore.spendGold(item.price * qty)) return;
+            InventoryStore.addItem(item.id, item.name, qty);
+            SaveStore.save();
+            refreshGold();
+          });
         });
+        scrollCont.add(hit);
       });
-      scrollCont.add(hit);
-    });
+    };
 
-    // Mouse wheel scroll
+    buildContent(GACHA_ITEMS);
+
+    // ── Scroll input ──────────────────────────────────────
     const onWheel = (_ptr: any, _gos: any, _dx: any, dy: number) => {
       if (!container.active) return;
       scrollY = Math.max(0, Math.min(maxScroll, scrollY + dy * 0.6));
@@ -4150,7 +4222,6 @@ export class PrepScene extends Phaser.Scene {
     this.input.on('wheel', onWheel);
     container.once(Phaser.GameObjects.Events.DESTROY, () => this.input.off('wheel', onWheel));
 
-    // Touch drag scroll
     let dragStartY = 0, dragStartScroll = 0;
     const onDragStart = (ptr: Phaser.Input.Pointer) => {
       if (!container.active) return;

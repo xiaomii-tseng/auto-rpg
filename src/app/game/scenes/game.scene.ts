@@ -13,6 +13,7 @@ import { BossFlowerTwo } from '../objects/boss-flower-two';
 import { BossFlowerThree } from '../objects/boss-flower-three';
 import { MinionSlime } from '../objects/minion-slime';
 import { VirtualJoystick } from '../ui/joystick';
+import { drawItemCell } from '../ui/item-cell';
 import { PlayerStore } from '../data/player-store';
 import { InventoryStore } from '../data/inventory-store';
 import { SaveStore } from '../data/save-store';
@@ -584,6 +585,11 @@ export class GameScene extends Phaser.Scene {
     this.player.setCollideWorldBounds(true);
     (this.boss.body as Phaser.Physics.Arcade.Body).setCollideWorldBounds(true);
 
+    // 友軍花怪群組 — 必須在 overlap 註冊前建立，避免第二場時使用已銷毀的舊群組
+    this._allyGroup = this.physics.add.group();
+    // Minion projectile group
+    this.minionProjGroup = this.physics.add.group();
+
     this.physics.add.overlap(bossGroup, this.player, () => {
       if (!this.bossActive) return;
       if (this.boss.currentState === 'DASHING') this.player.takeDamage(this.boss.scaleDmg(45));
@@ -600,11 +606,6 @@ export class GameScene extends Phaser.Scene {
 
     this.physics.add.collider(this.player, this.wallLayer);
     this.physics.add.collider(this.boss, this.wallLayer);
-
-    // Minion projectile group
-    this.minionProjGroup = this.physics.add.group();
-    // 友軍花怪群組 — 供敵方彈道 overlap 偵測使用
-    this._allyGroup = this.physics.add.group();
     this.physics.add.overlap(this.minionProjGroup, this._allyGroup, (proj, _ally) => {
       const p    = proj as Phaser.Physics.Arcade.Image;
       const ally = _ally as MinionSlime;
@@ -3649,10 +3650,19 @@ export class GameScene extends Phaser.Scene {
       .on('pointerdown', closeAll);
 
     const HEADER_H = P(44);
-    const ROW_H = P(56), ROW_PAD = P(6);
+    const BOTTOM_PAD = P(20);
     const listTop = py - PH / 2 + HEADER_H;
-    const listH = PH - HEADER_H;
-    const contentH = this._sessionLoot.length * (ROW_H + ROW_PAD);
+    const listH = PH - HEADER_H - BOTTOM_PAD;
+
+    // Grid layout constants
+    const COLS = 4;
+    const GAP  = P(6);
+    const CELL_PAD = P(10);
+    const CELL_SZ  = Math.floor((PW - CELL_PAD * 2 - GAP * (COLS - 1)) / COLS);
+    const gridStartX = px - PW / 2 + CELL_PAD;
+    const ROWS = Math.max(1, Math.ceil(this._sessionLoot.length / COLS));
+    const contentH = ROWS * (CELL_SZ + GAP) - GAP;
+
     let scrollY = 0;
     const maxScroll = Math.max(0, contentH - listH);
 
@@ -3666,62 +3676,54 @@ export class GameScene extends Phaser.Scene {
     pop.add(scroll);
 
     if (this._sessionLoot.length === 0) {
-      scroll.add(this.add.text(px, ROW_H, '本局尚未撿到任何戰利品', {
+      scroll.add(this.add.text(px, listH / 2, '本局尚未撿到任何戰利品', {
         fontSize: F(14), color: '#886644', stroke: '#1a0800', strokeThickness: 1,
       }).setOrigin(0.5));
     }
 
     this._sessionLoot.forEach((entry, i) => {
-      const ry = i * (ROW_H + ROW_PAD);
-      const lx = px - PW / 2 + P(8);
-      const rw = PW - P(16);
+      const col = i % COLS;
+      const row = Math.floor(i / COLS);
+      const cx = gridStartX + col * (CELL_SZ + GAP);
+      const cy = row * (CELL_SZ + GAP);
 
-      const rowBg = this.add.graphics();
-      rowBg.fillStyle(0x2a1800, 0.7);
-      rowBg.fillRoundedRect(lx, ry, rw, ROW_H, P(5));
-      rowBg.lineStyle(P(1), 0x664422, 0.4);
-      rowBg.strokeRoundedRect(lx, ry, rw, ROW_H, P(5));
-      scroll.add(rowBg);
-
-      // Icon
-      const iconX = lx + P(10) + P(20);
-      const iconY = ry + ROW_H / 2;
       let iconKey = '';
-      let nameColor = '#e8c870';
+      let qualityColor: number | undefined;
+      let badge: string | undefined;
+
       if (entry.type === 'item') {
         iconKey = `icon_${entry.itemId}`;
+        if (entry.qty > 1) badge = `×${entry.qty}`;
       } else if (entry.type === 'card') {
         iconKey = 'icon_card';
-        nameColor = '#88ccff';
       } else {
         iconKey = entry.equip.texture;
-        nameColor = `#${(QUALITY_COLORS[entry.equip.quality] ?? 0xffffff).toString(16).padStart(6, '0')}`;
+        qualityColor = QUALITY_COLORS[entry.equip.quality] ?? 0xffffff;
       }
-      if (this.textures.exists(iconKey))
-        scroll.add(this.add.image(iconX, iconY, iconKey).setDisplaySize(P(36), P(36)));
 
-      // Name
-      const tx = lx + P(10) + P(44);
-      scroll.add(this.add.text(tx, iconY - P(9), entry.itemName, {
-        fontSize: F(14), fontStyle: 'bold', color: nameColor, stroke: '#1a0800', strokeThickness: 1,
-      }).setOrigin(0, 0.5));
-
-      // Sub-label
-      let sub = '';
-      if (entry.type === 'item') sub = `×${entry.qty}`;
-      else if (entry.type === 'card') sub = '卡片';
-      else sub = `${QUALITY_NAMES[entry.equip.quality]} ${SLOT_NAMES[entry.equip.slot]}`;
-      scroll.add(this.add.text(tx, iconY + P(9), sub, {
-        fontSize: F(12), color: '#997755', stroke: '#1a0800', strokeThickness: 1,
-      }).setOrigin(0, 0.5));
-
-      // Hit area — standalone scene object to avoid double-container input bug
-      const hit = this.add.rectangle(lx + rw / 2, listTop + ry + ROW_H / 2, rw, ROW_H)
-        .setScrollFactor(0).setDepth(D + 1)
-        .setInteractive({ useHandCursor: true })
-        .on('pointerdown', () => this.showLootDetail(entry));
-      hitAreas.push(hit);
+      drawItemCell(this, scroll, cx, cy, CELL_SZ, {
+        iconKey, qualityColor, badge,
+        label: entry.itemName,
+      });
     });
+
+    // Single hit area covering the whole grid — click detection via math
+    const gridHit = this.add.rectangle(px, listTop + listH / 2, PW, listH)
+      .setScrollFactor(0).setDepth(D + 1)
+      .setInteractive({ useHandCursor: true })
+      .on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+        const relX = pointer.x - gridStartX;
+        const relY = pointer.y - listTop + scrollY;
+        if (relX < 0 || relY < 0) return;
+        const col = Math.floor(relX / (CELL_SZ + GAP));
+        const row = Math.floor(relY / (CELL_SZ + GAP));
+        if (col < 0 || col >= COLS) return;
+        const idx = row * COLS + col;
+        if (idx >= 0 && idx < this._sessionLoot.length) {
+          this.showLootDetail(this._sessionLoot[idx]);
+        }
+      });
+    hitAreas.push(gridHit);
 
     // Scroll
     const onWheel = (_p: any, _g: any, _dx: any, dy: number) => {
@@ -3741,12 +3743,7 @@ export class GameScene extends Phaser.Scene {
     const PW = P(300), D = 9950;
     const px = W / 2, py = H / 2;
 
-    const det = this.add.container(0, 0).setScrollFactor(0).setDepth(D);
-
-    det.add(this.add.rectangle(px, py, W, H, 0x000000, 0.45).setInteractive()
-      .on('pointerdown', () => det.destroy()));
-
-    // Build lines
+    // Build lines first so PH is known before creating objects
     const lines: { text: string; color: string; size: number; bold: boolean }[] = [];
 
     if (entry.type === 'item') {
@@ -3776,19 +3773,49 @@ export class GameScene extends Phaser.Scene {
     }
 
     const PH = P(32) + lines.length * P(24) + P(20);
-    const bg = this.add.graphics();
+
+    // All standalone (not in container) so Phaser depth-based input ordering works correctly
+    const objs: Phaser.GameObjects.GameObject[] = [];
+    const closeDet = () => objs.forEach(o => o.destroy());
+
+    // Full-screen overlay — standalone at D so it beats hitAreas at 9901
+    objs.push(
+      this.add.rectangle(px, py, W, H, 0x000000, 0.45)
+        .setScrollFactor(0).setDepth(D).setInteractive()
+        .on('pointerdown', (_p: any, _lx: any, _ly: any, ev: any) => { closeDet(); ev?.stopPropagation?.(); })
+    );
+
+    // Panel background
+    const bg = this.add.graphics().setScrollFactor(0).setDepth(D + 1);
     bg.fillStyle(0x120800, 0.98);
     bg.fillRoundedRect(px - PW / 2, py - PH / 2, PW, PH, P(8));
     bg.lineStyle(P(1.5), 0xaa7733, 0.9);
     bg.strokeRoundedRect(px - PW / 2, py - PH / 2, PW, PH, P(8));
-    det.add(bg);
+    objs.push(bg);
 
+    // ✕ 關閉按鈕
+    const closeX = px + PW / 2 - P(14);
+    const closeY = py - PH / 2 + P(14);
+    objs.push(
+      this.add.text(closeX, closeY, '✕', {
+        fontSize: F(16), fontStyle: 'bold', color: '#cc4444', stroke: '#000', strokeThickness: 2,
+      }).setOrigin(0.5).setScrollFactor(0).setDepth(D + 2)
+    );
+    objs.push(
+      this.add.rectangle(closeX, closeY, P(40), P(40))
+        .setScrollFactor(0).setDepth(D + 2).setInteractive({ useHandCursor: true })
+        .on('pointerdown', (_p: any, _lx: any, _ly: any, ev: any) => { closeDet(); ev?.stopPropagation?.(); })
+    );
+
+    // Content lines
     lines.forEach((l, i) => {
-      det.add(this.add.text(px, py - PH / 2 + P(16) + i * P(24), l.text, {
-        fontSize: F(l.size), fontStyle: l.bold ? 'bold' : 'normal',
-        color: l.color, stroke: '#1a0800', strokeThickness: 1,
-        wordWrap: { width: PW - P(24) },
-      }).setOrigin(0.5, 0));
+      objs.push(
+        this.add.text(px, py - PH / 2 + P(16) + i * P(24), l.text, {
+          fontSize: F(l.size), fontStyle: l.bold ? 'bold' : 'normal',
+          color: l.color, stroke: '#1a0800', strokeThickness: 1,
+          wordWrap: { width: PW - P(24) },
+        }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(D + 1)
+      );
     });
   }
 
@@ -4166,7 +4193,7 @@ export class GameScene extends Phaser.Scene {
         this.tweens.add({ targets: img, y: ty - P(4), duration: 700, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
       },
     });
-    const name = `${QUALITY_NAMES[equip.quality]}${SLOT_NAMES[equip.slot]}`;
+    const name = SLOT_NAMES[equip.slot];
     this.lootDrops.push({ obj: img, itemId: '__equip__', itemName: name, qty: 1, readyAt: Date.now() + 600, equip });
   }
 

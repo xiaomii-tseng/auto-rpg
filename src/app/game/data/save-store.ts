@@ -6,7 +6,7 @@ import { QuestStore } from './quest-store';
 import { PotionBarStore } from './potion-bar-store';
 
 const SAVE_KEY = 'auto_rpg_save';
-const VERSION  = 11;
+const VERSION  = 12;
 let   _loaded  = false;
 
 interface SaveData {

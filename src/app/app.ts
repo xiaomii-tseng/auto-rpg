@@ -1,4 +1,6 @@
 import { Component, AfterViewInit, NgZone, inject } from '@angular/core';
+import { SwUpdate, VersionReadyEvent } from '@angular/service-worker';
+import { filter, interval } from 'rxjs';
 import Phaser from 'phaser';
 import { PrepScene } from './game/scenes/prep-scene';
 import { GameScene } from './game/scenes/game.scene';
@@ -12,9 +14,32 @@ import { InventoryStore } from './game/data/inventory-store';
 })
 export class App implements AfterViewInit {
 
-  private readonly ngZone = inject(NgZone);
+  private readonly ngZone   = inject(NgZone);
+  private readonly swUpdate = inject(SwUpdate);
 
   ngAfterViewInit(): void {
+    if (this.swUpdate.isEnabled) {
+      // 新版就緒 → 立刻激活並重新載入
+      this.swUpdate.versionUpdates.pipe(
+        filter((e): e is VersionReadyEvent => e.type === 'VERSION_READY'),
+      ).subscribe(() => {
+        this.swUpdate.activateUpdate().then(() => location.reload());
+      });
+
+      // SW 快取損壞無法恢復 → 強制重新載入從網路抓新資源
+      this.swUpdate.unrecoverable.subscribe(() => location.reload());
+
+      // 啟動時主動查
+      this.swUpdate.checkForUpdate();
+
+      // 切回前景時查（PWA 最常見的使用情境）
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') this.swUpdate.checkForUpdate();
+      });
+
+      // 每小時補查，確保長時間掛著的玩家也能更新
+      interval(60 * 60 * 1000).subscribe(() => this.swUpdate.checkForUpdate());
+    }
     const wrapper = document.getElementById('game-wrapper')!;
 
     // Read safe-area-aware dimensions from the wrapper (CSS already applied env() insets)
