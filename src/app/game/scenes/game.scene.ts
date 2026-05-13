@@ -3650,10 +3650,10 @@ export class GameScene extends Phaser.Scene {
         { itemId: ITEM_POTION_SPEED, itemName: '速度藥水',   rate: 0.15, qtyMin: 1, qtyMax: 1 },
       ];
       const scaledDrops = [...bossDef.drops, ...bossPotionDrops].map(d => ({ ...d, rate: Math.min(1, d.rate * dropMult) }));
-      this.spawnLoot(this.boss.x, this.boss.y, scaledDrops);
+      this.spawnLoot(this.boss.x, this.boss.y, scaledDrops, true);
       const bossCardMult = CardStore.getTotalStats().dropRateMult ?? 1;
       for (const card of bossDef.cards) {
-        if (Math.random() < card.rate * bossCardMult) this.spawnCardDrop(this.boss.x, this.boss.y, card.cardId);
+        if (Math.random() < card.rate * bossCardMult) this.spawnCardDrop(this.boss.x, this.boss.y, card.cardId, true);
       }
       const bossIQ = Math.pow(1.50, this.questStar - 1);
       const bossQualW = getDropQualityWeights('boss', this.questStar);
@@ -3664,7 +3664,7 @@ export class GameScene extends Phaser.Scene {
       }
       for (let i = 0; i < bossDropCount; i++) {
         const slot = EQUIP_ALL_SLOTS[Math.floor(Math.random() * EQUIP_ALL_SLOTS.length)];
-        this.spawnEquipDrop(this.boss.x, this.boss.y, generateEquipment(slot, randomQuality(bossQualW)));
+        this.spawnEquipDrop(this.boss.x, this.boss.y, generateEquipment(slot, randomQuality(bossQualW)), true);
       }
     }
 
@@ -4264,22 +4264,22 @@ export class GameScene extends Phaser.Scene {
 
   // ── Loot drop system ──────────────────────────────────
 
-  private spawnCardDrop(cx: number, cy: number, cardId: string): void {
-    const ox = Phaser.Math.Between(-P(18), P(18));
-    const oy = Phaser.Math.Between(-P(8), P(8));
-    const tx = cx + ox;
-    const ty = cy + oy + P(18);
-
+  private spawnCardDrop(cx: number, cy: number, cardId: string, burst = false): void {
     const cardDef = getCardDef(cardId);
     const monDef = cardDef ? getMonsterDef(cardDef.monsterId) : null;
     const isBoss = (monDef?.tier ?? 0) >= 5;
     const CW = P(16), CH = P(20);
-
-    const cnt = this.add.container(tx, cy - P(24)).setDepth(ty + 4);
-
-    // Card frame
-    const g = this.add.graphics();
     const bColor = isBoss ? 0xf0c040 : 0x9aacb8;
+
+    const angle  = burst ? Math.random() * Math.PI * 2 : 0;
+    const dist   = burst ? Phaser.Math.Between(P(55), P(120)) : 0;
+    const tx     = burst ? cx + Math.cos(angle) * dist : cx + Phaser.Math.Between(-P(18), P(18));
+    const ty     = burst ? cy + Math.sin(angle) * dist * 0.4 : cy + Phaser.Math.Between(-P(8), P(8)) + P(18);
+    const startX = burst ? cx : tx;
+    const startY = burst ? cy : cy - P(24);
+
+    const cnt = this.add.container(startX, startY).setDepth(ty + 4);
+    const g = this.add.graphics();
     const fx = -CW / 2, fy = -CH / 2;
     g.fillStyle(0x000000, 0.4); g.fillRect(fx + P(2), fy + P(2), CW, CH);
     g.fillStyle(0x2a1a0a, 1); g.fillRect(fx, fy, CW, CH);
@@ -4287,59 +4287,96 @@ export class GameScene extends Phaser.Scene {
     g.lineStyle(P(1), bColor, 0.4); g.strokeRect(fx + P(2), fy + P(2), CW - P(4), CH - P(4));
     cnt.add(g);
 
-    // Drop + breathing animation
-    this.tweens.add({
-      targets: cnt, y: ty, duration: 420, ease: 'Bounce.Out',
-      onComplete: () => {
-        this.tweens.add({
-          targets: cnt, scaleX: 1.15, scaleY: 1.15,
-          duration: 750, yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
-        });
-      },
-    });
+    if (burst) {
+      const arcX = cx + Math.cos(angle) * dist * 0.3;
+      const arcY = cy - P(55);
+      this.tweens.add({
+        targets: cnt, x: arcX, y: arcY, duration: 170, ease: 'Quad.Out',
+        onComplete: () => {
+          this.tweens.add({
+            targets: cnt, x: tx, y: ty, duration: 310, ease: 'Bounce.Out',
+            onComplete: () => {
+              this.tweens.add({ targets: cnt, scaleX: 1.15, scaleY: 1.15, duration: 750, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+            },
+          });
+        },
+      });
+    } else {
+      this.tweens.add({
+        targets: cnt, y: ty, duration: 420, ease: 'Bounce.Out',
+        onComplete: () => {
+          this.tweens.add({ targets: cnt, scaleX: 1.15, scaleY: 1.15, duration: 750, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+        },
+      });
+    }
 
     const cardName = cardDef?.name ?? '卡片';
     this.lootDrops.push({ obj: cnt, itemId: '__card__', itemName: cardName, qty: 1, cardId, readyAt: Date.now() + 600 });
   }
 
-  private spawnLoot(cx: number, cy: number, drops: DropEntry[]): void {
+  private spawnLoot(cx: number, cy: number, drops: DropEntry[], burst = false): void {
     const dropMult = CardStore.getTotalStats().dropRateMult ?? 1;
+    let bi = 0;
     for (const drop of drops) {
       if (Math.random() >= drop.rate * dropMult) continue;
       const qty = Phaser.Math.Between(drop.qtyMin, drop.qtyMax);
-      const ox = Phaser.Math.Between(-P(22), P(22));
-      const oy = Phaser.Math.Between(-P(10), P(10));
-      const tx = cx + ox;
-      const ty = cy + oy + P(18);
       const iconKey = `icon_${drop.itemId}`;
-      const img = this.add.image(tx, cy - P(24), iconKey)
-        .setDisplaySize(P(28), P(28)).setDepth(ty + 4);
-      this.tweens.add({
-        targets: img, y: ty,
-        duration: 420, ease: 'Bounce.Out',
-        onComplete: () => {
-          this.tweens.add({
-            targets: img, y: ty - P(4),
-            duration: 700, yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
-          });
-        },
-      });
-      this.lootDrops.push({ obj: img, itemId: drop.itemId, itemName: drop.itemName, qty, readyAt: Date.now() + 600 });
+
+      if (burst) {
+        const angle = Math.random() * Math.PI * 2;
+        const dist  = Phaser.Math.Between(P(50), P(110));
+        const tx = cx + Math.cos(angle) * dist;
+        const ty = cy + Math.sin(angle) * dist * 0.4;
+        const img = this.add.image(cx, cy, iconKey)
+          .setDisplaySize(P(28), P(28)).setDepth(ty + 4);
+        const delay = bi++ * 25;
+        const arcX = cx + Math.cos(angle) * dist * 0.3;
+        const arcY = cy - P(55);
+        this.tweens.add({
+          targets: img, x: arcX, y: arcY, duration: 170, ease: 'Quad.Out', delay,
+          onComplete: () => {
+            this.tweens.add({
+              targets: img, x: tx, y: ty, duration: 310, ease: 'Bounce.Out',
+              onComplete: () => {
+                this.tweens.add({ targets: img, y: ty - P(4), duration: 700, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+              },
+            });
+          },
+        });
+        this.lootDrops.push({ obj: img, itemId: drop.itemId, itemName: drop.itemName, qty, readyAt: Date.now() + 600 + delay });
+      } else {
+        const ox = Phaser.Math.Between(-P(22), P(22));
+        const oy = Phaser.Math.Between(-P(10), P(10));
+        const tx = cx + ox;
+        const ty = cy + oy + P(18);
+        const img = this.add.image(tx, cy - P(24), iconKey)
+          .setDisplaySize(P(28), P(28)).setDepth(ty + 4);
+        this.tweens.add({
+          targets: img, y: ty, duration: 420, ease: 'Bounce.Out',
+          onComplete: () => {
+            this.tweens.add({ targets: img, y: ty - P(4), duration: 700, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+          },
+        });
+        this.lootDrops.push({ obj: img, itemId: drop.itemId, itemName: drop.itemName, qty, readyAt: Date.now() + 600 });
+      }
     }
   }
 
-  private spawnEquipDrop(cx: number, cy: number, equip: EquipmentItem): void {
-    const ox = Phaser.Math.Between(-P(22), P(22));
-    const oy = Phaser.Math.Between(-P(10), P(10));
-    const tx = cx + ox, ty = cy + oy + P(18);
+  private spawnEquipDrop(cx: number, cy: number, equip: EquipmentItem, burst = false): void {
     const imgKey = this.textures.exists(equip.texture) ? equip.texture : 'icon_equip_drop';
     const qColor = QUALITY_COLORS[equip.quality];
+    const imgSz  = P(26);
+    const off    = equip.quality === 'normal' ? P(1.5) : P(2);
 
-    const imgSz = P(26);
-    const off   = equip.quality === 'normal' ? P(1.5) : P(2);
+    const angle  = burst ? Math.random() * Math.PI * 2 : 0;
+    const dist   = burst ? Phaser.Math.Between(P(55), P(120)) : 0;
+    const tx     = burst ? cx + Math.cos(angle) * dist : cx + Phaser.Math.Between(-P(22), P(22));
+    const ty     = burst ? cy + Math.sin(angle) * dist * 0.4 : cy + Phaser.Math.Between(-P(10), P(10)) + P(18);
+    const startX = burst ? cx : tx;
+    const startY = burst ? cy : cy - P(24);
 
     // 8方向偏移同一張圖填色 → 沿著去背邊緣形成品質色外框
-    const badge = this.add.container(tx, cy - P(24)).setDepth(ty + 3);
+    const badge = this.add.container(startX, startY).setDepth(ty + 3);
     const dirs: [number, number][] = [[-1,0],[1,0],[0,-1],[0,1],[-1,-1],[-1,1],[1,-1],[1,1]];
     dirs.forEach(([dx, dy]) => {
       badge.add(
@@ -4349,15 +4386,31 @@ export class GameScene extends Phaser.Scene {
       );
     });
 
-    const img = this.add.image(tx, cy - P(24), imgKey)
+    const img = this.add.image(startX, startY, imgKey)
       .setDisplaySize(imgSz, imgSz).setDepth(ty + 4);
 
-    this.tweens.add({
-      targets: [badge, img], y: ty, duration: 420, ease: 'Bounce.Out',
-      onComplete: () => {
-        this.tweens.add({ targets: [badge, img], y: ty - P(4), duration: 700, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
-      },
-    });
+    if (burst) {
+      const arcX = cx + Math.cos(angle) * dist * 0.3;
+      const arcY = cy - P(55);
+      this.tweens.add({
+        targets: [badge, img], x: arcX, y: arcY, duration: 170, ease: 'Quad.Out',
+        onComplete: () => {
+          this.tweens.add({
+            targets: [badge, img], x: tx, y: ty, duration: 310, ease: 'Bounce.Out',
+            onComplete: () => {
+              this.tweens.add({ targets: [badge, img], y: ty - P(4), duration: 700, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+            },
+          });
+        },
+      });
+    } else {
+      this.tweens.add({
+        targets: [badge, img], y: ty, duration: 420, ease: 'Bounce.Out',
+        onComplete: () => {
+          this.tweens.add({ targets: [badge, img], y: ty - P(4), duration: 700, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+        },
+      });
+    }
     const name = SLOT_NAMES[equip.slot];
     this.lootDrops.push({ obj: img, itemId: '__equip__', itemName: name, qty: 1, readyAt: Date.now() + 600, equip, badge });
   }
