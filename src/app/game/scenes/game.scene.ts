@@ -2307,6 +2307,7 @@ export class GameScene extends Phaser.Scene {
       m.takeDamage(dmg);
       if (stats.lifesteal > 0) this._leechPool += Math.round(dmg * stats.lifesteal);
       this.spawnDamageNumber(m.x, m.y, dmg, isCrit, 1);
+      if (isCrit) this._pendingHitWeight += 2;
       if (NetworkService.connected) NetworkService.sendMinionHit(m.minionId, dmg);
     }
     if (this.bossActive && this.boss.active &&
@@ -2318,7 +2319,16 @@ export class GameScene extends Phaser.Scene {
       this.boss.takeDamage(dmg, stats.penetration);
       if (stats.lifesteal > 0) this._leechPool += Math.round(dmg * stats.lifesteal);
       this.spawnDamageNumber(this.boss.x, this.boss.y, dmg, isCrit, elemMult);
+      if (isCrit) this._pendingHitWeight += 2;
       if (NetworkService.connected) NetworkService.sendBossHit(auraHpBefore - this.boss.currentHp);
+    }
+    if (this._pendingHitWeight > 0 && !this._hitShakePending) {
+      this._hitShakePending = true;
+      this.time.delayedCall(0, () => {
+        this.triggerHitShake(this._pendingHitWeight);
+        this._pendingHitWeight = 0;
+        this._hitShakePending  = false;
+      });
     }
   }
 
@@ -3547,7 +3557,7 @@ export class GameScene extends Phaser.Scene {
 
   private triggerHitShake(weight: number): void {
     // weight: 普通命中 +1，爆擊 +2。公式可在此調整。
-    const intensity = Math.min(0.002 + (weight - 1) * 0.0015, 0.015);
+    const intensity = Math.min(0.006 + (weight - 2) * 0.0015, 0.015);
     this.cameras.main.shake(55, intensity);
   }
 

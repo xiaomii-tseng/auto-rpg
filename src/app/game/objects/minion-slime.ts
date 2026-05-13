@@ -122,6 +122,12 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
 
   private _flashUntil = 0;
 
+  flashWhite(ms = 80): void {
+    this._flashUntil = this.scene.time.now + ms;
+    this.setTintFill(0xffffff);
+    this.scene.time.delayedCall(ms, () => this.applyBaseTint());
+  }
+
   private applyBaseTint(): void {
     if (this.scene.time.now < this._flashUntil) return;
     if (this.baseTint === 0xffffff) this.clearTint();
@@ -152,9 +158,7 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
     if (this.mState === MinionState.DEAD) return 0;
     const prevHp = this.hp;
     this.hp = Math.max(0, this.hp - amount);
-    this._flashUntil = this.scene.time.now + 80;
-    this.setTintFill(0xffffff);
-    this.scene.time.delayedCall(80, () => this.applyBaseTint());
+    this.flashWhite();
     if (this.hp <= 0) {
       this.die();
     } else if (!this.isAlly && (CardStore.getTotalStats().executeBelow15 ?? 0) > 0 && this.hp / this.maxHp < 0.15) {
@@ -167,6 +171,7 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
   applyServerHp(hp: number, isDead: boolean): void {
     if (this.mState === MinionState.DEAD) return;
     this.hp = hp;
+    this.flashWhite();
     if (isDead) { this.die(); return; }
     this.drawHpBar();
   }

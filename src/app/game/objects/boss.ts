@@ -91,6 +91,17 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
   protected idleChaseSpeed = Math.round(80 * DPR);
   protected readonly animPrefix: string;
   protected baseTint = 0xffffff;
+  private _flashUntil = 0;
+
+  flashWhite(ms = 80): void {
+    this._flashUntil = this.scene.time.now + ms;
+    this.setTintFill(0xffffff);
+    this.scene.time.delayedCall(ms, () => {
+      if (this.scene.time.now >= this._flashUntil && this.bossState !== BossState.DEAD) {
+        if (this.baseTint === 0xffffff) this.clearTint(); else this.setTint(this.baseTint);
+      }
+    });
+  }
 
   readonly element: Element;
   readonly arenaCenter: Phaser.Math.Vector2;
@@ -217,10 +228,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     this.hp = Math.max(0, this.hp - Math.max(1, Math.round(amount * (1 - reduction))));
     this.onHpChanged?.(this.hp, this.maxHp);
 
-    this.setTintFill(0xffffff);
-    this.scene.time.delayedCall(80, () => {
-      if (this.bossState !== BossState.DEAD) this.clearTint();
-    });
+    this.flashWhite();
     this.playDir(`${this.animPrefix}_hurt`);
     this.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => {
       if (this.bossState !== BossState.DEAD) this.resumeStateAnim();
@@ -275,6 +283,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     if (this.bossState === BossState.DEAD) return;
     this.hp = hp;
     this.onHpChanged?.(this.hp, this.maxHp);
+    this.flashWhite();
     if (isDead) this.die();
   }
 
