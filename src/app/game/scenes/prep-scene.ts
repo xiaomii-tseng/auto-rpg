@@ -3997,9 +3997,9 @@ export class PrepScene extends Phaser.Scene {
     container.add(closeBtn);
 
     // Floating toast notification
-    const showToast = (msg: string) => {
+    const showToast = (msg: string, success = false) => {
       const t = this.add.text(0, P(10), msg, {
-        fontSize: F(14), fontStyle: 'bold', color: '#ff6644',
+        fontSize: F(14), fontStyle: 'bold', color: success ? '#88ff88' : '#ff6644',
         stroke: '#1a0800', strokeThickness: 2,
         backgroundColor: '#2a0800cc', padding: { x: P(10), y: P(5) },
       }).setOrigin(0.5, 0.5).setAlpha(0);
@@ -4040,7 +4040,7 @@ export class PrepScene extends Phaser.Scene {
     type ShopItem = { id: string; name: string; price: number; desc: string; color: number };
     const GACHA_ITEMS: ShopItem[] = [
       { id: '__gacha__', name: '裝備抽取', price: 1000, desc: '隨機生成 3 件裝備，選一件收入背包', color: 0xddaa00 },
-      { id: '__card_gacha__', name: '卡片抽取', price: 0, desc: '消耗空白卡片×10，抽 1 張卡片', color: 0xaa44ff },
+      { id: '__card_gacha__', name: '卡片抽取', price: 0, desc: '消耗空白卡片×2，抽 1 張卡片', color: 0xaa44ff },
     ];
     const POTION_ITEMS: ShopItem[] = [
       { id: ITEM_POTION_HEALTH_S, name: '小型回復藥水', price: 80, desc: '回復 50 HP', color: 0x44ff88 },
@@ -4232,7 +4232,7 @@ export class PrepScene extends Phaser.Scene {
 
         const isCardGacha = item.id === '__card_gacha__';
         const priceIconKey = isCardGacha ? 'icon_blank_card' : 'icon_coin';
-        const priceLabel = isCardGacha ? '空白×10' : `${item.price.toLocaleString()}金`;
+        const priceLabel = isCardGacha ? '空白×2' : `${item.price.toLocaleString()}金`;
         const priceColor = isCardGacha ? '#cc88ff' : '#d4a044';
         const priceIconSz = P(12);
         const priceY = cy + CELL_H - P(22);
@@ -4265,8 +4265,8 @@ export class PrepScene extends Phaser.Scene {
         hit.on('pointerout', () => drawBtn(false));
         hit.on('pointerdown', () => {
           if (item.id === '__card_gacha__') {
-            if (InventoryStore.getItemQty(ITEM_BLANK_CARD) < 10) { showToast('空白卡片不足'); return; }
-            InventoryStore.spendItem(ITEM_BLANK_CARD, 10);
+            if (InventoryStore.getItemQty(ITEM_BLANK_CARD) < 2) { showToast('空白卡片不足'); return; }
+            InventoryStore.spendItem(ITEM_BLANK_CARD, 2);
             SaveStore.save();
             container.destroy();
             this.openCardGachaPanel();
@@ -4284,6 +4284,7 @@ export class PrepScene extends Phaser.Scene {
             InventoryStore.addItem(item.id, item.name, qty);
             SaveStore.save();
             refreshGold();
+            showToast(`購買成功：${item.name} ×${qty}`, true);
           });
         });
         scrollCont.add(hit);
@@ -4435,10 +4436,11 @@ export class PrepScene extends Phaser.Scene {
           hit.on('pointerdown', () => {
             if (InventoryStore.getItemQty(ITEM_BLANK_CARD) < cost) { showToast('空白卡片不足'); return; }
             InventoryStore.spendItem(ITEM_BLANK_CARD, cost);
-            InventoryStore.addItem(card.id, card.name, 1);
+            CardStore.addCard(card.id);
             SaveStore.save();
             refreshOwned();
             drawBtn(false);
+            showToast(`兌換成功：${card.name}`, true);
           });
           scrollCont.add(hit);
 
