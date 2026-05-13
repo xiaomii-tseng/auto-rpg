@@ -4272,9 +4272,9 @@ export class GameScene extends Phaser.Scene {
     const bColor = isBoss ? 0xf0c040 : 0x9aacb8;
 
     const angle  = burst ? Math.random() * Math.PI * 2 : 0;
-    const dist   = burst ? Phaser.Math.Between(P(55), P(120)) : 0;
-    const tx     = burst ? cx + Math.cos(angle) * dist : cx + Phaser.Math.Between(-P(18), P(18));
-    const ty     = burst ? cy + Math.sin(angle) * dist * 0.4 : cy + Phaser.Math.Between(-P(8), P(8)) + P(18);
+    const dist   = burst ? Phaser.Math.Between(P(30), P(120)) : 0;
+    const tx     = burst ? Phaser.Math.Clamp(cx + Math.cos(angle) * dist, P(32), this.worldW - P(32)) : cx + Phaser.Math.Between(-P(18), P(18));
+    const ty     = burst ? Phaser.Math.Clamp(cy + Math.sin(angle) * dist * 0.4, P(32), this.worldH - P(32)) : cy + Phaser.Math.Between(-P(8), P(8)) + P(18);
     const startX = burst ? cx : tx;
     const startY = burst ? cy : cy - P(24);
 
@@ -4325,8 +4325,8 @@ export class GameScene extends Phaser.Scene {
       if (burst) {
         const angle = Math.random() * Math.PI * 2;
         const dist  = Phaser.Math.Between(P(50), P(110));
-        const tx = cx + Math.cos(angle) * dist;
-        const ty = cy + Math.sin(angle) * dist * 0.4;
+        const tx = Phaser.Math.Clamp(cx + Math.cos(angle) * dist, P(32), this.worldW - P(32));
+        const ty = Phaser.Math.Clamp(cy + Math.sin(angle) * dist * 0.4, P(32), this.worldH - P(32));
         const img = this.add.image(cx, cy, iconKey)
           .setDisplaySize(P(28), P(28)).setDepth(ty + 4);
         const delay = bi++ * 25;
@@ -4369,9 +4369,9 @@ export class GameScene extends Phaser.Scene {
     const off    = equip.quality === 'normal' ? P(1.5) : P(2);
 
     const angle  = burst ? Math.random() * Math.PI * 2 : 0;
-    const dist   = burst ? Phaser.Math.Between(P(55), P(120)) : 0;
-    const tx     = burst ? cx + Math.cos(angle) * dist : cx + Phaser.Math.Between(-P(22), P(22));
-    const ty     = burst ? cy + Math.sin(angle) * dist * 0.4 : cy + Phaser.Math.Between(-P(10), P(10)) + P(18);
+    const dist   = burst ? Phaser.Math.Between(P(30), P(120)) : 0;
+    const tx     = burst ? Phaser.Math.Clamp(cx + Math.cos(angle) * dist, P(32), this.worldW - P(32)) : cx + Phaser.Math.Between(-P(22), P(22));
+    const ty     = burst ? Phaser.Math.Clamp(cy + Math.sin(angle) * dist * 0.4, P(32), this.worldH - P(32)) : cy + Phaser.Math.Between(-P(10), P(10)) + P(18);
     const startX = burst ? cx : tx;
     const startY = burst ? cy : cy - P(24);
 
