@@ -462,6 +462,34 @@ export class GameScene extends Phaser.Scene {
           this.player.revive(amount / 100);
           this.player.play(`player_idle_${this.player.lastDir}`);
           this.showMagicSeal(sx, sy + P(13), range, 0xffee44, 'revive');
+        } else if (type === 'atk') {
+          this._atkBuffActive = true;
+          this._atkBuffTimer?.destroy();
+          this._atkBuffTimer = this.time.delayedCall(amount, () => {
+            this._atkBuffActive = false;
+            this._buffExpiry.delete(ITEM_POTION_ATK);
+            this.refreshBuffHud();
+          });
+          this._buffExpiry.set(ITEM_POTION_ATK, this.time.now + amount);
+          this.refreshBuffHud();
+        } else if (type === 'def') {
+          this.player.defBonus = 20;
+          this.time.delayedCall(amount, () => {
+            this.player.defBonus = 0;
+            this._buffExpiry.delete(ITEM_POTION_DEF);
+            this.refreshBuffHud();
+          });
+          this._buffExpiry.set(ITEM_POTION_DEF, this.time.now + amount);
+          this.refreshBuffHud();
+        } else if (type === 'speed') {
+          this.player.speedBonus = 20;
+          this.time.delayedCall(amount, () => {
+            this.player.speedBonus = 0;
+            this._buffExpiry.delete(ITEM_POTION_SPEED);
+            this.refreshBuffHud();
+          });
+          this._buffExpiry.set(ITEM_POTION_SPEED, this.time.now + amount);
+          this.refreshBuffHud();
         }
       });
 
@@ -4417,6 +4445,10 @@ export class GameScene extends Phaser.Scene {
       this._buffExpiry.set(ITEM_POTION_ATK, this.time.now + 30000);
       this.refreshBuffHud();
       this.showBuffText('ATK +20%', rangeColor);
+      if (NetworkService.connected && this.partnerSprite?.active && !this.partnerIsDead) {
+        const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, this.partnerSprite.x, this.partnerSprite.y);
+        if (d <= range) NetworkService.sendPotionEffect('atk', 30000);
+      }
     } else if (itemId === ITEM_POTION_DEF) {
       this.player.defBonus = 20;
       this.time.delayedCall(30000, () => {
@@ -4427,6 +4459,10 @@ export class GameScene extends Phaser.Scene {
       this._buffExpiry.set(ITEM_POTION_DEF, this.time.now + 30000);
       this.refreshBuffHud();
       this.showBuffText('DEF +20', rangeColor);
+      if (NetworkService.connected && this.partnerSprite?.active && !this.partnerIsDead) {
+        const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, this.partnerSprite.x, this.partnerSprite.y);
+        if (d <= range) NetworkService.sendPotionEffect('def', 30000);
+      }
     } else if (itemId === ITEM_POTION_SPEED) {
       this.player.speedBonus = 20;
       this.time.delayedCall(30000, () => {
@@ -4437,6 +4473,10 @@ export class GameScene extends Phaser.Scene {
       this._buffExpiry.set(ITEM_POTION_SPEED, this.time.now + 30000);
       this.refreshBuffHud();
       this.showBuffText('SPD +20', rangeColor);
+      if (NetworkService.connected && this.partnerSprite?.active && !this.partnerIsDead) {
+        const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, this.partnerSprite.x, this.partnerSprite.y);
+        if (d <= range) NetworkService.sendPotionEffect('speed', 30000);
+      }
     }
 
     SaveStore.save();

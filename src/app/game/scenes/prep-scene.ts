@@ -7,7 +7,7 @@ import { generateEquipment, randomQuality, QUALITY_NAMES, QUALITY_COLORS, SLOT_N
 import { SaveStore } from '../data/save-store';
 import { CardStore, CARD_SLOT_COUNT } from '../data/card-store';
 
-import { getCardDef, getMonsterDef, monsterCardScale, monsterDetailScale, CARD_DEFS } from '../data/monster-data';
+import { getCardDef, getMonsterDef, monsterCardScale, monsterDetailScale, CARD_DEFS, CardDef } from '../data/monster-data';
 import { QuestStore, Quest, STAR_EQUIP_QUALITY, getStarWeights } from '../data/quest-store';
 import { NetworkService } from '../network/network.service';
 import { SkinStore, SKINS } from '../data/skin-store';
@@ -18,15 +18,15 @@ const DPR = (window as any).__gameDpr as number;
 const F = (n: number): string => `${Math.round(n * DPR)}px`;
 const P = (n: number): number => Math.round(n * DPR);
 
-const TOP_H  = P(52);
+const TOP_H = P(52);
 
 // Wood palette
-const WB  = 0x140a02; // base (near-black)
-const WD  = 0x2a1408; // dark wood
-const WM  = 0x4a2814; // medium dark
+const WB = 0x140a02; // base (near-black)
+const WD = 0x2a1408; // dark wood
+const WM = 0x4a2814; // medium dark
 const WMI = 0x5c3418; // medium
-const WL  = 0x8b5e3c; // light wood
-const WH  = 0xb07030; // highlight grain
+const WL = 0x8b5e3c; // light wood
+const WH = 0xb07030; // highlight grain
 const GOLD = 0xd4a044;
 const IRON = 0x4a5560;
 
@@ -43,23 +43,23 @@ export function setPlayerName(name: string): void {
 }
 
 export class PrepScene extends Phaser.Scene {
-  private goldText!:       Phaser.GameObjects.Text;
-  private playerNameTxt?:  Phaser.GameObjects.Text;
+  private goldText!: Phaser.GameObjects.Text;
+  private playerNameTxt?: Phaser.GameObjects.Text;
   private roomOverlayObjs: Phaser.GameObjects.GameObject[] = [];
-  private _partnerIn    = false;
-  private _partnerNick  = '';
+  private _partnerIn = false;
+  private _partnerNick = '';
   private _partnerLevel = 0;
   private _partnerSkinId = 0;
-  private _sceneW       = 0;
-  private _sceneH       = 0;
-  private _heroY        = 0;
+  private _sceneW = 0;
+  private _sceneH = 0;
+  private _heroY = 0;
   private _multiBtnGfx?: Phaser.GameObjects.Graphics;
   private _multiBtnTxt?: Phaser.GameObjects.Text;
   private _multiBtnHit?: Phaser.GameObjects.Rectangle;
 
   static fmtGold(n: number): string {
     if (n >= 100_000_000) return `${(n / 100_000_000).toFixed(1)}億`;
-    if (n >= 10_000)      return `${(n / 10_000).toFixed(1)}萬`;
+    if (n >= 10_000) return `${(n / 10_000).toFixed(1)}萬`;
     return n.toLocaleString();
   }
 
@@ -84,7 +84,7 @@ export class PrepScene extends Phaser.Scene {
       this.load.image('icon_fight', 'other/fight.webp');
     if (!this.textures.exists('icon_coin'))
       this.load.image('icon_coin', 'other/coin.webp');
-    ['hat','outfit','shoes','ring','sword'].forEach(cat => {
+    ['hat', 'outfit', 'shoes', 'ring', 'sword'].forEach(cat => {
       for (let i = 1; i <= 5; i++) {
         const key = `equip_${cat}${i}`;
         if (!this.textures.exists(key))
@@ -93,7 +93,7 @@ export class PrepScene extends Phaser.Scene {
     });
     // Boss idle sprites for quest panel
     const bossSprites: [string, string][] = [
-      ['slime_idle',  'sprite/slime/PNG/Slime1/With_shadow/Slime1_Idle_with_shadow.png'],
+      ['slime_idle', 'sprite/slime/PNG/Slime1/With_shadow/Slime1_Idle_with_shadow.png'],
       ['slime2_idle', 'sprite/slime/PNG/Slime2/With_shadow/Slime2_Idle_with_shadow.png'],
       ['slime3_idle', 'sprite/slime/PNG/Slime3/With_shadow/Slime3_Idle_with_shadow.png'],
       ['plant1_idle', 'sprite/flower/PNG/Plant1/With_shadow/Plant1_Idle_with_shadow.png'],
@@ -103,20 +103,20 @@ export class PrepScene extends Phaser.Scene {
     bossSprites.forEach(([key, path]) => {
       if (!this.textures.exists(key)) this.load.spritesheet(key, path, cfg);
     });
-    if (!this.textures.exists('icon_stone_broken'))     this.load.image('icon_stone_broken',     'other/ore2.webp');
-    if (!this.textures.exists('icon_stone_intact'))     this.load.image('icon_stone_intact',     'other/ore1.webp');
-    if (!this.textures.exists('icon_stone_guard'))      this.load.image('icon_stone_guard',      'other/ore3.webp');
-    if (!this.textures.exists('icon_quest_reroll'))     this.load.image('icon_quest_reroll',     'other/ore4.webp');
-    if (!this.textures.exists('icon_potion_health_s'))  this.load.image('icon_potion_health_s',  'other/coin.webp');
-    if (!this.textures.exists('icon_potion_health_m'))  this.load.image('icon_potion_health_m',  'other/coin.webp');
-    if (!this.textures.exists('icon_potion_health_l'))  this.load.image('icon_potion_health_l',  'other/coin.webp');
-    if (!this.textures.exists('icon_potion_revive'))    this.load.image('icon_potion_revive',    'other/coin.webp');
-    if (!this.textures.exists('icon_potion_atk'))       this.load.image('icon_potion_atk',       'other/coin.webp');
-    if (!this.textures.exists('icon_potion_def'))       this.load.image('icon_potion_def',       'other/coin.webp');
-    if (!this.textures.exists('icon_potion_speed'))     this.load.image('icon_potion_speed',     'other/coin.webp');
-    if (!this.textures.exists('icon_gold'))           this.load.image('icon_gold',           'other/coin.webp');
-    if (!this.textures.exists('icon_blank_card'))     this.load.image('icon_blank_card',     'other/card.webp');
-    if (!this.textures.exists('icon___gacha__'))      this.load.image('icon___gacha__',      'other/chest2.webp');
+    if (!this.textures.exists('icon_stone_broken')) this.load.image('icon_stone_broken', 'other/ore2.webp');
+    if (!this.textures.exists('icon_stone_intact')) this.load.image('icon_stone_intact', 'other/ore1.webp');
+    if (!this.textures.exists('icon_stone_guard')) this.load.image('icon_stone_guard', 'other/ore3.webp');
+    if (!this.textures.exists('icon_quest_reroll')) this.load.image('icon_quest_reroll', 'other/ore4.webp');
+    if (!this.textures.exists('icon_potion_health_s')) this.load.image('icon_potion_health_s', 'other/coin.webp');
+    if (!this.textures.exists('icon_potion_health_m')) this.load.image('icon_potion_health_m', 'other/coin.webp');
+    if (!this.textures.exists('icon_potion_health_l')) this.load.image('icon_potion_health_l', 'other/coin.webp');
+    if (!this.textures.exists('icon_potion_revive')) this.load.image('icon_potion_revive', 'other/coin.webp');
+    if (!this.textures.exists('icon_potion_atk')) this.load.image('icon_potion_atk', 'other/coin.webp');
+    if (!this.textures.exists('icon_potion_def')) this.load.image('icon_potion_def', 'other/coin.webp');
+    if (!this.textures.exists('icon_potion_speed')) this.load.image('icon_potion_speed', 'other/coin.webp');
+    if (!this.textures.exists('icon_gold')) this.load.image('icon_gold', 'other/coin.webp');
+    if (!this.textures.exists('icon_blank_card')) this.load.image('icon_blank_card', 'other/card.webp');
+    if (!this.textures.exists('icon___gacha__')) this.load.image('icon___gacha__', 'other/chest2.webp');
     if (!this.textures.exists('icon___card_gacha__')) this.load.image('icon___card_gacha__', 'other/chest1.webp');
   }
 
@@ -183,9 +183,9 @@ export class PrepScene extends Phaser.Scene {
     if (NetworkService.connected) {
       NetworkService.onPartnerJoined(data => {
         this._partnerIn = true;
-        this._partnerNick   = data.nickname || this._partnerNick || '?';
-        this._partnerLevel  = data.level    || this._partnerLevel  || 1;
-        this._partnerSkinId = data.skinId   ?? this._partnerSkinId ?? 0;
+        this._partnerNick = data.nickname || this._partnerNick || '?';
+        this._partnerLevel = data.level || this._partnerLevel || 1;
+        this._partnerSkinId = data.skinId ?? this._partnerSkinId ?? 0;
         this.refreshRoomOverlay();
       });
       NetworkService.onPartnerLeft(() => { this._partnerIn = false; this.refreshRoomOverlay(); });
@@ -278,19 +278,19 @@ export class PrepScene extends Phaser.Scene {
   // ── Top bar (wooden beam) ───────────────────────────────
 
   private drawTopBar(W: number): void {
-    const CY    = TOP_H / 2;
-    const AV_R     = P(19);   // avatar radius
+    const CY = TOP_H / 2;
+    const AV_R = P(19);   // avatar radius
     const AV_CX = P(8) + AV_R;
     const AV_CY = CY;
-    const SET_W    = P(36);
+    const SET_W = P(36);
     const SET_X = W - SET_W - P(5);
 
     // Name block width ~90px, then EXP bar fills to settings
     const nameBlockW = P(90);
-    const EXP_X0     = AV_CX + AV_R + P(10) + nameBlockW + P(8);
-    const EXP_X1     = SET_X - P(8);
+    const EXP_X0 = AV_CX + AV_R + P(10) + nameBlockW + P(8);
+    const EXP_X1 = SET_X - P(8);
     const EXP_BAR_H = P(9);
-    const EXP_BAR_Y  = CY + P(9);
+    const EXP_BAR_Y = CY + P(9);
 
     // ── Bar background ────────────────────────────────────
     const gfx = this.add.graphics();
@@ -343,8 +343,8 @@ export class PrepScene extends Phaser.Scene {
     }).setOrigin(0, 0.5);
 
     // ── EXP bar ───────────────────────────────────────────
-    const expBarW   = EXP_X1 - EXP_X0;
-    const expTrack  = this.add.graphics();
+    const expBarW = EXP_X1 - EXP_X0;
+    const expTrack = this.add.graphics();
     // Track shadow
     expTrack.fillStyle(0x000000, 0.5);
     expTrack.fillRoundedRect(EXP_X0, EXP_BAR_Y - EXP_BAR_H / 2 + 1, expBarW, EXP_BAR_H, P(4));
@@ -361,10 +361,10 @@ export class PrepScene extends Phaser.Scene {
     const expFillGfx = this.add.graphics();
 
     // ── Gold badge (below topbar, right-aligned, fixed width) ──
-    const BADGE_W  = P(154);
-    const BADGE_H  = P(28);
-    const BADGE_Y  = TOP_H + P(4);
-    const BADGE_X  = W - BADGE_W - P(4);   // left edge
+    const BADGE_W = P(154);
+    const BADGE_H = P(28);
+    const BADGE_Y = TOP_H + P(4);
+    const BADGE_X = W - BADGE_W - P(4);   // left edge
 
     const goldBg = this.add.graphics().setDepth(5);
     goldBg.fillStyle(0x0e0600, 0.9);
@@ -379,9 +379,9 @@ export class PrepScene extends Phaser.Scene {
     this.add.image(ICON_X, TXT_CY, 'icon_coin').setDisplaySize(P(20), P(20)).setDepth(6);
     this.goldText = this.add.text(ICON_X + P(14), TXT_CY,
       InventoryStore.getGold().toLocaleString(), {
-        fontSize: F(15), fontStyle: 'bold',
-        color: '#f0d090', stroke: '#1a0800', strokeThickness: 2,
-      }).setOrigin(0, 0.5).setDepth(6);
+      fontSize: F(15), fontStyle: 'bold',
+      color: '#f0d090', stroke: '#1a0800', strokeThickness: 2,
+    }).setOrigin(0, 0.5).setDepth(6);
 
     // ── Version badge (left, mirrors gold badge) ──────────
     const verBg = this.add.graphics().setDepth(5);
@@ -410,9 +410,9 @@ export class PrepScene extends Phaser.Scene {
 
     // ── Reactive update ───────────────────────────────────
     const drawExpBar = () => {
-      const cur  = PlayerStore.getExp();
+      const cur = PlayerStore.getExp();
       const need = PlayerStore.expToNext();
-      const pct  = Phaser.Math.Clamp(cur / need, 0, 1);
+      const pct = Phaser.Math.Clamp(cur / need, 0, 1);
 
       expFillGfx.clear();
       if (pct > 0) {
@@ -439,8 +439,8 @@ export class PrepScene extends Phaser.Scene {
 
   private drawBottomNav(W: number, H: number): void {
     const BAR_H = P(78);
-    const barY  = H - BAR_H;
-    const gfx   = this.add.graphics().setDepth(20);
+    const barY = H - BAR_H;
+    const gfx = this.add.graphics().setDepth(20);
 
     // Bar background — two-tone: slightly lighter strip at top
     gfx.fillStyle(0x0e0806, 1);
@@ -459,10 +459,10 @@ export class PrepScene extends Phaser.Scene {
     gfx.fillRect(0, barY + BAR_H - P(6), W, P(6));
 
     // ── Battle button constants (needed for gap calc) ─────
-    const BTN_W    = P(100);
-    const BTN_H    = P(68);
-    const cx       = W / 2;
-    const bcy      = barY + BAR_H / 2;   // centred in bar
+    const BTN_W = P(100);
+    const BTN_H = P(68);
+    const cx = W / 2;
+    const bcy = barY + BAR_H / 2;   // centred in bar
     const CENTER_R = BTN_W / 2 + P(28);   // half of no-draw zone on each side
 
     // ── Platform arch under battle button ─────────────────
@@ -487,16 +487,16 @@ export class PrepScene extends Phaser.Scene {
 
     // ── Nav buttons ──────────────────────────────────────
     const navItems: { label: string; icon: string; accent: number; onClick: () => void }[] = [
-      { label: '裝備', icon: '⚔',  accent: 0xaa88cc,  onClick: () => this.showEquipmentPanel(W, H) },
-      { label: '卡片', icon: '♦',  accent: 0xcc6688,  onClick: () => this.openCardWindow(W, H) },
-      { label: '物品', icon: '⊕',  accent: 0x70b858,  onClick: () => this.showItemPanel(W, H) },
-      { label: '商店', icon: '✦',  accent: 0xd47820,  onClick: () => this.showShopPanel(W, H) },
+      { label: '裝備', icon: '⚔', accent: 0xaa88cc, onClick: () => this.showEquipmentPanel(W, H) },
+      { label: '卡片', icon: '♦', accent: 0xcc6688, onClick: () => this.openCardWindow(W, H) },
+      { label: '物品', icon: '⊕', accent: 0x70b858, onClick: () => this.showItemPanel(W, H) },
+      { label: '商店', icon: '✦', accent: 0xd47820, onClick: () => this.showShopPanel(W, H) },
     ];
 
     // Each side has two buttons occupying the space outside CENTER_R
-    const sideW  = cx - CENTER_R;           // available width per side
-    const slotW  = sideW / 2;
-    const btnH   = BAR_H - P(8);
+    const sideW = cx - CENTER_R;           // available width per side
+    const slotW = sideW / 2;
+    const btnH = BAR_H - P(8);
     const btnSlots = [
       slotW * 0.5,
       slotW * 1.5,
@@ -560,7 +560,7 @@ export class PrepScene extends Phaser.Scene {
         shimmerGfx.fillStyle(0xffffff, 0.04);
         shimmerGfx.fillRect(sx - P(14), EY, P(14), BTN_H);
         shimmerGfx.fillStyle(0xffffff, 0.16);
-        shimmerGfx.fillRect(sx,         EY, P(14), BTN_H);
+        shimmerGfx.fillRect(sx, EY, P(14), BTN_H);
         shimmerGfx.fillStyle(0xffffff, 0.04);
         shimmerGfx.fillRect(sx + P(14), EY, P(14), BTN_H);
       },
@@ -590,14 +590,14 @@ export class PrepScene extends Phaser.Scene {
     battleHit.on('pointerdown', () => {
       this.tweens.killTweensOf([btng, btnCnt]);
       this.tweens.add({ targets: btnCnt, scaleX: 0.88, scaleY: 0.88, alpha: 0.85, duration: 80, ease: 'Sine.easeOut' });
-      this.tweens.add({ targets: btng,   alpha: 0.85, duration: 80 });
+      this.tweens.add({ targets: btng, alpha: 0.85, duration: 80 });
       this.showQuestPanel(W, H);
     });
 
     battleHit.on('pointerup', () => {
       this.tweens.killTweensOf([btng, btnCnt]);
       this.tweens.add({ targets: btnCnt, scaleX: 1, scaleY: 1, alpha: 1, duration: 120, ease: 'Back.easeOut' });
-      this.tweens.add({ targets: btng,   alpha: 1, duration: 120 });
+      this.tweens.add({ targets: btng, alpha: 1, duration: 120 });
     });
 
     // ── Wardrobe button (bottom-left, above nav bar) ─────────
@@ -605,7 +605,7 @@ export class PrepScene extends Phaser.Scene {
     const skinBtnH = P(26);
     const skinBtnX = P(10) + skinBtnW / 2;
     const skinBtnY = barY - P(24);
-    const skinGfx  = this.add.graphics().setDepth(25);
+    const skinGfx = this.add.graphics().setDepth(25);
     const drawSkinBtn = () => {
       skinGfx.clear();
       skinGfx.fillStyle(0x000000, 0.35);
@@ -621,10 +621,10 @@ export class PrepScene extends Phaser.Scene {
     }).setOrigin(0.5).setDepth(26);
 
     const openWardrobePanel = () => {
-      const PD    = 30;
-      const COLS  = 2;
+      const PD = 30;
+      const COLS = 2;
       const CARD_W = P(100), CARD_H = P(110);
-      const GAP   = P(12);
+      const GAP = P(12);
       const panelW = COLS * CARD_W + (COLS + 1) * GAP;
       const panelH = Math.ceil(SKINS.length / COLS) * (CARD_H + GAP) + GAP + P(PD);
       const px = W / 2, py = barY - panelH / 2 - P(8);
@@ -643,10 +643,10 @@ export class PrepScene extends Phaser.Scene {
       wardObjs.push(title);
       const currentSkin = SkinStore.get();
       SKINS.forEach((skin, i) => {
-        const col   = i % COLS;
-        const row   = Math.floor(i / COLS);
-        const cx    = px - panelW / 2 + GAP + col * (CARD_W + GAP) + CARD_W / 2;
-        const cy    = py - panelH / 2 + P(PD) + GAP + row * (CARD_H + GAP) + CARD_H / 2;
+        const col = i % COLS;
+        const row = Math.floor(i / COLS);
+        const cx = px - panelW / 2 + GAP + col * (CARD_W + GAP) + CARD_W / 2;
+        const cy = py - panelH / 2 + P(PD) + GAP + row * (CARD_H + GAP) + CARD_H / 2;
         const isSelected = i === currentSkin;
         const cardGfx = this.add.graphics().setDepth(61);
         const drawCard = (hover: boolean) => {
@@ -669,15 +669,15 @@ export class PrepScene extends Phaser.Scene {
         const hit = this.add.rectangle(cx, cy, CARD_W, CARD_H)
           .setInteractive({ useHandCursor: true }).setDepth(63);
         wardObjs.push(hit);
-        hit.on('pointerover',  () => { if (!isSelected) drawCard(true); });
-        hit.on('pointerout',   () => { if (!isSelected) drawCard(false); });
-        hit.on('pointerdown',  () => {
+        hit.on('pointerover', () => { if (!isSelected) drawCard(true); });
+        hit.on('pointerout', () => { if (!isSelected) drawCard(false); });
+        hit.on('pointerdown', () => {
           wardObjs.forEach(o => o.destroy());
           if (i !== currentSkin) {
             SkinStore.set(i);
             if (this.textures.exists('player_idle_shadow')) this.textures.remove('player_idle_shadow');
-            if (this.anims.exists('player_idle_shadow'))    this.anims.remove('player_idle_shadow');
-            if (this.anims.exists('_lobby_idle'))           this.anims.remove('_lobby_idle');
+            if (this.anims.exists('player_idle_shadow')) this.anims.remove('player_idle_shadow');
+            if (this.anims.exists('_lobby_idle')) this.anims.remove('_lobby_idle');
             this.scene.restart();
           }
         });
@@ -692,13 +692,13 @@ export class PrepScene extends Phaser.Scene {
     this.add.rectangle(skinBtnX, skinBtnY, skinBtnW, skinBtnH)
       .setInteractive({ useHandCursor: true }).setDepth(27)
       .on('pointerdown', () => openWardrobePanel())
-      .on('pointerover',  () => { skinLabel.setColor('#ffe080'); })
-      .on('pointerout',   () => { skinLabel.setColor('#d4a044'); });
+      .on('pointerover', () => { skinLabel.setColor('#ffe080'); })
+      .on('pointerout', () => { skinLabel.setColor('#d4a044'); });
 
     battleHit.on('pointerover', () => {
       this.tweens.killTweensOf([btng, btnCnt]);
       this.tweens.add({ targets: btnCnt, scaleX: 1.08, scaleY: 1.08, alpha: 1, duration: 150, ease: 'Back.easeOut' });
-      this.tweens.add({ targets: btng,   alpha: 1, duration: 150 });
+      this.tweens.add({ targets: btng, alpha: 1, duration: 150 });
     });
 
     battleHit.on('pointerout', () => {
@@ -808,7 +808,7 @@ export class PrepScene extends Phaser.Scene {
   private showQuestPanel(W: number, H: number, baseDepth = 500): void {
     const PW = Math.min(W - P(16), P(500));
     const PH = Math.min(H - P(20), P(370));
-    const D  = baseDepth;
+    const D = baseDepth;
 
     const panelX = (W - PW) / 2;
     const panelY = (H - PH) / 2;
@@ -822,7 +822,7 @@ export class PrepScene extends Phaser.Scene {
     objs.push(backdrop);
     backdrop.on('pointerdown', (ptr: Phaser.Input.Pointer) => {
       if (ptr.x < panelX || ptr.x > panelX + PW ||
-          ptr.y < panelY || ptr.y > panelY + PH) closeAll();
+        ptr.y < panelY || ptr.y > panelY + PH) closeAll();
     });
 
     // ── Panel shell ───────────────────────────────────────
@@ -888,8 +888,8 @@ export class PrepScene extends Phaser.Scene {
 
     // Reroll stone count — 左側 header，不壓到右邊叉叉
     const ticketQty = InventoryStore.getItemQty('quest_reroll');
-    const rerollY   = panelY + P(22);
-    const rerollX   = panelX + P(12);
+    const rerollY = panelY + P(22);
+    const rerollX = panelX + P(12);
     if (this.textures.exists('icon_quest_reroll')) {
       objs.push(this.add.image(rerollX + P(14), rerollY, 'icon_quest_reroll')
         .setDisplaySize(P(28), P(28)).setDepth(D + 2));
@@ -900,32 +900,32 @@ export class PrepScene extends Phaser.Scene {
     }).setOrigin(0, 0.5).setDepth(D + 2));
 
     // ── 3 Bounty cards ───────────────────────────────────
-    const quests    = QuestStore.getQuests();
-    const GAP       = P(12);
+    const quests = QuestStore.getQuests();
+    const GAP = P(12);
     const cardAreaX = panelX + P(12);
     const cardAreaY = panelY + P(52);
     const cardAreaW = PW - P(24);
-    const CARD_W    = Math.floor((cardAreaW - GAP * 2) / 3);
-    const CARD_H    = PH - P(64);
+    const CARD_W = Math.floor((cardAreaW - GAP * 2) / 3);
+    const CARD_H = PH - P(64);
 
     const renderCard = (quest: Quest, idx: number) => {
-      const cx     = cardAreaX + idx * (CARD_W + GAP);
-      const def    = getMonsterDef(quest.bossId);
+      const cx = cardAreaX + idx * (CARD_W + GAP);
+      const def = getMonsterDef(quest.bossId);
       const status = quest.status;
       const dimmed = status === 'claimed';
       const canDismiss = status !== 'completed';
 
       // Layout
-      const BANNER_H   = P(32);
-      const CIRCLE_Y   = cardAreaY + BANNER_H + P(50);
+      const BANNER_H = P(32);
+      const CIRCLE_Y = cardAreaY + BANNER_H + P(50);
       const CIRCLE_R = P(38);
-      const NAME_Y     = CIRCLE_Y + CIRCLE_R + P(14);
-      const DIV_Y      = NAME_Y + P(17);
+      const NAME_Y = CIRCLE_Y + CIRCLE_R + P(14);
+      const DIV_Y = NAME_Y + P(17);
       const FLAVOR_TOP = DIV_Y + P(7);
-      const FLAVOR_H   = CARD_H - (FLAVOR_TOP - cardAreaY) - P(76);
-      const GOLD_Y     = cardAreaY + CARD_H - P(52);
-      const BTN_Y      = cardAreaY + CARD_H - P(22);
-      const BTN_H      = P(24);
+      const FLAVOR_H = CARD_H - (FLAVOR_TOP - cardAreaY) - P(76);
+      const GOLD_Y = cardAreaY + CARD_H - P(52);
+      const BTN_Y = cardAreaY + CARD_H - P(22);
+      const BTN_H = P(24);
 
       const cg = this.add.graphics().setDepth(D + 2);
       objs.push(cg);
@@ -973,7 +973,7 @@ export class PrepScene extends Phaser.Scene {
       // ── Dismiss X (top-right of card) ──
       if (canDismiss) {
         const hasTicket = InventoryStore.getItemQty('quest_reroll') > 0;
-        const xColor    = hasTicket ? '#ff6666' : '#554433';
+        const xColor = hasTicket ? '#ff6666' : '#554433';
         const xTxt = this.add.text(cx + CARD_W - P(6), cardAreaY + P(6), '✕', {
           fontSize: F(15), fontStyle: 'bold', color: xColor, stroke: '#000000', strokeThickness: 2,
         }).setOrigin(1, 0).setDepth(D + 5);
@@ -981,7 +981,7 @@ export class PrepScene extends Phaser.Scene {
         if (hasTicket) {
           xTxt.setInteractive({ hitArea: new Phaser.Geom.Rectangle(-P(32), -P(4), P(44), P(44)), hitAreaCallback: Phaser.Geom.Rectangle.Contains, useHandCursor: true });
           xTxt.on('pointerover', () => xTxt.setColor('#ffffff'));
-          xTxt.on('pointerout',  () => xTxt.setColor(xColor));
+          xTxt.on('pointerout', () => xTxt.setColor(xColor));
           xTxt.on('pointerdown', () => {
             InventoryStore.spendItem('quest_reroll', 1);
             if (status === 'accepted') QuestStore.abandonQuest(quest.id);
@@ -1006,11 +1006,11 @@ export class PrepScene extends Phaser.Scene {
       cg.strokeCircle(cx + CARD_W / 2, CIRCLE_Y, CIRCLE_R - P(5));
 
       // Boss sprite
-      const spriteKey   = def ? `${def.spriteKey}_idle` : 'slime_idle';
+      const spriteKey = def ? `${def.spriteKey}_idle` : 'slime_idle';
       const isPlantBoss = def?.spriteKey?.startsWith('plant');
-      const idleFrames  = isPlantBoss ? 3 : 5;   // plant idle = 4 frames (0-3), slime = 6 (0-5)
-      const bossScale   = isPlantBoss ? 3.0 * DPR * 0.8 : 3.0 * DPR;
-      const animKey     = `q_${quest.bossId}`;
+      const idleFrames = isPlantBoss ? 3 : 5;   // plant idle = 4 frames (0-3), slime = 6 (0-5)
+      const bossScale = isPlantBoss ? 3.0 * DPR * 0.8 : 3.0 * DPR;
+      const animKey = `q_${quest.bossId}`;
       if (!this.anims.exists(animKey) && this.textures.exists(spriteKey)) {
         this.anims.create({
           key: animKey,
@@ -1119,9 +1119,9 @@ export class PrepScene extends Phaser.Scene {
       const btnX = cx + CARD_W / 2;
 
       {
-        let bgC  = 0x1a3a0c, ltC  = 0x44cc22, txtC = '#88ee44', label = '接  受';
+        let bgC = 0x1a3a0c, ltC = 0x44cc22, txtC = '#88ee44', label = '接  受';
         if (status === 'completed') { bgC = 0x382000; ltC = 0xddaa00; txtC = '#ffdd44'; label = '領  取'; }
-        if (status === 'claimed')   { bgC = 0x1c1810; ltC = 0x554433; txtC = '#665544'; label = '已領取'; }
+        if (status === 'claimed') { bgC = 0x1c1810; ltC = 0x554433; txtC = '#665544'; label = '已領取'; }
 
         const bg2 = this.add.graphics().setDepth(D + 3);
         objs.push(bg2);
@@ -1158,9 +1158,9 @@ export class PrepScene extends Phaser.Scene {
     // ── Star probability panel (right of quest board) ─────
     const spW = (W - PW) / 2 - P(12);
     if (spW >= P(55)) {
-      const spX  = panelX + PW + P(6);
-      const spY  = panelY;
-      const spH  = PH;
+      const spX = panelX + PW + P(6);
+      const spY = panelY;
+      const spH = PH;
       const spBg = this.add.graphics().setDepth(D + 1);
       objs.push(spBg);
       spBg.fillStyle(0x000000, 0.5);
@@ -1175,16 +1175,16 @@ export class PrepScene extends Phaser.Scene {
         stroke: '#2a1000', strokeThickness: 2,
       }).setOrigin(0.5).setDepth(D + 2));
 
-      const weights  = getStarWeights(PlayerStore.getLevel());
-      const total    = Object.values(weights).reduce((s, w) => s + w, 0);
+      const weights = getStarWeights(PlayerStore.getLevel());
+      const total = Object.values(weights).reduce((s, w) => s + w, 0);
       const starChar = ['★', '★★', '★★★', '★★★★', '★★★★★'];
-      const rowH     = (spH - P(38)) / 5;
+      const rowH = (spH - P(38)) / 5;
 
       for (let i = 0; i < 5; i++) {
         const star = i + 1;
-        const pct  = total > 0 ? weights[star] / total : 0;
-        const ry   = spY + P(36) + i * rowH;
-        const pad  = P(5);
+        const pct = total > 0 ? weights[star] / total : 0;
+        const ry = spY + P(36) + i * rowH;
+        const pad = P(5);
         const barW = spW - pad * 2;
         const barH = P(7);
 
@@ -1250,7 +1250,7 @@ export class PrepScene extends Phaser.Scene {
         bgCol: number, ltCol: number,
       ) => {
         gfx.fillStyle(0x000000, 0.35); gfx.fillRect(bx + P(2), by + P(2), bw, bh);
-        gfx.fillStyle(bgCol, 1);       gfx.fillRect(bx, by, bw, bh);
+        gfx.fillStyle(bgCol, 1); gfx.fillRect(bx, by, bw, bh);
         gfx.fillStyle(0xffffff, 0.14); gfx.fillRect(bx, by, bw, P(3));
         gfx.lineStyle(1.5, ltCol, 0.9); gfx.strokeRect(bx, by, bw, bh);
       };
@@ -1296,7 +1296,7 @@ export class PrepScene extends Phaser.Scene {
 
       const CARD_W = P(155);
       const CARD_H = P(255);
-      const GAP    = P(10);
+      const GAP = P(10);
       const MW = CARD_W * 3 + GAP * 4;
       const MH = CARD_H + P(44) + GAP * 2;
       const mx = W / 2 - MW / 2;
@@ -1335,7 +1335,7 @@ export class PrepScene extends Phaser.Scene {
         const cx = mx + GAP + idx * (CARD_W + GAP);
         const cy = my + P(44) + GAP;
         const qColor = QUALITY_COLORS[item.quality];
-        const qHex   = '#' + qColor.toString(16).padStart(6, '0');
+        const qHex = '#' + qColor.toString(16).padStart(6, '0');
 
         // Card bg
         const rg = this.add.graphics().setDepth(MD + 2);
@@ -1377,8 +1377,8 @@ export class PrepScene extends Phaser.Scene {
 
         // Affixes
         const affixLines = item.affixes.map(a => {
-          const isPct = ['crit','atkSpeed','lifesteal','evasion'].includes(a.stat);
-          return `${STAT_NAMES[a.stat]} +${isPct ? (a.value*100).toFixed(2)+'%' : a.value}`;
+          const isPct = ['crit', 'atkSpeed', 'lifesteal', 'evasion'].includes(a.stat);
+          return `${STAT_NAMES[a.stat]} +${isPct ? (a.value * 100).toFixed(2) + '%' : a.value}`;
         });
         if (item.behavior) affixLines.push(BEHAVIOR_NAMES[item.behavior]);
         mo.push(this.add.text(cx + CARD_W / 2, cy + P(146), affixLines.join('\n'), {
@@ -1392,8 +1392,8 @@ export class PrepScene extends Phaser.Scene {
         const hit = this.add.rectangle(cx + CARD_W / 2, cy + CARD_H / 2, CARD_W, CARD_H)
           .setInteractive({ useHandCursor: true }).setDepth(MD + 5);
         mo.push(hit);
-        hit.on('pointerover',  () => drawCard(true));
-        hit.on('pointerout',   () => drawCard(false));
+        hit.on('pointerover', () => drawCard(true));
+        hit.on('pointerout', () => drawCard(false));
         hit.on('pointerdown', () => {
           PlayerStore.addOwned(item);
           QuestStore.claimQuest(quest.id);
@@ -1422,14 +1422,14 @@ export class PrepScene extends Phaser.Scene {
   private showEquipmentPanel(W: number, H: number): void {
     const PW = Math.min(W - P(16), P(640));
     const PH = Math.min(H - P(16), P(560));
-    const D  = 500;
+    const D = 500;
 
     const container = this.add.container(W / 2, H / 2).setDepth(D);
 
     const backdrop = this.add.rectangle(0, 0, W, H, 0x000000, 0.78).setInteractive();
     backdrop.on('pointerdown', (ptr: Phaser.Input.Pointer) => {
       if (ptr.x < W / 2 - PW / 2 || ptr.x > W / 2 + PW / 2 ||
-          ptr.y < H / 2 - PH / 2 || ptr.y > H / 2 + PH / 2) {
+        ptr.y < H / 2 - PH / 2 || ptr.y > H / 2 + PH / 2) {
         PlayerStore.offChange(onStoreChange);
         container.destroy();
       }
@@ -1442,11 +1442,11 @@ export class PrepScene extends Phaser.Scene {
     // Panel shell
     const bg = this.add.graphics();
     bg.fillStyle(IRON, 1); bg.fillRect(px - P(3), py - P(3), PW + P(6), PH + P(6));
-    bg.fillStyle(WL,   1); bg.fillRect(px - P(2), py - P(2), PW + P(4), PH + P(4));
-    bg.fillStyle(WD,   1); bg.fillRect(px, py, PW, PH);
+    bg.fillStyle(WL, 1); bg.fillRect(px - P(2), py - P(2), PW + P(4), PH + P(4));
+    bg.fillStyle(WD, 1); bg.fillRect(px, py, PW, PH);
     for (let row = 1; row < Math.ceil(PH / P(24)); row++) {
       const ry = py + row * P(24);
-      bg.lineStyle(1, WB, 0.5);  bg.lineBetween(px + P(2), ry, px + PW - P(2), ry);
+      bg.lineStyle(1, WB, 0.5); bg.lineBetween(px + P(2), ry, px + PW - P(2), ry);
       bg.lineStyle(1, WH, 0.08); bg.lineBetween(px + P(2), ry + 1, px + PW - P(2), ry + 1);
     }
     [[px, py], [px + PW - P(8), py], [px, py + PH - P(8)], [px + PW - P(8), py + PH - P(8)]]
@@ -1456,7 +1456,7 @@ export class PrepScene extends Phaser.Scene {
       });
     bg.fillStyle(WB, 0.9); bg.fillRect(px, py, PW, P(42));
     bg.fillStyle(WH, 0.4); bg.fillRect(px, py + P(40), PW, P(2));
-    bg.fillStyle(WB, 1);   bg.fillRect(px, py + P(42), PW, 1);
+    bg.fillStyle(WB, 1); bg.fillRect(px, py + P(42), PW, 1);
     container.add(bg);
 
     container.add(this.add.text(0, py + P(21), '裝  備', {
@@ -1478,36 +1478,36 @@ export class PrepScene extends Phaser.Scene {
 
     // ── Slot definitions ──────────────────────────────────
     const slotDefs: { label: string; color: number; slotKey: EquipSlot }[] = [
-      { label: '武器', color: 0xdd8844, slotKey: 'sword'  },
-      { label: '頭盔', color: 0xddcc88, slotKey: 'hat'    },
+      { label: '武器', color: 0xdd8844, slotKey: 'sword' },
+      { label: '頭盔', color: 0xddcc88, slotKey: 'hat' },
       { label: '衣服', color: 0x88aadd, slotKey: 'outfit' },
-      { label: '鞋子', color: 0xaa8866, slotKey: 'shoes'  },
-      { label: '飾品1', color: 0xff88cc, slotKey: 'ring1'  },
-      { label: '飾品2', color: 0xff66aa, slotKey: 'ring2'  },
+      { label: '鞋子', color: 0xaa8866, slotKey: 'shoes' },
+      { label: '飾品1', color: 0xff88cc, slotKey: 'ring1' },
+      { label: '飾品2', color: 0xff66aa, slotKey: 'ring2' },
     ];
     const tabDefs: { label: string; color: number; slotKeys: EquipSlot[] }[] = [
-      { label: '武器', color: 0xdd8844, slotKeys: ['sword']         },
-      { label: '頭盔', color: 0xddcc88, slotKeys: ['hat']           },
-      { label: '衣服', color: 0x88aadd, slotKeys: ['outfit']        },
-      { label: '鞋子', color: 0xaa8866, slotKeys: ['shoes']         },
+      { label: '武器', color: 0xdd8844, slotKeys: ['sword'] },
+      { label: '頭盔', color: 0xddcc88, slotKeys: ['hat'] },
+      { label: '衣服', color: 0x88aadd, slotKeys: ['outfit'] },
+      { label: '鞋子', color: 0xaa8866, slotKeys: ['shoes'] },
       { label: '飾品', color: 0xff88cc, slotKeys: ['ring1', 'ring2'] },
     ];
 
     // ── 裝備格子：3 欄 × 2 列 ────────────────────────────
-    const slotSz   = P(76);
-    const slotGap  = P(8);
-    const ECOLS    = 3;
-    const EROWS    = 2;
-    const eGridX  = px + P(12);
-    const eGridY  = py + P(50);
-    const eGridH  = EROWS * slotSz + (EROWS - 1) * slotGap;
+    const slotSz = P(76);
+    const slotGap = P(8);
+    const ECOLS = 3;
+    const EROWS = 2;
+    const eGridX = px + P(12);
+    const eGridY = py + P(50);
+    const eGridH = EROWS * slotSz + (EROWS - 1) * slotGap;
 
     // ── 人物屬性區（裝備格下方，左欄同寬）───────────────
-    const eGridW  = ECOLS * slotSz + (ECOLS - 1) * slotGap;
-    const statsX  = eGridX;
-    const statsY  = eGridY + eGridH + P(10);
-    const statsW  = eGridW;
-    const statsH  = P(140);
+    const eGridW = ECOLS * slotSz + (ECOLS - 1) * slotGap;
+    const statsX = eGridX;
+    const statsY = eGridY + eGridH + P(10);
+    const statsW = eGridW;
+    const statsH = P(140);
 
     // ── 右欄（清單區）────────────────────────────────────
     const rightColX = eGridX + eGridW + P(26);
@@ -1531,10 +1531,10 @@ export class PrepScene extends Phaser.Scene {
       onClick: () => void,
     ) => {
       const g = this.add.graphics();
-      g.fillStyle(bgClr, 1);         g.fillRect(cx - bw / 2, cy - bh / 2, bw, bh);
-      g.fillStyle(borderClr, 0.12);  g.fillRect(cx - bw / 2, cy - bh / 2, bw, bh);
+      g.fillStyle(bgClr, 1); g.fillRect(cx - bw / 2, cy - bh / 2, bw, bh);
+      g.fillStyle(borderClr, 0.12); g.fillRect(cx - bw / 2, cy - bh / 2, bw, bh);
       g.lineStyle(2, borderClr, 0.85); g.strokeRect(cx - bw / 2, cy - bh / 2, bw, bh);
-      g.fillStyle(borderClr, 0.35);  g.fillRect(cx - bw / 2, cy - bh / 2, bw, 2);
+      g.fillStyle(borderClr, 0.35); g.fillRect(cx - bw / 2, cy - bh / 2, bw, 2);
       det.add(g);
       const t = this.add.text(cx, cy, label, {
         fontSize: F(15), fontStyle: 'bold', color: txtClr, stroke: '#1a0800', strokeThickness: 2,
@@ -1556,10 +1556,10 @@ export class PrepScene extends Phaser.Scene {
       const descH = probe.height;
       probe.destroy();
 
-      const titleH    = P(48);
-      const sepGap    = P(14);
-      const formulaH  = P(28) + info.formula.length * P(20);
-      const statsH    = P(28) + Math.ceil(info.relatedStats.length / 2) * P(22);
+      const titleH = P(48);
+      const sepGap = P(14);
+      const formulaH = P(28) + info.formula.length * P(20);
+      const statsH = P(28) + Math.ceil(info.relatedStats.length / 2) * P(22);
       const closeBtnH = P(44);
       const mh = titleH + descH + sepGap + P(14) + formulaH + P(12) + statsH + closeBtnH;
       const mx = W / 2 - mw / 2;
@@ -1622,14 +1622,14 @@ export class PrepScene extends Phaser.Scene {
         atkSpeed: 0x227744, speed: 0x225588, lifesteal: 0x883344, evasion: 0x557722,
       };
       info.relatedStats.forEach(({ stat, note }, i) => {
-        const col  = i % 2;
-        const row  = Math.floor(i / 2);
-        const tx   = mx + P(16) + col * ((mw - P(32)) / 2);
-        const ty   = statsY + P(26) + row * P(22);
+        const col = i % 2;
+        const row = Math.floor(i / 2);
+        const tx = mx + P(16) + col * ((mw - P(32)) / 2);
+        const ty = statsY + P(26) + row * P(22);
         const tagW = (mw - P(40)) / 2;
         const tagH = P(18);
         const tagG = s(this.add.graphics().setDepth(D + 2));
-        const c    = STAT_TAG_COLORS[stat] ?? 0x444444;
+        const c = STAT_TAG_COLORS[stat] ?? 0x444444;
         tagG.fillStyle(c, 0.25); tagG.fillRoundedRect(tx, ty, tagW, tagH, P(4));
         tagG.lineStyle(P(1), c, 0.6); tagG.strokeRoundedRect(tx, ty, tagW, tagH, P(4));
         s(this.add.text(tx + tagW / 2, ty + tagH / 2, `${STAT_NAMES[stat]}  ${note}`, {
@@ -1656,26 +1656,26 @@ export class PrepScene extends Phaser.Scene {
       const es = <T extends Phaser.GameObjects.GameObject>(o: T): T => { eo.push(o); return o; };
       const closeEnhance = () => { eo.forEach(o => o.destroy()); onClose(); };
 
-      const isPct  = (stat: string) => ['crit','atkSpeed','lifesteal','evasion','critDmg','dotBonus'].includes(stat);
+      const isPct = (stat: string) => ['crit', 'atkSpeed', 'lifesteal', 'evasion', 'critDmg', 'dotBonus'].includes(stat);
       const fmtVal = (stat: string, val: number) => isPct(stat) ? (val * 100).toFixed(2) + '%' : String(val);
       const fmtGain = (stat: string, gain: number) => isPct(stat) ? `+${(gain * 100).toFixed(2)}%` : `+${gain}`;
 
       let useComplete = false;
-      let useGuard    = false;
+      let useGuard = false;
 
-      const TITLE_H    = P(44);
-      const LEVEL_H    = P(38);
-      const AFFIX_ROW  = P(24);
-      const BEH_ROW    = item.behavior ? P(24) : 0;
+      const TITLE_H = P(44);
+      const LEVEL_H = P(38);
+      const AFFIX_ROW = P(24);
+      const BEH_ROW = item.behavior ? P(24) : 0;
       const STONE_IN_H = P(22);   // 破損強化石持有行
-      const INFO_H     = P(24);   // 成功率 + 消耗行
-      const STONE_ROW  = P(26);
-      const HINT_H     = P(18);   // 按鈕上方提示
-      const BTN_H      = P(42);
-      const RESULT_H   = P(28);
-      const PAD        = P(10);
+      const INFO_H = P(24);   // 成功率 + 消耗行
+      const STONE_ROW = P(26);
+      const HINT_H = P(18);   // 按鈕上方提示
+      const BTN_H = P(42);
+      const RESULT_H = P(28);
+      const PAD = P(10);
       const mh = TITLE_H + LEVEL_H + PAD + item.affixes.length * AFFIX_ROW + BEH_ROW +
-                 PAD + STONE_IN_H + INFO_H + STONE_ROW * 2 + PAD + HINT_H + BTN_H + RESULT_H + PAD;
+        PAD + STONE_IN_H + INFO_H + STONE_ROW * 2 + PAD + HINT_H + BTN_H + RESULT_H + PAD;
       const mx = W / 2 - mw / 2;
       const my = H / 2 - mh / 2;
 
@@ -1723,56 +1723,56 @@ export class PrepScene extends Phaser.Scene {
       }
 
       // ── 資訊區 ─────────────────────────────────────────
-      const infoBase  = affixStartY + item.affixes.length * AFFIX_ROW + BEH_ROW + PAD;
+      const infoBase = affixStartY + item.affixes.length * AFFIX_ROW + BEH_ROW + PAD;
 
       // 列1：破損強化石持有數（左側 ◆ 圖示 + 顏色提示）
-      const stoneInY  = infoBase + STONE_IN_H / 2;
-      const stoneTxt  = es(this.add.text(mx + P(10), stoneInY, '', {
+      const stoneInY = infoBase + STONE_IN_H / 2;
+      const stoneTxt = es(this.add.text(mx + P(10), stoneInY, '', {
         fontSize: F(15), fontStyle: 'bold', color: '#ffcc66', stroke: '#1a0800', strokeThickness: 1,
       }).setOrigin(0, 0.5).setDepth(ED + 2));
 
       // 列2：成功率 | 消耗 N 顆
-      const infoY    = infoBase + STONE_IN_H + INFO_H / 2;
-      const rateTxt  = es(this.add.text(mx + P(10), infoY, '', {
+      const infoY = infoBase + STONE_IN_H + INFO_H / 2;
+      const rateTxt = es(this.add.text(mx + P(10), infoY, '', {
         fontSize: F(15), fontStyle: 'bold', color: '#aaccff', stroke: '#1a0800', strokeThickness: 1,
       }).setOrigin(0, 0.5).setDepth(ED + 2));
-      const costTxt  = es(this.add.text(mx + mw - P(10), infoY, '', {
+      const costTxt = es(this.add.text(mx + mw - P(10), infoY, '', {
         fontSize: F(15), fontStyle: 'bold', color: '#ffdd66', stroke: '#1a0800', strokeThickness: 1,
       }).setOrigin(1, 0.5).setDepth(ED + 2));
 
       // ── 石頭 toggle 行 ──────────────────────────────────
       const stoneBase = infoBase + STONE_IN_H + INFO_H;
 
-      const cmpY    = stoneBase + STONE_ROW / 2;
+      const cmpY = stoneBase + STONE_ROW / 2;
       const cmpChkG = es(this.add.graphics().setDepth(ED + 2));
       const cmpChkT = es(this.add.text(mx + P(15), cmpY, '', {
         fontSize: F(15), fontStyle: 'bold', color: '#44ff88', stroke: '#000', strokeThickness: 1,
       }).setOrigin(0.5).setDepth(ED + 3));
-      const cmpLbl  = es(this.add.text(mx + P(28), cmpY, '', {
+      const cmpLbl = es(this.add.text(mx + P(28), cmpY, '', {
         fontSize: F(15), fontStyle: 'bold', color: '#ccbbaa', stroke: '#1a0800', strokeThickness: 1,
       }).setOrigin(0, 0.5).setDepth(ED + 2));
-      const cmpHit  = es(this.add.rectangle(W / 2, cmpY, mw - P(20), STONE_ROW - P(4)).setDepth(ED + 4));
+      const cmpHit = es(this.add.rectangle(W / 2, cmpY, mw - P(20), STONE_ROW - P(4)).setDepth(ED + 4));
 
-      const grdY    = stoneBase + STONE_ROW + STONE_ROW / 2;
+      const grdY = stoneBase + STONE_ROW + STONE_ROW / 2;
       const grdChkG = es(this.add.graphics().setDepth(ED + 2));
       const grdChkT = es(this.add.text(mx + P(15), grdY, '', {
         fontSize: F(15), fontStyle: 'bold', color: '#ffaa44', stroke: '#000', strokeThickness: 1,
       }).setOrigin(0.5).setDepth(ED + 3));
-      const grdLbl  = es(this.add.text(mx + P(28), grdY, '', {
+      const grdLbl = es(this.add.text(mx + P(28), grdY, '', {
         fontSize: F(15), fontStyle: 'bold', color: '#ccbbaa', stroke: '#1a0800', strokeThickness: 1,
       }).setOrigin(0, 0.5).setDepth(ED + 2));
-      const grdHit  = es(this.add.rectangle(W / 2, grdY, mw - P(20), STONE_ROW - P(4)).setDepth(ED + 4));
+      const grdHit = es(this.add.rectangle(W / 2, grdY, mw - P(20), STONE_ROW - P(4)).setDepth(ED + 4));
 
       // ── 按鈕上方提示 ──────────────────────────────────
-      const hintY   = stoneBase + STONE_ROW * 2 + PAD + HINT_H / 2;
+      const hintY = stoneBase + STONE_ROW * 2 + PAD + HINT_H / 2;
       const hintTxt = es(this.add.text(W / 2, hintY, '', {
         fontSize: F(15), fontStyle: 'bold', color: '#e8c070', stroke: '#1a0800', strokeThickness: 2,
       }).setOrigin(0.5).setDepth(ED + 2));
 
       // ── 強化按鈕 ──────────────────────────────────────
-      const bx   = mx + P(12);
+      const bx = mx + P(12);
       const btnY = stoneBase + STONE_ROW * 2 + PAD + HINT_H;
-      const bw   = mw - P(24);
+      const bw = mw - P(24);
       const btnG = es(this.add.graphics().setDepth(ED + 2));
       const drawEnhBtn = (enabled: boolean) => {
         btnG.clear();
@@ -1800,22 +1800,22 @@ export class PrepScene extends Phaser.Scene {
 
       // ── Refresh ───────────────────────────────────────
       const refresh = () => {
-        const lv    = item.enhancement;
+        const lv = item.enhancement;
         const maxed = lv >= ENHANCE_MAX;
-        const base  = maxed ? 0 : ENHANCE_RATE[lv];
-        const rate  = Math.min(1, base + (useComplete ? ENHANCE_COMPLETE_BONUS : 0));
+        const base = maxed ? 0 : ENHANCE_RATE[lv];
+        const rate = Math.min(1, base + (useComplete ? ENHANCE_COMPLETE_BONUS : 0));
 
         levelTxt.setText(`+${lv}${!maxed ? `  →  +${lv + 1}` : '  （最高）'}`);
         levelTxt.setColor(lv >= ENHANCE_DEMOTE_FROM ? '#ff9966' : '#ffe066');
         item.affixes.forEach((a, i) => valTexts[i]?.setText(fmtVal(a.stat, a.value)));
 
         // 破損強化石：持有數 + 本次消耗
-        const brokenQty  = InventoryStore.getItemQty('stone_broken');
+        const brokenQty = InventoryStore.getItemQty('stone_broken');
         const needStones = !maxed ? ENHANCE_COST[lv] : 0;
-        const enoughBrk  = brokenQty >= needStones;
+        const enoughBrk = brokenQty >= needStones;
         stoneTxt.setText(
           maxed ? `◆ 破損強化石  持有 ${brokenQty} 顆`
-                : `◆ 破損強化石  持有 ${brokenQty} 顆  消耗 ${needStones} 顆`
+            : `◆ 破損強化石  持有 ${brokenQty} 顆  消耗 ${needStones} 顆`
         );
         stoneTxt.setColor(enoughBrk ? '#ffcc66' : '#ff6666');
 
@@ -1836,7 +1836,7 @@ export class PrepScene extends Phaser.Scene {
 
         // 完整強化石：持有數 + 消耗說明
         const intactQty = InventoryStore.getItemQty('stone_intact');
-        const canCmp    = !maxed && intactQty > 0;
+        const canCmp = !maxed && intactQty > 0;
         cmpChkG.clear();
         cmpChkG.fillStyle(useComplete ? 0x1a4428 : 0x1a1208, 1);
         cmpChkG.lineStyle(1, useComplete ? 0x44cc88 : 0x554433, 1);
@@ -1850,8 +1850,8 @@ export class PrepScene extends Phaser.Scene {
 
         // 防退石：持有數 + 消耗說明（失敗時才消耗）
         const guardQty = InventoryStore.getItemQty('stone_guard');
-        const canGrd   = !maxed && lv >= ENHANCE_DEMOTE_FROM && guardQty > 0;
-        const showGrd  = !maxed && lv >= ENHANCE_DEMOTE_FROM;
+        const canGrd = !maxed && lv >= ENHANCE_DEMOTE_FROM && guardQty > 0;
+        const showGrd = !maxed && lv >= ENHANCE_DEMOTE_FROM;
         grdChkG.clear();
         grdChkG.fillStyle(useGuard ? 0x3a2208 : 0x1a1208, 1);
         grdChkG.lineStyle(1, useGuard ? 0xcc7722 : 0x554433, 1);
@@ -1889,7 +1889,7 @@ export class PrepScene extends Phaser.Scene {
 
       btnHit.on('pointerdown', () => {
         clearGainTexts();   // 每次按下清除上次的加成提示
-        const lv   = item.enhancement;
+        const lv = item.enhancement;
         if (lv >= ENHANCE_MAX) return;
         const cost = ENHANCE_COST[lv];
         if (InventoryStore.getItemQty('stone_broken') < cost) {
@@ -1904,12 +1904,12 @@ export class PrepScene extends Phaser.Scene {
 
         if (Math.random() < rate) {
           const beforeVals = item.affixes.map(a => a.value);
-          const boosted    = applyEnhancement(item);
+          const boosted = applyEnhancement(item);
           PlayerStore.notify(); SaveStore.save(); refresh();
           playFlash(0x00cc55);
           for (const idx of boosted) {
             const gain = item.affixes[idx].value - beforeVals[idx];
-            const gy   = affixStartY + idx * AFFIX_ROW + AFFIX_ROW / 2;
+            const gy = affixStartY + idx * AFFIX_ROW + AFFIX_ROW / 2;
             // 浮動文字：從詞綴上方飄起消失
             const ft = es(this.add.text(W / 2, gy, fmtGain(item.affixes[idx].stat, gain), {
               fontSize: F(15), fontStyle: 'bold', color: '#aaffcc',
@@ -1960,8 +1960,8 @@ export class PrepScene extends Phaser.Scene {
       container.add(det);
 
       const areaTop = rightColTop;
-      const areaH   = py + PH - areaTop - P(6);
-      const rcx     = rightColX + rightColW / 2;   // centre of right column
+      const areaH = py + PH - areaTop - P(6);
+      const rcx = rightColX + rightColW / 2;   // centre of right column
 
       const detBg = this.add.graphics();
       detBg.fillStyle(WD, 0.98); detBg.fillRect(rightColX - P(4), areaTop, rightColW + P(8), areaH);
@@ -1998,7 +1998,7 @@ export class PrepScene extends Phaser.Scene {
       }
       const statParts: string[] = [];
       item.affixes.forEach(a => {
-        const isPct = ['crit','atkSpeed','lifesteal','evasion'].includes(a.stat);
+        const isPct = ['crit', 'atkSpeed', 'lifesteal', 'evasion'].includes(a.stat);
         statParts.push(`${STAT_NAMES[a.stat]} +${isPct ? (a.value * 100).toFixed(2) + '%' : a.value}`);
       });
       det.add(this.add.text(rightColX + P(72), statOffsetY, statParts.join('\n'), {
@@ -2008,7 +2008,7 @@ export class PrepScene extends Phaser.Scene {
 
       const dg = this.add.graphics();
       const statBlockH = (item.behavior ? 1 : 0) * P(18) + statParts.length * P(18) + P(12);
-      dg.fillStyle(WB, 1);   dg.fillRect(rightColX, areaTop + P(50) + statBlockH, rightColW, 1);
+      dg.fillStyle(WB, 1); dg.fillRect(rightColX, areaTop + P(50) + statBlockH, rightColW, 1);
       dg.fillStyle(WH, 0.3); dg.fillRect(rightColX, areaTop + P(51) + statBlockH, rightColW, 1);
       det.add(dg);
 
@@ -2038,10 +2038,10 @@ export class PrepScene extends Phaser.Scene {
       topSlotsLayer.removeAll(true);
       const eq = PlayerStore.getEquipped();
       slotDefs.forEach((s, i) => {
-        const col  = i % ECOLS;
-        const row  = Math.floor(i / ECOLS);
-        const sx   = eGridX + col * (slotSz + slotGap);
-        const sy   = eGridY + row * (slotSz + slotGap);
+        const col = i % ECOLS;
+        const row = Math.floor(i / ECOLS);
+        const sx = eGridX + col * (slotSz + slotGap);
+        const sy = eGridY + row * (slotSz + slotGap);
         const item = eq[s.slotKey];
 
         const qColor = item ? (QUALITY_COLORS[item.quality] ?? GOLD) : WL;
@@ -2085,7 +2085,7 @@ export class PrepScene extends Phaser.Scene {
     // ── buildStats：人物屬性（全寬 2列×3欄）──────────────────
     const buildStats = () => {
       statsLayer.removeAll(true);
-      const s  = CardStore.getTotalStats();
+      const s = CardStore.getTotalStats();
 
       const sg = this.add.graphics();
       sg.fillStyle(WD, 0.55); sg.fillRect(statsX, statsY, statsW, statsH);
@@ -2098,15 +2098,15 @@ export class PrepScene extends Phaser.Scene {
       }).setOrigin(0.5));
 
       const allRows = [
-        [{ label: 'HP',   value: `${s.maxHp}`,                                   color: '#88ee88' }, { label: '攻擊',     value: `${s.atk}`,                               color: '#ff8855' }],
-        [{ label: 'HP回復', value: `${s.hpRegen.toFixed(2)}/s`,                  color: '#55ffaa' }, { label: '暴擊',     value: `${(s.crit * 100).toFixed(0)}%`,          color: '#ffaa44' }],
-        [{ label: '防禦', value: `${s.def}`,                                      color: '#88aaff' }, { label: '攻速',     value: `${(s.atkSpeed * 100).toFixed(0)}%`,      color: '#ff88ff' }],
-        [{ label: '閃避', value: `${(s.evasion * 100).toFixed(1)}%`,              color: '#aaddff' }, { label: '爆傷',     value: `${((1 + s.critDmg) * 100).toFixed(0)}%`, color: '#ffdd44' }],
-        [{ label: '吸血', value: `${(s.lifesteal * 100).toFixed(2)}%`,            color: '#ff6699' }, { label: '持續傷害', value: `+${(s.dotBonus * 100).toFixed(0)}%`,     color: '#cc88ff' }],
-        [{ label: '速度', value: `${s.speed}`,                                    color: '#ffff88' }, { label: '穿甲',     value: `${s.penetration}`,                       color: '#ff9944' }],
+        [{ label: 'HP', value: `${s.maxHp}`, color: '#88ee88' }, { label: '攻擊', value: `${s.atk}`, color: '#ff8855' }],
+        [{ label: 'HP回復', value: `${s.hpRegen.toFixed(2)}/s`, color: '#55ffaa' }, { label: '暴擊', value: `${(s.crit * 100).toFixed(0)}%`, color: '#ffaa44' }],
+        [{ label: '防禦', value: `${s.def}`, color: '#88aaff' }, { label: '攻速', value: `${(s.atkSpeed * 100).toFixed(0)}%`, color: '#ff88ff' }],
+        [{ label: '閃避', value: `${(s.evasion * 100).toFixed(1)}%`, color: '#aaddff' }, { label: '爆傷', value: `${((1 + s.critDmg) * 100).toFixed(0)}%`, color: '#ffdd44' }],
+        [{ label: '吸血', value: `${(s.lifesteal * 100).toFixed(2)}%`, color: '#ff6699' }, { label: '持續傷害', value: `+${(s.dotBonus * 100).toFixed(0)}%`, color: '#cc88ff' }],
+        [{ label: '速度', value: `${s.speed}`, color: '#ffff88' }, { label: '穿甲', value: `${s.penetration}`, color: '#ff9944' }],
       ];
       const colW2 = statsW / 2;
-      const rowH  = (statsH - P(20)) / 6;
+      const rowH = (statsH - P(20)) / 6;
 
       allRows.forEach((row, ri) => {
         row.forEach((cell, ci) => {
@@ -2121,15 +2121,15 @@ export class PrepScene extends Phaser.Scene {
 
     // ── 垂直分隔線 ────────────────────────────────────────
     const divGfx = this.add.graphics();
-    const divX   = rightColX - P(13);
-    divGfx.fillStyle(WB, 1);   divGfx.fillRect(divX, py + P(44), 2, PH - P(52));
+    const divX = rightColX - P(13);
+    divGfx.fillStyle(WB, 1); divGfx.fillRect(divX, py + P(44), 2, PH - P(52));
     divGfx.fillStyle(WH, 0.3); divGfx.fillRect(divX + P(2), py + P(44), 1, PH - P(52));
     container.add(divGfx);
 
     // ── Tabs（右欄頂部）──────────────────────────────────
-    const tabH     = P(30);
-    const tabY    = rightColTop;
-    const tabW    = rightColW / tabDefs.length;
+    const tabH = P(30);
+    const tabY = rightColTop;
+    const tabW = rightColW / tabDefs.length;
     let activeTab = 0;
 
     const tabGfx = this.add.graphics();
@@ -2150,24 +2150,24 @@ export class PrepScene extends Phaser.Scene {
     container.add(tabGfx);
 
     // ── Grid（右欄）─────────────────────────────────────
-    const gridY    = tabY + tabH + P(6);
-    const cellSz   = P(68);
-    const cellGap  = P(7);
+    const gridY = tabY + tabH + P(6);
+    const cellSz = P(68);
+    const cellGap = P(7);
     const gridLeft = rightColX;
-    const cols     = Math.floor((rightColW + cellGap) / (cellSz + cellGap));
-    const gridH    = PH / 2 - P(10) - gridY;
+    const cols = Math.floor((rightColW + cellGap) / (cellSz + cellGap));
+    const gridH = PH / 2 - P(10) - gridY;
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let gridWheelHandler: ((...args: any[]) => void) | null = null;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let gridMoveHandler:  ((...args: any[]) => void) | null = null;
+    let gridMoveHandler: ((...args: any[]) => void) | null = null;
 
     const gridLayer = this.add.container(0, 0);
     container.add(gridLayer);
 
     // ── Equip comparison popup ────────────────────────────
     const showEquipComparison = (
-      newItem:     import('../data/equipment-data').EquipmentItem,
+      newItem: import('../data/equipment-data').EquipmentItem,
       currentItem: import('../data/equipment-data').EquipmentItem,
       onConfirm: () => void,
     ) => {
@@ -2182,18 +2182,18 @@ export class PrepScene extends Phaser.Scene {
         .on('pointerdown', closeComp);
 
       const PDW = P(380), PDH = P(320);
-      const CW  = P(158), CH  = P(200), GAP = P(24);
-      const mx  = W / 2 - PDW / 2;   // popup 左上角 x
-      const my  = H / 2 - PDH / 2;   // popup 左上角 y
+      const CW = P(158), CH = P(200), GAP = P(24);
+      const mx = W / 2 - PDW / 2;   // popup 左上角 x
+      const my = H / 2 - PDH / 2;   // popup 左上角 y
       const pcx = W / 2;             // popup 中心 x
       const TITLE_H = P(28);
       const CARD_CY = my + TITLE_H + CH / 2 + P(10);
-      const BTN_Y   = my + PDH - P(26);
+      const BTN_Y = my + PDH - P(26);
 
       const bg = s(this.add.graphics().setDepth(compD + 1));
       bg.fillStyle(WD, 0.97); bg.fillRect(mx, my, PDW, PDH);
       bg.lineStyle(2, GOLD, 0.85); bg.strokeRect(mx, my, PDW, PDH);
-      bg.lineStyle(1, GOLD, 0.3);  bg.strokeRect(mx + 4, my + 4, PDW - 8, PDH - 8);
+      bg.lineStyle(1, GOLD, 0.3); bg.strokeRect(mx + 4, my + 4, PDW - 8, PDH - 8);
       bg.fillStyle(WB, 1); bg.fillRect(mx, my, PDW, TITLE_H);
       bg.lineStyle(1, GOLD, 0.4); bg.lineBetween(mx, my + TITLE_H, mx + PDW, my + TITLE_H);
 
@@ -2205,8 +2205,8 @@ export class PrepScene extends Phaser.Scene {
         fontSize: F(20), fontStyle: 'bold', color: '#ffee88', stroke: '#000', strokeThickness: 2,
       }).setOrigin(0.5).setDepth(compD + 2));
 
-      const isPct = (stat: string) => ['crit','atkSpeed','lifesteal','evasion','critDmg','dotBonus'].includes(stat);
-      const fmtV  = (stat: string, v: number) => isPct(stat) ? `${(v * 100).toFixed(2)}%` : String(v);
+      const isPct = (stat: string) => ['crit', 'atkSpeed', 'lifesteal', 'evasion', 'critDmg', 'dotBonus'].includes(stat);
+      const fmtV = (stat: string, v: number) => isPct(stat) ? `${(v * 100).toFixed(2)}%` : String(v);
 
       const drawItemCard = (
         item: import('../data/equipment-data').EquipmentItem,
@@ -2217,7 +2217,7 @@ export class PrepScene extends Phaser.Scene {
         const qColorStr = '#' + qColorNum.toString(16).padStart(6, '0');
 
         const mg = s(this.add.graphics().setDepth(compD + 2));
-        mg.fillStyle(0x1a0e06, 1);   mg.fillRect(cx - CW / 2, cy - CH / 2, CW, CH);
+        mg.fillStyle(0x1a0e06, 1); mg.fillRect(cx - CW / 2, cy - CH / 2, CW, CH);
         mg.lineStyle(2, qColorNum, 0.8); mg.strokeRect(cx - CW / 2, cy - CH / 2, CW, CH);
 
         s(this.add.text(cx, cy - CH / 2 + P(8), labelTxt, {
@@ -2250,7 +2250,7 @@ export class PrepScene extends Phaser.Scene {
 
       const cardCX = CW / 2 + GAP / 2;
       drawItemCard(currentItem, pcx - cardCX, '現有', '#ff9999');
-      drawItemCard(newItem,     pcx + cardCX, '新增', '#99ff99');
+      drawItemCard(newItem, pcx + cardCX, '新增', '#99ff99');
 
       // ── Buttons ─────────────────────────────────────────
       const BW = P(118), BH = P(30);
@@ -2282,8 +2282,8 @@ export class PrepScene extends Phaser.Scene {
       container.add(det);
 
       const areaTop = rightColTop;
-      const areaH   = py + PH - areaTop - P(6);
-      const rcx     = rightColX + rightColW / 2;
+      const areaH = py + PH - areaTop - P(6);
+      const rcx = rightColX + rightColW / 2;
 
       const detBg = this.add.graphics();
       detBg.fillStyle(WD, 0.98); detBg.fillRect(rightColX - P(4), areaTop, rightColW + P(8), areaH);
@@ -2320,7 +2320,7 @@ export class PrepScene extends Phaser.Scene {
       }
       const statParts: string[] = [];
       item.affixes.forEach(a => {
-        const isPct = ['crit','atkSpeed','lifesteal','evasion'].includes(a.stat);
+        const isPct = ['crit', 'atkSpeed', 'lifesteal', 'evasion'].includes(a.stat);
         statParts.push(`${STAT_NAMES[a.stat]} +${isPct ? (a.value * 100).toFixed(2) + '%' : a.value}`);
       });
       det.add(this.add.text(rightColX + P(72), statOffsetY2, statParts.join('\n'), {
@@ -2330,7 +2330,7 @@ export class PrepScene extends Phaser.Scene {
 
       const dg = this.add.graphics();
       const statBlockH = (item.behavior ? 1 : 0) * P(18) + statParts.length * P(18) + P(12);
-      dg.fillStyle(WB, 1);   dg.fillRect(rightColX, areaTop + P(50) + statBlockH, rightColW, 1);
+      dg.fillStyle(WB, 1); dg.fillRect(rightColX, areaTop + P(50) + statBlockH, rightColW, 1);
       dg.fillStyle(WH, 0.3); dg.fillRect(rightColX, areaTop + P(51) + statBlockH, rightColW, 1);
       det.add(dg);
 
@@ -2349,7 +2349,7 @@ export class PrepScene extends Phaser.Scene {
       if (item.slot === 'ring1' || item.slot === 'ring2') {
         // ── 飾品：飾品1/2 兩個槽位按鈕 + 強化 + 分解 ────────
         const slotBtnY = btnY - P(92);
-        const hW  = (btnW - 4) / 2;
+        const hW = (btnW - 4) / 2;
         const cx1 = rcx - btnW / 2 + hW / 2;
         const cx2 = rcx + btnW / 2 - hW / 2;
         const eq1 = PlayerStore.getEquipped()['ring1'];
@@ -2409,11 +2409,11 @@ export class PrepScene extends Phaser.Scene {
 
     const buildGrid = () => {
       if (gridWheelHandler) { this.input.off('wheel', gridWheelHandler); gridWheelHandler = null; }
-      if (gridMoveHandler)  { this.input.off('pointermove', gridMoveHandler); gridMoveHandler = null; }
+      if (gridMoveHandler) { this.input.off('pointermove', gridMoveHandler); gridMoveHandler = null; }
       gridLayer.removeAll(true);
 
       const slotKeys = tabDefs[activeTab].slotKeys;
-      const items    = PlayerStore.getOwned().filter(it => slotKeys.includes(it.slot));
+      const items = PlayerStore.getOwned().filter(it => slotKeys.includes(it.slot));
 
       if (items.length === 0) {
         gridLayer.add(this.add.text(rightColX + rightColW / 2, gridY + 32, '尚無裝備', {
@@ -2422,9 +2422,9 @@ export class PrepScene extends Phaser.Scene {
         return;
       }
 
-      const rows      = Math.ceil(items.length / cols);
-      const contentH  = rows * (cellSz + cellGap) - cellGap;
-      let   scrollY   = 0;
+      const rows = Math.ceil(items.length / cols);
+      const contentH = rows * (cellSz + cellGap) - cellGap;
+      let scrollY = 0;
       const maxScroll = Math.max(0, contentH - gridH);
 
       const scrollCnt = this.add.container(0, gridY);
@@ -2445,10 +2445,10 @@ export class PrepScene extends Phaser.Scene {
       scrollCnt.add(gg);
 
       items.forEach((item, idx) => {
-        const col  = idx % cols;
-        const row  = Math.floor(idx / cols);
-        const cx2  = gridLeft + col * (cellSz + cellGap);
-        const cy2  = row * (cellSz + cellGap);   // relative to scrollCnt
+        const col = idx % cols;
+        const row = Math.floor(idx / cols);
+        const cx2 = gridLeft + col * (cellSz + cellGap);
+        const cy2 = row * (cellSz + cellGap);   // relative to scrollCnt
         const qc = QUALITY_COLORS[item.quality] ?? WL;
         gg.fillStyle(WB, 1); gg.fillRect(cx2, cy2, cellSz, cellSz);
         gg.fillStyle(WM, 0.8); gg.fillRect(cx2 + P(2), cy2 + P(2), cellSz - P(4), cellSz - P(4));
@@ -2518,7 +2518,7 @@ export class PrepScene extends Phaser.Scene {
       PlayerStore.offChange(onStoreChange);
       CardStore.offChange(onStoreChange);
       if (gridWheelHandler) this.input.off('wheel', gridWheelHandler);
-      if (gridMoveHandler)  this.input.off('pointermove', gridMoveHandler);
+      if (gridMoveHandler) this.input.off('pointermove', gridMoveHandler);
     };
     container.once('destroy', cleanupGrid);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, cleanupGrid);
@@ -2529,7 +2529,7 @@ export class PrepScene extends Phaser.Scene {
   private showItemPanel(W: number, H: number): void {
     const PW = Math.min(P(480), W - P(20));
     const PH = Math.min(P(500), H - P(40));
-    const D  = 500;
+    const D = 500;
 
     const container = this.add.container(W / 2, H / 2).setDepth(D);
 
@@ -2537,7 +2537,7 @@ export class PrepScene extends Phaser.Scene {
     const backdrop = this.add.rectangle(0, 0, W, H, 0x000000, 0.78).setInteractive();
     backdrop.on('pointerdown', (ptr: Phaser.Input.Pointer) => {
       if (ptr.x < W / 2 - PW / 2 || ptr.x > W / 2 + PW / 2 ||
-          ptr.y < H / 2 - PH / 2 || ptr.y > H / 2 + PH / 2) {
+        ptr.y < H / 2 - PH / 2 || ptr.y > H / 2 + PH / 2) {
         InventoryStore.offChange(onItemChange);
         PotionBarStore.offChange(redrawPotionSlots);
         container.destroy();
@@ -2596,12 +2596,12 @@ export class PrepScene extends Phaser.Scene {
       { id: ITEM_POTION_HEALTH_S, name: '小型回復藥水' },
       { id: ITEM_POTION_HEALTH_M, name: '中型回復藥水' },
       { id: ITEM_POTION_HEALTH_L, name: '大型回復藥水' },
-      { id: ITEM_POTION_REVIVE,   name: '復活藥水' },
-      { id: ITEM_POTION_ATK,      name: '攻擊力藥水' },
-      { id: ITEM_POTION_DEF,      name: '防禦力藥水' },
-      { id: ITEM_POTION_SPEED,    name: '速度藥水' },
+      { id: ITEM_POTION_ATK, name: '攻擊力藥水' },
+      { id: ITEM_POTION_DEF, name: '防禦力藥水' },
+      { id: ITEM_POTION_SPEED, name: '速度藥水' },
+      { id: ITEM_POTION_REVIVE, name: '復活藥水' },
     ];
-    const potionSecY  = py + P(44);
+    const potionSecY = py + P(44);
     const potionSlotSZ = P(80), potionSlotGap = P(8);
 
     container.add(this.add.text(0, potionSecY + P(10), '快捷藥水配置', {
@@ -2617,10 +2617,10 @@ export class PrepScene extends Phaser.Scene {
     const redrawPotionSlots = () => {
       potionSlotObjs.forEach((obj, idx) => {
         const itemId = PotionBarStore.getSlot(idx as 0 | 1);
-        const qty    = itemId ? InventoryStore.getItemQty(itemId) : 0;
-        const cx2    = px + P(10) + idx * (potionSlotSZ + potionSlotGap) + potionSlotSZ / 2;
-        const sy     = potionSecY + P(28);
-        const bx2    = cx2 - potionSlotSZ / 2;
+        const qty = itemId ? InventoryStore.getItemQty(itemId) : 0;
+        const cx2 = px + P(10) + idx * (potionSlotSZ + potionSlotGap) + potionSlotSZ / 2;
+        const sy = potionSecY + P(28);
+        const bx2 = cx2 - potionSlotSZ / 2;
         obj.bg.clear();
         obj.bg.fillStyle(0x1a1200, 1);
         obj.bg.fillRoundedRect(bx2, sy, potionSlotSZ, potionSlotSZ, P(6));
@@ -2640,8 +2640,8 @@ export class PrepScene extends Phaser.Scene {
 
     [0, 1].forEach(idx => {
       const cx2 = px + P(10) + idx * (potionSlotSZ + potionSlotGap) + potionSlotSZ / 2;
-      const sy   = potionSecY + P(28);
-      const bx2  = cx2 - potionSlotSZ / 2;
+      const sy = potionSecY + P(28);
+      const bx2 = cx2 - potionSlotSZ / 2;
 
       const bg = this.add.graphics();
       container.add(bg);
@@ -2725,10 +2725,10 @@ export class PrepScene extends Phaser.Scene {
           pickObjs.push(empty);
           container.add(empty);
         } else {
-          const rowH      = P(70) + P(8);
-          const listTop   = py + P(88);
-          const listVisH  = PH - P(92);
-          const totalH    = available.length * rowH;
+          const rowH = P(70) + P(8);
+          const listTop = py + P(88);
+          const listVisH = PH - P(92);
+          const totalH = available.length * rowH;
           const maxScroll = Math.max(0, totalH - listVisH);
 
           // mask: world coords (container is centred at W/2, H/2)
@@ -2777,7 +2777,7 @@ export class PrepScene extends Phaser.Scene {
               .setInteractive({ useHandCursor: true }).setMask(listMask);
             listCt.add(rowHit);
             rowHit.on('pointerover', () => { if (!isDragging) rowBg.setAlpha(0.7); });
-            rowHit.on('pointerout',  () => rowBg.setAlpha(1));
+            rowHit.on('pointerout', () => rowBg.setAlpha(1));
             rowHit.on('pointerdown', (ptr: Phaser.Input.Pointer) => {
               dragStartPY = ptr.y;
               dragStartScroll = scrollY;
@@ -2812,11 +2812,11 @@ export class PrepScene extends Phaser.Scene {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => PotionBarStore.offChange(redrawPotionSlots));
 
     // ── Item grid ─────────────────────────────────────────
-    const gridY    = py + P(44) + P(120);
-    const cellSz   = P(80);
-    const cellGap  = P(8);
+    const gridY = py + P(44) + P(120);
+    const cellSz = P(80);
+    const cellGap = P(8);
     const gridLeft = px + P(10);
-    const cols     = Math.floor((PW - P(20) + cellGap) / (cellSz + cellGap));
+    const cols = Math.floor((PW - P(20) + cellGap) / (cellSz + cellGap));
 
     const gridContainer = this.add.container(0, 0);
     container.add(gridContainer);
@@ -2867,7 +2867,7 @@ export class PrepScene extends Phaser.Scene {
       }).setOrigin(0.5));
 
       const dg = this.add.graphics();
-      dg.fillStyle(WB, 1);  dg.fillRect(px + P(16), py + P(218), PW - P(32), P(1));
+      dg.fillStyle(WB, 1); dg.fillRect(px + P(16), py + P(218), PW - P(32), P(1));
       dg.fillStyle(WH, 0.3); dg.fillRect(px + P(16), py + P(219), PW - P(32), P(1));
       det.add(dg);
 
@@ -2893,7 +2893,7 @@ export class PrepScene extends Phaser.Scene {
         const col = idx % cols;
         const row = Math.floor(idx / cols);
         const cx2 = gridLeft + col * (cellSz + cellGap);
-        const cy2 = gridY    + row * (cellSz + cellGap);
+        const cy2 = gridY + row * (cellSz + cellGap);
 
         gg.fillStyle(WB, 1); gg.fillRect(cx2, cy2, cellSz, cellSz);
         gg.fillStyle(WM, 0.8); gg.fillRect(cx2 + P(2), cy2 + P(2), cellSz - P(4), cellSz - P(4));
@@ -2940,7 +2940,7 @@ export class PrepScene extends Phaser.Scene {
   private openCardWindow(W: number, H: number): void {
     const PW = Math.min(W - P(16), P(480));
     const PH = Math.min(H - P(20), P(560));
-    const D  = 500;
+    const D = 500;
 
     const container = this.add.container(W / 2, H / 2).setDepth(D);
 
@@ -2948,7 +2948,7 @@ export class PrepScene extends Phaser.Scene {
     const backdrop = this.add.rectangle(0, 0, W, H, 0x000000, 0.78).setInteractive();
     backdrop.on('pointerdown', (ptr: Phaser.Input.Pointer) => {
       if (ptr.x < W / 2 - PW / 2 || ptr.x > W / 2 + PW / 2 ||
-          ptr.y < H / 2 - PH / 2 || ptr.y > H / 2 + PH / 2) {
+        ptr.y < H / 2 - PH / 2 || ptr.y > H / 2 + PH / 2) {
         cleanup();
         container.destroy();
       }
@@ -2980,7 +2980,7 @@ export class PrepScene extends Phaser.Scene {
       });
     bg.fillStyle(WB, 0.9); bg.fillRect(px, py, PW, P(36));
     bg.fillStyle(WH, 0.4); bg.fillRect(px, py + P(34), PW, P(2));
-    bg.fillStyle(WB, 1);   bg.fillRect(px, py + P(36), PW, 1);
+    bg.fillStyle(WB, 1); bg.fillRect(px, py + P(36), PW, 1);
     container.add(bg);
 
     container.add(this.add.text(0, py + P(18), '卡  片', {
@@ -2994,18 +2994,18 @@ export class PrepScene extends Phaser.Scene {
     container.add(closeBtn);
 
     // Layout constants
-    const CARD_W   = P(72);
-    const CARD_H   = P(96);
+    const CARD_W = P(72);
+    const CARD_H = P(96);
     const SLOT_GAP = P(8);
     const slotsTotW = CARD_SLOT_COUNT * CARD_W + (CARD_SLOT_COUNT - 1) * SLOT_GAP;
-    const slotsX0   = -slotsTotW / 2;
-    const slotsY    = py + P(58);
-    const INV_TOP   = slotsY + CARD_H + P(24);
-    const INV_H     = py + PH - INV_TOP - P(8);
+    const slotsX0 = -slotsTotW / 2;
+    const slotsY = py + P(58);
+    const INV_TOP = slotsY + CARD_H + P(24);
+    const INV_H = py + PH - INV_TOP - P(8);
     const INV_COLS = 5;
-    const INV_GAP   = P(10);
-    const invTotW   = INV_COLS * CARD_W + (INV_COLS - 1) * INV_GAP;
-    const invX0     = -invTotW / 2;
+    const INV_GAP = P(10);
+    const invTotW = INV_COLS * CARD_W + (INV_COLS - 1) * INV_GAP;
+    const invX0 = -invTotW / 2;
 
     // ── Equipped slots label ──────────────────────────────
     container.add(this.add.text(0, slotsY - P(14), '裝備中', {
@@ -3021,7 +3021,7 @@ export class PrepScene extends Phaser.Scene {
       g: Phaser.GameObjects.Graphics,
       cx: number, cy: number, w: number, h: number,
     ) => {
-      const x    = cx - w / 2, y = cy - h / 2;
+      const x = cx - w / 2, y = cy - h / 2;
       const SILV = 0xb87333;   // 銅色框
       // 陰影
       g.fillStyle(0x000000, 0.35);
@@ -3038,13 +3038,13 @@ export class PrepScene extends Phaser.Scene {
       // 四角裝飾點
       const cr = P(3);
       g.fillStyle(SILV, 0.85);
-      g.fillCircle(x + cr + P(1),     y + cr + P(1),     cr);
-      g.fillCircle(x + w - cr - P(1), y + cr + P(1),     cr);
-      g.fillCircle(x + cr + P(1),     y + h - cr - P(1), cr);
+      g.fillCircle(x + cr + P(1), y + cr + P(1), cr);
+      g.fillCircle(x + w - cr - P(1), y + cr + P(1), cr);
+      g.fillCircle(x + cr + P(1), y + h - cr - P(1), cr);
       g.fillCircle(x + w - cr - P(1), y + h - cr - P(1), cr);
       // 上下橫紋
       g.lineStyle(1.5, SILV, 0.45);
-      g.lineBetween(x + P(10), y + P(8),     x + w - P(10), y + P(8));
+      g.lineBetween(x + P(10), y + P(8), x + w - P(10), y + P(8));
       g.lineBetween(x + P(10), y + h - P(8), x + w - P(10), y + h - P(8));
     };
 
@@ -3053,7 +3053,7 @@ export class PrepScene extends Phaser.Scene {
       g: Phaser.GameObjects.Graphics,
       cx: number, cy: number, w: number, h: number,
     ) => {
-      const x    = cx - w / 2, y = cy - h / 2;
+      const x = cx - w / 2, y = cy - h / 2;
       const SILV = 0x9aacb8;   // 銀色框
       // 陰影
       g.fillStyle(0x000000, 0.4);
@@ -3070,13 +3070,13 @@ export class PrepScene extends Phaser.Scene {
       // 四角裝飾點
       const cr = 3;
       g.fillStyle(SILV, 0.9);
-      g.fillCircle(x + cr + 1,     y + cr + 1,     cr);
-      g.fillCircle(x + w - cr - 1, y + cr + 1,     cr);
-      g.fillCircle(x + cr + 1,     y + h - cr - 1, cr);
+      g.fillCircle(x + cr + 1, y + cr + 1, cr);
+      g.fillCircle(x + w - cr - 1, y + cr + 1, cr);
+      g.fillCircle(x + cr + 1, y + h - cr - 1, cr);
       g.fillCircle(x + w - cr - 1, y + h - cr - 1, cr);
       // 上下橫紋
       g.lineStyle(1.5, SILV, 0.5);
-      g.lineBetween(x + 10, y + 8,     x + w - 10, y + 8);
+      g.lineBetween(x + 10, y + 8, x + w - 10, y + 8);
       g.lineBetween(x + 10, y + h - 8, x + w - 10, y + h - 8);
     };
 
@@ -3102,13 +3102,13 @@ export class PrepScene extends Phaser.Scene {
       // 四角裝飾點
       const cr = P(3);
       g.fillStyle(GOLD, 0.9);
-      g.fillCircle(x + cr + P(1),     y + cr + P(1),     cr);
-      g.fillCircle(x + w - cr - P(1), y + cr + P(1),     cr);
-      g.fillCircle(x + cr + P(1),     y + h - cr - P(1), cr);
+      g.fillCircle(x + cr + P(1), y + cr + P(1), cr);
+      g.fillCircle(x + w - cr - P(1), y + cr + P(1), cr);
+      g.fillCircle(x + cr + P(1), y + h - cr - P(1), cr);
       g.fillCircle(x + w - cr - P(1), y + h - cr - P(1), cr);
       // 上下橫紋
       g.lineStyle(1.5, GOLD, 0.55);
-      g.lineBetween(x + P(10), y + P(8),     x + w - P(10), y + P(8));
+      g.lineBetween(x + P(10), y + P(8), x + w - P(10), y + P(8));
       g.lineBetween(x + P(10), y + h - P(8), x + w - P(10), y + h - P(8));
     };
 
@@ -3134,12 +3134,12 @@ export class PrepScene extends Phaser.Scene {
       const oldDef = getCardDef(oldCardId)!;
 
       // ── fixed layout ──────────────────────────────────────
-      const PDW    = P(340), PDH = P(310);
-      const CW     = P(130), CH  = P(175);
-      const GAP    = P(20);
+      const PDW = P(340), PDH = P(310);
+      const CW = P(130), CH = P(175);
+      const GAP = P(20);
       const CARD_Y = -P(20);
-      const BTN_Y  = PDH / 2 - P(24);
-      const popY   = 0;
+      const BTN_Y = PDH / 2 - P(24);
+      const popY = 0;
 
       // backdrop
       const pbg = this.add.graphics();
@@ -3167,9 +3167,9 @@ export class PrepScene extends Phaser.Scene {
 
       // mini card
       const drawMiniCard = (def: NonNullable<ReturnType<typeof getCardDef>>, cx: number, label: string, labelColor: string) => {
-        const cy      = popY + CARD_Y;
+        const cy = popY + CARD_Y;
         const monTier = getMonsterDef(def.monsterId)?.tier ?? 1;
-        const frameC  = monTier >= 5 ? 0xf0c040 : monTier === 3 ? 0x60a8e0 : 0x9aacb8;
+        const frameC = monTier >= 5 ? 0xf0c040 : monTier === 3 ? 0x60a8e0 : 0x9aacb8;
         const mg = this.add.graphics();
         mg.fillStyle(0x2a1a08, 1);
         mg.fillRect(cx - CW / 2, cy - CH / 2, CW, CH);
@@ -3207,8 +3207,8 @@ export class PrepScene extends Phaser.Scene {
       };
 
       const cardCX = CW / 2 + GAP / 2;
-      drawMiniCard(oldDef,  -cardCX, '現有', '#ff9999');
-      drawMiniCard(newDef,   cardCX, '新增', '#99ff99');
+      drawMiniCard(oldDef, -cardCX, '現有', '#ff9999');
+      drawMiniCard(newDef, cardCX, '新增', '#99ff99');
 
       // ── Buttons (inside frame) ──────────────────────────
       const BW = P(118), BH = P(30);
@@ -3264,8 +3264,8 @@ export class PrepScene extends Phaser.Scene {
         if (!def) return;
         const col = idx % INV_COLS2;
         const row = Math.floor(idx / INV_COLS2);
-        const cx  = invX0 + col * (CARD_W + INV_GAP) + CARD_W / 2;
-        const cy  = INV_TOP + row * ROW_H2 + CARD_H / 2;
+        const cx = invX0 + col * (CARD_W + INV_GAP) + CARD_W / 2;
+        const cy = INV_TOP + row * ROW_H2 + CARD_H / 2;
 
         // 疊帶上限檢查（排除 fromSlot 本身）
         const eq = CardStore.getEquipped();
@@ -3362,10 +3362,10 @@ export class PrepScene extends Phaser.Scene {
       cardId: string,
     ) => {
       detailPopup?.destroy();
-      const PDW      = P(200);
-      const PDH      = P(360);
+      const PDW = P(200);
+      const PDH = P(360);
       const BANNER_H = P(52);
-      const D2       = D + 10;
+      const D2 = D + 10;
 
       const pop = this.add.container(0, 0).setDepth(D2);
       container.add(pop);
@@ -3377,12 +3377,12 @@ export class PrepScene extends Phaser.Scene {
       pop.add(dimBg);
 
       // ── Card body ─────────────────────────────────────
-      const monDefPre  = getMonsterDef(def.monsterId);
+      const monDefPre = getMonsterDef(def.monsterId);
       const monTierPre = monDefPre?.tier ?? 1;
-      const isBoss     = monTierPre >= 5;
-      const isElite    = monTierPre === 3;
+      const isBoss = monTierPre >= 5;
+      const isElite = monTierPre === 3;
       // Boss=金, 菁英=銀, 小怪=銅
-      const FRAME_CLR  = isBoss ? 0xf0c040 : isElite ? 0x9aacb8 : 0xb87333;
+      const FRAME_CLR = isBoss ? 0xf0c040 : isElite ? 0x9aacb8 : 0xb87333;
       const FRAME_CLR2 = isBoss ? 0xffee88 : isElite ? 0xc8d8e0 : 0xd4a070;
       const cg = this.add.graphics();
 
@@ -3408,9 +3408,9 @@ export class PrepScene extends Phaser.Scene {
       const PCR = P(4);
       cg.fillStyle(FRAME_CLR, 0.9);
       cg.fillCircle(-PDW / 2 + PCR + P(1), -PDH / 2 + PCR + P(1), PCR);
-      cg.fillCircle( PDW / 2 - PCR - P(1), -PDH / 2 + PCR + P(1), PCR);
-      cg.fillCircle(-PDW / 2 + PCR + P(1),  PDH / 2 - PCR - P(1), PCR);
-      cg.fillCircle( PDW / 2 - PCR - P(1),  PDH / 2 - PCR - P(1), PCR);
+      cg.fillCircle(PDW / 2 - PCR - P(1), -PDH / 2 + PCR + P(1), PCR);
+      cg.fillCircle(-PDW / 2 + PCR + P(1), PDH / 2 - PCR - P(1), PCR);
+      cg.fillCircle(PDW / 2 - PCR - P(1), PDH / 2 - PCR - P(1), PCR);
 
       // Banner（標題區）
       cg.fillStyle(WM, 1);
@@ -3418,7 +3418,7 @@ export class PrepScene extends Phaser.Scene {
 
       // Banner 上下橫紋
       cg.lineStyle(1.5, FRAME_CLR, 0.6);
-      cg.lineBetween(-PDW / 2 + P(14), -PDH / 2 + P(6),          PDW / 2 - P(14), -PDH / 2 + P(6));
+      cg.lineBetween(-PDW / 2 + P(14), -PDH / 2 + P(6), PDW / 2 - P(14), -PDH / 2 + P(6));
       cg.lineBetween(-PDW / 2 + P(14), -PDH / 2 + BANNER_H - P(6), PDW / 2 - P(14), -PDH / 2 + BANNER_H - P(6));
 
       // 底部橫紋
@@ -3439,8 +3439,8 @@ export class PrepScene extends Phaser.Scene {
       const SPRITE_Y = -PDH / 2 + BANNER_H + P(62);
       const monDef = getMonsterDef(def.monsterId);
       if (monDef) {
-        const spriteKey  = `${monDef.spriteKey}_idle`;
-        const animKey    = `card_idle_${def.monsterId}`;
+        const spriteKey = `${monDef.spriteKey}_idle`;
+        const animKey = `card_idle_${def.monsterId}`;
         const spriteScale = monsterDetailScale(monDef.tier);
         const idleEnd = monDef.spriteKey.startsWith('plant') ? 3 : 5;
         try {
@@ -3466,10 +3466,10 @@ export class PrepScene extends Phaser.Scene {
       pop.add(dg);
 
       // ── Effect description（可捲動）────────────────────
-      const DESC_TOP    = DIVIDER_Y + P(10);
-      const DESC_BOT    = PDH / 2 - P(110);  // 留給裝備上限 + 兩排按鈕的空間
-      const DESC_H      = DESC_BOT - DESC_TOP;
-      const descWrap    = PDW - P(28);
+      const DESC_TOP = DIVIDER_Y + P(10);
+      const DESC_BOT = PDH / 2 - P(110);  // 留給裝備上限 + 兩排按鈕的空間
+      const DESC_H = DESC_BOT - DESC_TOP;
+      const descWrap = PDW - P(28);
 
       // 先用小字測量實際高度
       const descTxt = this.add.text(0, DESC_TOP, def.desc, {
@@ -3513,10 +3513,10 @@ export class PrepScene extends Phaser.Scene {
       }
 
       // ── Tier & stack limit info ────────────────────────
-      const detMonTier   = getMonsterDef(def.monsterId)?.tier ?? 1;
-      const detTierName  = detMonTier >= 5 ? 'Boss' : detMonTier === 3 ? '菁英' : '一般';
-      const detLimit     = CardStore.getStackLimit(cardId);
-      const detEquipped  = CardStore.getEquipped().filter(s => s === cardId).length;
+      const detMonTier = getMonsterDef(def.monsterId)?.tier ?? 1;
+      const detTierName = detMonTier >= 5 ? 'Boss' : detMonTier === 3 ? '菁英' : '一般';
+      const detLimit = CardStore.getStackLimit(cardId);
+      const detEquipped = CardStore.getEquipped().filter(s => s === cardId).length;
       const detTierColor = detMonTier >= 5 ? '#ffd060' : detMonTier === 3 ? '#80c8ff' : '#88dd88';
       pop.add(this.add.text(0, PDH / 2 - P(100), `裝備上限 ${detEquipped}/${detLimit}`, {
         fontSize: F(15), fontStyle: 'bold', color: detTierColor,
@@ -3533,7 +3533,7 @@ export class PrepScene extends Phaser.Scene {
       const addDismantleBtn = () => {
         const BW2 = PDW - P(40);
         const dg = this.add.graphics();
-        dg.fillStyle(0x2a1a0a, 1);    dg.fillRect(-BW2 / 2, dismantleY - BH / 2, BW2, BH);
+        dg.fillStyle(0x2a1a0a, 1); dg.fillRect(-BW2 / 2, dismantleY - BH / 2, BW2, BH);
         dg.lineStyle(P(1.5), 0x996633, 0.85); dg.strokeRect(-BW2 / 2, dismantleY - BH / 2, BW2, BH);
         pop.add(dg);
         pop.add(this.add.text(0, dismantleY, `分  解  (+${dismantleQty} 空白卡片)`, {
@@ -3556,7 +3556,7 @@ export class PrepScene extends Phaser.Scene {
         const HBW = (PDW - P(48)) / 2;
         const makeBtn = (ox: number, label: string, bgC: number, borderC: number, txtC: string, cb: () => void) => {
           const bg = this.add.graphics();
-          bg.fillStyle(bgC, 1);    bg.fillRect(ox - HBW / 2, btnY - BH / 2, HBW, BH);
+          bg.fillStyle(bgC, 1); bg.fillRect(ox - HBW / 2, btnY - BH / 2, HBW, BH);
           bg.lineStyle(1.5, borderC, 0.9); bg.strokeRect(ox - HBW / 2, btnY - BH / 2, HBW, BH);
           pop.add(bg);
           pop.add(this.add.text(ox, btnY, label, {
@@ -3636,7 +3636,7 @@ export class PrepScene extends Phaser.Scene {
       const monDef = getMonsterDef(def.monsterId);
       if (monDef) {
         const spriteKey = `${monDef.spriteKey}_idle`;
-        const animKey   = `card_idle_${def.monsterId}`;
+        const animKey = `card_idle_${def.monsterId}`;
         const idleEnd = monDef.spriteKey.startsWith('plant') ? 3 : 5;
         try {
           if (!this.anims.exists(animKey) && this.textures.exists(spriteKey)) {
@@ -3664,15 +3664,15 @@ export class PrepScene extends Phaser.Scene {
       contentCnt = this.add.container(0, 0);
       container.add(contentCnt);
 
-      const eq       = CardStore.getEquipped();
+      const eq = CardStore.getEquipped();
       const invItems = CardStore.getInventory();
 
       // ── Equipped row ──────────────────────────────────
       for (let i = 0; i < CARD_SLOT_COUNT; i++) {
-        const cx     = slotsX0 + i * (CARD_W + SLOT_GAP) + CARD_W / 2;
-        const cy     = slotsY + CARD_H / 2;
+        const cx = slotsX0 + i * (CARD_W + SLOT_GAP) + CARD_W / 2;
+        const cy = slotsY + CARD_H / 2;
         const cardId = eq[i];
-        const def    = cardId ? getCardDef(cardId) : null;
+        const def = cardId ? getCardDef(cardId) : null;
 
         const slotGfx = this.add.graphics();
         if (def) {
@@ -3700,8 +3700,8 @@ export class PrepScene extends Phaser.Scene {
 
       // Separator
       const sepGfx = this.add.graphics();
-      sepGfx.fillStyle(WB, 1);   sepGfx.fillRect(px + P(8), INV_TOP - P(10), PW - P(16), 1);
-      sepGfx.fillStyle(WH, 0.2); sepGfx.fillRect(px + P(8), INV_TOP - P(9),  PW - P(16), 1);
+      sepGfx.fillStyle(WB, 1); sepGfx.fillRect(px + P(8), INV_TOP - P(10), PW - P(16), 1);
+      sepGfx.fillStyle(WH, 0.2); sepGfx.fillRect(px + P(8), INV_TOP - P(9), PW - P(16), 1);
       contentCnt.add(sepGfx);
       contentCnt.add(this.add.text(0, INV_TOP - P(5), '持有卡片', {
         fontSize: F(15), fontStyle: 'bold', color: '#b07030', stroke: '#1a0800', strokeThickness: 1,
@@ -3715,11 +3715,11 @@ export class PrepScene extends Phaser.Scene {
         return;
       }
 
-      const ROWS      = Math.ceil(invItems.length / INV_COLS);
-      const ROW_H     = CARD_H + INV_GAP;
-      const contentH  = ROWS * ROW_H;
+      const ROWS = Math.ceil(invItems.length / INV_COLS);
+      const ROW_H = CARD_H + INV_GAP;
+      const contentH = ROWS * ROW_H;
       const maxScroll = Math.max(0, contentH - INV_H);
-      savedScrollY    = Phaser.Math.Clamp(savedScrollY, 0, maxScroll);
+      savedScrollY = Phaser.Math.Clamp(savedScrollY, 0, maxScroll);
 
       const scrollCnt = this.add.container(0, INV_TOP - savedScrollY);
       contentCnt.add(scrollCnt);
@@ -3741,8 +3741,8 @@ export class PrepScene extends Phaser.Scene {
         if (!def) return;
         const col = idx % INV_COLS;
         const row = Math.floor(idx / INV_COLS);
-        const cx  = invX0 + col * (CARD_W + INV_GAP) + CARD_W / 2;
-        const cy  = row * ROW_H + CARD_H / 2;
+        const cx = invX0 + col * (CARD_W + INV_GAP) + CARD_W / 2;
+        const cy = row * ROW_H + CARD_H / 2;
 
         const cg = this.add.graphics();
         const monTier = getMonsterDef(def.monsterId)?.tier ?? 1;
@@ -3753,9 +3753,9 @@ export class PrepScene extends Phaser.Scene {
 
         // Stack limit badge (bottom-left)
         const equippedCount = eq.filter(s => s === cardId).length;
-        const stackLimit    = CardStore.getStackLimit(cardId);
-        const atLimit       = equippedCount >= stackLimit;
-        const badgeColor    = atLimit ? '#cc2222' : equippedCount > 0 ? '#cc8800' : '#226622';
+        const stackLimit = CardStore.getStackLimit(cardId);
+        const atLimit = equippedCount >= stackLimit;
+        const badgeColor = atLimit ? '#cc2222' : equippedCount > 0 ? '#cc8800' : '#226622';
         scrollCnt.add(this.add.text(cx - CARD_W / 2 + P(2), cy + CARD_H / 2 - P(2), `${equippedCount}/${stackLimit}`, {
           fontSize: F(15), fontStyle: 'bold', color: '#ffffff',
           stroke: '#000000', strokeThickness: 1,
@@ -3783,8 +3783,8 @@ export class PrepScene extends Phaser.Scene {
         invItems.forEach(({ cardId }, idx) => {
           const col = idx % INV_COLS;
           const row = Math.floor(idx / INV_COLS);
-          const cx  = invX0 + col * (CARD_W + INV_GAP) + CARD_W / 2;
-          const cy  = row * ROW_H + CARD_H / 2;
+          const cx = invX0 + col * (CARD_W + INV_GAP) + CARD_W / 2;
+          const cy = row * ROW_H + CARD_H / 2;
           if (Math.abs(localX - cx) <= CARD_W / 2 && Math.abs(localY - cy) <= CARD_H / 2) {
             const def = getCardDef(cardId);
             if (def) showCardDetail(def, null, cardId);
@@ -3869,7 +3869,7 @@ export class PrepScene extends Phaser.Scene {
   }
 
   private showNameEditDialog(W: number, H: number): void {
-    const D  = 950;
+    const D = 950;
     const bw = Math.min(P(260), W - P(32));
     const bh = P(130);
     const bx = W / 2 - bw / 2;
@@ -3921,8 +3921,8 @@ export class PrepScene extends Phaser.Scene {
   }
 
   private showComingSoon(W: number, H: number, label: string): void {
-    const D   = 900;
-    const bk  = this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.55).setInteractive().setDepth(D);
+    const D = 900;
+    const bk = this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.55).setInteractive().setDepth(D);
     const box = this.add.graphics().setDepth(D + 1);
     const bw = 260, bh = 100;
     box.fillStyle(0x1a1208, 0.97); box.fillRect(W / 2 - bw / 2, H / 2 - bh / 2, bw, bh);
@@ -3938,9 +3938,9 @@ export class PrepScene extends Phaser.Scene {
   }
 
   private showShopPanel(W: number, H: number): void {
-    const PW = Math.min(P(400), W - P(20));
-    const PH = Math.min(P(560), H - P(40));
-    const D  = 500;
+    const PW = W - P(16);
+    const PH = H - P(16);
+    const D = 500;
 
     const container = this.add.container(W / 2, H / 2).setDepth(D);
 
@@ -3948,7 +3948,7 @@ export class PrepScene extends Phaser.Scene {
     const backdrop = this.add.rectangle(0, 0, W, H, 0x000000, 0.78).setInteractive();
     backdrop.on('pointerdown', (ptr: Phaser.Input.Pointer) => {
       if (ptr.x < W / 2 - PW / 2 || ptr.x > W / 2 + PW / 2 ||
-          ptr.y < H / 2 - PH / 2 || ptr.y > H / 2 + PH / 2)
+        ptr.y < H / 2 - PH / 2 || ptr.y > H / 2 + PH / 2)
         container.destroy();
     });
     container.add(backdrop);
@@ -3978,7 +3978,7 @@ export class PrepScene extends Phaser.Scene {
       });
     bg.fillStyle(WB, 0.9); bg.fillRect(px, py, PW, 36);
     bg.fillStyle(WH, 0.4); bg.fillRect(px, py + 34, PW, 2);
-    bg.fillStyle(WB, 1);   bg.fillRect(px, py + 36, PW, 1);
+    bg.fillStyle(WB, 1); bg.fillRect(px, py + 36, PW, 1);
     container.add(bg);
 
     container.add(this.add.text(0, py + 18, '商  店', {
@@ -3995,14 +3995,42 @@ export class PrepScene extends Phaser.Scene {
     closeBtn.on('pointerdown', () => container.destroy());
     container.add(closeBtn);
 
+    // Floating toast notification
+    const showToast = (msg: string) => {
+      const t = this.add.text(0, P(10), msg, {
+        fontSize: F(14), fontStyle: 'bold', color: '#ff6644',
+        stroke: '#1a0800', strokeThickness: 2,
+        backgroundColor: '#2a0800cc', padding: { x: P(10), y: P(5) },
+      }).setOrigin(0.5, 0.5).setAlpha(0);
+      container.add(t);
+      this.tweens.add({
+        targets: t, alpha: 1, y: 0,
+        duration: 180, ease: 'Power2',
+        onComplete: () => this.tweens.add({
+          targets: t, alpha: 0, delay: 900, duration: 350,
+          onComplete: () => t.destroy(),
+        }),
+      });
+    };
+
     // Gold display
     let goldLabel: Phaser.GameObjects.Text;
-    const refreshGold = () => goldLabel?.setText(`💰 ${InventoryStore.getGold().toLocaleString()} 金幣`);
-    goldLabel = this.add.text(0, py + P(42), '', {
-      fontSize: F(14), fontStyle: 'bold', color: '#d4a044', stroke: '#1a0800', strokeThickness: 1,
-    }).setOrigin(0.5, 0);
+    let blankCardLabel: Phaser.GameObjects.Text;
+    const labelY = py + P(48);
+    const refreshGold = () => {
+      goldLabel?.setText(`${InventoryStore.getGold().toLocaleString()} 金幣`);
+      blankCardLabel?.setText(`空白卡片 ×${InventoryStore.getItemQty(ITEM_BLANK_CARD)}`);
+    };
+    const goldIcon = this.add.image(-PW / 4 - P(36), labelY, 'icon_coin').setDisplaySize(P(14), P(14));
+    goldLabel = this.add.text(-PW / 4 - P(24), labelY, '', {
+      fontSize: F(13), fontStyle: 'bold', color: '#d4a044', stroke: '#1a0800', strokeThickness: 1,
+    }).setOrigin(0, 0.5);
+    const cardIcon = this.add.image(PW / 4 - P(52), labelY, 'icon_blank_card').setDisplaySize(P(14), P(14));
+    blankCardLabel = this.add.text(PW / 4 - P(40), labelY, '', {
+      fontSize: F(13), fontStyle: 'bold', color: '#cc88ff', stroke: '#1a0800', strokeThickness: 1,
+    }).setOrigin(0, 0.5);
     refreshGold();
-    container.add(goldLabel);
+    container.add([goldIcon, goldLabel, cardIcon, blankCardLabel]);
     const onInvChange = () => refreshGold();
     InventoryStore.onChange(onInvChange);
     container.once(Phaser.GameObjects.Events.DESTROY, () => InventoryStore.offChange(onInvChange));
@@ -4010,40 +4038,42 @@ export class PrepScene extends Phaser.Scene {
     // ── Tab definitions ────────────────────────────────────
     type ShopItem = { id: string; name: string; price: number; desc: string; color: number };
     const GACHA_ITEMS: ShopItem[] = [
-      { id: '__gacha__',       name: '裝備抽取', price: 1000, desc: '隨機生成 3 件裝備，選一件收入背包', color: 0xddaa00 },
-      { id: '__card_gacha__', name: '卡片抽取', price: 0,    desc: '消耗空白卡片×10，抽 1 張卡片',    color: 0xaa44ff },
+      { id: '__gacha__', name: '裝備抽取', price: 1000, desc: '隨機生成 3 件裝備，選一件收入背包', color: 0xddaa00 },
+      { id: '__card_gacha__', name: '卡片抽取', price: 0, desc: '消耗空白卡片×10，抽 1 張卡片', color: 0xaa44ff },
     ];
     const POTION_ITEMS: ShopItem[] = [
-      { id: ITEM_POTION_HEALTH_S, name: '小型回復藥水', price: 80, desc: '回復 50 HP',          color: 0x44ff88 },
-      { id: ITEM_POTION_HEALTH_M, name: '中型回復藥水', price: 200, desc: '回復 100 HP',         color: 0x44ddff },
-      { id: ITEM_POTION_HEALTH_L, name: '大型回復藥水', price: 450, desc: '回復 200 HP',         color: 0xff88ff },
-      { id: ITEM_POTION_REVIVE,   name: '復活藥水',     price: 800, desc: '戰鬥中自動復活一次',   color: 0xffee44 },
-      { id: ITEM_POTION_ATK,      name: '攻擊力藥水',   price: 300, desc: '傷害+20%，持續30秒',   color: 0xff6644 },
-      { id: ITEM_POTION_DEF,      name: '防禦力藥水',   price: 300, desc: 'DEF+20，持續30秒',     color: 0x44aaff },
-      { id: ITEM_POTION_SPEED,    name: '速度藥水',     price: 300, desc: '移動速度+20，持續30秒', color: 0xffdd22 },
+      { id: ITEM_POTION_HEALTH_S, name: '小型回復藥水', price: 80, desc: '回復 50 HP', color: 0x44ff88 },
+      { id: ITEM_POTION_HEALTH_M, name: '中型回復藥水', price: 200, desc: '回復 100 HP', color: 0x44ddff },
+      { id: ITEM_POTION_HEALTH_L, name: '大型回復藥水', price: 450, desc: '回復 200 HP', color: 0xff88ff },
+      { id: ITEM_POTION_ATK, name: '攻擊力藥水', price: 300, desc: '傷害+20%，持續30秒', color: 0xff6644 },
+      { id: ITEM_POTION_DEF, name: '防禦力藥水', price: 300, desc: 'DEF+20，持續30秒', color: 0x44aaff },
+      { id: ITEM_POTION_SPEED, name: '速度藥水', price: 300, desc: '移動速度+20，持續30秒', color: 0xffdd22 },
+      { id: ITEM_POTION_REVIVE, name: '復活藥水', price: 800, desc: '戰鬥中自動復活一次', color: 0xffee44 },
     ];
     const STONE_ITEMS: ShopItem[] = [
-      { id: ITEM_STONE_BROKEN,  name: '破碎強化石', price: 150, desc: '強化裝備時消耗',       color: 0x88ccff },
-      { id: ITEM_STONE_INTACT,  name: '完整強化石', price: 300, desc: '強化成功率 +8%',       color: 0x66ffcc },
-      { id: ITEM_STONE_GUARD,   name: '防退石',     price: 300, desc: '強化失敗防止降級',     color: 0xff99aa },
-      { id: ITEM_QUEST_REROLL,  name: '任務重製石', price: 100, desc: '重置當前任務列表',     color: 0xffcc44 },
+      { id: ITEM_STONE_BROKEN, name: '破碎強化石', price: 150, desc: '強化裝備時消耗', color: 0x88ccff },
+      { id: ITEM_STONE_INTACT, name: '完整強化石', price: 300, desc: '強化成功率 +8%', color: 0x66ffcc },
+      { id: ITEM_STONE_GUARD, name: '防退石', price: 300, desc: '強化失敗防止降級', color: 0xff99aa },
+      { id: ITEM_QUEST_REROLL, name: '任務重製石', price: 100, desc: '重置當前任務列表', color: 0xffcc44 },
     ];
-    const TAB_DEFS = [
+    const TAB_DEFS: { label: string; items: ShopItem[] | null }[] = [
       { label: '抽獎', items: GACHA_ITEMS },
       { label: '藥水', items: POTION_ITEMS },
       { label: '強化石', items: STONE_ITEMS },
+      { label: '卡片交換', items: null },
     ];
 
     // ── Tab bar ───────────────────────────────────────────
     const TAB_BAR_TOP = py + P(62);
-    const TAB_H       = P(30);
-    const TAB_W       = PW / TAB_DEFS.length;
-    const HEADER_H    = P(62) + TAB_H + P(8);
-    const viewH       = PH - HEADER_H;
+    const TAB_H = P(30);
+    const TAB_W = PW / TAB_DEFS.length;
+    const HEADER_H = P(62) + TAB_H + P(8);
+    const viewH = PH - HEADER_H;
 
     let activeTab = 0;
     const tabGfx = this.add.graphics();
     container.add(tabGfx);
+    let hideExchangeFilters: () => void = () => { };
 
     const tabLabels: Phaser.GameObjects.Text[] = TAB_DEFS.map((tab, i) => {
       const lbl = this.add.text(px + i * TAB_W + TAB_W / 2, TAB_BAR_TOP + TAB_H / 2, tab.label, {
@@ -4053,7 +4083,7 @@ export class PrepScene extends Phaser.Scene {
 
       const hit = this.add.rectangle(px + i * TAB_W + TAB_W / 2, TAB_BAR_TOP + TAB_H / 2, TAB_W, TAB_H)
         .setInteractive({ useHandCursor: true });
-      hit.on('pointerdown', () => { if (activeTab !== i) { activeTab = i; drawTabs(); buildContent(TAB_DEFS[i].items); } });
+      hit.on('pointerdown', () => { if (activeTab !== i) { activeTab = i; drawTabs(); hideExchangeFilters(); const ti = TAB_DEFS[i].items; if (ti) buildContent(ti); else buildExchangeContent(); } });
       container.add(hit);
 
       return lbl;
@@ -4089,34 +4119,81 @@ export class PrepScene extends Phaser.Scene {
     const scrollMask = maskGfx.createGeometryMask();
     container.once(Phaser.GameObjects.Events.DESTROY, () => maskGfx.destroy());
 
+    const FILTER_H = P(28);
+    let exchangeFilterObjs: Phaser.GameObjects.GameObject[] = [];
+
+    const showExchangeFilters = (active: 'small' | 'elite' | 'boss') => {
+      exchangeFilterObjs.forEach(o => o.destroy());
+      exchangeFilterObjs = [];
+      maskGfx.clear(); maskGfx.fillStyle(0xffffff);
+      maskGfx.fillRect(W / 2 + px, H / 2 + py + HEADER_H + FILTER_H, PW, viewH - FILTER_H);
+      const filterDefs: { label: string; v: 'small' | 'elite' | 'boss' }[] = [
+        { label: '一般', v: 'small' },
+        { label: '菁英', v: 'elite' }, { label: 'BOSS', v: 'boss' },
+      ];
+      const FTW = Math.floor(PW / filterDefs.length);
+      const FY = py + HEADER_H;
+      filterDefs.forEach((fd, fi) => {
+        const fx = -PW / 2 + fi * FTW;
+        const isAct = fd.v === active;
+        const fg = this.add.graphics();
+        fg.fillStyle(isAct ? 0x3a1a00 : 0x1a0c00, 1);
+        fg.fillRect(fx, FY, FTW, FILTER_H);
+        fg.lineStyle(1, isAct ? GOLD : WB, isAct ? 0.8 : 0.3);
+        fg.strokeRect(fx, FY, FTW, FILTER_H);
+        exchangeFilterObjs.push(fg); container.add(fg);
+        const lbl = this.add.text(fx + FTW / 2, FY + FILTER_H / 2, fd.label, {
+          fontSize: F(13), fontStyle: isAct ? 'bold' : 'normal',
+          color: isAct ? '#ffe066' : '#a08050', stroke: '#1a0800', strokeThickness: 1,
+        }).setOrigin(0.5);
+        exchangeFilterObjs.push(lbl); container.add(lbl);
+        const fHit = this.add.rectangle(fx + FTW / 2, FY + FILTER_H / 2, FTW, FILTER_H)
+          .setInteractive({ useHandCursor: true });
+        fHit.on('pointerdown', (_p: any, _lx: any, _ly: any, ev: Phaser.Types.Input.EventData) => {
+          ev.stopPropagation();
+          if (fd.v !== active) buildExchangeContent(fd.v);
+        });
+        exchangeFilterObjs.push(fHit); container.add(fHit);
+      });
+    };
+
+    hideExchangeFilters = () => {
+      exchangeFilterObjs.forEach(o => o.destroy());
+      exchangeFilterObjs = [];
+      maskGfx.clear(); maskGfx.fillStyle(0xffffff);
+      maskGfx.fillRect(W / 2 + px, H / 2 + py + HEADER_H, PW, viewH);
+    };
+
     // ── Scrollable content ────────────────────────────────
-    const COLS     = 2;
-    const CELL_PAD = P(8);
-    const CELL_GAP = P(6);
-    const CELL_W   = Math.floor((PW - CELL_PAD * 2 - CELL_GAP * (COLS - 1)) / COLS);
-    const CELL_H   = P(116);
-    const ROW_PAD  = P(6);
-    const ICON_SZ  = P(40);
-    const BW = P(54), BH = P(26);
-    const startX   = -PW / 2 + CELL_PAD;
+    const COLS = 3;
+    const CELL_PAD = P(6);
+    const CELL_GAP = P(7);
+    const CELL_W = Math.floor((PW - CELL_PAD * 2 - CELL_GAP * (COLS - 1)) / COLS);
+    const CELL_H = P(108);
+    const ROW_PAD = P(9);
+    const ICON_SZ = P(28);
+    const BW = P(44), BH = P(20);
+    const startX = -PW / 2 + CELL_PAD;
 
     let scrollCont: Phaser.GameObjects.Container = this.add.container(0, 0);
-    let scrollY    = 0;
-    let maxScroll  = 0;
+    let scrollY = 0;
+    let maxScroll = 0;
+    let scrollBaseY = py + HEADER_H;
 
     const buildContent = (items: ShopItem[]) => {
+      scrollBaseY = py + HEADER_H;
       scrollCont.destroy();
-      scrollY   = 0;
+      scrollY = 0;
       maxScroll = Math.max(0, Math.ceil(items.length / COLS) * (CELL_H + ROW_PAD) - ROW_PAD - viewH);
-      scrollCont = this.add.container(0, py + HEADER_H);
+      scrollCont = this.add.container(0, scrollBaseY);
       scrollCont.setMask(scrollMask);
       container.add(scrollCont);
 
       items.forEach((item, i) => {
         const col = i % COLS;
         const row = Math.floor(i / COLS);
-        const cx  = startX + col * (CELL_W + CELL_GAP);
-        const cy  = row * (CELL_H + ROW_PAD);
+        const cx = startX + col * (CELL_W + CELL_GAP);
+        const cy = row * (CELL_H + ROW_PAD);
         const colorHex = `#${item.color.toString(16).padStart(6, '0')}`;
 
         const cellGfx = this.add.graphics();
@@ -4128,46 +4205,46 @@ export class PrepScene extends Phaser.Scene {
         cellGfx.fillRoundedRect(cx, cy, P(4), CELL_H, P(3));
         scrollCont.add(cellGfx);
 
-        const iconCX = cx + P(10) + ICON_SZ / 2;
-        const iconCY = cy + P(10) + ICON_SZ / 2;
+        const iconCX = cx + P(7) + ICON_SZ / 2;
+        const iconCY = cy + P(8) + ICON_SZ / 2;
         const iconBg = this.add.graphics();
         iconBg.fillStyle(0x0a0800, 0.6);
-        iconBg.fillRoundedRect(cx + P(10), cy + P(10), ICON_SZ, ICON_SZ, P(5));
+        iconBg.fillRoundedRect(cx + P(7), cy + P(8), ICON_SZ, ICON_SZ, P(5));
         iconBg.lineStyle(P(1), item.color, 0.45);
-        iconBg.strokeRoundedRect(cx + P(10), cy + P(10), ICON_SZ, ICON_SZ, P(5));
+        iconBg.strokeRoundedRect(cx + P(7), cy + P(8), ICON_SZ, ICON_SZ, P(5));
         scrollCont.add(iconBg);
         const iconKey = `icon_${item.id}`;
         if (this.textures.exists(iconKey))
-          scrollCont.add(this.add.image(iconCX, iconCY, iconKey).setDisplaySize(P(30), P(30)));
+          scrollCont.add(this.add.image(iconCX, iconCY, iconKey).setDisplaySize(P(20), P(20)));
 
-        const tx      = cx + P(10) + ICON_SZ + P(8);
-        const txtMaxW = CELL_W - ICON_SZ - P(26);
-        scrollCont.add(this.add.text(tx, cy + P(8), item.name, {
-          fontSize: F(13), fontStyle: 'bold', color: colorHex,
+        const tx = cx + P(7) + ICON_SZ + P(5);
+        const txtMaxW = CELL_W - ICON_SZ - P(18);
+        scrollCont.add(this.add.text(tx, cy + P(7), item.name, {
+          fontSize: F(15), fontStyle: 'bold', color: colorHex,
           stroke: '#1a0800', strokeThickness: 2,
           wordWrap: { width: txtMaxW },
         }).setOrigin(0, 0));
-        scrollCont.add(this.add.text(tx, cy + P(28), item.desc, {
-          fontSize: F(11), color: '#b09070', stroke: '#1a0800', strokeThickness: 1,
+        scrollCont.add(this.add.text(tx, cy + P(27), item.desc, {
+          fontSize: F(15), fontStyle: 'bold', color: '#b09070', stroke: '#1a0800', strokeThickness: 1,
           wordWrap: { width: txtMaxW },
         }).setOrigin(0, 0));
 
-        const isCardGacha  = item.id === '__card_gacha__';
+        const isCardGacha = item.id === '__card_gacha__';
         const priceIconKey = isCardGacha ? 'icon_blank_card' : 'icon_coin';
-        const priceLabel   = isCardGacha ? '空白卡片×10' : `${item.price.toLocaleString()}金`;
-        const priceColor   = isCardGacha ? '#cc88ff' : '#d4a044';
-        const priceIconSz  = P(13);
-        const priceY       = cy + CELL_H - P(17);
-        const priceIconX   = cx + P(10) + priceIconSz / 2;
+        const priceLabel = isCardGacha ? '空白×10' : `${item.price.toLocaleString()}金`;
+        const priceColor = isCardGacha ? '#cc88ff' : '#d4a044';
+        const priceIconSz = P(12);
+        const priceY = cy + CELL_H - P(22);
+        const priceIconX = cx + P(7) + priceIconSz / 2;
         if (this.textures.exists(priceIconKey))
           scrollCont.add(this.add.image(priceIconX, priceY, priceIconKey)
             .setDisplaySize(priceIconSz, priceIconSz).setOrigin(0.5, 1));
-        scrollCont.add(this.add.text(cx + P(10) + priceIconSz + P(3), priceY, priceLabel, {
-          fontSize: F(11), fontStyle: 'bold', color: priceColor, stroke: '#1a0800', strokeThickness: 1,
+        scrollCont.add(this.add.text(cx + P(7) + priceIconSz + P(2), priceY, priceLabel, {
+          fontSize: F(15), fontStyle: 'bold', color: priceColor, stroke: '#1a0800', strokeThickness: 1,
         }).setOrigin(0, 1));
 
-        const btnCX = cx + CELL_W - BW / 2 - P(6);
-        const btnCY = cy + CELL_H - BH / 2 - P(6);
+        const btnCX = cx + CELL_W / 2;
+        const btnCY = cy + CELL_H - BH / 2 - P(4);
         const btnGfx = this.add.graphics();
         const drawBtn = (hover: boolean) => {
           btnGfx.clear();
@@ -4179,15 +4256,15 @@ export class PrepScene extends Phaser.Scene {
         drawBtn(false);
         scrollCont.add(btnGfx);
         scrollCont.add(this.add.text(btnCX, btnCY, '購買', {
-          fontSize: F(13), fontStyle: 'bold', color: '#e8c870', stroke: '#1a0800', strokeThickness: 2,
+          fontSize: F(15), fontStyle: 'bold', color: '#e8c870', stroke: '#1a0800', strokeThickness: 2,
         }).setOrigin(0.5));
 
         const hit = this.add.rectangle(btnCX, btnCY, BW, BH).setInteractive({ useHandCursor: true });
-        hit.on('pointerover',  () => drawBtn(true));
-        hit.on('pointerout',   () => drawBtn(false));
-        hit.on('pointerdown',  () => {
+        hit.on('pointerover', () => drawBtn(true));
+        hit.on('pointerout', () => drawBtn(false));
+        hit.on('pointerdown', () => {
           if (item.id === '__card_gacha__') {
-            if (InventoryStore.getItemQty(ITEM_BLANK_CARD) < 10) return;
+            if (InventoryStore.getItemQty(ITEM_BLANK_CARD) < 10) { showToast('空白卡片不足'); return; }
             InventoryStore.spendItem(ITEM_BLANK_CARD, 10);
             SaveStore.save();
             container.destroy();
@@ -4195,13 +4272,14 @@ export class PrepScene extends Phaser.Scene {
             return;
           }
           if (item.id === '__gacha__') {
+            if (InventoryStore.getGold() < item.price) { showToast('金幣不足'); return; }
             if (!InventoryStore.spendGold(item.price)) return;
             SaveStore.save();
             this.openGachaEquipPanel();
             return;
           }
           this.showQtyBuyPopup(item, (qty) => {
-            if (!InventoryStore.spendGold(item.price * qty)) return;
+            if (!InventoryStore.spendGold(item.price * qty)) { showToast('金幣不足'); return; }
             InventoryStore.addItem(item.id, item.name, qty);
             SaveStore.save();
             refreshGold();
@@ -4211,13 +4289,174 @@ export class PrepScene extends Phaser.Scene {
       });
     };
 
+    // ── Card Exchange tab ─────────────────────────────────────
+    const getExchangeCost = (monsterId: string) =>
+      monsterId.startsWith('boss') ? 30 : monsterId.startsWith('elite') ? 15 : 3;
+
+    const buildExchangeContent = (filter: 'small' | 'elite' | 'boss' = 'small') => {
+      scrollBaseY = py + HEADER_H + FILTER_H;
+      scrollCont.destroy();
+      scrollY = 0;
+      scrollCont = this.add.container(0, scrollBaseY);
+      scrollCont.setMask(scrollMask);
+      container.add(scrollCont);  // scrollCont first → lower input priority
+      showExchangeFilters(filter); // filter tabs last → on top → intercept input first
+
+      // Group CARD_DEFS by monsterId (preserving order)
+      const groupMap = new Map<string, CardDef[]>();
+      for (const card of CARD_DEFS) {
+        if (!groupMap.has(card.monsterId)) groupMap.set(card.monsterId, []);
+        groupMap.get(card.monsterId)!.push(card);
+      }
+
+      const COLS3 = 3;
+      const EX_PAD = CELL_PAD;
+      const EX_CW = Math.floor((PW - EX_PAD * 2 - CELL_GAP * (COLS3 - 1)) / COLS3);
+
+      const ICON_SZ = P(28);
+
+      // Pre-measure all desc heights to find the tallest card in this filter, then use a uniform EX_CH
+      const _txtW = EX_CW - ICON_SZ - P(18);
+      let EX_CH = P(108);
+      for (const [monsterId, measCards] of groupMap) {
+        const _tier = monsterId.startsWith('boss') ? 'boss' : monsterId.startsWith('elite') ? 'elite' : 'small';
+        if (_tier !== filter) continue;
+        for (const measCard of measCards) {
+          const t = this.make.text({
+            x: 0, y: 0, text: measCard.desc,
+            style: { fontSize: F(15), fontStyle: 'bold', wordWrap: { width: _txtW } }, add: false
+          });
+          EX_CH = Math.max(EX_CH, P(27) + t.height + P(30));
+          t.destroy();
+        }
+      }
+      const BW = P(44), BH = P(20);
+
+      const refreshOwned = () => refreshGold();
+
+      let curY = 0;
+      let lastTier = '';
+      let col = 0;
+
+      for (const [monsterId, cards] of groupMap) {
+        const monDef = getMonsterDef(monsterId);
+        if (!monDef) continue;
+        const cost = getExchangeCost(monsterId);
+        const tier = monsterId.startsWith('boss') ? 'boss' : monsterId.startsWith('elite') ? 'elite' : 'small';
+        if (tier !== filter) continue;
+        const tierColor = tier === 'boss' ? 0xf0c040 : tier === 'elite' ? 0x9aacb8 : 0xb87333;
+
+        if (tier !== lastTier) {
+          if (col > 0) { curY += EX_CH + ROW_PAD; col = 0; }
+          lastTier = tier;
+        }
+
+        // Each card placed in flowing 3-column grid
+        for (const card of cards) {
+          const cx = -PW / 2 + EX_PAD + col * (EX_CW + CELL_GAP);
+          const cy = curY;
+          const tintHex = `#${card.tint.toString(16).padStart(6, '0')}`;
+
+          // Cell bg — left stripe uses tier colour
+          const cellGfx = this.add.graphics();
+          cellGfx.fillStyle(WM, 0.6);
+          cellGfx.fillRoundedRect(cx, cy, EX_CW, EX_CH, P(6));
+          cellGfx.lineStyle(P(1), WL, 0.3);
+          cellGfx.strokeRoundedRect(cx, cy, EX_CW, EX_CH, P(6));
+          cellGfx.fillStyle(tierColor, 0.8);
+          cellGfx.fillRoundedRect(cx, cy, P(4), EX_CH, P(3));
+          scrollCont.add(cellGfx);
+
+          // Icon area (mirrors shop cell style)
+          const iconCX = cx + P(7) + ICON_SZ / 2;
+          const iconCY = cy + P(8) + ICON_SZ / 2;
+          const iconBg = this.add.graphics();
+          iconBg.fillStyle(0x0a0800, 0.6);
+          iconBg.fillRoundedRect(cx + P(7), cy + P(8), ICON_SZ, ICON_SZ, P(5));
+          iconBg.lineStyle(P(1), card.tint, 0.45);
+          iconBg.strokeRoundedRect(cx + P(7), cy + P(8), ICON_SZ, ICON_SZ, P(5));
+          scrollCont.add(iconBg);
+
+          if (this.textures.exists(monDef.spriteKey)) {
+            const spr = this.add.sprite(iconCX, iconCY, monDef.spriteKey, 0);
+            spr.setDisplaySize(P(20), P(20)).setTint(card.tint);
+            scrollCont.add(spr);
+          }
+
+          // Grade badge (corner of icon)
+          const grade = card.id.slice(-1).toUpperCase();
+          scrollCont.add(this.add.text(cx + P(7) + P(2), cy + P(8) + P(2), grade, {
+            fontSize: F(15), fontStyle: 'bold', color: tintHex, stroke: '#000', strokeThickness: 2,
+          }).setOrigin(0, 0));
+
+          // Name + desc (right of icon)
+          const tx = cx + P(7) + ICON_SZ + P(5);
+          const txtW = EX_CW - ICON_SZ - P(18);
+          scrollCont.add(this.add.text(tx, cy + P(7), card.name, {
+            fontSize: F(15), fontStyle: 'bold', color: tintHex,
+            stroke: '#1a0800', strokeThickness: 2,
+            wordWrap: { width: txtW }, maxLines: 1,
+          }).setOrigin(0, 0));
+          const descTxt = this.add.text(tx, cy + P(27), card.desc, {
+            fontSize: F(15), fontStyle: 'bold', color: '#b09070', stroke: '#1a0800', strokeThickness: 1,
+            wordWrap: { width: txtW },
+          }).setOrigin(0, 0);
+          scrollCont.add(descTxt);
+
+          // Price row (blank card icon + cost)
+          const priceY = cy + EX_CH - P(22);
+          if (this.textures.exists('icon_blank_card'))
+            scrollCont.add(this.add.image(cx + P(7) + P(6), priceY, 'icon_blank_card').setDisplaySize(P(12), P(12)).setOrigin(0.5, 1));
+          scrollCont.add(this.add.text(cx + P(7) + P(14), priceY, `×${cost}`, {
+            fontSize: F(15), fontStyle: 'bold', color: '#cc88ff', stroke: '#1a0800', strokeThickness: 1,
+          }).setOrigin(0, 1));
+
+          // Buy button (full-width, centered at bottom)
+          const btnCX = cx + EX_CW / 2;
+          const btnCY = cy + EX_CH - BH / 2 - P(4);
+          const btnGfx = this.add.graphics();
+          const drawBtn = (hover: boolean) => {
+            btnGfx.clear();
+            btnGfx.fillStyle(hover ? 0x5a3008 : 0x2a1800, 1);
+            btnGfx.fillRoundedRect(btnCX - BW / 2, btnCY - BH / 2, BW, BH, P(5));
+            btnGfx.lineStyle(P(1), GOLD, hover ? 1 : 0.6);
+            btnGfx.strokeRoundedRect(btnCX - BW / 2, btnCY - BH / 2, BW, BH, P(5));
+          };
+          drawBtn(false);
+          scrollCont.add(btnGfx);
+          scrollCont.add(this.add.text(btnCX, btnCY, '兌換', {
+            fontSize: F(15), fontStyle: 'bold', color: '#ffe066', stroke: '#1a0800', strokeThickness: 1,
+          }).setOrigin(0.5, 0.5));
+
+          const hit = this.add.rectangle(btnCX, btnCY, BW + P(6), BH + P(6)).setInteractive({ useHandCursor: true });
+          hit.on('pointerover', () => drawBtn(true));
+          hit.on('pointerout', () => drawBtn(false));
+          hit.on('pointerdown', () => {
+            if (InventoryStore.getItemQty(ITEM_BLANK_CARD) < cost) { showToast('空白卡片不足'); return; }
+            InventoryStore.spendItem(ITEM_BLANK_CARD, cost);
+            InventoryStore.addItem(card.id, card.name, 1);
+            SaveStore.save();
+            refreshOwned();
+            drawBtn(false);
+          });
+          scrollCont.add(hit);
+
+          col++;
+          if (col >= COLS3) { col = 0; curY += EX_CH + ROW_PAD; }
+        }
+      }
+      if (col > 0) curY += EX_CH + ROW_PAD;
+
+      maxScroll = Math.max(0, curY - (viewH - FILTER_H));
+    };
+
     buildContent(GACHA_ITEMS);
 
     // ── Scroll input ──────────────────────────────────────
     const onWheel = (_ptr: any, _gos: any, _dx: any, dy: number) => {
       if (!container.active) return;
       scrollY = Math.max(0, Math.min(maxScroll, scrollY + dy * 0.6));
-      scrollCont.y = py + HEADER_H - scrollY;
+      scrollCont.y = scrollBaseY - scrollY;
     };
     this.input.on('wheel', onWheel);
     container.once(Phaser.GameObjects.Events.DESTROY, () => this.input.off('wheel', onWheel));
@@ -4230,7 +4469,7 @@ export class PrepScene extends Phaser.Scene {
     const onDragMove = (ptr: Phaser.Input.Pointer) => {
       if (!container.active || !ptr.isDown) return;
       scrollY = Math.max(0, Math.min(maxScroll, dragStartScroll - (ptr.y - dragStartY)));
-      scrollCont.y = py + HEADER_H - scrollY;
+      scrollCont.y = scrollBaseY - scrollY;
     };
     this.input.on('pointerdown', onDragStart);
     this.input.on('pointermove', onDragMove);
@@ -4306,7 +4545,7 @@ export class PrepScene extends Phaser.Scene {
     // Helper: small button
     const BW = P(40), BH = P(32);
     const makeBtn = (x: number, y: number, label: string, w: number, h: number,
-                     fgColor: string, borderColor: number, onClick: () => void) => {
+      fgColor: string, borderColor: number, onClick: () => void) => {
       const g = this.add.graphics();
       const draw = (hover: boolean) => {
         g.clear();
@@ -4322,14 +4561,14 @@ export class PrepScene extends Phaser.Scene {
       }).setOrigin(0.5));
       const hit = this.add.rectangle(x, y, w, h).setInteractive({ useHandCursor: true });
       hit.on('pointerover', () => draw(true));
-      hit.on('pointerout',  () => draw(false));
+      hit.on('pointerout', () => draw(false));
       hit.on('pointerdown', onClick);
       pop.add(hit);
     };
 
     const qtyY = -PH / 2 + P(94);
-    makeBtn(-P(70), qtyY, '－', BW, BH, '#e8c870', GOLD, () => { if (qty > 1)       { qty--; updateDisplay(); } });
-    makeBtn( P(70), qtyY, '＋', BW, BH, '#e8c870', GOLD, () => { if (qty < MAX_QTY) { qty++; updateDisplay(); } });
+    makeBtn(-P(70), qtyY, '－', BW, BH, '#e8c870', GOLD, () => { if (qty > 1) { qty--; updateDisplay(); } });
+    makeBtn(P(70), qtyY, '＋', BW, BH, '#e8c870', GOLD, () => { if (qty < MAX_QTY) { qty++; updateDisplay(); } });
 
     // Quick-add row
     const quickVals = [1, 5, 10];
@@ -4342,8 +4581,8 @@ export class PrepScene extends Phaser.Scene {
 
     // Cancel / Confirm
     const CBW = P(108), CBH = P(36), cbY = PH / 2 - P(28);
-    makeBtn(-P(68), cbY, '取消',   CBW, CBH, '#cc6666', 0x883333, () => pop.destroy());
-    makeBtn( P(68), cbY, '確認購買', CBW, CBH, '#e8c870', GOLD,    () => {
+    makeBtn(-P(68), cbY, '取消', CBW, CBH, '#cc6666', 0x883333, () => pop.destroy());
+    makeBtn(P(68), cbY, '確認購買', CBW, CBH, '#e8c870', GOLD, () => {
       if (InventoryStore.getGold() < qty * item.price) return;
       onConfirm(qty);
       pop.destroy();
@@ -4433,7 +4672,7 @@ export class PrepScene extends Phaser.Scene {
         .setDepth(D + 5).setInteractive({ useHandCursor: true });
       objs.push(hit);
       hit.on('pointerover', () => drawCard(true));
-      hit.on('pointerout',  () => drawCard(false));
+      hit.on('pointerout', () => drawCard(false));
       hit.on('pointerdown', () => {
         PlayerStore.addOwned(item);
         SaveStore.save();
@@ -4452,9 +4691,9 @@ export class PrepScene extends Phaser.Scene {
     const roll = Math.random();
     const tier = roll < 0.01 ? 'boss' : roll < 0.16 ? 'elite' : 'normal';
     const pool = CARD_DEFS.filter(c =>
-      tier === 'boss'  ? c.monsterId.startsWith('boss_')  :
-      tier === 'elite' ? c.monsterId.startsWith('elite_') :
-      !c.monsterId.startsWith('elite_') && !c.monsterId.startsWith('boss_')
+      tier === 'boss' ? c.monsterId.startsWith('boss_') :
+        tier === 'elite' ? c.monsterId.startsWith('elite_') :
+          !c.monsterId.startsWith('elite_') && !c.monsterId.startsWith('boss_')
     );
     const drawn = pool[Math.floor(Math.random() * pool.length)];
 
@@ -4463,15 +4702,15 @@ export class PrepScene extends Phaser.Scene {
     const PW = P(240), PH = P(340);
     const mx = W / 2 - PW / 2, my = H / 2 - PH / 2;
 
-    const tierColor  = tier === 'boss' ? 0xf0c040 : tier === 'elite' ? 0x9aacb8 : 0xb87333;
-    const tierLabel  = tier === 'boss' ? 'Boss 卡' : tier === 'elite' ? '菁英卡' : '一般卡';
-    const tierHex    = '#' + tierColor.toString(16).padStart(6, '0');
+    const tierColor = tier === 'boss' ? 0xf0c040 : tier === 'elite' ? 0x9aacb8 : 0xb87333;
+    const tierLabel = tier === 'boss' ? 'Boss 卡' : tier === 'elite' ? '菁英卡' : '一般卡';
+    const tierHex = '#' + tierColor.toString(16).padStart(6, '0');
 
     const mg = this.add.graphics().setDepth(D + 1);
     objs.push(mg);
-    mg.fillStyle(0x120c04, 0.97);    mg.fillRoundedRect(mx, my, PW, PH, P(10));
+    mg.fillStyle(0x120c04, 0.97); mg.fillRoundedRect(mx, my, PW, PH, P(10));
     mg.lineStyle(P(2), tierColor, 1); mg.strokeRoundedRect(mx, my, PW, PH, P(10));
-    mg.fillStyle(0x201408, 1);        mg.fillRoundedRect(mx, my, PW, P(44), { tl: P(10), tr: P(10), bl: 0, br: 0 });
+    mg.fillStyle(0x201408, 1); mg.fillRoundedRect(mx, my, PW, P(44), { tl: P(10), tr: P(10), bl: 0, br: 0 });
     mg.lineStyle(P(1), tierColor, 0.4); mg.lineBetween(mx, my + P(44), mx + PW, my + P(44));
 
     objs.push(this.add.text(W / 2, my + P(22), '卡片抽取結果', {
@@ -4488,16 +4727,16 @@ export class PrepScene extends Phaser.Scene {
     const cx = W / 2, cy = my + P(88) + CARD_H / 2;
     const cg = this.add.graphics().setDepth(D + 2);
     objs.push(cg);
-    cg.fillStyle(WMI, 1);        cg.fillRect(cx - CARD_W / 2, cy - CARD_H / 2, CARD_W, CARD_H);
+    cg.fillStyle(WMI, 1); cg.fillRect(cx - CARD_W / 2, cy - CARD_H / 2, CARD_W, CARD_H);
     cg.lineStyle(P(3), tierColor, 0.95); cg.strokeRect(cx - CARD_W / 2, cy - CARD_H / 2, CARD_W, CARD_H);
-    cg.lineStyle(P(1), tierColor, 0.4);  cg.strokeRect(cx - CARD_W / 2 + P(4), cy - CARD_H / 2 + P(4), CARD_W - P(8), CARD_H - P(8));
+    cg.lineStyle(P(1), tierColor, 0.4); cg.strokeRect(cx - CARD_W / 2 + P(4), cy - CARD_H / 2 + P(4), CARD_W - P(8), CARD_H - P(8));
 
     // Monster sprite
     const monDef = getMonsterDef(drawn.monsterId);
     if (monDef) {
       const spriteKey = `${monDef.spriteKey}_idle`;
-      const animKey   = `cgacha_idle_${drawn.monsterId}`;
-      const idleEnd   = monDef.spriteKey.startsWith('plant') ? 3 : 5;
+      const animKey = `cgacha_idle_${drawn.monsterId}`;
+      const idleEnd = monDef.spriteKey.startsWith('plant') ? 3 : 5;
       try {
         if (!this.anims.exists(animKey) && this.textures.exists(spriteKey))
           this.anims.create({ key: animKey, frames: this.anims.generateFrameNumbers(spriteKey, { start: 0, end: idleEnd }), frameRate: 8, repeat: -1 });
@@ -4532,7 +4771,7 @@ export class PrepScene extends Phaser.Scene {
     const hit = this.add.rectangle(W / 2, BY, BW, BH).setDepth(D + 4).setInteractive({ useHandCursor: true });
     objs.push(hit);
     hit.on('pointerover', () => drawConfirmBtn(true));
-    hit.on('pointerout',  () => drawConfirmBtn(false));
+    hit.on('pointerout', () => drawConfirmBtn(false));
     hit.on('pointerdown', () => {
       CardStore.addCard(drawn.id, 1);
       SaveStore.save();
@@ -4541,12 +4780,12 @@ export class PrepScene extends Phaser.Scene {
   }
 
   private drawCenterHero(W: number, H: number): void {
-    const cx       = W / 2;
+    const cx = W / 2;
     const BOTTOM_H = P(78);
-    const availH   = H - TOP_H - BOTTOM_H;
-    const heroY    = TOP_H + availH * 0.50;
+    const availH = H - TOP_H - BOTTOM_H;
+    const heroY = TOP_H + availH * 0.50;
     this._heroY = heroY;
-    const scale    = 1.75 * 1.5 * DPR;
+    const scale = 1.75 * 1.5 * DPR;
 
 
     // ── Animated hero sprite ───────────────────────────────
@@ -4569,16 +4808,16 @@ export class PrepScene extends Phaser.Scene {
 
 
   private drawAmbientParticles(W: number, H: number): void {
-    const BOTTOM_H  = P(78);
-    const zoneTop   = TOP_H + P(40);
-    const zoneBot   = H - BOTTOM_H - P(20);
-    const colors    = [0xffd060, 0x88ddff, 0xffaa44, 0xaaffcc, 0xff88cc];
+    const BOTTOM_H = P(78);
+    const zoneTop = TOP_H + P(40);
+    const zoneBot = H - BOTTOM_H - P(20);
+    const colors = [0xffd060, 0x88ddff, 0xffaa44, 0xaaffcc, 0xff88cc];
 
     for (let i = 0; i < 22; i++) {
-      const g     = this.add.graphics().setDepth(7);
-      const size  = Phaser.Math.FloatBetween(1.2, 3.2);
-      const x     = Phaser.Math.Between(10, W - 10);
-      const y     = Phaser.Math.Between(zoneTop, zoneBot);
+      const g = this.add.graphics().setDepth(7);
+      const size = Phaser.Math.FloatBetween(1.2, 3.2);
+      const x = Phaser.Math.Between(10, W - 10);
+      const y = Phaser.Math.Between(zoneTop, zoneBot);
       const alpha = Phaser.Math.FloatBetween(0.18, 0.55);
       const color = Phaser.Utils.Array.GetRandom(colors);
 
@@ -4591,7 +4830,7 @@ export class PrepScene extends Phaser.Scene {
 
       this.tweens.add({
         targets: g,
-        alpha:   { from: 0, to: alpha },
+        alpha: { from: 0, to: alpha },
         duration: Phaser.Math.Between(700, 1600),
         yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
         delay: Phaser.Math.Between(0, 2500),
@@ -4635,7 +4874,7 @@ export class PrepScene extends Phaser.Scene {
     const pg = this.add.graphics().setDepth(D + 1);
     objs.push(pg);
     pg.fillStyle(0x0e0806, 0.97); pg.fillRoundedRect(px, py, PW, PH, P2(12));
-    pg.lineStyle(2, GOLD, 0.6);   pg.strokeRoundedRect(px, py, PW, PH, P2(12));
+    pg.lineStyle(2, GOLD, 0.6); pg.strokeRoundedRect(px, py, PW, PH, P2(12));
 
     objs.push(this.add.text(W / 2, py + P2(24), '多人連線', {
       fontSize: F(18), fontStyle: 'bold', color: '#ffe080', stroke: '#2a1000', strokeThickness: 2,
@@ -4676,9 +4915,9 @@ export class PrepScene extends Phaser.Scene {
         closePopup();
         NetworkService.onPartnerJoined(data => {
           this._partnerIn = true;
-          this._partnerNick   = data.nickname || this._partnerNick || '?';
-          this._partnerLevel  = data.level    || this._partnerLevel  || 1;
-          this._partnerSkinId = data.skinId   ?? this._partnerSkinId ?? 0;
+          this._partnerNick = data.nickname || this._partnerNick || '?';
+          this._partnerLevel = data.level || this._partnerLevel || 1;
+          this._partnerSkinId = data.skinId ?? this._partnerSkinId ?? 0;
           this.refreshRoomOverlay();
         });
         NetworkService.onPartnerLeft(() => { this._partnerIn = false; this.refreshRoomOverlay(); });
@@ -4738,7 +4977,7 @@ export class PrepScene extends Phaser.Scene {
     objs.push(bd);
     const pg = this.add.graphics().setDepth(D + 1); objs.push(pg);
     pg.fillStyle(0x0e0806, 0.97); pg.fillRoundedRect(px, py, PW, PH, P(12));
-    pg.lineStyle(2, GOLD, 0.6);   pg.strokeRoundedRect(px, py, PW, PH, P(12));
+    pg.lineStyle(2, GOLD, 0.6); pg.strokeRoundedRect(px, py, PW, PH, P(12));
 
     objs.push(this.add.text(W / 2, py + P(24), '輸入房間代碼', {
       fontSize: F(16), fontStyle: 'bold', color: '#ffe080', stroke: '#2a1000', strokeThickness: 2,
@@ -4771,9 +5010,9 @@ export class PrepScene extends Phaser.Scene {
         // with host's info as soon as it receives playerInfo, so callback must be ready first.
         NetworkService.onPartnerJoined(data => {
           this._partnerIn = true;
-          this._partnerNick   = data.nickname || this._partnerNick || '?';
-          this._partnerLevel  = data.level    || this._partnerLevel  || 1;
-          this._partnerSkinId = data.skinId   ?? this._partnerSkinId ?? 0;
+          this._partnerNick = data.nickname || this._partnerNick || '?';
+          this._partnerLevel = data.level || this._partnerLevel || 1;
+          this._partnerSkinId = data.skinId ?? this._partnerSkinId ?? 0;
           this.refreshRoomOverlay();
         });
         NetworkService.onPartnerLeft(() => { this._partnerIn = false; this.refreshRoomOverlay(); });
@@ -4842,12 +5081,12 @@ export class PrepScene extends Phaser.Scene {
     if (!connected) return;
 
     // ── Room code + leave button in the bottom-right corner ──────
-    const BAR_H   = P(78);
-    const barY    = H - BAR_H;
-    const panelW  = P(108);                          // 原 P(72) 放大 50%
-    const panelH  = P(82);                           // 原 P(54) 放大 50%
+    const BAR_H = P(78);
+    const barY = H - BAR_H;
+    const panelW = P(108);                          // 原 P(72) 放大 50%
+    const panelH = P(82);                           // 原 P(54) 放大 50%
     const panelCX = W - P(10) - panelW / 2;          // 右對齊
-    const panelY  = barY - P(6) - panelH;
+    const panelY = barY - P(6) - panelH;
 
     const rpgfx = this.add.graphics().setDepth(25);
     this.roomOverlayObjs.push(rpgfx);
@@ -4923,8 +5162,8 @@ export class PrepScene extends Phaser.Scene {
       const BTN_W = P(100);
       const BTN_H = P(68);
       const BAR_H = P(78);
-      const barY  = H - BAR_H;
-      const bcy   = barY + BAR_H / 2;
+      const barY = H - BAR_H;
+      const bcy = barY + BAR_H / 2;
       const overlayGfx = this.add.graphics().setDepth(28);
       this.roomOverlayObjs.push(overlayGfx);
       overlayGfx.fillStyle(0x000000, 0.7);

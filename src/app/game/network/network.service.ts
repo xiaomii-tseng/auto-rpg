@@ -238,7 +238,7 @@ class NetworkServiceClass {
     this.room?.send('playerDead', {});
   }
 
-  sendPotionEffect(type: 'heal' | 'revive', amount: number): void {
+  sendPotionEffect(type: 'heal' | 'revive' | 'atk' | 'def' | 'speed', amount: number): void {
     this.room?.send('potionEffect', { type, amount });
   }
 
