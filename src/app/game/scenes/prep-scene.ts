@@ -142,6 +142,7 @@ export class PrepScene extends Phaser.Scene {
       PlayerStore.equipDirect('sword', startSword);
       InventoryStore.addGold(50000);
       InventoryStore.addItem('quest_reroll', '任務重製石', 10);
+      InventoryStore.addItem(ITEM_BLANK_CARD, '空白卡片', 300);
     }
 
 

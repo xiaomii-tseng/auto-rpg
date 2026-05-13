@@ -461,7 +461,7 @@ export const CARD_DEFS: CardDef[] = [
   // 不死花王：召喚/生存特化
   { id: 'card_boss_flower_three_a', name: '不死花王卡片A', monsterId: 'boss_flower_three', element: 'none', tint: 0xffaa44, effect: { evasion: 0.40 }, desc: '閃避率+40%' },
   { id: 'card_boss_flower_three_b', name: '不死花王卡片B', monsterId: 'boss_flower_three', element: 'none', tint: 0xffaa44, effect: { infiniteDivineShield: 1 }, desc: '無限神盾護體(DEF+20)' },
-  { id: 'card_boss_flower_three_c', name: '不死花王卡片C', monsterId: 'boss_flower_three', element: 'none', tint: 0xffaa44, effect: { lavaSlimeCompanion: 1 }, desc: '召喚岩漿史萊姆夥伴（HP×120%、ATK×70%、40px巡邏、100px追擊，死亡8秒後重生）' },
+  { id: 'card_boss_flower_three_c', name: '不死花王卡片C', monsterId: 'boss_flower_three', element: 'none', tint: 0xffaa44, effect: { executeBelow15: 1 }, desc: '敵人HP低於15%時直接斬殺' },
 ];
 
 // ── Helpers ────────────────────────────────────────────────────────────────

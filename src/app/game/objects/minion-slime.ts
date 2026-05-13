@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { MONSTER_SCALE_SMALL } from '../data/monster-data';
+import { CardStore } from '../data/card-store';
 
 const DPR = (window as any).__gameDpr as number;
 const P   = (n: number): number => Math.round(n * DPR);
@@ -152,7 +153,12 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
     this.scene.time.delayedCall(120, () => {
       if (this.mState !== MinionState.DEAD) this.applyBaseTint();
     });
-    if (this.hp <= 0) this.die();
+    if (this.hp <= 0) {
+      this.die();
+    } else if (!this.isAlly && (CardStore.getTotalStats().executeBelow15 ?? 0) > 0 && this.hp / this.maxHp < 0.15) {
+      this.hp = 0;
+      this.die();
+    }
     return Math.max(0, amount - prevHp);  // 超殺量
   }
 

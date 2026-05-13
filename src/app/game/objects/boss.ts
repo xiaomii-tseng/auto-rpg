@@ -3,6 +3,7 @@ import { Element } from '../data/equipment-data';
 import { MONSTER_SCALE_BOSS } from '../data/monster-data';
 import { STAR_BOSS_DMG_MULT } from '../data/quest-store';
 import type { MsgBossSync } from '../../../../shared/types';
+import { CardStore } from '../data/card-store';
 
 const DPR = (window as any).__gameDpr as number;
 const P   = (n: number): number => Math.round(n * DPR);
@@ -221,7 +222,12 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
       if (this.bossState !== BossState.DEAD) this.resumeStateAnim();
     });
 
-    if (this.hp <= 0) this.die();
+    if (this.hp <= 0) {
+      this.die();
+    } else if ((CardStore.getTotalStats().executeBelow15 ?? 0) > 0 && this.hp / this.maxHp < 0.15) {
+      this.hp = 0;
+      this.die();
+    }
   }
 
   private resumeStateAnim(): void {

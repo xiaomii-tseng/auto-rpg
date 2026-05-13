@@ -1307,6 +1307,9 @@ export class GameScene extends Phaser.Scene {
 
     const ps = CardStore.getTotalStats();
     companion.isAlly = true;
+    companion.attackMode = 'shoot';
+    companion.attackCooldownMs = 1200;
+    companion.rangedRange = P(120);
     companion.setAllyStats(Math.max(1, Math.round(ps.maxHp * 1.20)), Math.max(1, Math.round(ps.atk * 0.70)));
     this._allyMinions.push(companion);
     this._allyGroup.add(companion);
@@ -1315,19 +1318,15 @@ export class GameScene extends Phaser.Scene {
     let patrolTarget = { x: sx, y: sy };
 
     companion.getTargetPos = () => {
-      const aggroR = P(100);
       let nearest: MinionSlime | null = null;
       let minD = Infinity;
       for (const m of this.allMinions) {
         if (m.isDead || this._allyMinions.includes(m)) continue;
         const d = Phaser.Math.Distance.Between(companion.x, companion.y, m.x, m.y);
-        if (d < aggroR && d < minD) { minD = d; nearest = m; }
+        if (d < minD) { minD = d; nearest = m; }
       }
       if (nearest) return [nearest.x, nearest.y];
-      if (this.bossActive && this.boss.active &&
-          Phaser.Math.Distance.Between(companion.x, companion.y, this.boss.x, this.boss.y) < aggroR) {
-        return [this.boss.x, this.boss.y];
-      }
+      if (this.bossActive && this.boss.active) return [this.boss.x, this.boss.y];
       if (Phaser.Math.Distance.Between(companion.x, companion.y, patrolTarget.x, patrolTarget.y) < P(8)) {
         const a = Math.random() * Math.PI * 2;
         const r = Math.random() * P(40);
@@ -1337,6 +1336,34 @@ export class GameScene extends Phaser.Scene {
         };
       }
       return [patrolTarget.x, patrolTarget.y];
+    };
+
+    companion.onFire = (type, mx, my, tx, ty) => {
+      this.spawnMinionAttack(type, mx, my, tx, ty, companion.atk, false);
+      const hitTargets = new Set<object>();
+      for (const c of this.minionProjGroup.getChildren()) {
+        const img = c as Phaser.Physics.Arcade.Image;
+        if (!(img as any).isAllyProj && img.active &&
+            Phaser.Math.Distance.Between(img.x, img.y, mx * DPR, my * DPR) < P(8)) {
+          (img as any).isAllyProj = true;
+          img.setTint(0xff8844);
+          const dmg = companion.atk;
+          const hitTimer = this.time.addEvent({
+            delay: 30, loop: true,
+            callback: () => {
+              if (!img.active) { hitTimer.destroy(); return; }
+              for (const t of this.getHittableTargets()) {
+                if (!hitTargets.has(t) && Phaser.Math.Distance.Between(img.x, img.y, t.x, t.y) < P(18)) {
+                  const isBoss = (t as any) === this.boss;
+                  (t as any).takeDamage?.(isBoss ? Math.round(dmg * 0.775) : dmg);
+                  hitTargets.add(t);
+                  this.time.delayedCall(600, () => hitTargets.delete(t));
+                }
+              }
+            },
+          });
+        }
+      }
     };
 
     companion.onDead = () => {

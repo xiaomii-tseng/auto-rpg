@@ -168,6 +168,7 @@ export const CardStore = {
       b.summonFlowerCapPair  = (b.summonFlowerCapPair  ?? 0) + (e.summonFlowerCapPair  ?? 0);
       b.flowerSummonMode     = (b.flowerSummonMode     ?? 0) + (e.flowerSummonMode     ?? 0);
       b.lavaSlimeCompanion   = (b.lavaSlimeCompanion   ?? 0) + (e.lavaSlimeCompanion   ?? 0);
+      b.executeBelow15       = (b.executeBelow15       ?? 0) + (e.executeBelow15       ?? 0);
       b.freeRevive           = (b.freeRevive           ?? 0) + (e.freeRevive           ?? 0);
       b.maxHpPct             = (b.maxHpPct             ?? 0) + (e.maxHpPct             ?? 0);
       b.weaponRefineAtk      = (b.weaponRefineAtk      ?? 0) + (e.weaponRefineAtk      ?? 0);
@@ -261,6 +262,7 @@ export const CardStore = {
       summonFlowerCapPair:  bonus.summonFlowerCapPair,
       flowerSummonMode:     bonus.flowerSummonMode,
       lavaSlimeCompanion:   bonus.lavaSlimeCompanion,
+      executeBelow15:       bonus.executeBelow15,
       freeRevive:           bonus.freeRevive,
       maxHpPct:             bonus.maxHpPct,
       weaponRefineAtk:      bonus.weaponRefineAtk,

@@ -108,6 +108,7 @@ export interface StatBonus {
   weaponRefineHp?:      number;  // 武器每精煉+2、HP+X（累計）
   flowerSummonMode?:    number;  // 取消原攻擊，改為召喚花怪模式（最多3隻，CD 3s，ATK×45%，HP×100%，穿透，0.8s攻速，對BOSS-22.5%）
   lavaSlimeCompanion?:  number;  // 岩漿史萊姆夥伴（HP×120%，ATK×70%，40px巡邏，100px aggro，8s重生）
+  executeBelow15?:      number;  // 敵人HP低於15%時直接斬殺
 }
 
 // ── Affix system ───────────────────────────────────────────────────────────────

@@ -75,6 +75,7 @@ export interface EffectiveStats {
   summonFlowerCapPair?:  number;
   flowerSummonMode?:     number;
   lavaSlimeCompanion?:   number;
+  executeBelow15?:       number;
   freeRevive?:           number;
   maxHpPct?:             number;
   weaponRefineAtk?:      number;
