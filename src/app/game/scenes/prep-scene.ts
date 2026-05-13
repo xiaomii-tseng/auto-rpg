@@ -1362,7 +1362,7 @@ export class PrepScene extends Phaser.Scene {
         // Affixes
         const affixLines = item.affixes.map(a => {
           const isPct = ['crit','atkSpeed','lifesteal','evasion'].includes(a.stat);
-          return `${STAT_NAMES[a.stat]} +${isPct ? (a.value*100).toFixed(1)+'%' : a.value}`;
+          return `${STAT_NAMES[a.stat]} +${isPct ? (a.value*100).toFixed(2)+'%' : a.value}`;
         });
         if (item.behavior) affixLines.push(BEHAVIOR_NAMES[item.behavior]);
         mo.push(this.add.text(cx + CARD_W / 2, cy + P(146), affixLines.join('\n'), {
@@ -1641,8 +1641,8 @@ export class PrepScene extends Phaser.Scene {
       const closeEnhance = () => { eo.forEach(o => o.destroy()); onClose(); };
 
       const isPct  = (stat: string) => ['crit','atkSpeed','lifesteal','evasion','critDmg','dotBonus'].includes(stat);
-      const fmtVal = (stat: string, val: number) => isPct(stat) ? (val * 100).toFixed(1) + '%' : String(val);
-      const fmtGain = (stat: string, gain: number) => isPct(stat) ? `+${(gain * 100).toFixed(1)}%` : `+${gain}`;
+      const fmtVal = (stat: string, val: number) => isPct(stat) ? (val * 100).toFixed(2) + '%' : String(val);
+      const fmtGain = (stat: string, gain: number) => isPct(stat) ? `+${(gain * 100).toFixed(2)}%` : `+${gain}`;
 
       let useComplete = false;
       let useGuard    = false;
@@ -1983,7 +1983,7 @@ export class PrepScene extends Phaser.Scene {
       const statParts: string[] = [];
       item.affixes.forEach(a => {
         const isPct = ['crit','atkSpeed','lifesteal','evasion'].includes(a.stat);
-        statParts.push(`${STAT_NAMES[a.stat]} +${isPct ? (a.value * 100).toFixed(1) + '%' : a.value}`);
+        statParts.push(`${STAT_NAMES[a.stat]} +${isPct ? (a.value * 100).toFixed(2) + '%' : a.value}`);
       });
       det.add(this.add.text(rightColX + P(72), statOffsetY, statParts.join('\n'), {
         fontSize: F(15), fontStyle: 'bold', color: '#88cc88', stroke: '#1a0800', strokeThickness: 1,
@@ -2086,7 +2086,7 @@ export class PrepScene extends Phaser.Scene {
         [{ label: 'HP回復', value: `${s.hpRegen.toFixed(1)}/s`,                  color: '#55ffaa' }, { label: '暴擊',     value: `${(s.crit * 100).toFixed(0)}%`,          color: '#ffaa44' }],
         [{ label: '防禦', value: `${s.def}`,                                      color: '#88aaff' }, { label: '攻速',     value: `${(s.atkSpeed * 100).toFixed(0)}%`,      color: '#ff88ff' }],
         [{ label: '閃避', value: `${(s.evasion * 100).toFixed(1)}%`,              color: '#aaddff' }, { label: '爆傷',     value: `${((1 + s.critDmg) * 100).toFixed(0)}%`, color: '#ffdd44' }],
-        [{ label: '吸血', value: `${(s.lifesteal * 100).toFixed(1)}%`,            color: '#ff6699' }, { label: '持續傷害', value: `+${(s.dotBonus * 100).toFixed(0)}%`,     color: '#cc88ff' }],
+        [{ label: '吸血', value: `${(s.lifesteal * 100).toFixed(2)}%`,            color: '#ff6699' }, { label: '持續傷害', value: `+${(s.dotBonus * 100).toFixed(0)}%`,     color: '#cc88ff' }],
         [{ label: '速度', value: `${s.speed}`,                                    color: '#ffff88' }, { label: '穿甲',     value: `${s.penetration}`,                       color: '#ff9944' }],
       ];
       const colW2 = statsW / 2;
@@ -2190,7 +2190,7 @@ export class PrepScene extends Phaser.Scene {
       }).setOrigin(0.5).setDepth(compD + 2));
 
       const isPct = (stat: string) => ['crit','atkSpeed','lifesteal','evasion','critDmg','dotBonus'].includes(stat);
-      const fmtV  = (stat: string, v: number) => isPct(stat) ? `${(v * 100).toFixed(1)}%` : String(v);
+      const fmtV  = (stat: string, v: number) => isPct(stat) ? `${(v * 100).toFixed(2)}%` : String(v);
 
       const drawItemCard = (
         item: import('../data/equipment-data').EquipmentItem,
@@ -2305,7 +2305,7 @@ export class PrepScene extends Phaser.Scene {
       const statParts: string[] = [];
       item.affixes.forEach(a => {
         const isPct = ['crit','atkSpeed','lifesteal','evasion'].includes(a.stat);
-        statParts.push(`${STAT_NAMES[a.stat]} +${isPct ? (a.value * 100).toFixed(1) + '%' : a.value}`);
+        statParts.push(`${STAT_NAMES[a.stat]} +${isPct ? (a.value * 100).toFixed(2) + '%' : a.value}`);
       });
       det.add(this.add.text(rightColX + P(72), statOffsetY2, statParts.join('\n'), {
         fontSize: F(15), fontStyle: 'bold', color: '#88cc88', stroke: '#1a0800', strokeThickness: 1,
@@ -3513,7 +3513,7 @@ export class PrepScene extends Phaser.Scene {
       const BH = P(30), btnY = PDH / 2 - P(68), dismantleY = PDH / 2 - P(28);
 
       // 分解按鈕（共用）
-      const dismantleQty = detMonTier >= 5 ? 10 : detMonTier === 3 ? 3 : 1;
+      const dismantleQty = detMonTier >= 5 ? 10 : detMonTier === 3 ? 5 : 1;
       const addDismantleBtn = () => {
         const BW2 = PDW - P(40);
         const dg = this.add.graphics();
@@ -3972,7 +3972,11 @@ export class PrepScene extends Phaser.Scene {
 
     const closeBtn = this.add.text(px + PW - 20, py + 18, '✕', {
       fontSize: F(15), fontStyle: 'bold', color: '#cc4444', stroke: '#1a0800', strokeThickness: 2,
-    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+    }).setOrigin(0.5).setInteractive({
+      hitArea: new Phaser.Geom.Rectangle(-P(22), -P(22), P(44), P(44)),
+      hitAreaCallback: Phaser.Geom.Rectangle.Contains,
+      useHandCursor: true,
+    });
     closeBtn.on('pointerdown', () => container.destroy());
     container.add(closeBtn);
 
@@ -4344,7 +4348,7 @@ export class PrepScene extends Phaser.Scene {
 
       const affixLines = item.affixes.map(a => {
         const isPct = ['crit', 'atkSpeed', 'lifesteal', 'evasion'].includes(a.stat);
-        return `${STAT_NAMES[a.stat]} +${isPct ? (a.value * 100).toFixed(1) + '%' : a.value}`;
+        return `${STAT_NAMES[a.stat]} +${isPct ? (a.value * 100).toFixed(2) + '%' : a.value}`;
       });
       if (item.behavior) affixLines.push(BEHAVIOR_NAMES[item.behavior]);
       objs.push(this.add.text(cx + CARD_W / 2, cy + P(132), affixLines.join('\n'), {

@@ -4,6 +4,9 @@ import { MONSTER_SCALE_BOSS } from '../data/monster-data';
 
 const DPR = (window as any).__gameDpr as number;
 const P = (n: number): number => Math.round(n * DPR);
+const MOB = !!(window as any).__gameMobile;
+const mq  = (n: number) => MOB ? Math.max(1, Math.ceil(n * 0.5)) : n;
+const mf  = (ms: number) => MOB ? Math.round(ms * 2.0) : ms;
 
 const PUDDLE_RADIUS = Math.round(50 * DPR);
 const PUDDLE_MS     = 3000;
@@ -117,7 +120,7 @@ export class BossGreenSlime extends Boss {
       alpha: { start: 0.85, end: 0 },
       tint: [0x4488ff, 0x88aaff, 0x2266ee],
       lifespan: { min: 450, max: 1000 },
-      frequency: 35, quantity: 2, gravityY: -28,
+      frequency: mf(35), quantity: mq(2), gravityY: -28,
     }).setDepth(9);
 
     // ── 傳送門警告圈 ────────────────────────────────────
@@ -266,7 +269,7 @@ export class BossGreenSlime extends Boss {
       alpha: { start: 0.75, end: 0 },
       tint: [0x44ff44, 0x88ff44, 0xaaffaa, 0x22dd22],
       lifespan: { min: 700, max: 1400 },
-      frequency: 100, quantity: 2, gravityY: -18,
+      frequency: mf(100), quantity: mq(2), gravityY: -18,
       emitZone: {
         type: 'random',
         source: new Phaser.Geom.Circle(0, 0, r * 0.7),

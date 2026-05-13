@@ -211,7 +211,7 @@ export const CardStore = {
       crit:        flatCrit,
       attackArc:   Math.min(base.attackArc + (bonus.attackArc ?? 0), 360),
       atkSpeed:    base.atkSpeed    + (bonus.atkSpeed    ?? 0),
-      lifesteal:   base.lifesteal   + (bonus.lifesteal   ?? 0),
+      lifesteal:   Math.min(base.lifesteal + (bonus.lifesteal ?? 0), 0.12),
       evasion:     base.evasion     + (bonus.evasion     ?? 0),
       critDmg:     flatCritDmg + condCritDmg,
       hpRegen:     base.hpRegen     + (bonus.hpRegen     ?? 0),

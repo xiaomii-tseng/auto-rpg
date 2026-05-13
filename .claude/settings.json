@@ -53,7 +53,8 @@
       "Bash(Select-Object -ExpandProperty FullName)",
       "Bash(Get-ChildItem -Path \"c:\\\\MyCode\\\\auto-rpg\\\\src\\\\app\\\\game\\\\\" -Recurse -File | Select-Object -Property FullName | head -30)",
       "Bash(powershell -Command \"Get-ChildItem -Recurse 'c:\\\\MyCode\\\\auto-rpg\\\\src' -Filter '*Slime3_Attack*' | Select FullName\")",
-      "Bash(Test-Path \"C:\\\\MyCode\\\\auto-rpg\\\\public\\\\other\\\\card.webp\")"
+      "Bash(Test-Path \"C:\\\\MyCode\\\\auto-rpg\\\\public\\\\other\\\\card.webp\")",
+      "Bash(git pull *)"
     ]
   }
 }

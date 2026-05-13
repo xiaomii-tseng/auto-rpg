@@ -3,6 +3,8 @@ import { Boss, BossState } from './boss';
 
 const DPR = (window as any).__gameDpr as number;
 const P = (n: number): number => Math.round(n * DPR);
+const MOB = !!(window as any).__gameMobile;
+const mf  = (ms: number) => MOB ? Math.round(ms * 2.0) : ms;
 
 const CROWN_DMG   = 55;
 const SPIKE_DMG   = 60;

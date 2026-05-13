@@ -4,6 +4,9 @@ import { MONSTER_SCALE_BOSS } from '../data/monster-data';
 
 const DPR = (window as any).__gameDpr as number;
 const P = (n: number): number => Math.round(n * DPR);
+const MOB = !!(window as any).__gameMobile;
+const mq  = (n: number) => MOB ? Math.max(1, Math.ceil(n * 0.5)) : n;
+const mf  = (ms: number) => MOB ? Math.round(ms * 2.0) : ms;
 
 const JUMP_RADIUS = Math.round(85 * DPR);
 const JUMP_DMG    = 63;
@@ -91,7 +94,7 @@ export class BossRedSlime extends Boss {
       alpha: { start: 1.0, end: 0 },
       tint: [0xff2200, 0xff5500, 0xff8800, 0xffcc00, 0xffee44],
       lifespan: { min: 350, max: 750 },
-      frequency: 14, quantity: 3,
+      frequency: mf(14), quantity: mq(3),
       gravityY: -80,
       x: { min: -18, max: 18 },
       y: { min: -12, max: 8 },
@@ -106,7 +109,7 @@ export class BossRedSlime extends Boss {
       alpha: { start: 1, end: 0 },
       tint: [0xffffff, 0xffee44, 0xffaa00, 0xff6600],
       lifespan: { min: 120, max: 320 },
-      frequency: 20, quantity: 2,
+      frequency: mf(20), quantity: mq(2),
       gravityY: -30,
       x: { min: -16, max: 16 },
       y: { min: -14, max: 6 },
@@ -258,7 +261,7 @@ export class BossRedSlime extends Boss {
       alpha: { start: 0.8, end: 0 },
       tint: [0xff4400, 0xff8800, 0xffcc00, 0xff2200],
       lifespan: { min: 300, max: 700 },
-      frequency: 28, quantity: 3, gravityY: -20,
+      frequency: mf(28), quantity: mq(3), gravityY: -20,
     }).setDepth(this.depth + 1);
 
     // 光暈漸增

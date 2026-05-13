@@ -50,6 +50,7 @@ export class GameRoom extends Room<GameRoomState> {
         this.bossDead  = false;
         this.minionState = {};
         this.state.phase = 'lobby';
+        this.state.seed  = Math.floor(Math.random() * 1_000_000);
         this.state.players.forEach(pl => { pl.isReady = false; });
       }
 
@@ -193,7 +194,7 @@ export class GameRoom extends Room<GameRoomState> {
     if (!consented) {
       // 非主動離開（場景切換間隙斷線）→ 給 30 秒重連，保留 player state
       try {
-        await this.allowReconnection(client, 30);
+        await this.allowReconnection(client, 90);
         return;  // 重連成功，player state 已保留
       } catch {
         // 30 秒內未重連 → 正常離開流程

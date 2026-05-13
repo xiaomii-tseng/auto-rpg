@@ -4,6 +4,9 @@ import { MONSTER_SCALE_BOSS } from '../data/monster-data';
 
 const DPR = (window as any).__gameDpr as number;
 const P = (n: number): number => Math.round(n * DPR);
+const MOB = !!(window as any).__gameMobile;
+const mq  = (n: number) => MOB ? Math.max(1, Math.ceil(n * 0.5)) : n;
+const mf  = (ms: number) => MOB ? Math.round(ms * 2.0) : ms;
 
 const SUMMON_DIST  = Math.round(85 * DPR);
 const SUMMON_COUNT = 3;
@@ -136,7 +139,7 @@ export class BossZombieSlime extends Boss {
       alpha: { start: 0.85, end: 0 },
       tint: [0x99dd44, 0xccff44, 0x557722],
       lifespan: { min: 450, max: 1000 },
-      frequency: 35, quantity: 2, gravityY: -28,
+      frequency: mf(35), quantity: mq(2), gravityY: -28,
     }).setDepth(9);
     const emitter = this.zombieEmitter;
 

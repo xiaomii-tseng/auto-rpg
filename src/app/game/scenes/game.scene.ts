@@ -171,6 +171,7 @@ export class GameScene extends Phaser.Scene {
   private auraTimer?: Phaser.Time.TimerEvent;
   private auraRing?: Phaser.GameObjects.Graphics;
   private activeFires: { x: number; y: number; r: number; expiresAt: number }[] = [];
+  private _leechPool = 0;
   private minionProjGroup!: Phaser.Physics.Arcade.Group;
   private homingProjs: Phaser.Physics.Arcade.Image[] = [];
   private hitBatches = new Map<number, number>(); // batchId → hitTimestamp
@@ -423,7 +424,7 @@ export class GameScene extends Phaser.Scene {
           if (!this.partnerSprite) return;
           this.partnerSprite.play(`partner_idle_${this._partnerPrevDir}`, true);
         });
-        this.showPartnerAttackFX(behavior, x * DPR, y * DPR, dir);
+        this.showPartnerAttackFX(behavior, this.partnerSprite.x, this.partnerSprite.y, dir);
       });
 
       // Send local attack info to partner (DPR-normalised)
@@ -437,6 +438,9 @@ export class GameScene extends Phaser.Scene {
         this.partnerLabel?.setVisible(false);
         this.partnerHpBar?.setVisible(false);
       });
+
+      NetworkService.onReconnected(() => this._onReconnected());
+      NetworkService.onReconnectFailed(() => this._onReconnectFailed());
 
       NetworkService.onPartnerDead(() => {
         if (!this.partnerSprite) return;
@@ -519,6 +523,15 @@ export class GameScene extends Phaser.Scene {
         delay: 50, loop: true,
         callback: () => NetworkService.sendMove(this.player.x / DPR, this.player.y / DPR, this.player.lastDir, this.player.currentHp, this.player.maxHpValue),
       });
+
+      // Show reconnecting overlay when app returns from background
+      const onVisibility = () => {
+        if (document.hidden) return;
+        if (NetworkService.isReconnecting()) this._showReconnectOverlay();
+      };
+      document.addEventListener('visibilitychange', onVisibility);
+      this.events.once(Phaser.Scenes.Events.SHUTDOWN, () =>
+        document.removeEventListener('visibilitychange', onVisibility));
     }
 
     const bossWp = this.waypoints[this.waypoints.length - 1];
@@ -1327,6 +1340,15 @@ export class GameScene extends Phaser.Scene {
   override update(): void {
     if (this.gameOver || this.teleporting) return;
 
+    // Drain leech pool at 7.5% maxHp/s (POE-style life leech)
+    if (this._leechPool > 0 && this.player?.active) {
+      const delta = this.game.loop.delta;
+      const maxRate = this.player.maxHpValue * 0.075 * (delta / 1000);
+      const heal = Math.min(this._leechPool, maxRate);
+      this._leechPool -= heal;
+      this.player.heal(Math.round(heal));
+    }
+
     if (this._buffExpiry.size > 0 && this.time.now - this._lastBuffHudRefresh > 500) {
       this._lastBuffHudRefresh = this.time.now;
       this.refreshBuffHud();
@@ -1736,6 +1758,7 @@ export class GameScene extends Phaser.Scene {
     const pen = isBoss ? stats.penetration : 0;
 
     let overkill = 0;
+    const bossHpBefore = isBoss ? this.boss.currentHp : 0;
     if (!isBoss) {
       overkill = (target as MinionSlime).takeDamage(dmg);
     } else {
@@ -1744,10 +1767,10 @@ export class GameScene extends Phaser.Scene {
 
     target.knockback(srcX, srcY);
     const displayDmg = isBoss ? Math.round(dmg * this.boss.dmgDisplayMult) : dmg;
-    if (stats.lifesteal > 0) this.player.heal(Math.round(displayDmg * stats.lifesteal));
+    if (stats.lifesteal > 0) this._leechPool += Math.round(displayDmg * stats.lifesteal);
     this.spawnDamageNumber(target.x, target.y, displayDmg, isCrit, elemMult * targetMult);
     if (NetworkService.connected) {
-      if (isBoss) NetworkService.sendBossHit(dmg);
+      if (isBoss) NetworkService.sendBossHit(bossHpBefore - this.boss.currentHp);
       else NetworkService.sendMinionHit((target as MinionSlime).minionId, dmg);
     }
 
@@ -2191,10 +2214,11 @@ export class GameScene extends Phaser.Scene {
       const elemMult = getElementMultiplier('fire', this.boss.element);
       const dotMult = 1 + stats.dotBonus + (condDotActive ? (stats.condDotStackBonus! * this.boss.burnStacks) : 0);
       const dmg = Math.round(stats.atk * 0.032 * this.boss.burnStacks * dotMult * elemMult);
+      const burnHpBefore = this.boss.currentHp;
       this.boss.takeDamage(dmg, stats.penetration);
       this.spawnDamageNumber(this.boss.x, this.boss.y, dmg, false, elemMult);
       this.refreshBossBar();
-      if (NetworkService.connected) NetworkService.sendBossHit(dmg);
+      if (NetworkService.connected) NetworkService.sendBossHit(burnHpBefore - this.boss.currentHp);
     }
   }
 
@@ -2213,7 +2237,7 @@ export class GameScene extends Phaser.Scene {
       const isCrit = Math.random() < stats.crit;
       const dmg = Math.round(baseDmg * Phaser.Math.FloatBetween(0.9, 1.1) * (isCrit ? (1 + stats.critDmg) : 1));
       m.takeDamage(dmg);
-      if (stats.lifesteal > 0) this.player.heal(Math.round(dmg * stats.lifesteal));
+      if (stats.lifesteal > 0) this._leechPool += Math.round(dmg * stats.lifesteal);
       this.spawnDamageNumber(m.x, m.y, dmg, isCrit, 1);
       if (NetworkService.connected) NetworkService.sendMinionHit(m.minionId, dmg);
     }
@@ -2222,10 +2246,11 @@ export class GameScene extends Phaser.Scene {
       const isCrit = Math.random() < stats.crit;
       const elemMult = getElementMultiplier('none', this.boss.element);
       const dmg = Math.round(baseDmg * Phaser.Math.FloatBetween(0.9, 1.1) * (isCrit ? (1 + stats.critDmg) : 1) * elemMult);
+      const auraHpBefore = this.boss.currentHp;
       this.boss.takeDamage(dmg, stats.penetration);
-      if (stats.lifesteal > 0) this.player.heal(Math.round(dmg * stats.lifesteal));
+      if (stats.lifesteal > 0) this._leechPool += Math.round(dmg * stats.lifesteal);
       this.spawnDamageNumber(this.boss.x, this.boss.y, dmg, isCrit, elemMult);
-      if (NetworkService.connected) NetworkService.sendBossHit(dmg);
+      if (NetworkService.connected) NetworkService.sendBossHit(auraHpBefore - this.boss.currentHp);
     }
   }
 
@@ -3744,7 +3769,7 @@ export class GameScene extends Phaser.Scene {
       for (const [k, v] of Object.entries(stats)) {
         if (v === undefined) continue;
         const label = (STAT_NAMES as Record<string, string>)[k] ?? k;
-        const val   = (v > 0 ? '+' : '') + (Number.isInteger(v) ? v : (v * 100).toFixed(1) + '%');
+        const val   = (v > 0 ? '+' : '') + (Number.isInteger(v) ? v : (v * 100).toFixed(2) + '%');
         lines.push({ text: `${label} ${val}`, color: '#ccddbb', size: 13, bold: false });
       }
       if (eq.behavior) lines.push({ text: `行為：${(BEHAVIOR_NAMES as Record<string, string>)[eq.behavior] ?? eq.behavior}`, color: '#aabbcc', size: 12, bold: false });
@@ -3989,7 +4014,7 @@ export class GameScene extends Phaser.Scene {
 
       const affixLines = item.affixes.map(a => {
         const isPct = ['crit', 'atkSpeed', 'lifesteal', 'evasion'].includes(a.stat);
-        return `${STAT_NAMES[a.stat]} +${isPct ? (a.value * 100).toFixed(1) + '%' : a.value}`;
+        return `${STAT_NAMES[a.stat]} +${isPct ? (a.value * 100).toFixed(2) + '%' : a.value}`;
       });
       if (item.behavior) affixLines.push(BEHAVIOR_NAMES[item.behavior]);
       objs.push(this.add.text(cx + CARD_W / 2, cy + P(132), affixLines.join('\n'), {
@@ -4009,6 +4034,47 @@ export class GameScene extends Phaser.Scene {
         close(item);
       });
     });
+  }
+
+  private _reconnectOverlay?: Phaser.GameObjects.Container;
+
+  private _showReconnectOverlay(): void {
+    if (this._reconnectOverlay) return;
+    const W = this.scale.width, H = this.scale.height;
+    const c = this.add.container(0, 0).setScrollFactor(0).setDepth(19999);
+    c.add(this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.65));
+    c.add(this.add.text(W / 2, H / 2 - P(16), '重新連線中…', {
+      fontSize: F(18), fontStyle: 'bold', color: '#f0d090', stroke: '#1a0800', strokeThickness: 3,
+    }).setOrigin(0.5));
+    c.add(this.add.text(W / 2, H / 2 + P(14), '請稍候', {
+      fontSize: F(13), color: '#aaaaaa',
+    }).setOrigin(0.5));
+    this._reconnectOverlay = c;
+  }
+
+  private _hideReconnectOverlay(): void {
+    this._reconnectOverlay?.destroy();
+    this._reconnectOverlay = undefined;
+  }
+
+  private _onReconnected(): void {
+    this._hideReconnectOverlay();
+    // Re-sync partner info display
+    const partner = NetworkService.getPartnerState() as any;
+    if (partner?.nickname && this.partnerLabel) {
+      this.partnerLabel.setText(partner.nickname);
+      this.partnerSprite?.setVisible(true);
+      this.partnerLabel.setVisible(true);
+      this.partnerHpBar?.setVisible(true);
+    }
+  }
+
+  private _onReconnectFailed(): void {
+    this._hideReconnectOverlay();
+    // Treat as partner leaving — just show disconnected state without kicking to lobby
+    this.partnerSprite?.setVisible(false);
+    this.partnerLabel?.setVisible(false);
+    this.partnerHpBar?.setVisible(false);
   }
 
   private exitToLobby(): void {

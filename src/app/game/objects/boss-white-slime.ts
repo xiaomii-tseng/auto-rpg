@@ -3,6 +3,9 @@ import { Boss, BossState } from './boss';
 
 const DPR = (window as any).__gameDpr as number;
 const P = (n: number): number => Math.round(n * DPR);
+const MOB = !!(window as any).__gameMobile;
+const mq  = (n: number) => MOB ? Math.max(1, Math.ceil(n * 0.5)) : n;
+const mf  = (ms: number) => MOB ? Math.round(ms * 2.0) : ms;
 
 const CROSS_RANGE  = P(400);
 const CROSS_HALF_W = P(22);
@@ -97,7 +100,7 @@ export class BossWhiteSlime extends Boss {
       alpha: { start: 0.9, end: 0 },
       tint: [0xffffff, 0xffeeaa, 0xffffcc],
       lifespan: { min: 300, max: 700 },
-      frequency: 20, quantity: 2,
+      frequency: mf(20), quantity: mq(2),
       x: { min: -CROSS_RANGE * 0.6, max: CROSS_RANGE * 0.6 },
       y: { min: -CROSS_RANGE * 0.6, max: CROSS_RANGE * 0.6 },
     }).setDepth(this.depth + 1);
@@ -159,7 +162,7 @@ export class BossWhiteSlime extends Boss {
         alpha: { start: 1, end: 0 },
         tint: [0xffffff, 0xffffcc, 0xffeeaa, 0xffffff],
         lifespan: { min: 280, max: 520 },
-        frequency: 18, quantity: 3, duration: 200,
+        frequency: mf(18), quantity: mq(3), duration: 200,
       }).setDepth(16);
       this.scene.time.delayedCall(700, () => { if (stream.active) stream.destroy(); });
     }
@@ -226,7 +229,7 @@ export class BossWhiteSlime extends Boss {
       alpha: { start: 0.9, end: 0 },
       tint: [0xffffff, 0xffeeaa, 0xffffdd],
       lifespan: { min: 250, max: 600 },
-      frequency: 18, quantity: 3,
+      frequency: mf(18), quantity: mq(3),
     }).setDepth(this.depth + 1);
 
     const glowG = this.scene.add.graphics().setDepth(this.depth - 1).setPosition(this.x, this.y);
@@ -275,7 +278,7 @@ export class BossWhiteSlime extends Boss {
       alpha: { start: 0.75, end: 0 },
       tint: [0xffffff, 0xffeeaa, 0xffffcc],
       lifespan: { min: 120, max: 320 },
-      frequency: 22, quantity: 2,
+      frequency: mf(22), quantity: mq(2),
     }).setDepth(this.depth + 1);
 
     const explode = () => {

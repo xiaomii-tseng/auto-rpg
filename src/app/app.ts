@@ -42,6 +42,8 @@ export class App implements AfterViewInit {
     }
 
     const dpr = (window as any).__gameDpr as number;
+    const isMobile = 'ontouchstart' in window;
+    (window as any).__gameMobile = isMobile;
     const game = this.ngZone.runOutsideAngular(() => new Phaser.Game({
       type: Phaser.AUTO,
       parent: 'game-container',
@@ -50,7 +52,11 @@ export class App implements AfterViewInit {
       height: Math.round(gameH * dpr),
       scene: [PrepScene, GameScene],
       scale: { mode: Phaser.Scale.NONE },
-      render: { roundPixels: true },
+      render: {
+        roundPixels: true,
+        antialias: !isMobile,
+        powerPreference: isMobile ? 'low-power' : 'default',
+      },
       dom: { createContainer: true },
       physics: {
         default: 'arcade',

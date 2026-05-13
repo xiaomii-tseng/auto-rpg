@@ -419,7 +419,7 @@ export const CARD_DEFS: CardDef[] = [
 
   // ── 史萊姆王卡 A/B/C ──
   // 綠史萊姆王：防禦特化 / 條件HP / 條件ATK
-  { id: 'card_boss_slime_green_a', name: '綠史萊姆王卡片(A)', monsterId: 'boss_slime_green', element: 'none', tint: 0x44cc44, effect: { lifesteal: 0.05 }, desc: '吸血 +5%' },
+  { id: 'card_boss_slime_green_a', name: '綠史萊姆王卡片(A)', monsterId: 'boss_slime_green', element: 'none', tint: 0x44cc44, effect: { lifesteal: 0.025 }, desc: '吸血 +2.5%' },
   { id: 'card_boss_slime_green_b', name: '綠史萊姆王卡片(B)', monsterId: 'boss_slime_green', element: 'none', tint: 0x44cc44, effect: { hpPct: 0.15, condHpPct: 0.15 }, desc: 'HP +15%；最大HP≥800時，HP再 +15%' },
   { id: 'card_boss_slime_green_c', name: '綠史萊姆王卡片(C)', monsterId: 'boss_slime_green', element: 'none', tint: 0x44cc44, effect: { orbitBallDmgPct: 1.00 }, desc: '旋轉球（火球/冰球）傷害 +100%' },
 

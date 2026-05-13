@@ -137,15 +137,14 @@ function generateQuests(): Quest[] {
     const base = (Math.floor(Math.random() * 21) + 30) * 10;
     const reward = Math.round(base * STAR_REWARD_MULT[star] / 10) * 10;
 
-    const isEquipReward = Math.random() < 0.40;
     return {
       id:            `q_${Date.now()}_${i}`,
       bossId,
-      reward:        isEquipReward ? 0 : reward,
+      reward,
       flavorText:    tmpl(def.name, star),
       status:        'available' as QuestStatus,
       star,
-      isEquipReward,
+      isEquipReward: false,
     };
   });
 }
@@ -225,16 +224,15 @@ export const QuestStore = {
     const def    = MONSTER_DEFS.find(m => m.id === bossId)!;
     const star   = Math.max(BOSS_MIN_STAR[bossId] ?? 1, pickStar(PlayerStore.getLevel()));
     const base   = (Math.floor(Math.random() * 21) + 30) * 10;
-    const isEquipReward = Math.random() < 0.40;
     const tmpl   = FLAVOR_TEMPLATES[Math.floor(Math.random() * FLAVOR_TEMPLATES.length)];
     _quests[idx] = {
       id: `q_${Date.now()}_r`,
       bossId,
-      reward: isEquipReward ? 0 : Math.round(base * STAR_REWARD_MULT[star] / 10) * 10,
+      reward: Math.round(base * STAR_REWARD_MULT[star] / 10) * 10,
       flavorText: tmpl(def.name, star),
       status: 'available',
       star,
-      isEquipReward,
+      isEquipReward: false,
     };
     this.notify();
   },

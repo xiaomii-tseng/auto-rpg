@@ -5,7 +5,10 @@ import { STAR_BOSS_DMG_MULT } from '../data/quest-store';
 import type { MsgBossSync } from '../../../../shared/types';
 
 const DPR = (window as any).__gameDpr as number;
-const P = (n: number): number => Math.round(n * DPR);
+const P   = (n: number): number => Math.round(n * DPR);
+const MOB = !!(window as any).__gameMobile;
+const mq  = (n: number) => MOB ? Math.max(1, Math.ceil(n * 0.5)) : n;
+const mf  = (ms: number) => MOB ? Math.round(ms * 2.0) : ms;
 
 export enum BossState {
   IDLE        = 'IDLE',
@@ -370,8 +373,8 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
       alpha: { start: 0.85, end: 0 },
       tint: [0xff6600, 0xff8800, 0xffaa00, 0xffdd44],
       lifespan: { min: 500, max: 1100 },
-      frequency: 40,
-      quantity: 2,
+      frequency: mf(40),
+      quantity: mq(2),
       gravityY: -25,
       emitZone: {
         type: 'random',
@@ -432,8 +435,8 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
       alpha: { start: 0.9, end: 0 },
       tint: [0xff4400, 0xff8800, 0xffcc00],
       lifespan: { min: 180, max: 420 },
-      frequency: 45,
-      quantity: 3,
+      frequency: mf(45),
+      quantity: mq(3),
     }).setDepth(9);
 
     this.stateTimer = this.scene.time.delayedCall(600, () => this.enterDashing());
@@ -705,8 +708,8 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
       alpha: { start: 0.75, end: 0 },
       tint: [0x00ee00, 0x44ff44, 0x22cc00, 0xaaffaa],
       lifespan: { min: 80, max: 180 },
-      frequency: 22,
-      quantity: 2,
+      frequency: mf(22),
+      quantity: mq(2),
       gravityY: 18,
     }).setDepth(14);
 
@@ -810,7 +813,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
       alpha: { start: 0.65, end: 0 },
       tint: [0x00cc00, 0x22ee22, 0x44ff44, 0x009900],
       lifespan: { min: 350, max: 800 },
-      frequency: 160,
+      frequency: mf(160),
       quantity: 1,
       gravityY: 28,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

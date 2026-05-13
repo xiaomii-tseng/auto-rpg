@@ -51,6 +51,8 @@ interface Callbacks {
   rewardSync?:       (data: MsgRewardSync) => void;
   runEnd?:           (data: { won: boolean }) => void;
   potionEffect?:     (data: { type: string; amount: number }) => void;
+  reconnected?:      () => void;
+  reconnectFailed?:  () => void;
 }
 
 class NetworkServiceClass {
@@ -65,6 +67,11 @@ class NetworkServiceClass {
   private _autoLobby = false;
   private _lastPartnerNick  = '';
   private _lastPartnerLevel = 0;
+
+  private _reconnectionToken = '';
+  private _disconnected      = false;
+  private _reconnecting      = false;
+  private _visibilityHandler = () => this._onVisibilityChange();
 
   /** 從多人遊戲退出時設旗標，PrepScene 啟動後呼叫 consumeAutoLobby() 一次性讀取 */
   setAutoLobby(): void  { this._autoLobby = true; }
@@ -136,10 +143,49 @@ class NetworkServiceClass {
         this.isHost    = payload.isHost;
         this.sessionId = payload.sessionId;
         this.gameCode  = payload.roomCode;
+        this._reconnectionToken = (this.room as any).reconnectionToken ?? '';
+        this._disconnected = false;
+        this._setupReconnect();
         resolve({ ...payload, nickname } as JoinedPayload);
       });
     });
   }
+
+  private _setupReconnect(): void {
+    this.room!.onLeave((code) => {
+      // code 1000 = clean close (player quit intentionally)
+      if (code !== 1000) this._disconnected = true;
+    });
+    document.removeEventListener('visibilitychange', this._visibilityHandler);
+    document.addEventListener('visibilitychange', this._visibilityHandler);
+  }
+
+  private _onVisibilityChange(): void {
+    if (!document.hidden && this._disconnected && !this._reconnecting) {
+      this._tryReconnect();
+    }
+  }
+
+  private async _tryReconnect(): Promise<void> {
+    if (this._reconnecting || !this._reconnectionToken || !this.client) return;
+    this._reconnecting = true;
+    this._disconnected = false;
+    try {
+      const newRoom = await this.client.reconnect<GameRoomState>(this._reconnectionToken);
+      this.room = newRoom;
+      this._reconnectionToken = (newRoom as any).reconnectionToken ?? this._reconnectionToken;
+      this._registerForwarders();
+      this._setupReconnect();
+      this._cbs.reconnected?.();
+    } catch {
+      this._disconnected = false;
+      this._cbs.reconnectFailed?.();
+    } finally {
+      this._reconnecting = false;
+    }
+  }
+
+  isReconnecting(): boolean { return this._reconnecting; }
 
   // ── Send ──────────────────────────────────────────────────
 
@@ -289,6 +335,9 @@ class NetworkServiceClass {
     this._cbs.runEnd = cb;
   }
 
+  onReconnected(cb: () => void): void       { this._cbs.reconnected     = cb; }
+  onReconnectFailed(cb: () => void): void   { this._cbs.reconnectFailed = cb; }
+
   // ── State ─────────────────────────────────────────────────
 
   getPartnerState(): PlayerState | null {
@@ -344,6 +393,10 @@ class NetworkServiceClass {
   }
 
   disconnect(): void {
+    document.removeEventListener('visibilitychange', this._visibilityHandler);
+    this._disconnected      = false;
+    this._reconnecting      = false;
+    this._reconnectionToken = '';
     this.room?.leave();
     this.room      = undefined;
     this.client    = undefined;

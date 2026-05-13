@@ -3,6 +3,9 @@ import { Boss, BossState } from './boss';
 
 const DPR = (window as any).__gameDpr as number;
 const P = (n: number): number => Math.round(n * DPR);
+const MOB = !!(window as any).__gameMobile;
+const mq  = (n: number) => MOB ? Math.max(1, Math.ceil(n * 0.5)) : n;
+const mf  = (ms: number) => MOB ? Math.round(ms * 2.0) : ms;
 
 // ── 岩漿彈幕常數 ──────────────────────────────────────────
 const BARRAGE_DIRS_P1    = 8;
@@ -90,7 +93,7 @@ export class BossLavaSlime extends Boss {
       alpha: { start: 1.0, end: 0 },
       tint: [0xff2200, 0xff5500, 0xff8800, 0xffcc00, 0xff4400],
       lifespan: { min: 320, max: 680 },
-      frequency: 18, quantity: 3,
+      frequency: mf(18), quantity: mq(3),
       gravityY: -65,
       x: { min: -20, max: 20 },
       y: { min: -10, max: 10 },
@@ -108,12 +111,12 @@ export class BossLavaSlime extends Boss {
     burst.emitParticleAt(0, 0, 90);
     this.scene.time.delayedCall(750, () => { if (burst.active) burst.destroy(); });
 
-    this.scene.time.delayedCall(600, () => this.triggerPhase2GlobalPillars());
+    if (!this.guestMode) this.scene.time.delayedCall(600, () => this.triggerPhase2GlobalPillars());
   }
 
   private triggerPhase2GlobalPillars(overridePts?: { x: number; y: number }[]): void {
     if (this.currentState === BossState.DEAD) return;
-    const GLOBAL_COUNT = 70;
+    const GLOBAL_COUNT = MOB ? 40 : 70;
     const ac = this.arenaCenter;
     const ar = this.arenaRadius;
 
@@ -151,7 +154,7 @@ export class BossLavaSlime extends Boss {
         alpha: { start: 0.7, end: 0 },
         tint: [0xff4400, 0xff8800, 0xffaa00],
         lifespan: { min: 180, max: 360 },
-        frequency: 55, quantity: 1,
+        frequency: mf(55), quantity: 1,
       }).setDepth(9),
     );
 
@@ -262,7 +265,7 @@ export class BossLavaSlime extends Boss {
       alpha: { start: 0.2, end: 0.9 },
       tint: [0xff5500, 0xff8800, 0xffcc00],
       lifespan: { min: 280, max: 560 },
-      frequency: 22, quantity: 3,
+      frequency: mf(22), quantity: mq(3),
     }).setDepth(this.depth + 1);
 
     this.stateTimer = this.scene.time.delayedCall(1300, () => {
@@ -426,7 +429,7 @@ export class BossLavaSlime extends Boss {
           speed: { min: 10, max: 40 }, angle: { min: 238, max: 302 },
           scale: { start: 1.0, end: 0 }, alpha: { start: 0.7, end: 0 },
           tint: [0xff4400, 0xff8800, 0xffaa00],
-          lifespan: { min: 180, max: 380 }, frequency: 55, quantity: 1,
+          lifespan: { min: 180, max: 380 }, frequency: mf(55), quantity: 1,
         }).setDepth(9);
 
         // 爆發時機：所有圈出完後再等 WARN_AFTER_LAST，然後依序爆發

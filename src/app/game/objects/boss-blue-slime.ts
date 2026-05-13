@@ -4,6 +4,9 @@ import { MONSTER_SCALE_BOSS } from '../data/monster-data';
 
 const DPR = (window as any).__gameDpr as number;
 const P = (n: number): number => Math.round(n * DPR);
+const MOB = !!(window as any).__gameMobile;
+const mq  = (n: number) => MOB ? Math.max(1, Math.ceil(n * 0.5)) : n;
+const mf  = (ms: number) => MOB ? Math.round(ms * 2.0) : ms;
 
 const SPIKE_RANGE   = Math.round(400 * DPR);
 const SPIKE_DMG     = 45;
@@ -57,7 +60,7 @@ export class BossBlueSlime extends Boss {
       alpha: { start: 0.9, end: 0 },
       tint: [0x88ddff, 0xaaeeff, 0x66bbff, 0xffffff],
       lifespan: { min: 200, max: 500 },
-      frequency: 25, quantity: 2,
+      frequency: mf(25), quantity: mq(2),
     }).setDepth(this.depth + 1);
 
     // 八方向警示線
@@ -125,7 +128,7 @@ export class BossBlueSlime extends Boss {
         alpha: { start: 0.65, end: 0 },
         tint: [0x88ddff, 0xaaeeff, 0xffffff],
         lifespan: { min: 100, max: 240 },
-        frequency: 28, quantity: 1,
+        frequency: mf(28), quantity: mq(1),
       }).setDepth(this.depth);
 
       const spike: SpikeData = { gfx: g, trail, cx: this.x, cy: this.y, hit: false };
