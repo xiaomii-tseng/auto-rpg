@@ -217,6 +217,10 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     this.hp = Math.max(0, this.hp - Math.max(1, Math.round(amount * (1 - reduction))));
     this.onHpChanged?.(this.hp, this.maxHp);
 
+    this.setTintFill(0xffffff);
+    this.scene.time.delayedCall(80, () => {
+      if (this.bossState !== BossState.DEAD) this.clearTint();
+    });
     this.playDir(`${this.animPrefix}_hurt`);
     this.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => {
       if (this.bossState !== BossState.DEAD) this.resumeStateAnim();

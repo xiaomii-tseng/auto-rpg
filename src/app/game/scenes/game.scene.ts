@@ -118,6 +118,7 @@ export class GameScene extends Phaser.Scene {
   private _atkDragStartY = 0;
   private _atkDirGfx?: Phaser.GameObjects.Graphics;
   private _atkDragThreshold = 0;  // 初始化後設為 P(15)
+  private _holdAttackTimer?: Phaser.Time.TimerEvent;
   private _forceAttackAngle: number | null = null;  // 手動拖動攻擊方向（rad），null = 自動
   private _atkDragAngle: number | null = null;       // 目前正在拖動的角度，null = 未拖動
   private _allyMinions: MinionSlime[] = [];          // 有序陣列，上限 3，最舊的先移除
@@ -190,6 +191,8 @@ export class GameScene extends Phaser.Scene {
   private _buffExpiry: Map<string, number> = new Map();
   private _buffHudTexts: Phaser.GameObjects.Text[] = [];
   private _lastBuffHudRefresh = 0;
+  private _pendingHitWeight = 0;
+  private _hitShakePending  = false;
 
   constructor() {
     super({ key: 'GameScene' });
@@ -1825,6 +1828,15 @@ export class GameScene extends Phaser.Scene {
     const displayDmg = isBoss ? Math.round(dmg * this.boss.dmgDisplayMult) : dmg;
     if (stats.lifesteal > 0) this._leechPool += Math.round(displayDmg * stats.lifesteal);
     this.spawnDamageNumber(target.x, target.y, displayDmg, isCrit, elemMult * targetMult);
+    if (isCrit) this._pendingHitWeight += 2;
+    if (!this._hitShakePending) {
+      this._hitShakePending = true;
+      this.time.delayedCall(0, () => {
+        this.triggerHitShake(this._pendingHitWeight);
+        this._pendingHitWeight = 0;
+        this._hitShakePending  = false;
+      });
+    }
     if (NetworkService.connected) {
       if (isBoss) NetworkService.sendBossHit(bossHpBefore - this.boss.currentHp);
       else NetworkService.sendMinionHit((target as MinionSlime).minionId, dmg);
@@ -3497,24 +3509,46 @@ export class GameScene extends Phaser.Scene {
 
   private spawnDamageNumber(x: number, y: number, dmg: number, isCrit: boolean, elemMult: number): void {
     const ox = Phaser.Math.Between(-P(14), P(14));
-    const fontSize = isCrit ? F(20) : F(15);
+    const fontSize = isCrit ? F(20) : F(16);
     const color = isCrit ? '#ff8800' : '#ffffff';
     const stroke = isCrit ? '#4a1800' : '#000000';
 
     const label = this.add.text(x + ox, y - P(24), `${dmg}`, {
       fontSize, fontStyle: 'bold',
       color, stroke, strokeThickness: isCrit ? 4 : 3,
-    }).setOrigin(0.5, 1).setDepth(300);
+    }).setOrigin(0.5, 1).setDepth(300).setScale(0);
 
+    const peakScale = isCrit ? 1.3 : 1.1;
+    const floatH    = isCrit ? P(60) : P(42);
+    const arcX      = Phaser.Math.Between(-P(18), P(18));
+    const dur       = isCrit ? 950 : 750;
 
+    // 彈出
     this.tweens.add({
       targets: label,
-      y: label.y - (isCrit ? P(52) : P(38)),
-      alpha: 0,
-      duration: isCrit ? 900 : 700,
-      ease: 'Cubic.easeOut',
-      onComplete: () => label.destroy(),
+      scale: peakScale,
+      duration: isCrit ? 120 : 90,
+      ease: 'Back.easeOut',
+      onComplete: () => {
+        // 縮回正常大小 + 飄上去帶弧度
+        this.tweens.add({
+          targets: label,
+          scale: isCrit ? 1.0 : 0.85,
+          x: label.x + arcX,
+          y: label.y - floatH,
+          alpha: 0,
+          duration: dur,
+          ease: 'Cubic.easeOut',
+          onComplete: () => label.destroy(),
+        });
+      },
     });
+  }
+
+  private triggerHitShake(weight: number): void {
+    // weight: 普通命中 +1，爆擊 +2。公式可在此調整。
+    const intensity = Math.min(0.002 + (weight - 1) * 0.0015, 0.015);
+    this.cameras.main.shake(55, intensity);
   }
 
   private spawnEvadeText(x: number, y: number): void {
@@ -4817,16 +4851,37 @@ export class GameScene extends Phaser.Scene {
     const activeIds = new Set<number>();
     this._atkDragThreshold = P(15);
 
+    const fireHoldAttack = () => {
+      if (this.gameOver || !this.player.active) return;
+      const isDash = (PlayerStore.getEquipped().sword?.behavior ?? 'slash180') === 'dashPierce';
+      const isFlowerMode = (CardStore.getTotalStats().flowerSummonMode ?? 0) > 0;
+      if (isFlowerMode) {
+        this.tryFlowerSummonModeAttack();
+      } else if (isDash) {
+        this.attackDashPierce(0, 0);
+      } else {
+        const { x: tx, y: ty } = this.getAttackTarget();
+        this.meleeAttack(tx, ty);
+      }
+    };
+
     const onDown = (ptr: Phaser.Input.Pointer) => {
       const { x: cx, y: cy } = getBtnCenter();
       if (Phaser.Math.Distance.Between(ptr.x, ptr.y, cx, cy) > r) return;
       activeIds.add(ptr.id);
       drawBtn(true);
       if (this.gameOver) return;
-      // 記錄拖動起始點（用按下位置）
+      // 記錄拖動起始點（拖動方向功能保留，目前停用）
       this._atkDragPointerId = ptr.id;
       this._atkDragStartX = ptr.x;
       this._atkDragStartY = ptr.y;
+      // 按下立即攻擊一次，再啟動持續攻擊 timer
+      fireHoldAttack();
+      this._holdAttackTimer = this.time.addEvent({
+        delay: 100,
+        loop: true,
+        callback: fireHoldAttack,
+      });
     };
 
     const onMove = (ptr: Phaser.Input.Pointer) => {
@@ -4856,31 +4911,31 @@ export class GameScene extends Phaser.Scene {
       this._atkDragAngle = null;
       this._atkDragPointerId = -1;
 
+      // 停止持續攻擊 timer
+      this._holdAttackTimer?.destroy();
+      this._holdAttackTimer = undefined;
+
       if (activeIds.size === 0) drawBtn(false);
-      if (this.gameOver) return;
 
-      const dx = ptr.x - this._atkDragStartX;
-      const dy = ptr.y - this._atkDragStartY;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      const isDash = (PlayerStore.getEquipped().sword?.behavior ?? 'slash180') === 'dashPierce';
-      const isFlowerModeBtn = (CardStore.getTotalStats().flowerSummonMode ?? 0) > 0;
-
-      if (isFlowerModeBtn) {
-        // flowerSummonMode 覆蓋所有攻擊模式
-        this._forceAttackAngle = dist >= this._atkDragThreshold ? Math.atan2(dy, dx) : null;
-        this.tryFlowerSummonModeAttack();
-      } else if (isDash) {
-        if (dist >= this._atkDragThreshold) this._forceAttackAngle = Math.atan2(dy, dx);
-        this.attackDashPierce(0, 0);
-      } else if (dist >= this._atkDragThreshold) {
-        // 手動方向攻擊：設定強制角度，meleeAttack 內的 resolveAttackDir 會優先使用
-        this._forceAttackAngle = Math.atan2(dy, dx);
-        this.meleeAttack(this.player.x, this.player.y);
-      } else {
-        // 自動鎖定
-        const { x: tx, y: ty } = this.getAttackTarget();
-        this.meleeAttack(tx, ty);
-      }
+      // ── 原本的放開觸發攻擊邏輯（拖動方向功能，目前停用） ──────────────────
+      // const dx = ptr.x - this._atkDragStartX;
+      // const dy = ptr.y - this._atkDragStartY;
+      // const dist = Math.sqrt(dx * dx + dy * dy);
+      // const isDash = (PlayerStore.getEquipped().sword?.behavior ?? 'slash180') === 'dashPierce';
+      // const isFlowerModeBtn = (CardStore.getTotalStats().flowerSummonMode ?? 0) > 0;
+      // if (isFlowerModeBtn) {
+      //   this._forceAttackAngle = dist >= this._atkDragThreshold ? Math.atan2(dy, dx) : null;
+      //   this.tryFlowerSummonModeAttack();
+      // } else if (isDash) {
+      //   if (dist >= this._atkDragThreshold) this._forceAttackAngle = Math.atan2(dy, dx);
+      //   this.attackDashPierce(0, 0);
+      // } else if (dist >= this._atkDragThreshold) {
+      //   this._forceAttackAngle = Math.atan2(dy, dx);
+      //   this.meleeAttack(this.player.x, this.player.y);
+      // } else {
+      //   const { x: tx, y: ty } = this.getAttackTarget();
+      //   this.meleeAttack(tx, ty);
+      // }
     };
 
     this.input.on('pointerdown', onDown);
