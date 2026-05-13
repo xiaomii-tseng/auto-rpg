@@ -33,7 +33,7 @@ export const STAR_STAT_MULT: Record<number, number> = {
 };
 
 export const STAR_BOSS_DMG_MULT: Record<number, number> = {
-  1: 1.0, 2: 1.5, 3: 2.2, 4: 3.2, 5: 5.0,
+  1: 1.0, 2: 3.0, 3: 4.4, 4: 6.4, 5: 10.0,
 };
 
 export const STAR_HP_MULT: Record<number, number> = {

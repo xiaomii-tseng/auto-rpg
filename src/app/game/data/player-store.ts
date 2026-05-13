@@ -40,6 +40,7 @@ export interface EffectiveStats {
   whirlwindDmgPct?:      number;
   slash180DmgPct?:       number;
   burnMaxStackBonus?:    number;
+  burnSpread?:           number;
   dashDistBonus?:        number;
   dashDmgPct?:           number;
   multiHitNoStagger?:    number;

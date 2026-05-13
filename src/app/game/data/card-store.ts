@@ -134,6 +134,7 @@ export const CardStore = {
       b.whirlwindDmgPct      = (b.whirlwindDmgPct      ?? 0) + (e.whirlwindDmgPct      ?? 0);
       b.slash180DmgPct       = (b.slash180DmgPct       ?? 0) + (e.slash180DmgPct       ?? 0);
       b.burnMaxStackBonus    = (b.burnMaxStackBonus    ?? 0) + (e.burnMaxStackBonus    ?? 0);
+      b.burnSpread           = (b.burnSpread           ?? 0) + (e.burnSpread           ?? 0);
       b.dashDistBonus        = (b.dashDistBonus        ?? 0) + (e.dashDistBonus        ?? 0);
       b.dashDmgPct           = (b.dashDmgPct           ?? 0) + (e.dashDmgPct           ?? 0);
       b.multiHitNoStagger    = (b.multiHitNoStagger    ?? 0) + (e.multiHitNoStagger    ?? 0);
@@ -216,7 +217,7 @@ export const CardStore = {
       evasion:     base.evasion     + (bonus.evasion     ?? 0),
       critDmg:     flatCritDmg + condCritDmg,
       hpRegen:     base.hpRegen     + (bonus.hpRegen     ?? 0),
-      dotBonus:    base.dotBonus    + (bonus.dotBonus    ?? 0) + (enh8 ? (bonus.weaponEnhance8DotBonus ?? 0) : 0),
+      dotBonus:    base.dotBonus    + (bonus.dotBonus    ?? 0) + (enh8 ? (bonus.weaponEnhance8DotBonus ?? 0) : 0) + ((bonus.burnSpread ?? 0) >= 2 ? 0.10 : 0),
       penetration: flatPen,
       dmgVsFire:        bonus.dmgVsFire,
       dmgVsWater:       bonus.dmgVsWater,
@@ -231,6 +232,7 @@ export const CardStore = {
       whirlwindDmgPct:      bonus.whirlwindDmgPct,
       slash180DmgPct:       bonus.slash180DmgPct,
       burnMaxStackBonus:    bonus.burnMaxStackBonus,
+      burnSpread:           bonus.burnSpread,
       dashDistBonus:        bonus.dashDistBonus,
       dashDmgPct:           bonus.dashDmgPct,
       multiHitNoStagger:    bonus.multiHitNoStagger,

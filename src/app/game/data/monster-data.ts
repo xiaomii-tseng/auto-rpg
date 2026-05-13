@@ -402,7 +402,7 @@ export const CARD_DEFS: CardDef[] = [
 
   { id: 'card_elite_slime_lava_a', name: '熔岩史萊姆菁英卡片A', monsterId: 'elite_slime_lava', element: 'none', tint: 0xff4400, effect: { overkillSplash: 1 }, desc: '傷害溢出時對範圍內造成溢出傷害 (兩張觸發連鎖)' },
   { id: 'card_elite_slime_lava_b', name: '熔岩史萊姆菁英卡片B', monsterId: 'elite_slime_lava', element: 'none', tint: 0xff4400, effect: { dmgVsNone: 0.08 }, desc: '對無屬性傷害+8%' },
-  { id: 'card_elite_slime_lava_c', name: '熔岩史萊姆菁英卡片C', monsterId: 'elite_slime_lava', element: 'none', tint: 0xff4400, effect: { lifesteal: 0.001, atk: 5 }, desc: '吸血+0.1% 攻擊力+5' },
+  { id: 'card_elite_slime_lava_c', name: '熔岩史萊姆菁英卡片C', monsterId: 'elite_slime_lava', element: 'none', tint: 0xff4400, effect: { burnSpread: 1 }, desc: '燃燒效果擴散給周圍的敵人 (兩張燃燒傷害+10%)' },
 
   // ── 花怪菁英卡 A/B/C ──
   { id: 'card_elite_plant1_a', name: '菁英食人花卡片A', monsterId: 'elite_plant1', element: 'grass', tint: 0xff88cc, effect: { hpRegen: 2.5 }, desc: 'HP回復+2.5/秒' },

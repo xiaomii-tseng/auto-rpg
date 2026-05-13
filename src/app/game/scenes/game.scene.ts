@@ -19,7 +19,7 @@ import { InventoryStore } from '../data/inventory-store';
 import { SaveStore } from '../data/save-store';
 import { CardStore } from '../data/card-store';
 import { getMonsterDef, getCardDef, DropEntry, MonsterDef } from '../data/monster-data';
-import { getElementMultiplier, ELEMENT_NAMES, ELEMENT_COLORS, QUALITY_NAMES, QUALITY_COLORS, SLOT_NAMES, STAT_NAMES, BEHAVIOR_NAMES, generateEquipment, randomQuality, getDropQualityWeights, getItemStats, EquipSlot, EquipmentItem, MonsterType } from '../data/equipment-data';
+import { getElementMultiplier, ELEMENT_NAMES, ELEMENT_COLORS, QUALITY_NAMES, QUALITY_COLORS, SLOT_NAMES, STAT_NAMES, BEHAVIOR_NAMES, generateEquipment, randomQuality, getDropQualityWeights, getItemStats, fmtAffixValue, EquipSlot, EquipmentItem, MonsterType } from '../data/equipment-data';
 import { QuestStore, STAR_HP_MULT, STAR_STAT_MULT, STAR_DROP_MULT, STAR_DEF_MULT, STAR_EXP_MULT, STAR_EQUIP_QUALITY } from '../data/quest-store';
 import { ELITE_HP_MULT, ELITE_SCALE_MOD } from '../data/monster-data';
 import { NetworkService } from '../network/network.service';
@@ -52,7 +52,7 @@ interface LootDrop {
   cardId?: string;
   equip?: EquipmentItem;
   readyAt: number;
-  badge?: Phaser.GameObjects.Graphics;
+  badge?: Phaser.GameObjects.Graphics | Phaser.GameObjects.Container;
 }
 
 // 品質權重 47/35/15/3（正規化）
@@ -1400,10 +1400,10 @@ export class GameScene extends Phaser.Scene {
   override update(): void {
     if (this.gameOver || this.teleporting) return;
 
-    // Drain leech pool at 7.5% maxHp/s (POE-style life leech)
+    // Drain leech pool at 6% maxHp/s (POE-style life leech)
     if (this._leechPool > 0 && this.player?.active) {
       const delta = this.game.loop.delta;
-      const maxRate = this.player.maxHpValue * 0.075 * (delta / 1000);
+      const maxRate = this.player.maxHpValue * 0.06 * (delta / 1000);
       const heal = Math.min(this._leechPool, maxRate);
       this._leechPool -= heal;
       this.player.heal(Math.round(heal));
@@ -2262,6 +2262,47 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
+    // burnSpread 卡片效果：BFS 連鎖傳播，同一 tick 內整群都能著火
+    const burnSpreadR = (stats.burnSpread ?? 0) > 0 ? P(100) : 0;
+    if (burnSpreadR > 0) {
+      // 收集所有當前有燃燒的怪作為初始火源
+      const spreadQueue: (typeof this.allMinions)[number][] = [];
+      const spreadSeen = new Set<(typeof this.allMinions)[number]>();
+      for (const m of this.allMinions) {
+        if (!m.isDead && m.burnStacks > 0 && now < m.burnExpiresAt) {
+          spreadQueue.push(m);
+          spreadSeen.add(m);
+        }
+      }
+      if (this.bossActive && this.boss.active && this.boss.burnStacks > 0 && now < this.boss.burnExpiresAt) {
+        for (const m of this.allMinions) {
+          if (m.isDead || spreadSeen.has(m)) continue;
+          if (Phaser.Math.Distance.Between(this.boss.x, this.boss.y, m.x, m.y) <= burnSpreadR) {
+            m.burnStacks = Math.min(burnCap, Math.max(m.burnStacks, this.boss.burnStacks));
+            m.burnExpiresAt = now + this.BURN_DURATION;
+            minionInFire.add(m);
+            spreadQueue.push(m);
+            spreadSeen.add(m);
+          }
+        }
+      }
+      // BFS：剛著火的怪立刻成為火源，直接繼承來源層數
+      let qi = 0;
+      while (qi < spreadQueue.length) {
+        const src = spreadQueue[qi++];
+        for (const other of this.allMinions) {
+          if (other.isDead || spreadSeen.has(other)) continue;
+          if (Phaser.Math.Distance.Between(src.x, src.y, other.x, other.y) <= burnSpreadR) {
+            other.burnStacks = Math.min(burnCap, Math.max(other.burnStacks, src.burnStacks));
+            other.burnExpiresAt = now + this.BURN_DURATION;
+            minionInFire.add(other);
+            spreadQueue.push(other);
+            spreadSeen.add(other);
+          }
+        }
+      }
+    }
+
     // 離開火焰才衰減：高層數衰減更快，創造 8-10 層的自然平均值
     const applyDecay = (stacks: number): number =>
       Math.max(0, stacks - Math.max(1, Math.ceil(stacks / this.BURN_SOFT_CAP)));
@@ -2420,11 +2461,12 @@ export class GameScene extends Phaser.Scene {
     for (const card of def.cards) {
       if (Math.random() < card.rate * cardDropMult) this.spawnCardDrop(x, y, card.cardId);
     }
-    const IQ = Math.pow(1.3, this.questStar - 1);
+    const IQ = Math.pow(1.50, this.questStar - 1);
     const monType: MonsterType = isElite ? 'elite' : 'small';
     const qualW = getDropQualityWeights(monType, this.questStar);
-    let dropCount = isElite ? 1 : 0;
-    if (Math.random() < Math.min(1, (isElite ? 0.25 : 0.15) * IQ)) dropCount++;
+    let dropCount = 0;
+    if (Math.random() < Math.min(1, (isElite ? 0.33 : 0.05) * IQ)) dropCount++;
+    if (isElite && Math.random() < Math.min(1, 0.083 * IQ)) dropCount++;
     for (let i = 0; i < dropCount; i++) {
       const slot = EQUIP_ALL_SLOTS[Math.floor(Math.random() * EQUIP_ALL_SLOTS.length)];
       this.spawnEquipDrop(x, y, generateEquipment(slot, randomQuality(qualW)));
@@ -3613,7 +3655,7 @@ export class GameScene extends Phaser.Scene {
       for (const card of bossDef.cards) {
         if (Math.random() < card.rate * bossCardMult) this.spawnCardDrop(this.boss.x, this.boss.y, card.cardId);
       }
-      const bossIQ = Math.pow(1.3, this.questStar - 1);
+      const bossIQ = Math.pow(1.50, this.questStar - 1);
       const bossQualW = getDropQualityWeights('boss', this.questStar);
       let bossDropCount = 4;
       const bossBonusChance = Math.min(1, 0.30 * bossIQ);
@@ -4146,10 +4188,9 @@ export class GameScene extends Phaser.Scene {
         fontSize: F(14), fontStyle: 'bold', color: qHex, stroke: '#0a0600', strokeThickness: 2,
       }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(D + 3));
 
-      const affixLines = item.affixes.map(a => {
-        const isPct = ['crit', 'atkSpeed', 'lifesteal', 'evasion'].includes(a.stat);
-        return `${STAT_NAMES[a.stat]} +${isPct ? (a.value * 100).toFixed(2) + '%' : a.value}`;
-      });
+      const affixLines = item.affixes.map(a =>
+        `${STAT_NAMES[a.stat]} +${fmtAffixValue(a.stat, a.value)}`,
+      );
       if (item.behavior) affixLines.push(BEHAVIOR_NAMES[item.behavior]);
       objs.push(this.add.text(cx + CARD_W / 2, cy + P(132), affixLines.join('\n'), {
         fontSize: F(13), fontStyle: 'bold', color: '#88cc88',
@@ -4293,19 +4334,23 @@ export class GameScene extends Phaser.Scene {
     const tx = cx + ox, ty = cy + oy + P(18);
     const imgKey = this.textures.exists(equip.texture) ? equip.texture : 'icon_equip_drop';
     const qColor = QUALITY_COLORS[equip.quality];
-    const r = P(17);
 
-    const drawBadge = (gfx: Phaser.GameObjects.Graphics) => {
-      gfx.clear();
-      gfx.fillStyle(0x111111, 0.72).fillCircle(0, 0, r);
-      gfx.lineStyle(P(equip.quality === 'normal' ? 1.5 : 2.5), qColor, 1).strokeCircle(0, 0, r);
-    };
-    const badge = this.add.graphics().setDepth(ty + 3);
-    badge.x = tx; badge.y = cy - P(24);
-    drawBadge(badge);
+    const imgSz = P(26);
+    const off   = equip.quality === 'normal' ? P(1.5) : P(2);
+
+    // 8方向偏移同一張圖填色 → 沿著去背邊緣形成品質色外框
+    const badge = this.add.container(tx, cy - P(24)).setDepth(ty + 3);
+    const dirs: [number, number][] = [[-1,0],[1,0],[0,-1],[0,1],[-1,-1],[-1,1],[1,-1],[1,1]];
+    dirs.forEach(([dx, dy]) => {
+      badge.add(
+        this.add.image(off * dx, off * dy, imgKey)
+          .setDisplaySize(imgSz, imgSz)
+          .setTintFill(qColor),
+      );
+    });
 
     const img = this.add.image(tx, cy - P(24), imgKey)
-      .setDisplaySize(P(26), P(26)).setDepth(ty + 4);
+      .setDisplaySize(imgSz, imgSz).setDepth(ty + 4);
 
     this.tweens.add({
       targets: [badge, img], y: ty, duration: 420, ease: 'Bounce.Out',

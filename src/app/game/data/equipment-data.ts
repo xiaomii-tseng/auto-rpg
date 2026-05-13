@@ -64,6 +64,7 @@ export interface StatBonus {
   whirlwindDmgPct?:     number;  // 旋風斬傷害 ×(1+X)
   slash180DmgPct?:      number;  // 半月斬傷害 ×(1+X)
   burnMaxStackBonus?:   number;  // 燃燒上限 +X 層
+  burnSpread?:          number;  // 燃燒擴散半徑（張數 × 80px）
   dashDistBonus?:       number;  // 瞬步斬距離 +X
   dashDmgPct?:          number;  // 瞬步斬傷害 ×(1+X)
   multiHitNoStagger?:   number;  // 五連斬無僵直（1 = 啟用）
@@ -147,6 +148,20 @@ function rollBell(): number {
   return lo + r * (hi - lo);
 }
 
+// 武器攻擊力依品質獨立區間（鐘型分布）
+export const SWORD_ATK_RANGE: Record<EquipQuality, [number, number]> = {
+  normal:  [ 8, 28],
+  good:    [16, 40],
+  fine:    [28, 52],
+  perfect: [40, 64],
+};
+
+function rollAtkForQuality(quality: EquipQuality): number {
+  const [lo, hi] = SWORD_ATK_RANGE[quality];
+  const r = (Math.random() + Math.random() + Math.random()) / 3;
+  return Math.round(lo + r * (hi - lo));
+}
+
 export const QUALITY_NAMES: Record<EquipQuality, string> = {
   normal: '普通', good: '良好', fine: '精良', perfect: '完美',
 };
@@ -177,6 +192,15 @@ export const STAT_NAMES: Record<StatKey, string> = {
   dotBonus:    '持續傷害',
   penetration: '穿甲',
 };
+
+const PCT_DISPLAY  = new Set(['crit', 'atkSpeed', 'lifesteal', 'evasion', 'critDmg', 'dotBonus']);
+const DEC2_DISPLAY = new Set(['hpRegen']);
+
+export function fmtAffixValue(stat: string, value: number): string {
+  if (PCT_DISPLAY.has(stat))  return (value * 100).toFixed(2) + '%';
+  if (DEC2_DISPLAY.has(stat)) return value.toFixed(2);
+  return String(value);
+}
 
 export const BEHAVIOR_NAMES: Record<AttackBehavior, string> = {
   slash180:   '半月斬',
@@ -285,7 +309,7 @@ export const STAT_BASE: Record<StatKey, number> = {
   crit:       0.05,
   speed:     15,
   atkSpeed:   0.10,
-  lifesteal:  0.005,
+  lifesteal:  0.003,
   evasion:    0.05,
   critDmg:     0.20,
   hpRegen:     0.36,
@@ -300,7 +324,7 @@ export const ENHANCE_INCREMENT: Record<StatKey, number> = {
   crit:      0.003,
   speed:     1,
   atkSpeed:  0.003,
-  lifesteal: 0.0007,
+  lifesteal: 0.00042,
   evasion:   0.0015,
   critDmg:   0.005,
   hpRegen:   0.2,
@@ -365,7 +389,7 @@ export function generateEquipment(slot: EquipSlot, quality: EquipQuality): Equip
 
   if (slot === 'sword') {
     // 武器：ATK 固定第一條 + 攻擊模式 + 品質決定的隨機詞綴數
-    const fixedAtk: Affix = { stat: 'atk', value: Math.round(STAT_BASE.atk * rollBell()) };
+    const fixedAtk: Affix = { stat: 'atk', value: rollAtkForQuality(quality) };
     affixes  = [fixedAtk, ...pickAffixes('sword', QUALITY_AFFIX_COUNT[quality])];
     behavior = ATTACK_BEHAVIORS[Math.floor(Math.random() * ATTACK_BEHAVIORS.length)];
   } else {
@@ -406,7 +430,7 @@ const DROP_QUALITY_BASE: Record<MonsterType, Record<EquipQuality, number>> = {
 
 export function getDropQualityWeights(type: MonsterType, star: number): Record<EquipQuality, number> {
   const b = DROP_QUALITY_BASE[type];
-  const IR = Math.pow(1.3, star - 1);
+  const IR = Math.pow(1.20, star - 1);
   return { normal: b.normal, good: b.good, fine: b.fine * IR, perfect: b.perfect * IR * IR };
 }
 
@@ -437,13 +461,13 @@ export const ENHANCE_COMPLETE_BONUS = 0.08;
 
 // 每次精煉各詞綴的隨機增幅範圍（線性，套用於基底值，對標現行 +10 水準）
 export const REFINE_INCREMENT_RANGE: Record<StatKey, [number, number]> = {
-  atk:         [2,      6     ],
+  atk:         [5,      10    ],
   hp:          [4,      12    ],
   def:         [2,      6     ],
   crit:        [0.007,  0.017 ],
   speed:       [2,      6     ],
   atkSpeed:    [0.007,  0.017 ],
-  lifesteal:   [0.0015, 0.004 ],
+  lifesteal:   [0.0009, 0.0024],
   evasion:     [0.003,  0.010 ],
   critDmg:     [0.012,  0.028 ],
   hpRegen:     [0.5,    1.2   ],
@@ -456,12 +480,24 @@ export function applyEnhancement(item: EquipmentItem): number[] {
   if (item.enhancement >= ENHANCE_MAX) return [];
   if (!item.baseAffixes) item.baseAffixes = item.affixes.map(a => ({ ...a }));
 
-  const count = item.affixes.length <= 1 ? 1 : (Math.random() < 0.25 ? 2 : 1);
-  const pool  = item.affixes.map((_, i) => i);
   const indices: number[] = [];
-  while (indices.length < count && pool.length > 0) {
-    const pick = Math.floor(Math.random() * pool.length);
-    indices.push(pool.splice(pick, 1)[0]);
+
+  if (item.slot === 'sword' && item.affixes[0]?.stat === 'atk') {
+    // 武器 ATK 固定必提升，其餘詞綴再隨機抽 1 條（25% 機率抽 2 條）
+    indices.push(0);
+    const rest = item.affixes.map((_, i) => i).slice(1);
+    const extra = item.affixes.length <= 1 ? 0 : (Math.random() < 0.25 ? 2 : 1);
+    while (indices.length - 1 < extra && rest.length > 0) {
+      const pick = Math.floor(Math.random() * rest.length);
+      indices.push(rest.splice(pick, 1)[0]);
+    }
+  } else {
+    const count = item.affixes.length <= 1 ? 1 : (Math.random() < 0.25 ? 2 : 1);
+    const pool  = item.affixes.map((_, i) => i);
+    while (indices.length < count && pool.length > 0) {
+      const pick = Math.floor(Math.random() * pool.length);
+      indices.push(pool.splice(pick, 1)[0]);
+    }
   }
 
   for (const idx of indices) {
