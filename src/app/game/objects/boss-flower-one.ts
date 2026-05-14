@@ -460,12 +460,14 @@ export class BossFlowerOne extends Boss {
       spinTimer.destroy();
       spinG.destroy();
       const totalShots = 32;
-      const interval   = 250;
+      const interval   = Math.round(250 / 1.5);
       const rotPerShot = (Math.PI * 2 * 1.5) / totalShots;
       for (let i = 0; i < totalShots; i++) {
         this.scene.time.delayedCall(i * interval, () => {
           if (this.currentState === BossState.DEAD) return;
-          this.onFirePetal?.(this.x, this.y, startAngle + i * rotPerShot, SPIRAL_SPEED, this.scaleDmg(SPIRAL_DMG), BLIND_DIST);
+          const a = startAngle + i * rotPerShot;
+          this.onFirePetal?.(this.x, this.y, a,              SPIRAL_SPEED, this.scaleDmg(SPIRAL_DMG), BLIND_DIST);
+          this.onFirePetal?.(this.x, this.y, a + Math.PI,    SPIRAL_SPEED, this.scaleDmg(SPIRAL_DMG), BLIND_DIST);
         });
       }
       this.stateTimer = this.scene.time.delayedCall(totalShots * interval + 300, () => this.enterIdle());

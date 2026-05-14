@@ -3658,7 +3658,7 @@ export class GameScene extends Phaser.Scene {
       const bossIQ = Math.pow(1.50, this.questStar - 1);
       const bossQualW = getDropQualityWeights('boss', this.questStar);
       let bossDropCount = 4;
-      const bossBonusChance = Math.min(1, 0.30 * bossIQ);
+      const bossBonusChance = 0.30 * bossIQ;
       for (let i = 0; i < 6; i++) {
         if (Math.random() < bossBonusChance) bossDropCount++;
       }

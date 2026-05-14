@@ -423,9 +423,9 @@ export function randomQuality(weights?: Partial<Record<EquipQuality, number>>): 
 export type MonsterType = 'small' | 'elite' | 'boss';
 
 const DROP_QUALITY_BASE: Record<MonsterType, Record<EquipQuality, number>> = {
-  small: { normal: 70, good: 25, fine: 4.5, perfect: 0.2 },
-  elite: { normal: 50, good: 35, fine: 13,  perfect: 1.0 },
-  boss:  { normal: 25, good: 40, fine: 28,  perfect: 0.7 },
+  small: { normal: 70,   good: 25, fine: 2.25, perfect: 0.2 },
+  elite: { normal: 50,   good: 35, fine: 10.4, perfect: 1.0 },
+  boss:  { normal: 50,   good: 28, fine: 12,   perfect: 0.7 },
 };
 
 export function getDropQualityWeights(type: MonsterType, star: number): Record<EquipQuality, number> {
@@ -447,13 +447,13 @@ export function getItemStats(item: EquipmentItem): Partial<Record<StatKey, numbe
 export const ENHANCE_MAX = 10;
 
 export const ENHANCE_COST: Record<number, number> = {
-  0: 1, 1: 2, 2: 2, 3: 3, 4: 3,
-  5: 4, 6: 4, 7: 5, 8: 5, 9: 7,
+  0: 5, 1: 5, 2: 5, 3: 5, 4: 5,
+  5: 5, 6: 5, 7: 5, 8: 5, 9: 5,
 };
 
 // 失敗不退階，成功率略低於原版
 export const ENHANCE_RATE: Record<number, number> = {
-  0: 0.90, 1: 0.80, 2: 0.75, 3: 0.65, 4: 0.50,
+  0: 0.70, 1: 0.60, 2: 0.55, 3: 0.48, 4: 0.40,
   5: 0.35, 6: 0.22, 7: 0.14, 8: 0.10, 9: 0.06,
 };
 

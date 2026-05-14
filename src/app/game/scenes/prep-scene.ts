@@ -30,6 +30,87 @@ const WH = 0xb07030; // highlight grain
 const GOLD = 0xd4a044;
 const IRON = 0x4a5560;
 
+// Per-enhancement glow definition: radius (physical px), tint color, optional rainbow flag
+const GLOW_DEF: Record<number, { r: number; color: number; rainbow?: true }> = {
+  3:  { r: P(28), color: 0xffffff },
+  4:  { r: P(28), color: 0x00ff44 },
+  5:  { r: P(28), color: 0x00ffff },
+  6:  { r: P(28), color: 0x0055ff },
+  7:  { r: P(30), color: 0xffdd00 },
+  8:  { r: P(32), color: 0xdd00ff },
+  9:  { r: P(34), color: 0xff0000 },
+  10: { r: P(38), color: 0xffffff, rainbow: true },
+};
+
+// White radial-gradient canvas texture, keyed by radius. Built once, reused.
+function _ensureGlowTex(scene: Phaser.Scene, radius: number): string {
+  const key = `__enhglow_${radius}`;
+  if (scene.textures.exists(key)) return key;
+  const size = radius * 2 + 2;
+  const canvas = document.createElement('canvas');
+  canvas.width  = size;
+  canvas.height = size;
+  const ctx  = canvas.getContext('2d')!;
+  const cx   = size / 2;
+  const grad = ctx.createRadialGradient(cx, cx, 0, cx, cx, radius);
+  grad.addColorStop(0,    'rgba(255,255,255,1)');
+  grad.addColorStop(0.35, 'rgba(255,255,255,0.65)');
+  grad.addColorStop(0.70, 'rgba(255,255,255,0.20)');
+  grad.addColorStop(1,    'rgba(255,255,255,0)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, size, size);
+  scene.textures.addCanvas(key, canvas);
+  return key;
+}
+
+// Returns an Image aura to be added to the container BEFORE the item image.
+function applyEnhanceGlow(
+  scene: Phaser.Scene,
+  item:  import('../data/equipment-data').EquipmentItem,
+  x: number, y: number,
+): Phaser.GameObjects.Image | null {
+  const enh = item.enhancement ?? 0;
+  const def = GLOW_DEF[enh];
+  if (!def) return null;
+
+  const t        = (enh - 3) / 7;
+  const alphaMax = 0.45 + t * 0.50;   // 0.45 → 0.95
+  const alphaMin = 0.12 + t * 0.10;   // 0.12 → 0.22
+
+  const sprite = scene.add.image(x, y, _ensureGlowTex(scene, def.r));
+  sprite.setBlendMode(Phaser.BlendModes.ADD);
+  sprite.setTint(def.color);
+  sprite.setAlpha(alphaMin);
+
+  // Unified pulse speed: 1200ms all levels
+  scene.tweens.add({
+    targets:  sprite,
+    alpha:    alphaMax,
+    yoyo:     true,
+    repeat:   -1,
+    duration: 1200,
+    ease:     'Sine.easeInOut',
+  });
+
+  // +10 rainbow: cycle hue continuously
+  if (def.rainbow) {
+    const hue = { v: 0 };
+    scene.tweens.add({
+      targets:  hue,
+      v:        1,
+      duration: 1600,
+      repeat:   -1,
+      ease:     'Linear',
+      onUpdate: () => {
+        const c = Phaser.Display.Color.HSVToRGB(hue.v, 1, 1) as { r: number; g: number; b: number };
+        sprite.setTint(Phaser.Display.Color.GetColor(c.r, c.g, c.b));
+      },
+    });
+  }
+
+  return sprite;
+}
+
 const _dismantlePrefs = (() => {
   try {
     const raw = localStorage.getItem('dismantlePrefs');
@@ -159,7 +240,7 @@ export class PrepScene extends Phaser.Scene {
       // 新玩家：隨機送一把普通品質武器
       const startSword = generateEquipment('sword', 'normal');
       PlayerStore.equipDirect('sword', startSword);
-      InventoryStore.addGold(20000);
+      InventoryStore.addGold(200000);
       InventoryStore.addItem('quest_reroll', '任務重製石', 10);
     }
 
@@ -2206,10 +2287,11 @@ export class PrepScene extends Phaser.Scene {
         topSlotsLayer.add(sg);
 
         if (item && this.textures.exists(item.texture)) {
-          topSlotsLayer.add(
-            this.add.image(sx + slotSz / 2, sy + slotSz / 2 - P(8), item.texture)
-              .setDisplaySize(P(48), P(48)),
-          );
+          const eGlow = applyEnhanceGlow(this, item, sx + slotSz / 2, sy + slotSz / 2 - P(8));
+          if (eGlow) topSlotsLayer.add(eGlow);
+          const eImg = this.add.image(sx + slotSz / 2, sy + slotSz / 2 - P(8), item.texture)
+            .setDisplaySize(P(48), P(48));
+          topSlotsLayer.add(eImg);
           sg.fillStyle(0x000000, 0.5); sg.fillRect(sx, sy + slotSz - P(18), slotSz, P(18));
           topSlotsLayer.add(this.add.text(sx + slotSz / 2, sy + slotSz - P(10), item.enhancement > 0 ? `+${item.enhancement} ${item.name}` : item.name, {
             fontSize: F(15), fontStyle: 'bold', color: '#ffe8a0', stroke: '#000000', strokeThickness: 2,
@@ -2824,10 +2906,12 @@ export class PrepScene extends Phaser.Scene {
         gg.lineStyle(P(2), qc, 0.8); gg.strokeRect(cx2, cy2, cellSz, cellSz);
         gg.lineStyle(P(1), qc, 0.25); gg.strokeRect(cx2 + P(2), cy2 + P(2), cellSz - P(4), cellSz - P(4));
 
-        if (this.textures.exists(item.texture))
-          scrollCnt.add(
-            this.add.image(cx2 + cellSz / 2, cy2 + cellSz / 2 - P(8), item.texture).setDisplaySize(P(42), P(42)),
-          );
+        if (this.textures.exists(item.texture)) {
+          const gGlow = applyEnhanceGlow(this, item, cx2 + cellSz / 2, cy2 + cellSz / 2 - P(8));
+          if (gGlow) scrollCnt.add(gGlow);
+          const gImg = this.add.image(cx2 + cellSz / 2, cy2 + cellSz / 2 - P(8), item.texture).setDisplaySize(P(42), P(42));
+          scrollCnt.add(gImg);
+        }
 
         gg.fillStyle(0x000000, 0.5); gg.fillRect(cx2, cy2 + cellSz - P(18), cellSz, P(18));
         scrollCnt.add(this.add.text(cx2 + cellSz / 2, cy2 + cellSz - P(10), item.enhancement > 0 ? `+${item.enhancement} ${item.name}` : item.name, {
