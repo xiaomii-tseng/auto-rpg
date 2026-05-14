@@ -1,6 +1,7 @@
 import { StatBonus } from './equipment-data';
 import { PlayerStore, EffectiveStats } from './player-store';
 import { getCardDef } from './monster-data';
+import { SkillTreeStore } from './skill-tree-store';
 
 export const CARD_SLOT_COUNT = 5;
 
@@ -135,18 +136,25 @@ export const CardStore = {
       b.slash180DmgPct       = (b.slash180DmgPct       ?? 0) + (e.slash180DmgPct       ?? 0);
       b.burnMaxStackBonus    = (b.burnMaxStackBonus    ?? 0) + (e.burnMaxStackBonus    ?? 0);
       b.burnSpread           = (b.burnSpread           ?? 0) + (e.burnSpread           ?? 0);
+      b.burnSpreadSkillPx    = (b.burnSpreadSkillPx    ?? 0) + (e.burnSpreadSkillPx    ?? 0);
+      b.burnDoubleStack      = (b.burnDoubleStack      ?? 0) + (e.burnDoubleStack      ?? 0);
       b.dashDistBonus        = (b.dashDistBonus        ?? 0) + (e.dashDistBonus        ?? 0);
+      b.dashDistPct          = (b.dashDistPct          ?? 0) + (e.dashDistPct          ?? 0);
       b.dashDmgPct           = (b.dashDmgPct           ?? 0) + (e.dashDmgPct           ?? 0);
+      b.dashDoubleHit        = (b.dashDoubleHit        ?? 0) + (e.dashDoubleHit        ?? 0);
       b.multiHitNoStagger    = (b.multiHitNoStagger    ?? 0) + (e.multiHitNoStagger    ?? 0);
       b.multiHitDmgPct       = (b.multiHitDmgPct       ?? 0) + (e.multiHitDmgPct       ?? 0);
       b.chargeSlamStunChance = (b.chargeSlamStunChance ?? 0) + (e.chargeSlamStunChance ?? 0);
       b.chargeSlamDmgPct     = (b.chargeSlamDmgPct     ?? 0) + (e.chargeSlamDmgPct     ?? 0);
+      b.chargeSlamOverload   = (b.chargeSlamOverload   ?? 0) + (e.chargeSlamOverload   ?? 0);
       b.boomerangRangePct    = (b.boomerangRangePct    ?? 0) + (e.boomerangRangePct    ?? 0);
       b.boomerangDmgPct      = (b.boomerangDmgPct      ?? 0) + (e.boomerangDmgPct      ?? 0);
       b.auraRadiusPct        = (b.auraRadiusPct        ?? 0) + (e.auraRadiusPct        ?? 0);
       b.auraDmgPct           = (b.auraDmgPct           ?? 0) + (e.auraDmgPct           ?? 0);
       b.projectileDistBonus  = (b.projectileDistBonus  ?? 0) + (e.projectileDistBonus  ?? 0);
+      b.projectileDistPct    = (b.projectileDistPct    ?? 0) + (e.projectileDistPct    ?? 0);
       b.projectileDmgPct     = (b.projectileDmgPct     ?? 0) + (e.projectileDmgPct     ?? 0);
+      b.projectileFan        = (b.projectileFan        ?? 0) + (e.projectileFan        ?? 0);
       b.condCritDmgBonus     = (b.condCritDmgBonus     ?? 0) + (e.condCritDmgBonus     ?? 0);
       b.condPenAtk           = (b.condPenAtk           ?? 0) + (e.condPenAtk           ?? 0);
       b.condHpPct            = (b.condHpPct            ?? 0) + (e.condHpPct            ?? 0);
@@ -157,11 +165,29 @@ export const CardStore = {
       b.orbitFireBalls       = (b.orbitFireBalls       ?? 0) + (e.orbitFireBalls       ?? 0);
       b.orbitIceBalls        = (b.orbitIceBalls        ?? 0) + (e.orbitIceBalls        ?? 0);
       b.orbitBallDmgPct      = (b.orbitBallDmgPct      ?? 0) + (e.orbitBallDmgPct      ?? 0);
-      b.periodicKnives       = (b.periodicKnives       ?? 0) + (e.periodicKnives       ?? 0);
-      b.overkillSplash       = (b.overkillSplash       ?? 0) + (e.overkillSplash       ?? 0);
+      b.orbitFireBallDmgPct  = (b.orbitFireBallDmgPct  ?? 0) + (e.orbitFireBallDmgPct  ?? 0);
+      b.orbitIceBallDmgPct   = (b.orbitIceBallDmgPct   ?? 0) + (e.orbitIceBallDmgPct   ?? 0);
+      b.periodicKnives         = (b.periodicKnives         ?? 0) + (e.periodicKnives         ?? 0);
+      b.knifeIntervalReduction = (b.knifeIntervalReduction ?? 0) + (e.knifeIntervalReduction ?? 0);
+      b.knifeDoubleCount       = (b.knifeDoubleCount       ?? 0) + (e.knifeDoubleCount       ?? 0);
+      b.knifeHoming            = (b.knifeHoming            ?? 0) + (e.knifeHoming            ?? 0);
+      b.knifeDmgPct            = (b.knifeDmgPct            ?? 0) + (e.knifeDmgPct            ?? 0);
+      b.overkillSplash          = (b.overkillSplash          ?? 0) + (e.overkillSplash          ?? 0);
+      b.overkillInfiniteChain   = (b.overkillInfiniteChain   ?? 0) + (e.overkillInfiniteChain   ?? 0);
+      b.overkillDmgPct          = (b.overkillDmgPct          ?? 0) + (e.overkillDmgPct          ?? 0);
+      b.bloodlust                  = (b.bloodlust                  ?? 0) + (e.bloodlust                  ?? 0);
+      b.bloodlustDmgPerStack       = (b.bloodlustDmgPerStack       ?? 0) + (e.bloodlustDmgPerStack       ?? 0);
+      b.bloodlustMaxStacks         = (b.bloodlustMaxStacks         ?? 0) + (e.bloodlustMaxStacks         ?? 0);
+      b.bloodlustConvert           = (b.bloodlustConvert           ?? 0) + (e.bloodlustConvert           ?? 0);
+      b.bloodlustLifestealPerStack = (b.bloodlustLifestealPerStack ?? 0) + (e.bloodlustLifestealPerStack ?? 0);
+      b.damageSplash            = (b.damageSplash            ?? 0) + (e.damageSplash            ?? 0);
+      b.damageSplashPct         = (b.damageSplashPct         ?? 0) + (e.damageSplashPct         ?? 0);
+      b.damageSplashCount       = (b.damageSplashCount       ?? 0) + (e.damageSplashCount       ?? 0);
       b.lightningStrike      = (b.lightningStrike      ?? 0) + (e.lightningStrike      ?? 0);
       b.onHitLightningChance = (b.onHitLightningChance ?? 0) + (e.onHitLightningChance ?? 0);
-      b.lightningDmgBonus    = (b.lightningDmgBonus    ?? 0) + (e.lightningDmgBonus    ?? 0);
+      b.lightningDmgBonus          = (b.lightningDmgBonus          ?? 0) + (e.lightningDmgBonus          ?? 0);
+      b.lightningIntervalReduction = (b.lightningIntervalReduction ?? 0) + (e.lightningIntervalReduction ?? 0);
+      b.lightningSingleTarget      = (b.lightningSingleTarget      ?? 0) + (e.lightningSingleTarget      ?? 0);
       b.divineShieldChance   = (b.divineShieldChance   ?? 0) + (e.divineShieldChance   ?? 0);
       b.infiniteDivineShield = (b.infiniteDivineShield ?? 0) + (e.infiniteDivineShield ?? 0);
       b.summonFlowerChance   = (b.summonFlowerChance   ?? 0) + (e.summonFlowerChance   ?? 0);
@@ -181,12 +207,18 @@ export const CardStore = {
   /** 裝備 + 卡片的完整數值，遊戲場景使用此函式 */
   getTotalStats(): EffectiveStats {
     const base     = PlayerStore.getStats();
-    const bonus    = this.getEquippedBonus();
+    const cardBonus = this.getEquippedBonus();
+    const skillBonus = SkillTreeStore.getBonus();
+    // 合併技能樹加成
+    const bonus: StatBonus = { ...cardBonus };
+    for (const key of Object.keys(skillBonus) as (keyof StatBonus)[]) {
+      (bonus as any)[key] = ((bonus[key] as number) ?? 0) + ((skillBonus[key] as number) ?? 0);
+    }
     const sword    = PlayerStore.getEquipped().sword;
     const swordEnh = sword?.enhancement ?? 0;
     const enh8     = swordEnh >= 8;
     const MELEE_BEHAVIORS = ['slash180', 'whirlwind', 'dashPierce', 'aura', 'multiHit', 'chargeSlam'];
-    const meleeDef = (sword?.behavior && MELEE_BEHAVIORS.includes(sword.behavior)) ? 25 : 0;
+    const meleeDef = MELEE_BEHAVIORS.includes(SkillTreeStore.getAttackMode()) ? 25 : 0;
 
     // 精煉加成（每+2精煉 ATK/HP+X）
     const refineSteps = Math.floor(swordEnh / 2);
@@ -233,18 +265,25 @@ export const CardStore = {
       slash180DmgPct:       bonus.slash180DmgPct,
       burnMaxStackBonus:    bonus.burnMaxStackBonus,
       burnSpread:           bonus.burnSpread,
+      burnSpreadSkillPx:    bonus.burnSpreadSkillPx,
+      burnDoubleStack:      bonus.burnDoubleStack,
       dashDistBonus:        bonus.dashDistBonus,
+      dashDistPct:          bonus.dashDistPct,
       dashDmgPct:           bonus.dashDmgPct,
+      dashDoubleHit:        bonus.dashDoubleHit,
       multiHitNoStagger:    bonus.multiHitNoStagger,
       multiHitDmgPct:       bonus.multiHitDmgPct,
       chargeSlamStunChance: bonus.chargeSlamStunChance,
       chargeSlamDmgPct:     bonus.chargeSlamDmgPct,
+      chargeSlamOverload:   bonus.chargeSlamOverload,
       boomerangRangePct:    bonus.boomerangRangePct,
       boomerangDmgPct:      bonus.boomerangDmgPct,
       auraRadiusPct:        bonus.auraRadiusPct,
       auraDmgPct:           bonus.auraDmgPct,
       projectileDistBonus:  bonus.projectileDistBonus,
+      projectileDistPct:    bonus.projectileDistPct,
       projectileDmgPct:     bonus.projectileDmgPct,
+      projectileFan:        bonus.projectileFan,
       allDmgPct:            bonus.allDmgPct,
       takenDmgPct:          bonus.takenDmgPct,
       dropRateMult:         bonus.dropRateMult || 1,
@@ -252,11 +291,29 @@ export const CardStore = {
       orbitFireBalls:       bonus.orbitFireBalls,
       orbitIceBalls:        bonus.orbitIceBalls,
       orbitBallDmgPct:      bonus.orbitBallDmgPct,
-      periodicKnives:       bonus.periodicKnives,
-      overkillSplash:       bonus.overkillSplash,
+      orbitFireBallDmgPct:  bonus.orbitFireBallDmgPct,
+      orbitIceBallDmgPct:   bonus.orbitIceBallDmgPct,
+      periodicKnives:          bonus.periodicKnives,
+      knifeIntervalReduction:  bonus.knifeIntervalReduction,
+      knifeDoubleCount:        bonus.knifeDoubleCount,
+      knifeHoming:             bonus.knifeHoming,
+      knifeDmgPct:             bonus.knifeDmgPct,
+      overkillSplash:          bonus.overkillSplash,
+      overkillInfiniteChain:   bonus.overkillInfiniteChain,
+      overkillDmgPct:          bonus.overkillDmgPct,
+      bloodlust:                  bonus.bloodlust,
+      bloodlustDmgPerStack:       bonus.bloodlustDmgPerStack,
+      bloodlustMaxStacks:         bonus.bloodlustMaxStacks,
+      bloodlustConvert:           bonus.bloodlustConvert,
+      bloodlustLifestealPerStack: bonus.bloodlustLifestealPerStack,
+      damageSplash:            bonus.damageSplash,
+      damageSplashPct:         bonus.damageSplashPct,
+      damageSplashCount:       bonus.damageSplashCount,
       lightningStrike:      bonus.lightningStrike,
       onHitLightningChance: bonus.onHitLightningChance,
-      lightningDmgBonus:    bonus.lightningDmgBonus,
+      lightningDmgBonus:          bonus.lightningDmgBonus,
+      lightningIntervalReduction: bonus.lightningIntervalReduction,
+      lightningSingleTarget:      bonus.lightningSingleTarget,
       divineShieldChance:   bonus.divineShieldChance,
       infiniteDivineShield: bonus.infiniteDivineShield,
       summonFlowerChance:   bonus.summonFlowerChance,

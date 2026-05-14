@@ -3,12 +3,13 @@ import { InventoryStore } from '../data/inventory-store';
 import { PlayerStore } from '../data/player-store';
 import { PotionBarStore } from '../data/potion-bar-store';
 import { ITEM_POTION_HEALTH_S, ITEM_POTION_HEALTH_M, ITEM_POTION_HEALTH_L, ITEM_POTION_REVIVE, ITEM_POTION_ATK, ITEM_POTION_DEF, ITEM_POTION_SPEED, ITEM_STONE_BROKEN, ITEM_STONE_INTACT, ITEM_BLANK_CARD, ITEM_QUEST_REROLL } from '../data/monster-data';
-import { generateEquipment, randomQuality, QUALITY_NAMES, QUALITY_COLORS, SLOT_NAMES, STAT_NAMES, BEHAVIOR_NAMES, BEHAVIOR_INFO, EquipSlot, EquipmentItem, applyEnhancement, recastItem, ENHANCE_COST, ENHANCE_RATE, ENHANCE_COMPLETE_BONUS, ENHANCE_MAX, fmtAffixValue } from '../data/equipment-data';
+import { generateEquipment, randomQuality, QUALITY_NAMES, QUALITY_COLORS, SLOT_NAMES, STAT_NAMES, BEHAVIOR_INFO, BEHAVIOR_NAMES, EquipSlot, EquipmentItem, applyEnhancement, recastItem, ENHANCE_COST, ENHANCE_RATE, ENHANCE_COMPLETE_BONUS, ENHANCE_MAX, fmtAffixValue } from '../data/equipment-data';
 import { SaveStore } from '../data/save-store';
 import { CardStore, CARD_SLOT_COUNT } from '../data/card-store';
 
 import { getCardDef, getMonsterDef, monsterCardScale, monsterDetailScale, CARD_DEFS, CardDef } from '../data/monster-data';
 import { QuestStore, Quest, STAR_EQUIP_QUALITY, getStarWeights } from '../data/quest-store';
+import { SkillTreeStore, SKILL_NODES, SKILL_NODE_MAP, ATTACK_MODES, MODE_COLORS } from '../data/skill-tree-store';
 import { NetworkService } from '../network/network.service';
 import { SkinStore, SKINS } from '../data/skin-store';
 import { VERSION } from '../version';
@@ -589,25 +590,29 @@ export class PrepScene extends Phaser.Scene {
     const navItems: { label: string; icon: string; accent: number; onClick: () => void }[] = [
       { label: '裝備', icon: '⚔', accent: 0xaa88cc, onClick: () => this.showEquipmentPanel(W, H) },
       { label: '卡片', icon: '♦', accent: 0xcc6688, onClick: () => this.openCardWindow(W, H) },
+      { label: '技能', icon: '✿', accent: 0x44aadd, onClick: () => this.showSkillTree(W, H) },
       { label: '物品', icon: '⊕', accent: 0x70b858, onClick: () => this.showItemPanel(W, H) },
       { label: '商店', icon: '✦', accent: 0xd47820, onClick: () => this.showShopPanel(W, H) },
     ];
 
-    // Each side has two buttons occupying the space outside CENTER_R
-    const sideW = cx - CENTER_R;           // available width per side
-    const slotW = sideW / 2;
-    const btnH = BAR_H - P(8);
+    // Left side 3 slots, right side 2 slots
+    const sideW   = cx - CENTER_R;
+    const slotW_L = sideW / 3;
+    const slotW_R = sideW / 2;
+    const btnH    = BAR_H - P(8);
     const btnSlots = [
-      slotW * 0.5,
-      slotW * 1.5,
-      W - slotW * 1.5,
-      W - slotW * 0.5,
+      slotW_L * 0.5, slotW_L * 1.5, slotW_L * 2.5,
+      W - slotW_R * 1.5, W - slotW_R * 0.5,
+    ];
+    const btnWidths = [
+      slotW_L - P(4), slotW_L - P(4), slotW_L - P(4),
+      slotW_R - P(6), slotW_R - P(6),
     ];
 
     navItems.forEach((item, pos) => {
       const bx = btnSlots[pos];
       const by = barY + btnH / 2 + P(4);
-      this.addNavBtn(gfx, bx, by, slotW - P(6), btnH, item.icon, item.label, item.accent, item.onClick);
+      this.addNavBtn(gfx, bx, by, btnWidths[pos], btnH, item.icon, item.label, item.accent, item.onClick);
     });
 
     // ── Battle button (center, elevated) ──────────────────
@@ -1479,7 +1484,6 @@ export class PrepScene extends Phaser.Scene {
         const affixLines = item.affixes.map(a => {
           return `${STAT_NAMES[a.stat]} +${fmtAffixValue(a.stat, a.value)}`;
         });
-        if (item.behavior) affixLines.push(BEHAVIOR_NAMES[item.behavior]);
         mo.push(this.add.text(cx + CARD_W / 2, cy + P(146), affixLines.join('\n'), {
           fontSize: F(15), fontStyle: 'bold', color: '#88cc88',
           stroke: '#0a0600', strokeThickness: 2,
@@ -1642,109 +1646,6 @@ export class PrepScene extends Phaser.Scene {
       const hit = this.add.rectangle(cx, cy, bw, bh).setInteractive({ useHandCursor: true });
       hit.on('pointerdown', onClick);
       det.add(hit);
-    };
-
-    const showBehaviorModal = (behavior: import('../data/equipment-data').AttackBehavior) => {
-      const info = BEHAVIOR_INFO[behavior];
-      const { width: W, height: H } = this.scale;
-      const mw = P(340);
-
-      const probe = this.add.text(-9999, -9999, info.desc, {
-        fontSize: F(15), fontStyle: 'bold', wordWrap: { width: mw - P(32), useAdvancedWrap: true }, lineSpacing: 3,
-      });
-      const descH = probe.height;
-      probe.destroy();
-
-      const titleH = P(48);
-      const sepGap = P(14);
-      const formulaH = P(28) + info.formula.length * P(20);
-      const statsH = P(28) + Math.ceil(info.relatedStats.length / 2) * P(22);
-      const closeBtnH = P(44);
-      const mh = titleH + descH + sepGap + P(14) + formulaH + P(12) + statsH + closeBtnH;
-      const mx = W / 2 - mw / 2;
-      const my = H / 2 - mh / 2;
-
-      const D = 900;
-      const objs: Phaser.GameObjects.GameObject[] = [];
-      const s = <T extends Phaser.GameObjects.GameObject>(o: T): T => { objs.push(o); return o; };
-
-      const prevTopOnly = this.input.topOnly;
-      this.input.topOnly = true; // 只有最高 depth 的物件收到事件，完全阻擋下層點擊
-      const closeModal = () => {
-        this.input.topOnly = prevTopOnly;
-        objs.forEach(o => o.destroy());
-      };
-
-      // 全螢幕遮罩，depth 900，攔截所有點擊
-      const overlay = s(this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.55)
-        .setInteractive({ useHandCursor: false }).setDepth(D));
-      overlay.on('pointerdown', () => closeModal());
-
-      const bg = s(this.add.graphics().setDepth(D + 1));
-      bg.fillStyle(0x1a1008, 0.97); bg.fillRect(mx, my, mw, mh);
-      bg.lineStyle(P(2), 0xc49050, 0.8); bg.strokeRect(mx, my, mw, mh);
-      bg.fillStyle(0xc49050, 0.35); bg.fillRect(mx, my, mw, P(3));
-
-      s(this.add.text(mx + mw / 2, my + P(20), BEHAVIOR_NAMES[behavior], {
-        fontSize: F(17), fontStyle: 'bold', color: '#ffe066', stroke: '#1a0800', strokeThickness: 2,
-      }).setOrigin(0.5, 0).setDepth(D + 2));
-
-      s(this.add.text(mx + P(16), my + titleH, info.desc, {
-        fontSize: F(15), fontStyle: 'bold', color: '#ccbbaa', wordWrap: { width: mw - P(32), useAdvancedWrap: true }, lineSpacing: 3,
-      }).setOrigin(0, 0).setDepth(D + 2));
-
-      const sepY = my + titleH + descH + sepGap;
-      const sepG = s(this.add.graphics().setDepth(D + 2));
-      sepG.fillStyle(0xc49050, 0.3); sepG.fillRect(mx + P(12), sepY, mw - P(24), 1);
-
-      s(this.add.text(mx + P(16), sepY + P(8), '傷害公式', {
-        fontSize: F(15), fontStyle: 'bold', color: '#c49050',
-      }).setOrigin(0, 0).setDepth(D + 2));
-
-      info.formula.forEach((line, i) => {
-        s(this.add.text(mx + P(16), sepY + P(26) + i * P(20), `• ${line}`, {
-          fontSize: F(15), fontStyle: 'bold', color: '#aaddaa',
-        }).setOrigin(0, 0).setDepth(D + 2));
-      });
-
-      // ── 影響數值 ──────────────────────────────────────────
-      const statsY = sepY + P(26) + info.formula.length * P(20) + P(12);
-      const statsG = s(this.add.graphics().setDepth(D + 2));
-      statsG.fillStyle(0xc49050, 0.3); statsG.fillRect(mx + P(12), statsY, mw - P(24), 1);
-
-      s(this.add.text(mx + P(16), statsY + P(8), '影響數值', {
-        fontSize: F(15), fontStyle: 'bold', color: '#c49050',
-      }).setOrigin(0, 0).setDepth(D + 2));
-
-      const STAT_TAG_COLORS: Partial<Record<import('../data/equipment-data').StatKey, number>> = {
-        atk: 0x6633aa, hp: 0xaa3333, def: 0x336688, crit: 0xcc8800,
-        atkSpeed: 0x227744, speed: 0x225588, lifesteal: 0x883344, evasion: 0x557722,
-      };
-      info.relatedStats.forEach(({ stat, note }, i) => {
-        const col = i % 2;
-        const row = Math.floor(i / 2);
-        const tx = mx + P(16) + col * ((mw - P(32)) / 2);
-        const ty = statsY + P(26) + row * P(22);
-        const tagW = (mw - P(40)) / 2;
-        const tagH = P(18);
-        const tagG = s(this.add.graphics().setDepth(D + 2));
-        const c = STAT_TAG_COLORS[stat] ?? 0x444444;
-        tagG.fillStyle(c, 0.25); tagG.fillRoundedRect(tx, ty, tagW, tagH, P(4));
-        tagG.lineStyle(P(1), c, 0.6); tagG.strokeRoundedRect(tx, ty, tagW, tagH, P(4));
-        s(this.add.text(tx + tagW / 2, ty + tagH / 2, `${STAT_NAMES[stat]}  ${note}`, {
-          fontSize: F(15), fontStyle: 'bold', color: '#ddd8cc',
-        }).setOrigin(0.5, 0.5).setDepth(D + 3));
-      });
-
-      const closeY = my + mh - P(22);
-      const closeG = s(this.add.graphics().setDepth(D + 2));
-      closeG.fillStyle(0x3a2000, 1); closeG.fillRect(mx + mw / 2 - P(40), closeY - P(14), P(80), P(28));
-      closeG.lineStyle(P(2), 0xc49050, 0.7); closeG.strokeRect(mx + mw / 2 - P(40), closeY - P(14), P(80), P(28));
-
-      const closeT = s(this.add.text(mx + mw / 2, closeY, '關  閉', {
-        fontSize: F(15), fontStyle: 'bold', color: '#e8c070', stroke: '#1a0800', strokeThickness: 2,
-      }).setOrigin(0.5).setInteractive({ useHandCursor: true }).setDepth(D + 3));
-      closeT.on('pointerdown', () => closeModal());
     };
 
     const showRefineChoiceModal = (item: EquipmentItem, onClose: () => void) => {
@@ -1918,7 +1819,7 @@ export class PrepScene extends Phaser.Scene {
       const TITLE_H = P(44);
       const LEVEL_H = P(38);
       const AFFIX_ROW = P(30);
-      const BEH_ROW = item.behavior ? P(24) : 0;
+      const BEH_ROW = 0;
       const STONE_IN_H = P(22);
       const STONE_QTY_H = P(22);
       const INFO_H = P(24);
@@ -1970,16 +1871,6 @@ export class PrepScene extends Phaser.Scene {
           fontSize: F(15), fontStyle: 'bold', color: '#ffe8a0', stroke: '#1a0800', strokeThickness: 1,
         }).setOrigin(1, 0.5).setDepth(ED + 2)));
       });
-
-      if (item.behavior) {
-        const by = affixStartY + item.affixes.length * AFFIX_ROW + BEH_ROW / 2;
-        es(this.add.text(mx + P(10), by, '攻擊模式', {
-          fontSize: F(15), fontStyle: 'bold', color: '#aaaaaa', stroke: '#1a0800', strokeThickness: 1,
-        }).setOrigin(0, 0.5).setDepth(ED + 2));
-        es(this.add.text(mx + lw - P(10), by, BEHAVIOR_NAMES[item.behavior], {
-          fontSize: F(15), fontStyle: 'bold', color: '#ffe066', stroke: '#1a0800', strokeThickness: 1,
-        }).setOrigin(1, 0.5).setDepth(ED + 2));
-      }
 
       // ── 資訊區（右欄）──────────────────────────────────────
       const stoneInY = my + TITLE_H + PAD + STONE_IN_H / 2;
@@ -2213,18 +2104,6 @@ export class PrepScene extends Phaser.Scene {
       }).setOrigin(0, 0.5));
 
       let statOffsetY = areaTop + P(58);
-      if (item.behavior) {
-        det.add(this.add.text(rightColX + P(72), statOffsetY, `攻擊模式：${BEHAVIOR_NAMES[item.behavior]}`, {
-          fontSize: F(15), fontStyle: 'bold', color: '#88cc88', stroke: '#1a0800', strokeThickness: 1,
-        }).setOrigin(0, 0));
-        const viewBtn = this.add.text(rightColX + rightColW - P(8), statOffsetY, '查看', {
-          fontSize: F(15), fontStyle: 'bold', color: '#ffe066', stroke: '#1a0800', strokeThickness: 1,
-          backgroundColor: '#3a2000', padding: { x: 5, y: 2 },
-        }).setOrigin(1, 0).setInteractive({ useHandCursor: true });
-        viewBtn.on('pointerdown', () => showBehaviorModal(item.behavior!));
-        det.add(viewBtn);
-        statOffsetY += P(18);
-      }
       const statParts: string[] = [];
       item.affixes.forEach(a => {
         statParts.push(`${STAT_NAMES[a.stat]} +${fmtAffixValue(a.stat, a.value)}`);
@@ -2235,7 +2114,7 @@ export class PrepScene extends Phaser.Scene {
       }).setOrigin(0, 0));
 
       const dg = this.add.graphics();
-      const statBlockH = (item.behavior ? 1 : 0) * P(18) + statParts.length * P(18) + P(12);
+      const statBlockH = statParts.length * P(18) + P(12);
       dg.fillStyle(WB, 1); dg.fillRect(rightColX, areaTop + P(50) + statBlockH, rightColW, 1);
       dg.fillStyle(WH, 0.3); dg.fillRect(rightColX, areaTop + P(51) + statBlockH, rightColW, 1);
       det.add(dg);
@@ -2693,11 +2572,6 @@ export class PrepScene extends Phaser.Scene {
           ay += P(18);
         });
 
-        if (item.behavior) {
-          s(this.add.text(cx, cy + CH / 2 - P(8), BEHAVIOR_NAMES[item.behavior], {
-            fontSize: F(15), fontStyle: 'bold', color: '#ffe066', stroke: '#000', strokeThickness: 1,
-          }).setOrigin(0.5, 1).setDepth(compD + 3));
-        }
       };
 
       const cardCX = CW / 2 + GAP / 2;
@@ -2758,18 +2632,6 @@ export class PrepScene extends Phaser.Scene {
       }).setOrigin(0, 0.5));
 
       let statOffsetY2 = areaTop + P(58);
-      if (item.behavior) {
-        det.add(this.add.text(rightColX + P(72), statOffsetY2, `攻擊模式：${BEHAVIOR_NAMES[item.behavior]}`, {
-          fontSize: F(15), fontStyle: 'bold', color: '#88cc88', stroke: '#1a0800', strokeThickness: 1,
-        }).setOrigin(0, 0));
-        const viewBtn = this.add.text(rightColX + rightColW - P(8), statOffsetY2, '查看', {
-          fontSize: F(15), fontStyle: 'bold', color: '#ffe066', stroke: '#1a0800', strokeThickness: 1,
-          backgroundColor: '#3a2000', padding: { x: 5, y: 2 },
-        }).setOrigin(1, 0).setInteractive({ useHandCursor: true });
-        viewBtn.on('pointerdown', () => showBehaviorModal(item.behavior!));
-        det.add(viewBtn);
-        statOffsetY2 += P(18);
-      }
       const statParts: string[] = [];
       item.affixes.forEach(a => {
         statParts.push(`${STAT_NAMES[a.stat]} +${fmtAffixValue(a.stat, a.value)}`);
@@ -2780,7 +2642,7 @@ export class PrepScene extends Phaser.Scene {
       }).setOrigin(0, 0));
 
       const dg = this.add.graphics();
-      const statBlockH = (item.behavior ? 1 : 0) * P(18) + statParts.length * P(18) + P(12);
+      const statBlockH = statParts.length * P(18) + P(12);
       dg.fillStyle(WB, 1); dg.fillRect(rightColX, areaTop + P(50) + statBlockH, rightColW, 1);
       dg.fillStyle(WH, 0.3); dg.fillRect(rightColX, areaTop + P(51) + statBlockH, rightColW, 1);
       det.add(dg);
@@ -2974,6 +2836,417 @@ export class PrepScene extends Phaser.Scene {
     };
     container.once('destroy', cleanupGrid);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, cleanupGrid);
+  }
+
+  // ── Skill Tree ──────────────────────────────────────────
+
+  private showSkillTree(W: number, H: number): void {
+    const D = 600;
+    const objs: Phaser.GameObjects.GameObject[] = [];
+    const s = <T extends Phaser.GameObjects.GameObject>(o: T) => { objs.push(o); return o; };
+    const close = () => { objs.forEach(o => o.destroy()); this.tweens.killAll(); };
+
+    // ── Overlay ──────────────────────────────────────────────────────────
+    s(this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.88).setDepth(D).setInteractive());
+    const panel = s(this.add.graphics().setDepth(D + 1));
+    const PW = W, PH = H;
+    const px = 0, py = 0;
+    panel.fillStyle(0x0d0808, 1);   panel.fillRect(px, py, PW, PH);
+    panel.lineStyle(P(1.5), GOLD, 0.5); panel.strokeRect(px, py, PW, PH);
+
+    // ── Header ────────────────────────────────────────────────────────────
+    const hdrH = P(46);
+    const hdrG = s(this.add.graphics().setDepth(D + 2));
+    hdrG.fillStyle(WD, 1); hdrG.fillRect(px, py, PW, hdrH);
+    hdrG.lineStyle(1, GOLD, 0.3); hdrG.lineBetween(px, py + hdrH, px + PW, py + hdrH);
+    s(this.add.zone(px + PW / 2, py + hdrH / 2, PW, hdrH).setDepth(D + 2).setInteractive());
+    s(this.add.text(px + PW / 2, py + hdrH / 2, '技 能 星 盤', { fontSize: F(17), fontStyle: 'bold', color: '#ffe8a0', stroke: '#0a0400', strokeThickness: 2 }).setOrigin(0.5).setDepth(D + 3));
+
+    const ptsTxt = s(this.add.text(px + P(12), py + hdrH / 2, '', { fontSize: F(15), fontStyle: 'bold', color: '#88ddff', stroke: '#000', strokeThickness: 2 }).setOrigin(0, 0.5).setDepth(D + 3));
+    const updatePts = () => ptsTxt.setText(`技能點 ${SkillTreeStore.getAvailablePoints()} / ${SkillTreeStore.getTotalPoints()}`);
+    updatePts();
+
+    const xBtn = s(this.add.text(px + PW - P(18), py + hdrH / 2, '✕', { fontSize: F(18), fontStyle: 'bold', color: '#cc4444', stroke: '#000', strokeThickness: 2 }).setOrigin(0.5).setDepth(D + 3).setInteractive({ useHandCursor: true }));
+    xBtn.on('pointerdown', close);
+
+    // ── Reset button (right of skill-points text) ─────────────────────────
+    const resetBg = s(this.add.graphics().setDepth(D + 3));
+    const resetBtnW = P(76), resetBtnH = P(28);
+    const resetBtnX = px + P(12) + P(170);
+    const resetBtnY = py + hdrH / 2;
+    const resetTxt = s(this.add.text(resetBtnX, resetBtnY, '重置技能', { fontSize: F(15), fontStyle: 'bold', color: '#ffcc66', stroke: '#000', strokeThickness: 2 }).setOrigin(0.5).setDepth(D + 4).setInteractive({ useHandCursor: true }));
+    const drawResetBg = (hover: boolean) => {
+      resetBg.clear();
+      resetBg.fillStyle(hover ? 0x7a3300 : 0x3a1a00, 0.9);
+      resetBg.fillRoundedRect(resetBtnX - resetBtnW / 2, resetBtnY - resetBtnH / 2, resetBtnW, resetBtnH, P(4));
+      resetBg.lineStyle(P(1), hover ? 0xffaa33 : 0xaa6622, 1);
+      resetBg.strokeRoundedRect(resetBtnX - resetBtnW / 2, resetBtnY - resetBtnH / 2, resetBtnW, resetBtnH, P(4));
+    };
+    drawResetBg(false);
+    resetTxt.on('pointerover',  () => drawResetBg(true));
+    resetTxt.on('pointerout',   () => drawResetBg(false));
+
+    // ── Star map area ─────────────────────────────────────────────────────
+    const mapTop  = py + hdrH + P(6);
+    const mapH    = py + PH - mapTop;
+    const mapW    = PW;
+    const mapCx   = px + mapW / 2;
+    const mapCy   = mapTop + mapH / 2;
+
+    // Clip mask
+    const maskShape = this.make.graphics({ x: 0, y: 0 });
+    maskShape.fillStyle(0xffffff);
+    maskShape.fillRect(px, mapTop, mapW, mapH);
+    objs.push(maskShape);
+
+    // Deep-space background for map area
+    const mapBg = s(this.add.graphics().setDepth(D + 1));
+    mapBg.fillStyle(0x04090f, 1);
+    mapBg.fillRect(px, mapTop, mapW, mapH);
+    // Starfield dots
+    const rng = Phaser.Math.RND;
+    for (let i = 0; i < 120; i++) {
+      const sx = px + rng.frac() * mapW;
+      const sy = mapTop + rng.frac() * mapH;
+      const sa = 0.15 + rng.frac() * 0.55;
+      const sr = rng.frac() < 0.15 ? P(1.2) : P(0.7);
+      mapBg.fillStyle(0xffffff, sa);
+      mapBg.fillCircle(sx, sy, sr);
+    }
+
+    // Map container — all star map objects live here; translate for pan
+    const mapCnt = s(this.add.container(mapCx, mapCy).setDepth(D + 2));
+    mapCnt.setMask(maskShape.createGeometryMask());
+
+    const linesGfx = this.add.graphics();
+    mapCnt.add(linesGfx);
+
+    // Node labels
+    const NS = 1.5;   // node-position scale factor — spread nodes apart
+    const NP = (v: number) => P(v * NS);
+    const NODE_R_ROOT = P(20), NODE_R = P(15);
+    const labelTxts: Map<string, Phaser.GameObjects.Text> = new Map();
+    // Per-node tap zones live inside mapCnt so Phaser handles the coordinate transform
+    const nodeDownAt  = new Map<string, { x: number; y: number }>();
+    for (const node of SKILL_NODES) {
+      const r     = (node.isRoot) ? NODE_R_ROOT : NODE_R;
+      const label = node.id === '1'
+        ? (ATTACK_MODES.find(a => a.id === SkillTreeStore.getAttackMode())?.label ?? node.label)
+        : node.label;
+      const tx  = this.add.text(NP(node.x), NP(node.y) + r + P(5), label, {
+        fontSize: F(15), fontStyle: 'bold', color: '#aabbcc', stroke: '#000', strokeThickness: 2,
+      }).setOrigin(0.5, 0);
+      mapCnt.add(tx);
+      labelTxts.set(node.id, tx);
+
+      // Tap zone: circle hit-area centered on node
+      const hitD = (r + P(14)) * 2;
+      const zone = this.add.zone(NP(node.x), NP(node.y), hitD, hitD)
+        .setInteractive(new Phaser.Geom.Circle(hitD / 2, hitD / 2, hitD / 2), Phaser.Geom.Circle.Contains);
+      mapCnt.add(zone);
+      zone.on('pointerdown', (ptr: Phaser.Input.Pointer) => {
+        nodeDownAt.set(node.id, { x: ptr.x, y: ptr.y });
+      });
+      zone.on('pointerup', (ptr: Phaser.Input.Pointer) => {
+        const down = nodeDownAt.get(node.id);
+        if (!down) return;
+        nodeDownAt.delete(node.id);
+        if (Math.hypot(ptr.x - down.x, ptr.y - down.y) > 12) return;
+        if (node.id === '1') { hideTip(); showModePicker(); }
+        else { closePicker(); showTip(node); }
+      });
+    }
+
+    const drawMap = () => {
+      linesGfx.clear();
+      // Connection lines
+      for (const node of SKILL_NODES) {
+        const parents: string[] = [];
+        if (node.parentId) parents.push(node.parentId);
+        if (node.extraParentIds) parents.push(...node.extraParentIds);
+        for (const pid of parents) {
+          const par = SKILL_NODE_MAP[pid];
+          if (!par) continue;
+          const lit = SkillTreeStore.isLearned(node.id) && SkillTreeStore.isLearned(pid);
+          linesGfx.lineStyle(P(1.5), lit ? 0xddcc88 : 0x3a5a78, lit ? 0.85 : 0.55);
+          linesGfx.lineBetween(NP(node.x), NP(node.y), NP(par.x), NP(par.y));
+        }
+      }
+      // Node circles
+      const CLR_LEARNED   = 0xffe066;  // gold — learned
+      const CLR_AVAILABLE = 0x44aaff;  // blue — can learn
+      for (const node of SKILL_NODES) {
+        const r = node.isRoot ? NODE_R_ROOT : NODE_R;
+        if (node.id === '1') {
+          // Hub = attack mode selector: always pulsing with current mode colour
+          const mc = MODE_COLORS[SkillTreeStore.getAttackMode()] ?? 0xffffff;
+          linesGfx.fillStyle(mc, 0.35);
+          linesGfx.lineStyle(P(2.5), mc, 1.0);
+          linesGfx.fillCircle(NP(node.x), NP(node.y), r);
+          linesGfx.strokeCircle(NP(node.x), NP(node.y), r);
+          const lbl = labelTxts.get('1');
+          if (lbl) lbl.setStyle({ color: '#' + mc.toString(16).padStart(6, '0') });
+          continue;
+        }
+        const learned   = SkillTreeStore.isLearned(node.id);
+        const available = SkillTreeStore.canLearn(node.id);
+        if (learned) {
+          linesGfx.fillStyle(CLR_LEARNED, 1.0);
+          linesGfx.lineStyle(P(2), 0xffffff, 0.85);
+        } else if (available) {
+          linesGfx.fillStyle(CLR_AVAILABLE, 0.25);
+          linesGfx.lineStyle(P(2), CLR_AVAILABLE, 1.0);
+        } else {
+          linesGfx.fillStyle(0x0d1e2e, 1.0);
+          linesGfx.lineStyle(P(1.5), 0x4a7090, 0.65);
+        }
+        linesGfx.fillCircle(NP(node.x), NP(node.y), r);
+        linesGfx.strokeCircle(NP(node.x), NP(node.y), r);
+        const lbl = labelTxts.get(node.id);
+        if (lbl) lbl.setStyle({ color: learned ? '#ffe066' : available ? '#88ccff' : '#445566' });
+      }
+    };
+    drawMap();
+    resetTxt.on('pointerdown', () => {
+      SkillTreeStore.resetAll();
+      updatePts();
+      drawMap();
+      SaveStore.save();
+    });
+
+    // ── Tooltip popup ─────────────────────────────────────────────────────
+    const TW = PW - P(20), TH = P(110);
+    const tipG  = s(this.add.graphics().setDepth(D + 5));
+    const tipT1 = s(this.add.text(0, 0, '', { fontSize: F(15), fontStyle: 'bold', color: '#ffe8a0', stroke: '#000', strokeThickness: 2 }).setDepth(D + 6));
+    const tipT2 = s(this.add.text(0, 0, '', { fontSize: F(15), fontStyle: 'bold', color: '#aaccdd', stroke: '#000', strokeThickness: 1, wordWrap: { width: TW - P(20) } }).setDepth(D + 6));
+    const tipBtn = s(this.add.text(0, 0, '', { fontSize: F(15), fontStyle: 'bold', color: '#88ffaa', stroke: '#000', strokeThickness: 2 }).setDepth(D + 6).setInteractive({ useHandCursor: true }));
+    let _tipNodeId = '';
+    const showTip = (node: import('../data/skill-tree-store').SkillNode) => {
+      _tipNodeId = node.id;
+      const tx = px + P(10), ty = py + PH - TH - P(8);
+      tipG.clear();
+      tipG.fillStyle(0x0a0a14, 0.97); tipG.fillRoundedRect(tx, ty, TW, TH, P(6));
+      tipG.lineStyle(P(1.5), 0x44aaff, 0.6); tipG.strokeRoundedRect(tx, ty, TW, TH, P(6));
+      tipT1.setPosition(tx + P(10), ty + P(8)).setText(node.label);
+      tipT2.setPosition(tx + P(10), ty + P(26)).setText(node.desc);
+      const learned   = SkillTreeStore.isLearned(node.id);
+      const available = SkillTreeStore.canLearn(node.id);
+      const btnTxt = learned ? '✓ 已學習' : available ? `學習（消耗 1 點）` : '（未解鎖）';
+      const btnCol = learned ? '#888888' : available ? '#88ffaa' : '#556677';
+      tipBtn.setPosition(tx + TW / 2, ty + TH - P(16)).setText(btnTxt).setStyle({ color: btnCol }).setOrigin(0.5);
+    };
+    const hideTip = () => {
+      _tipNodeId = '';
+      tipG.clear(); tipT1.setText(''); tipT2.setText(''); tipBtn.setText('');
+    };
+    hideTip();
+
+    tipBtn.on('pointerdown', () => {
+      if (!_tipNodeId) return;
+      const node = SKILL_NODE_MAP[_tipNodeId];
+      if (!node || !SkillTreeStore.canLearn(_tipNodeId)) return;
+      SkillTreeStore.learn(_tipNodeId);
+      SaveStore.save();
+      updatePts();
+      drawMap();
+      showTip(node);
+    });
+
+    // ── Mode picker popup ─────────────────────────────────────────────────
+    // behaviorKey: skill-tree uses 'hellfire', BEHAVIOR_INFO uses 'magicFire'
+    const toBehaviorKey = (id: import('../data/skill-tree-store').AttackModeId) =>
+      id === 'hellfire' ? 'magicFire' : id as import('../data/equipment-data').AttackBehavior;
+
+    let modePickerObjs: Phaser.GameObjects.GameObject[] = [];
+    let modeInfoObjs:   Phaser.GameObjects.GameObject[] = [];
+    const closeModeInfo = () => { modeInfoObjs.forEach(o => o.destroy()); modeInfoObjs = []; };
+    const closePicker   = () => {
+      closeModeInfo();
+      modePickerObjs.forEach(o => o.destroy()); modePickerObjs = [];
+    };
+
+    const showModeInfo = (m: import('../data/skill-tree-store').AttackModeInfo) => {
+      closeModeInfo();
+      const mi = <T extends Phaser.GameObjects.GameObject>(o: T) => { modeInfoObjs.push(o); objs.push(o); return o; };
+      const info = BEHAVIOR_INFO[toBehaviorKey(m.id)];
+      const mc   = MODE_COLORS[m.id] ?? 0xaaaaaa;
+      const mcHex = '#' + mc.toString(16).padStart(6, '0');
+      const active = SkillTreeStore.getAttackMode() === m.id;
+
+      const IW = Math.min(PW - P(32), P(340));
+      const probe = this.add.text(-9999, -9999, info.desc, {
+        fontSize: F(15), fontStyle: 'bold', wordWrap: { width: IW - P(32), useAdvancedWrap: true }, lineSpacing: 3,
+      });
+      const descH = probe.height; probe.destroy();
+
+      const titleH   = P(48);
+      const sepGap   = P(12);
+      const formulaH = P(26) + info.formula.length * P(20);
+      const closeBtnH = P(48);
+      const IH = titleH + descH + sepGap + P(12) + formulaH + closeBtnH;
+      const ix = W / 2 - IW / 2, iy = mapTop + mapH / 2 - IH / 2;
+
+      // dim overlay (above picker)
+      mi(this.add.rectangle(W / 2, mapTop + mapH / 2, W, mapH, 0x000000, 0.55)
+        .setDepth(D + 10).setInteractive()).on('pointerdown', closeModeInfo);
+
+      const bg = mi(this.add.graphics().setDepth(D + 11));
+      bg.fillStyle(0x04090f, 0.98); bg.fillRoundedRect(ix, iy, IW, IH, P(8));
+      bg.lineStyle(P(2), mc, 0.85);  bg.strokeRoundedRect(ix, iy, IW, IH, P(8));
+      bg.fillStyle(mc, 0.25); bg.fillRect(ix, iy, IW, P(3));
+
+      mi(this.add.text(W / 2, iy + P(18), BEHAVIOR_NAMES[toBehaviorKey(m.id)], {
+        fontSize: F(17), fontStyle: 'bold', color: mcHex, stroke: '#000', strokeThickness: 2,
+      }).setOrigin(0.5, 0).setDepth(D + 12));
+
+      mi(this.add.text(ix + P(14), iy + titleH, info.desc, {
+        fontSize: F(15), fontStyle: 'bold', color: '#ccbbaa',
+        wordWrap: { width: IW - P(28), useAdvancedWrap: true }, lineSpacing: 3,
+      }).setOrigin(0, 0).setDepth(D + 12));
+
+      const sepY = iy + titleH + descH + sepGap;
+      const sepG = mi(this.add.graphics().setDepth(D + 12));
+      sepG.fillStyle(mc, 0.3); sepG.fillRect(ix + P(10), sepY, IW - P(20), 1);
+      mi(this.add.text(ix + P(14), sepY + P(8), '傷害公式', {
+        fontSize: F(15), fontStyle: 'bold', color: mcHex,
+      }).setOrigin(0, 0).setDepth(D + 12));
+      info.formula.forEach((line, i) => {
+        mi(this.add.text(ix + P(14), sepY + P(26) + i * P(20), `• ${line}`, {
+          fontSize: F(15), fontStyle: 'bold', color: '#aaddaa',
+        }).setOrigin(0, 0).setDepth(D + 12));
+      });
+
+      // ── 確認 / 取消 ──────────────────────────────────────────
+      const btnY  = iy + IH - P(28);
+      const btnW2 = P(100), btnH2 = P(32), gap = P(12);
+      const confirmX = W / 2 - btnW2 - gap / 2;
+      const cancelX  = W / 2 + gap / 2;
+
+      const drawInfoBtn = (bx: number, label: string, col: number, textCol: string, onTap: () => void) => {
+        const g = mi(this.add.graphics().setDepth(D + 12));
+        g.fillStyle(col, 1); g.fillRoundedRect(bx, btnY - btnH2 / 2, btnW2, btnH2, P(5));
+        g.lineStyle(P(1.5), 0xffffff, 0.25); g.strokeRoundedRect(bx, btnY - btnH2 / 2, btnW2, btnH2, P(5));
+        const t = mi(this.add.text(bx + btnW2 / 2, btnY, label, {
+          fontSize: F(15), fontStyle: 'bold', color: textCol, stroke: '#000', strokeThickness: 1,
+        }).setOrigin(0.5).setDepth(D + 13).setInteractive({ useHandCursor: true }));
+        t.on('pointerdown', (_p: any, _lx: any, _ly: any, ev: any) => { ev?.stopPropagation?.(); onTap(); });
+      };
+
+      if (!active) {
+        drawInfoBtn(confirmX, '確認使用', 0x1a4030, '#55ffaa', () => {
+          SkillTreeStore.setAttackMode(m.id);
+          SaveStore.save();
+          const hubLbl = labelTxts.get('1');
+          if (hubLbl) hubLbl.setText(m.label);
+          drawMap();
+          closePicker();
+        });
+      }
+      drawInfoBtn(active ? W / 2 - btnW2 / 2 : cancelX, active ? '已使用中' : '取  消',
+        active ? 0x2a2a2a : 0x2a1010, active ? '#888888' : '#ff8888', closeModeInfo);
+    };
+
+    const showModePicker = () => {
+      closePicker();
+      hideTip();
+      const sp = <T extends Phaser.GameObjects.GameObject>(o: T) => { modePickerObjs.push(o); objs.push(o); return o; };
+
+      sp(this.add.rectangle(W / 2, mapTop + mapH / 2, W, mapH, 0x000000, 0.78)
+        .setDepth(D + 6).setInteractive()).on('pointerdown', closePicker);
+
+      const availableModes = ATTACK_MODES.filter(m => !m.unlockedBy || SkillTreeStore.isLearned(m.unlockedBy));
+      const MPW = Math.min(PW - P(40), P(320));
+      const cols = 3, btnH = P(46);
+      const btnW = Math.floor((MPW - P(16)) / cols);
+      const rows = Math.ceil(availableModes.length / cols);
+      const MPH = P(44) + rows * (btnH + P(6));
+      const mpx = W / 2 - MPW / 2, mpy = mapTop + mapH / 2 - MPH / 2;
+
+      const mpG = sp(this.add.graphics().setDepth(D + 7));
+      mpG.fillStyle(0x060c18, 1); mpG.fillRoundedRect(mpx, mpy, MPW, MPH, P(8));
+      mpG.lineStyle(P(1.5), 0x44aaff, 0.7); mpG.strokeRoundedRect(mpx, mpy, MPW, MPH, P(8));
+      sp(this.add.text(W / 2, mpy + P(14), '選擇攻擊模式', {
+        fontSize: F(15), fontStyle: 'bold', color: '#88ccff', stroke: '#000', strokeThickness: 2,
+      }).setOrigin(0.5, 0).setDepth(D + 8));
+      availableModes.forEach((m, i) => {
+        const col = i % cols, row = Math.floor(i / cols);
+        const bx = mpx + P(8) + col * btnW;
+        const by = mpy + P(38) + row * (btnH + P(6));
+        const active = SkillTreeStore.getAttackMode() === m.id;
+        const mc = MODE_COLORS[m.id] ?? 0xaaaaaa;
+        const mcHex = '#' + mc.toString(16).padStart(6, '0');
+        const bg = sp(this.add.graphics().setDepth(D + 7));
+        bg.fillStyle(active ? 0x1a3050 : 0x0d1828, 1);
+        bg.fillRoundedRect(bx, by, btnW - P(4), btnH, P(5));
+        bg.lineStyle(active ? P(2) : 1, active ? mc : 0x334455, active ? 1 : 0.5);
+        bg.strokeRoundedRect(bx, by, btnW - P(4), btnH, P(5));
+        sp(this.add.text(bx + (btnW - P(4)) / 2, by + btnH / 2, m.label, {
+          fontSize: F(15), fontStyle: 'bold', color: active ? mcHex : '#667788', stroke: '#000', strokeThickness: 1,
+        }).setOrigin(0.5).setDepth(D + 8));
+        sp(this.add.rectangle(bx + (btnW - P(4)) / 2, by + btnH / 2, btnW - P(4), btnH)
+          .setDepth(D + 9).setInteractive({ useHandCursor: true }))
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          .on('pointerdown', (_p: any, _lx: any, _ly: any, ev: any) => {
+            ev.stopPropagation();
+            showModeInfo(m);
+          });
+      });
+    };
+
+    // ── Pan & tap ─────────────────────────────────────────────────────────
+    let panX = 0, panY = 0;
+    let dragStartX = 0, dragStartY = 0;
+    let dragStartPanX = 0, dragStartPanY = 0;
+    let isDrag = false;
+
+    const MAP_HALF_W = P(600), MAP_HALF_H = P(750);
+    const clampPan = () => {
+      panX = Phaser.Math.Clamp(panX, -MAP_HALF_W, MAP_HALF_W);
+      panY = Phaser.Math.Clamp(panY, -MAP_HALF_H, MAP_HALF_H);
+      mapCnt.setPosition(mapCx + panX, mapCy + panY);
+    };
+
+    // Drag-capture layer — depth BELOW mapCnt so node zones take priority
+    s(this.add.rectangle(mapCx, mapTop + mapH / 2, mapW, mapH)
+      .setDepth(D + 1).setInteractive({ useHandCursor: false }));
+
+    const onDown = (ptr: Phaser.Input.Pointer) => {
+      if (modePickerObjs.length > 0) return;
+      dragStartX = ptr.x; dragStartY = ptr.y;
+      dragStartPanX = panX; dragStartPanY = panY;
+      isDrag = false;
+    };
+    const onMove = (ptr: Phaser.Input.Pointer) => {
+      if (!ptr.isDown || modePickerObjs.length > 0) return;
+      const dx = ptr.x - dragStartX, dy = ptr.y - dragStartY;
+      if (!isDrag && (Math.abs(dx) > 10 || Math.abs(dy) > 10)) isDrag = true;
+      if (isDrag) { panX = dragStartPanX + dx; panY = dragStartPanY + dy; clampPan(); }
+    };
+    const onUp = (ptr: Phaser.Input.Pointer) => {
+      if (isDrag) { isDrag = false; return; }
+      if (modePickerObjs.length > 0) return;
+      // Only hide tooltip when tapping empty space; node taps handled by zone events
+      const wp  = this.cameras.main.getWorldPoint(ptr.x, ptr.y);
+      const lx  = wp.x - mapCnt.x;
+      const ly  = wp.y - mapCnt.y;
+      const hit = SKILL_NODES.find(n =>
+        Math.hypot(NP(n.x) - lx, NP(n.y) - ly) < ((n.isRoot ? NODE_R_ROOT : NODE_R) + P(14))
+      );
+      if (!hit) { closePicker(); hideTip(); }
+    };
+
+    this.input.on('pointerdown', onDown);
+    this.input.on('pointermove', onMove);
+    this.input.on('pointerup',   onUp);
+
+    // Cleanup on close
+    const origClose = close;
+    objs[0].once('destroy', () => {
+      this.input.off('pointerdown', onDown);
+      this.input.off('pointermove', onMove);
+      this.input.off('pointerup',   onUp);
+    });
+    void origClose;
   }
 
   // ── Item panel ──────────────────────────────────────────
@@ -5113,7 +5386,6 @@ export class PrepScene extends Phaser.Scene {
       const affixLines = item.affixes.map(a =>
         `${STAT_NAMES[a.stat]} +${fmtAffixValue(a.stat, a.value)}`,
       );
-      if (item.behavior) affixLines.push(BEHAVIOR_NAMES[item.behavior]);
       objs.push(this.add.text(cx + CARD_W / 2, cy + P(132), affixLines.join('\n'), {
         fontSize: F(13), fontStyle: 'bold', color: '#88cc88',
         stroke: '#0a0600', strokeThickness: 2,

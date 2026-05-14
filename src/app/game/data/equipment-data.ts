@@ -2,7 +2,7 @@ export type EquipSlot     = 'hat' | 'outfit' | 'shoes' | 'ring1' | 'ring2' | 'sw
 export type EquipCategory = 'hat' | 'outfit' | 'shoes' | 'ring'  | 'sword';
 export type EquipQuality  = 'normal' | 'good' | 'fine' | 'perfect';
 export type StatKey       = 'atk' | 'hp' | 'def' | 'crit' | 'speed' | 'atkSpeed' | 'lifesteal' | 'evasion' | 'critDmg' | 'hpRegen' | 'dotBonus' | 'penetration';
-export type AttackBehavior = 'slash180' | 'whirlwind' | 'dashPierce' | 'projectile' | 'aura' | 'multiHit' | 'chargeSlam' | 'boomerang' | 'magicFire';
+export type AttackBehavior = 'slash180' | 'whirlwind' | 'dashPierce' | 'projectile' | 'aura' | 'multiHit' | 'chargeSlam' | 'boomerang' | 'magicFire' | 'knifeThrow';
 
 export type Element = 'none' | 'water' | 'fire' | 'grass';
 
@@ -65,18 +65,25 @@ export interface StatBonus {
   slash180DmgPct?:      number;  // 半月斬傷害 ×(1+X)
   burnMaxStackBonus?:   number;  // 燃燒上限 +X 層
   burnSpread?:          number;  // 燃燒擴散半徑（張數 × 80px）
-  dashDistBonus?:       number;  // 瞬步斬距離 +X
+  burnSpreadSkillPx?:   number;  // 技能燃燒擴散半徑（CSS px，game scene 乘 DPR）
+  burnDoubleStack?:     number;  // 業火：1 = 所有目標每 tick 疊兩層
+  dashDistBonus?:       number;  // 瞬步斬距離 +X（物理像素，卡片用）
+  dashDistPct?:         number;  // 瞬步斬距離 ×(1+X)（百分比，技能用）
   dashDmgPct?:          number;  // 瞬步斬傷害 ×(1+X)
+  dashDoubleHit?:       number;  // 瞬步二連（1 = 啟用，每次 65%）
   multiHitNoStagger?:   number;  // 五連斬無僵直（1 = 啟用）
   multiHitDmgPct?:      number;  // 五連斬傷害 ×(1+X)
   chargeSlamStunChance?:number;  // 蓄力重擊暈眩機率
   chargeSlamDmgPct?:    number;  // 蓄力重擊傷害 ×(1+X)
+  chargeSlamOverload?:  number;  // 超載蓄力（1=啟用，蓄力時間×2，傷害×1.5）
   boomerangRangePct?:   number;  // 迴旋飛刃範圍 ×(1+X)
   boomerangDmgPct?:     number;  // 迴旋飛刃傷害 ×(1+X)
   auraRadiusPct?:       number;  // 血環半徑 ×(1+X)
   auraDmgPct?:          number;  // 血環傷害 ×(1+X)
-  projectileDistBonus?: number;  // 風刃距離 +X
+  projectileDistBonus?: number;  // 風刃距離 +X（物理像素，卡片用）
+  projectileDistPct?:   number;  // 風刃距離 ×(1+X)（百分比，技能用）
   projectileDmgPct?:    number;  // 風刃傷害 ×(1+X)
+  projectileFan?:       number;  // 扇形風刃（1=啟用，三發各80%）
   // ── 條件判斷加成（在 getTotalStats 內 resolve）──
   condCritDmgBonus?:    number;  // 爆擊率≥50% 時 critDmg +X
   condPenAtk?:          number;  // 穿甲≥100 時 ATK +X
@@ -92,7 +99,21 @@ export interface StatBonus {
   orbitFireBalls?:      number;  // 繞玩家旋轉火球數量（疊加，ATK×15%，1秒傷害CD/怪）
   orbitIceBalls?:       number;  // 繞玩家旋轉冰球數量（疊加，ATK×10%+緩速20%，1秒CD）
   periodicKnives?:      number;  // 每4秒飛刀層數（1=6方位，2=12方位，ATK×40%，穿透）
+  knifeIntervalReduction?: number; // 飛刀冷卻縮短（ms）
+  knifeDoubleCount?:       number; // 飛刀數量加倍
+  knifeHoming?:            number; // 飛刀追蹤（數量減半）
+  knifeDmgPct?:            number; // 飛刀傷害加成
   overkillSplash?:      number;  // 溢出傷害AOE（1=啟用，半徑15px）
+  overkillInfiniteChain?: number; // 溢出可無限連鎖
+  overkillDmgPct?:        number; // 溢出傷害加成
+  bloodlust?:                  number; // 嗜血本能（1=啟用）
+  bloodlustDmgPerStack?:       number; // 每層傷害加成
+  bloodlustMaxStacks?:         number; // 嗜血上限層數
+  bloodlustConvert?:           number; // 轉化為吸血（1=啟用）
+  bloodlustLifestealPerStack?: number; // 每層吸血比例
+  damageSplash?:          number; // 傷害濺射（1=啟用）
+  damageSplashPct?:       number; // 濺射傷害比例
+  damageSplashCount?:     number; // 濺射目標數量
   lightningStrike?:     number;  // 每秒落雷最遠敵人（1=啟用，ATK×12%）
   divineShieldChance?:  number;  // 攻擊時觸發神盾護體機率（DEF+20持續3秒，機率疊加）
   summonFlowerChance?:  number;  // 攻擊時召喚友軍花怪機率（依當前星級）
@@ -102,8 +123,12 @@ export interface StatBonus {
   // ── Boss卡片專屬效果 ──
   maxHpPct?:            number;  // 最大HP百分比變化（可負數，-0.2=-20%）
   orbitBallDmgPct?:     number;  // 旋轉球（火球/冰球）傷害加成（1.0=+100%）
+  orbitFireBallDmgPct?: number;  // 火球專屬傷害加成
+  orbitIceBallDmgPct?:  number;  // 冰球專屬傷害加成
   onHitLightningChance?:number;  // 攻擊觸發落雷機率（隨機目標，ATK×50%×lightningDmgBonus）
-  lightningDmgBonus?:   number;  // 落雷傷害加成（1.0=+100%，套用在落雷傷害上）
+  lightningDmgBonus?:         number;  // 落雷傷害加成（1.0=+100%，套用在落雷傷害上）
+  lightningIntervalReduction?: number; // 落雷間隔縮短（ms）
+  lightningSingleTarget?:      number; // 落雷變為單體
   infiniteDivineShield?:number;  // 無限神盾護體（1=啟用，受傷後立即重新觸發）
   weaponRefineAtk?:     number;  // 武器每精煉+2、ATK+X（累計）
   weaponRefineHp?:      number;  // 武器每精煉+2、HP+X（累計）
@@ -126,7 +151,6 @@ export interface EquipmentItem {
   texture:     string;          // Phaser texture key, e.g. 'equip_hat3'
   quality:     EquipQuality;
   affixes:     Affix[];         // 非武器 2 條；武器 3 條（攻擊力固定＋2隨機）
-  behavior?:   AttackBehavior;  // sword slot only（必定出現）
   enhancement: number;          // 0~10
   enhanceLog:  number[][];      // 每次強化提升的詞綴 index，用於退階還原
   baseAffixes?: Affix[];        // 第一次精煉前的詞綴快照，供重鑄還原用
@@ -211,7 +235,8 @@ export const BEHAVIOR_NAMES: Record<AttackBehavior, string> = {
   multiHit:   '五連斬',
   chargeSlam: '蓄力重擊',
   boomerang:  '迴旋飛刃',
-  magicFire:  '地獄火',
+  magicFire:   '地獄火',
+  knifeThrow:  '飛刀投擲',
 };
 
 export interface BehaviorInfo {
@@ -300,6 +325,14 @@ export const BEHAVIOR_INFO: Record<AttackBehavior, BehaviorInfo> = {
       { stat: 'atkSpeed', note: '縮短冷卻' },
     ],
   },
+  knifeThrow: {
+    desc:    '投擲出追蹤敵人的飛刀造成傷害。',
+    formula: ['飛刀：攻擊力 × 40%', '飛刀數量：6把', '冷卻：650ms（受攻速影響）'],
+    relatedStats: [
+      { stat: 'atk',      note: '決定傷害' },
+      { stat: 'atkSpeed', note: '縮短冷卻' },
+    ],
+  },
 };
 
 export const STAT_BASE: Record<StatKey, number> = {
@@ -385,16 +418,12 @@ export function generateEquipment(slot: EquipSlot, quality: EquipQuality): Equip
   const texNum = Math.floor(Math.random() * TEXTURE_COUNT[cat]) + 1;
 
   let affixes: Affix[];
-  let behavior: AttackBehavior | undefined;
 
   if (slot === 'sword') {
-    // 武器：ATK 固定第一條 + 攻擊模式 + 品質決定的隨機詞綴數
     const fixedAtk: Affix = { stat: 'atk', value: rollAtkForQuality(quality) };
-    affixes  = [fixedAtk, ...pickAffixes('sword', QUALITY_AFFIX_COUNT[quality])];
-    behavior = ATTACK_BEHAVIORS[Math.floor(Math.random() * ATTACK_BEHAVIORS.length)];
+    affixes = [fixedAtk, ...pickAffixes('sword', QUALITY_AFFIX_COUNT[quality])];
   } else {
-    affixes  = pickAffixes(cat, QUALITY_AFFIX_COUNT[quality]);
-    behavior = undefined;
+    affixes = pickAffixes(cat, QUALITY_AFFIX_COUNT[quality]);
   }
 
   return {
@@ -404,7 +433,6 @@ export function generateEquipment(slot: EquipSlot, quality: EquipQuality): Equip
     texture:     `equip_${cat}${texNum}`,
     quality,
     affixes,
-    behavior,
     enhancement: 0,
     enhanceLog:  [],
   };

@@ -4,6 +4,7 @@ import { InventoryStore } from './inventory-store';
 import { CardStore } from './card-store';
 import { QuestStore } from './quest-store';
 import { PotionBarStore } from './potion-bar-store';
+import { SkillTreeStore } from './skill-tree-store';
 
 const SAVE_KEY = 'auto_rpg_save';
 const VERSION  = '12.1.0';
@@ -31,6 +32,7 @@ interface SaveData {
     quests: { id: string; bossId: string; reward: number; flavorText: string; status: string }[];
   };
   potionBar: { slots: (string | null)[] };
+  skillTree?: { learned: string[]; attackMode: string };
 }
 
 export const SaveStore = {
@@ -55,6 +57,7 @@ export const SaveStore = {
       },
       quests:    QuestStore.getSaveData(),
       potionBar: PotionBarStore.getSaveData(),
+      skillTree: SkillTreeStore.getSaveData(),
     };
     try {
       localStorage.setItem(SAVE_KEY, JSON.stringify(data));
@@ -104,6 +107,7 @@ export const SaveStore = {
 
       if (data.quests)    QuestStore.loadSaveData(data.quests as any);
       if (data.potionBar) PotionBarStore.loadSaveData(data.potionBar);
+      if (data.skillTree) SkillTreeStore.loadSaveData(data.skillTree as any);
 
       _loaded = true;
       return true;
