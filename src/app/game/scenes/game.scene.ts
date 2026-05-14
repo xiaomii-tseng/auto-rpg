@@ -108,7 +108,7 @@ export class GameScene extends Phaser.Scene {
   // ── Special card effect state ──
   private _orbitBalls: Array<{ gfx: Phaser.GameObjects.Graphics; angle: number; type: 'fire'|'ice'; lastHit: Map<object, number> }> = [];
   private _orbitAngle = 0;
-  private _playerKnives: Array<{ gfx: Phaser.GameObjects.Graphics; x: number; y: number; vx: number; vy: number; spawnX: number; spawnY: number; maxDist: number; hitTargets: Set<object>; homing?: boolean }> = [];
+  private _playerKnives: Array<{ gfx: Phaser.GameObjects.Graphics; x: number; y: number; vx: number; vy: number; spawnX: number; spawnY: number; maxDist: number; hitTargets: Set<object>; homing?: boolean; returnToPlayer?: boolean }> = [];
   private _divineShieldTimer?: Phaser.Time.TimerEvent;
   private _divineShieldGfx?: Phaser.GameObjects.Graphics;
   private _divineShieldRollUntil = 0;  // 每次攻擊動作只判定一次（300ms 鎖）
@@ -177,6 +177,15 @@ export class GameScene extends Phaser.Scene {
   private activeFires: { x: number; y: number; r: number; expiresAt: number }[] = [];
   private _leechPool = 0;
   private _bloodlustStacks = 0;
+  private _bloodlustTimer: Phaser.Time.TimerEvent | null = null;
+  private _bloodlustExpiry = 0;
+  private _bloodlustTickTimer: Phaser.Time.TimerEvent | null = null;
+  private _bloodlustSwingHandled = false;
+  private _sanguineStacks = 0;
+  private _sanguineTimer: Phaser.Time.TimerEvent | null = null;
+  private _sanguineExpiry = 0;
+  private _sanguineTickTimer: Phaser.Time.TimerEvent | null = null;
+  private _sanguineSwingHandled = false;
   private minionProjGroup!: Phaser.Physics.Arcade.Group;
   private homingProjs: Phaser.Physics.Arcade.Image[] = [];
   private hitBatches = new Map<number, number>(); // batchId → hitTimestamp
@@ -734,7 +743,7 @@ export class GameScene extends Phaser.Scene {
 
     // 血環被動計時器（線性：0%攻速=300ms，75%攻速=200ms，超過75%仍維持200ms）
     const scheduleAuraTick = () => {
-      const atkSpd = CardStore.getTotalStats().atkSpeed;
+      const atkSpd = this.getEffectiveAtkSpeed();
       const delay = Math.max(200, Math.round(300 - (atkSpd / 0.75) * 100));
       this.auraTimer = this.time.delayedCall(delay, () => { this.tickAura(); scheduleAuraTick(); });
     };
@@ -784,9 +793,9 @@ export class GameScene extends Phaser.Scene {
     }
 
     // 週期飛刀計時器
-    if ((stats.periodicKnives ?? 0) > 0 && SkillTreeStore.getAttackMode() !== 'knifeThrow') {
+    if ((stats.periodicKnives ?? 0) > 0 && !SkillTreeStore.isLearned('6-1-2-1-2')) {
       const scheduleKnives = () => {
-        if (SkillTreeStore.getAttackMode() === 'knifeThrow') return;
+        if (SkillTreeStore.isLearned('6-1-2-1-2')) return;
         const s = CardStore.getTotalStats();
         const delay = Math.max(800, 4000 - (s.knifeIntervalReduction ?? 0));
         this.time.delayedCall(delay, () => { this.firePeriodicKnives(); scheduleKnives(); });
@@ -876,16 +885,19 @@ export class GameScene extends Phaser.Scene {
       const k = this._playerKnives[i];
 
       if (k.homing) {
-        // 找最近的可攻擊目標並轉向
-        const targets = this.getHittableTargets();
-        let nearest: { x: number; y: number } | null = null;
-        let nearDist = Infinity;
-        for (const t of targets) {
-          const d = Phaser.Math.Distance.Between(k.x, k.y, t.x, t.y);
-          if (d < nearDist) { nearDist = d; nearest = t; }
+        let target: { x: number; y: number } | null = null;
+        if (k.returnToPlayer) {
+          target = { x: this.player.x, y: this.player.y };
+        } else {
+          const targets = this.getHittableTargets();
+          let nearDist = Infinity;
+          for (const t of targets) {
+            const d = Phaser.Math.Distance.Between(k.x, k.y, t.x, t.y);
+            if (d < nearDist) { nearDist = d; target = t; }
+          }
         }
-        if (nearest) {
-          const desiredAngle = Math.atan2(nearest.y - k.y, nearest.x - k.x);
+        if (target) {
+          const desiredAngle = Math.atan2(target.y - k.y, target.x - k.x);
           const currentAngle = Math.atan2(k.vy, k.vx);
           let diff = Phaser.Math.Angle.Wrap(desiredAngle - currentAngle);
           const maxTurn = HOMING_TURN * dt;
@@ -927,25 +939,29 @@ export class GameScene extends Phaser.Scene {
     const maxDist   = P(200);
     const SPEED     = P(468);
 
-    // 追蹤模式：朝最近敵人方向 ±15° 扇形出刀；否則均勻 360°
+    // 追蹤模式：朝最近敵人方向 ±90° 扇形出刀；無敵人在 250px 內則 360° 散射並飛回玩家
+    const HOMING_RANGE = P(350);
     let baseAngle = Math.random() * Math.PI * 2;
+    let returnToPlayer = false;
     if (homing) {
       const targets = this.getHittableTargets();
-      if (targets.length > 0) {
-        let nearest = targets[0];
-        let nearDist = Phaser.Math.Distance.Between(this.player.x, this.player.y, nearest.x, nearest.y);
-        for (const t of targets) {
-          const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, t.x, t.y);
-          if (d < nearDist) { nearDist = d; nearest = t; }
-        }
+      let nearest: typeof targets[0] | null = null;
+      let nearDist = Infinity;
+      for (const t of targets) {
+        const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, t.x, t.y);
+        if (d < nearDist) { nearDist = d; nearest = t; }
+      }
+      if (nearest && nearDist <= HOMING_RANGE) {
         baseAngle = Math.atan2(nearest.y - this.player.y, nearest.x - this.player.x);
+      } else {
+        returnToPlayer = true;
       }
     }
 
     const salvoHitTargets = new Set<object>();
 
     for (let i = 0; i < count; i++) {
-      const angle = homing
+      const angle = (homing && !returnToPlayer)
         ? baseAngle + (i / (count - 1 || 1) - 0.5) * Math.PI  // ±90°（共180°扇形）
         : baseAngle + (i / count) * Math.PI * 2;
       const vx = Math.cos(angle) * SPEED;
@@ -986,7 +1002,7 @@ export class GameScene extends Phaser.Scene {
         gfx, x: this.player.x, y: this.player.y,
         vx, vy,
         spawnX: this.player.x, spawnY: this.player.y,
-        maxDist, hitTargets: salvoHitTargets, homing,
+        maxDist, hitTargets: salvoHitTargets, homing, returnToPlayer,
       });
     }
   }
@@ -1172,28 +1188,49 @@ export class GameScene extends Phaser.Scene {
   }
 
   private addBloodlustStack(max: number): void {
-    if (this._bloodlustStacks >= max) return;
-    this._bloodlustStacks++;
-    this.time.delayedCall(3000, () => { if (this._bloodlustStacks > 0) this._bloodlustStacks--; });
-    this.showBloodlustLabel(this._bloodlustStacks, max);
+    if (this._bloodlustStacks < max) this._bloodlustStacks++;
+    // 無論是否到頂，每次觸發都重置讀秒
+    this._bloodlustTimer?.destroy();
+    const DURATION = 3000;
+    this._bloodlustExpiry = this.time.now + DURATION;
+    this._bloodlustTimer = this.time.delayedCall(DURATION, () => {
+      this._bloodlustStacks = 0;
+      this._bloodlustExpiry = 0;
+      this._bloodlustTimer = null;
+      this._bloodlustTickTimer?.destroy();
+      this._bloodlustTickTimer = null;
+      this.refreshBuffHud();
+    });
+    // 啟動每 250ms 更新讀秒的 loop
+    if (!this._bloodlustTickTimer) {
+      this._bloodlustTickTimer = this.time.addEvent({
+        delay: 250, loop: true,
+        callback: () => this.refreshBuffHud(),
+      });
+    }
+    this.refreshBuffHud();
   }
 
-  private showBloodlustLabel(stacks: number, _max: number): void {
-    const label = this.add.text(this.player.x, this.player.y - P(28), `${stacks}`, {
-      fontSize: F(15), fontStyle: 'bold',
-      color: '#ff4466', stroke: '#1a0008', strokeThickness: 3,
-    }).setOrigin(0.5, 1).setDepth(350).setScale(0);
-
-    this.tweens.add({
-      targets: label, scale: 1.2, duration: 100, ease: 'Back.easeOut',
-      onComplete: () => {
-        this.tweens.add({
-          targets: label, y: label.y - P(36), alpha: 0,
-          duration: 700, ease: 'Cubic.easeOut',
-          onComplete: () => label.destroy(),
-        });
-      },
+  private addSanguineStack(max: number): void {
+    if (this._sanguineStacks < max) this._sanguineStacks++;
+    this._sanguineTimer?.destroy();
+    const DURATION = 3000;
+    this._sanguineExpiry = this.time.now + DURATION;
+    this._sanguineTimer = this.time.delayedCall(DURATION, () => {
+      this._sanguineStacks = 0;
+      this._sanguineExpiry = 0;
+      this._sanguineTimer = null;
+      this._sanguineTickTimer?.destroy();
+      this._sanguineTickTimer = null;
+      this.refreshBuffHud();
     });
+    if (!this._sanguineTickTimer) {
+      this._sanguineTickTimer = this.time.addEvent({
+        delay: 250, loop: true,
+        callback: () => this.refreshBuffHud(),
+      });
+    }
+    this.refreshBuffHud();
   }
 
   private damageSplashProc(origin: MinionSlime | Boss, dmg: number, pct: number, count: number): void {
@@ -1334,7 +1371,9 @@ export class GameScene extends Phaser.Scene {
 
   private spawnAllyFlower(defId: string, lifetimeMs: number, spawnAngle?: number): void {
     const _capStats = CardStore.getTotalStats();
-    const ALLY_CAP = 2 + (_capStats.summonFlowerCap ?? 0) + Math.floor((_capStats.summonFlowerCapPair ?? 0) / 2);
+    const _skillCap = _capStats.skillFlowerCap ?? 0;
+    const _hasCardSummon = (_capStats.flowerSummonMode ?? 0) > 0 || (_capStats.summonFlowerChance ?? 0) > 0;
+    const ALLY_CAP = Math.max(_hasCardSummon ? 2 : 0, _skillCap) + (_capStats.summonFlowerCap ?? 0) + Math.floor((_capStats.summonFlowerCapPair ?? 0) / 2);
     if (this._allyMinions.length >= ALLY_CAP) return;
 
     const angle = spawnAngle ?? Math.random() * Math.PI * 2;
@@ -1346,7 +1385,7 @@ export class GameScene extends Phaser.Scene {
 
     const ps = CardStore.getTotalStats();
     ally.isAlly = true;
-    ally.setAllyStats(Math.max(1, Math.round(ps.maxHp * 1.00)), Math.max(1, Math.round(ps.atk * 0.45)));
+    ally.setAllyStats(Math.max(1, Math.round(ps.maxHp * (1 + (ps.skillFlowerHpPct ?? 0)))), Math.max(1, Math.round(ps.atk * 0.35 * (1 + (ps.summonFlowerDmgPct ?? 0)))));
     ally.attackCooldownMs = 800;
     ally.rangedRange = P(400);
     this._allyMinions.push(ally);
@@ -1388,7 +1427,9 @@ export class GameScene extends Phaser.Scene {
               for (const t of this.getHittableTargets()) {
                 if (!hitTargets.has(t) && Phaser.Math.Distance.Between(img.x, img.y, t.x, t.y) < P(18)) {
                   const isBoss = (t as any) === this.boss;
-                  (t as any).takeDamage?.(isBoss ? Math.round(dmg * 0.775) : dmg);
+                  const actualDmg = isBoss ? Math.round(dmg * 0.775) : dmg;
+                  (t as any).takeDamage?.(actualDmg);
+                  this.spawnDamageNumber(t.x, t.y, actualDmg, false, 1);
                   hitTargets.add(t);
                   this.time.delayedCall(600, () => hitTargets.delete(t));
                 }
@@ -1420,7 +1461,7 @@ export class GameScene extends Phaser.Scene {
 
   private trySummonAllyFlower(): void {
     const stats = CardStore.getTotalStats();
-    const ALLY_CAP = 2 + (stats.summonFlowerCap ?? 0) + Math.floor((stats.summonFlowerCapPair ?? 0) / 2);
+    const ALLY_CAP = Math.max(((stats.flowerSummonMode ?? 0) > 0 || (stats.summonFlowerChance ?? 0) > 0) ? 2 : 0, stats.skillFlowerCap ?? 0) + (stats.summonFlowerCap ?? 0) + Math.floor((stats.summonFlowerCapPair ?? 0) / 2);
 
     if (this._allyMinions.length >= ALLY_CAP) {
       const oldest = this._allyMinions.shift()!;
@@ -1434,24 +1475,31 @@ export class GameScene extends Phaser.Scene {
 
   private tryFlowerSummonModeAttack(): void {
     if (this._flowerCharges <= 0) return;
-    this._flowerCharges--;
-    this._flowerChargeAccum = 0; // 重置 CD 計時
-
-    const stats = CardStore.getTotalStats();
-    const ALLY_CAP = 2 + (stats.summonFlowerCap ?? 0) + Math.floor((stats.summonFlowerCapPair ?? 0) / 2);
-
-    if (this._allyMinions.length >= ALLY_CAP) {
-      const oldest = this._allyMinions.shift()!;
-      this._allyGroup.remove(oldest, false, false);
-      oldest.onDead = undefined;
-      oldest.forceKill();
-    }
 
     // 手動拖曳方向優先，否則用玩家面向
     const dirMap: Record<string, number> = { right: 0, down: Math.PI / 2, left: Math.PI, up: -Math.PI / 2 };
     const spawnAngle = this._forceAttackAngle ?? dirMap[this.player.lastDir] ?? 0;
     this._forceAttackAngle = null;
-    this.spawnAllyFlower('plant3_s', 15000, spawnAngle);
+
+    const tx = this.player.x + Math.cos(spawnAngle) * P(80);
+    const ty = this.player.y + Math.sin(spawnAngle) * P(80);
+    this.player.playAttack(tx, ty, () => {
+      if (this._flowerCharges <= 0) return;
+      this._flowerCharges--;
+      this._flowerChargeAccum = 0;
+
+      const stats = CardStore.getTotalStats();
+      const ALLY_CAP = Math.max(((stats.flowerSummonMode ?? 0) > 0 || (stats.summonFlowerChance ?? 0) > 0) ? 2 : 0, stats.skillFlowerCap ?? 0) + (stats.summonFlowerCap ?? 0) + Math.floor((stats.summonFlowerCapPair ?? 0) / 2);
+
+      if (this._allyMinions.length >= ALLY_CAP) {
+        const oldest = this._allyMinions.shift()!;
+        this._allyGroup.remove(oldest, false, false);
+        oldest.onDead = undefined;
+        oldest.forceKill();
+      }
+
+      this.spawnAllyFlower('plant3_s', 15000, spawnAngle);
+    });
   }
 
   private spawnLavaSlimeCompanion(): void {
@@ -1595,7 +1643,7 @@ export class GameScene extends Phaser.Scene {
     else if (this.keys.down.isDown || this.keys.s.isDown) vy = 1;
 
     const isDashBehavior = (SkillTreeStore.getAttackMode()) === 'dashPierce';
-    const isFlowerMode = (CardStore.getTotalStats().flowerSummonMode ?? 0) > 0;
+    const isFlowerMode = (CardStore.getTotalStats().flowerSummonMode ?? 0) > 0 || SkillTreeStore.getAttackMode() === 'flowerMode';
 
     if (Phaser.Input.Keyboard.JustDown(this.keys.space)) {
       if (isFlowerMode) {
@@ -1855,7 +1903,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     // ── 花怪充能回復 + 按鈕 UI ────────────────────────────────
-    if ((CardStore.getTotalStats().flowerSummonMode ?? 0) > 0) {
+    if ((CardStore.getTotalStats().flowerSummonMode ?? 0) > 0 || SkillTreeStore.getAttackMode() === 'flowerMode') {
       if (this._flowerCharges < this._flowerMaxCharges) {
         this._flowerChargeAccum += this.game.loop.delta;
         if (this._flowerChargeAccum >= this._FLOWER_CHARGE_MS) {
@@ -1913,13 +1961,20 @@ export class GameScene extends Phaser.Scene {
 
   // ── Attack dispatcher ────────────────────────────────────
 
+  private getEffectiveAtkSpeed(): number {
+    const stats = CardStore.getTotalStats();
+    return stats.atkSpeed + this._sanguineStacks * (stats.bloodlustAtkSpeedPerStack ?? 0);
+  }
+
   private meleeAttack(tx: number, ty: number): void {
-    if ((CardStore.getTotalStats().flowerSummonMode ?? 0) > 0) {
+    this._bloodlustSwingHandled = false;
+    this._sanguineSwingHandled = false;
+    const behavior = SkillTreeStore.getAttackMode();
+    if (behavior === 'aura') return;
+    if ((CardStore.getTotalStats().flowerSummonMode ?? 0) > 0 || behavior === 'flowerMode') {
       this.tryFlowerSummonModeAttack();
       return;
     }
-    const behavior = SkillTreeStore.getAttackMode();
-    if (behavior === 'aura') return;
     switch (behavior) {
       case 'whirlwind': this.attackWhirlwind(tx, ty); break;
       case 'dashPierce': this.attackDashPierce(tx, ty); break;
@@ -1966,13 +2021,19 @@ export class GameScene extends Phaser.Scene {
     if (stats.dmgVsPlant && (target as any).race === 'plant') targetMult += stats.dmgVsPlant;
     if (stats.dmgVsBoss && isBoss) targetMult += stats.dmgVsBoss;
 
-    // 嗜血本能：爆擊加層數
+    // 暴徒本能：爆擊觸發，每次攻擊只計一次
     const bloodlustActive = (stats.bloodlust ?? 0) >= 1;
-    if (bloodlustActive && isCrit) {
+    if (bloodlustActive && isCrit && !this._bloodlustSwingHandled) {
+      this._bloodlustSwingHandled = true;
       this.addBloodlustStack(Math.round(stats.bloodlustMaxStacks ?? 5));
     }
-    const bloodlustConvert = (stats.bloodlustConvert ?? 0) >= 1;
-    const bloodlustDmgMult = (bloodlustActive && !bloodlustConvert)
+    // 嗜血本能：命中觸發，每次攻擊只計一次
+    const sanguineActive = (stats.sanguine ?? 0) >= 1;
+    if (sanguineActive && !this._sanguineSwingHandled) {
+      this._sanguineSwingHandled = true;
+      this.addSanguineStack(Math.round(stats.sanguineMaxStacks ?? 5));
+    }
+    const bloodlustDmgMult = (bloodlustActive && (stats.bloodlustDmgPerStack ?? 0) > 0)
       ? (1 + this._bloodlustStacks * (stats.bloodlustDmgPerStack ?? 0))
       : 1;
 
@@ -1992,8 +2053,6 @@ export class GameScene extends Phaser.Scene {
     target.knockback(srcX, srcY);
     const displayDmg = isBoss ? Math.round(dmg * this.boss.dmgDisplayMult) : dmg;
     if (stats.lifesteal > 0) this._leechPool += Math.round(displayDmg * stats.lifesteal);
-    if (bloodlustActive && bloodlustConvert && this._bloodlustStacks > 0)
-      this._leechPool += Math.round(displayDmg * this._bloodlustStacks * (stats.bloodlustLifestealPerStack ?? 0.005));
     this.spawnDamageNumber(target.x, target.y, displayDmg, isCrit, elemMult * targetMult);
     if (isCrit) this._pendingHitWeight += 2;
     if (!this._hitShakePending) {
@@ -2026,8 +2085,8 @@ export class GameScene extends Phaser.Scene {
       if (Math.random() < shieldChance) this.triggerDivineShield();
     }
 
-    // 召喚友軍花怪觸發（每張卡 15% 機率，2張合計 30%）
-    const summonChance = stats.summonFlowerChance ?? 0;
+    // 召喚友軍花怪觸發（卡片 + 技能樹機率合計）
+    const summonChance = (stats.summonFlowerChance ?? 0) + (stats.skillFlowerChance ?? 0);
     if (summonChance > 0 && Math.random() < summonChance) this.trySummonAllyFlower();
 
     // 攻擊觸發落雷
@@ -2102,7 +2161,7 @@ export class GameScene extends Phaser.Scene {
 
   private attackSlash180(_tx: number, _ty: number): void {
     const stats = CardStore.getTotalStats();
-    const cd = Math.round(650 / (1 + stats.atkSpeed));
+    const cd = Math.round(650 / (1 + this.getEffectiveAtkSpeed()));
     if (!this.player.lockCooldown(cd)) return;
     const { dir, deg, tx, ty } = this.resolveAttackDir(MELEE_RANGE * 3);
     const arc = stats.attackArc;
@@ -2135,7 +2194,7 @@ export class GameScene extends Phaser.Scene {
 
   private attackWhirlwind(_tx: number, _ty: number): void {
     const stats = CardStore.getTotalStats();
-    const cd = Math.round(650 / (1 + stats.atkSpeed));
+    const cd = Math.round(650 / (1 + this.getEffectiveAtkSpeed()));
     if (!this.player.lockCooldown(cd)) return;
     const RANGE = Math.round(MELEE_RANGE * 1.1 * (1 + (stats.whirlwindRangePct ?? 0)));
     const px = this.player.x, py = this.player.y;
@@ -2165,7 +2224,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private attackDashPierce(_tx: number, _ty: number): void {
-    const cd = Math.round(650 / (1 + CardStore.getTotalStats().atkSpeed));
+    const cd = Math.round(650 / (1 + this.getEffectiveAtkSpeed()));
     if (!this.player.lockCooldown(cd)) return;
     if (this._forceAttackAngle !== null) {
       this.dashAimAngle = this._forceAttackAngle;
@@ -2225,7 +2284,7 @@ export class GameScene extends Phaser.Scene {
     const SPEED = P(380);
     const { dir, rad } = this.resolveAttackDir(P(240));
 
-    const cd = Math.round(650 / (1 + stats0.atkSpeed));
+    const cd = Math.round(650 / (1 + this.getEffectiveAtkSpeed()));
     if (!this.player.lockCooldown(cd)) return;
 
     this.player.startAttackAnim(`player_attack_${dir}`);
@@ -2252,7 +2311,7 @@ export class GameScene extends Phaser.Scene {
 
   private attackMultiHit(_tx: number, _ty: number): void {
     const stats = CardStore.getTotalStats();
-    const spd = 1 + stats.atkSpeed;
+    const spd = 1 + this.getEffectiveAtkSpeed();
     const cd = Math.round(650 / spd);
     if (!this.player.lockCooldown(cd)) return;
 
@@ -2279,7 +2338,7 @@ export class GameScene extends Phaser.Scene {
 
   private attackBoomerang(_tx: number, _ty: number): void {
     const bStats = CardStore.getTotalStats();
-    const spd = 1 + bStats.atkSpeed;
+    const spd = 1 + this.getEffectiveAtkSpeed();
     const cd = Math.round(1500 / spd);
     if (!this.player.lockCooldown(cd)) return;
 
@@ -2331,7 +2390,7 @@ export class GameScene extends Phaser.Scene {
   // ── 魔法火 magicFire ─────────────────────────────────────
 
   private attackKnifeThrow(): void {
-    const spd = 1 + CardStore.getTotalStats().atkSpeed;
+    const spd = 1 + this.getEffectiveAtkSpeed();
     const cd  = Math.round(650 / spd);
     if (!this.player.lockCooldown(cd)) return;
     const { dir } = this.resolveAttackDir(P(240));
@@ -2340,7 +2399,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private attackMagicFire(_tx: number, _ty: number): void {
-    const spd = 1 + CardStore.getTotalStats().atkSpeed;
+    const spd = 1 + this.getEffectiveAtkSpeed();
     const cd = Math.round(1100 / spd);
     if (!this.player.lockCooldown(cd)) return;
 
@@ -2585,7 +2644,7 @@ export class GameScene extends Phaser.Scene {
 
   private attackChargeSlam(_tx: number, _ty: number): void {
     const slamStats = CardStore.getTotalStats();
-    const spd = 1 + slamStats.atkSpeed;
+    const spd = 1 + this.getEffectiveAtkSpeed();
     const isOverload = (slamStats.chargeSlamOverload ?? 0) >= 1;
     const cd = Math.round(650 / spd) * (isOverload ? 2 : 1);
     if (!this.player.lockCooldown(cd)) return;
@@ -4912,6 +4971,26 @@ export class GameScene extends Phaser.Scene {
       this._buffHudTexts.push(txt);
       row++;
     }
+
+    // 暴徒本能
+    if (this._bloodlustStacks > 0 && this._bloodlustExpiry > 0) {
+      const remaining = Math.max(0, Math.ceil((this._bloodlustExpiry - this.time.now) / 1000));
+      const txt = this.add.text(W - pad, startY + row * lineH, `暴徒 ${this._bloodlustStacks}層 ${remaining}s`, {
+        fontSize: F(11), fontStyle: 'bold', color: '#ff4466',
+        stroke: '#000', strokeThickness: 2,
+      }).setOrigin(1, 0).setScrollFactor(0).setDepth(9803);
+      this._buffHudTexts.push(txt);
+      row++;
+    }
+    // 嗜血本能
+    if (this._sanguineStacks > 0 && this._sanguineExpiry > 0) {
+      const remaining = Math.max(0, Math.ceil((this._sanguineExpiry - this.time.now) / 1000));
+      const txt = this.add.text(W - pad, startY + row * lineH, `嗜血 ${this._sanguineStacks}層 ${remaining}s`, {
+        fontSize: F(11), fontStyle: 'bold', color: '#ff88aa',
+        stroke: '#000', strokeThickness: 2,
+      }).setOrigin(1, 0).setScrollFactor(0).setDepth(9803);
+      this._buffHudTexts.push(txt);
+    }
   }
 
   private showBuffText(label: string, color: number): void {
@@ -5088,7 +5167,7 @@ export class GameScene extends Phaser.Scene {
 
   private addAttackButton(): void {
     if ((SkillTreeStore.getAttackMode()) === 'aura') return;
-    const isFlower = (CardStore.getTotalStats().flowerSummonMode ?? 0) > 0;
+    const isFlower = (CardStore.getTotalStats().flowerSummonMode ?? 0) > 0 || SkillTreeStore.getAttackMode() === 'flowerMode';
     const r = P(52);
     const getBtnCenter = () => ({
       x: this.scale.width - P(70),
@@ -5110,7 +5189,7 @@ export class GameScene extends Phaser.Scene {
       gfx.clear();
       const { x: cx, y: cy } = getBtnCenter();
       const oy = pressed ? P(1) : 0;
-      const flowerNow = (CardStore.getTotalStats().flowerSummonMode ?? 0) > 0;
+      const flowerNow = (CardStore.getTotalStats().flowerSummonMode ?? 0) > 0 || SkillTreeStore.getAttackMode() === 'flowerMode';
 
       // Drop shadow
       gfx.fillStyle(0x000000, 0.5);
@@ -5191,7 +5270,7 @@ export class GameScene extends Phaser.Scene {
     const fireHoldAttack = () => {
       if (this.gameOver || !this.player.active) return;
       const isDash = (SkillTreeStore.getAttackMode()) === 'dashPierce';
-      const isFlowerMode = (CardStore.getTotalStats().flowerSummonMode ?? 0) > 0;
+      const isFlowerMode = (CardStore.getTotalStats().flowerSummonMode ?? 0) > 0 || SkillTreeStore.getAttackMode() === 'flowerMode';
       if (isFlowerMode) {
         this.tryFlowerSummonModeAttack();
       } else if (isDash) {

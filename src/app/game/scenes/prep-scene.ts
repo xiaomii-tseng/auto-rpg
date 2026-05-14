@@ -7,7 +7,7 @@ import { generateEquipment, randomQuality, QUALITY_NAMES, QUALITY_COLORS, SLOT_N
 import { SaveStore } from '../data/save-store';
 import { CardStore, CARD_SLOT_COUNT } from '../data/card-store';
 
-import { getCardDef, getMonsterDef, monsterCardScale, monsterDetailScale, CARD_DEFS, CardDef } from '../data/monster-data';
+import { getCardDef, getMonsterDef, getCardDisplayName, monsterCardScale, monsterDetailScale, CARD_DEFS, CardDef } from '../data/monster-data';
 import { QuestStore, Quest, STAR_EQUIP_QUALITY, getStarWeights } from '../data/quest-store';
 import { SkillTreeStore, SKILL_NODES, SKILL_NODE_MAP, ATTACK_MODES, MODE_COLORS } from '../data/skill-tree-store';
 import { NetworkService } from '../network/network.service';
@@ -2508,19 +2508,35 @@ export class PrepScene extends Phaser.Scene {
       const s = <T extends Phaser.GameObjects.GameObject>(o: T): T => { objs.push(o); return o; };
       const closeComp = () => objs.forEach(o => o.destroy());
 
-      // 全螢幕遮罩（絕對座標）
+      // 對齊詞綴：相同 stat 先排（對齊），其次 cur-only，最後 nxt-only
+      const curMap = new Map(currentItem.affixes.map(a => [a.stat, a.value]));
+      const nxtMap = new Map(newItem.affixes.map(a => [a.stat, a.value]));
+      type ARow = { stat: string; cur?: number; nxt?: number };
+      const rows: ARow[] = [];
+      for (const a of currentItem.affixes)
+        if (nxtMap.has(a.stat)) rows.push({ stat: a.stat, cur: a.value, nxt: nxtMap.get(a.stat) });
+      for (const a of currentItem.affixes)
+        if (!nxtMap.has(a.stat)) rows.push({ stat: a.stat, cur: a.value });
+      for (const a of newItem.affixes)
+        if (!curMap.has(a.stat)) rows.push({ stat: a.stat, nxt: a.value });
+
+      const AFFIX_H = P(18);
+      const HEADER_H = P(62);
+      const CW = P(158), GAP = P(24);
+      const CH = HEADER_H + rows.length * AFFIX_H + P(24);
+      const PDW = P(380);
+      const TITLE_H = P(28);
+      const PDH = TITLE_H + P(10) + CH + P(52);
+      const mx = W / 2 - PDW / 2;
+      const my = H / 2 - PDH / 2;
+      const pcx = W / 2;
+      const CARD_CY = my + TITLE_H + P(10) + CH / 2;
+      const BTN_Y = my + PDH - P(26);
+
+      // 全螢幕遮罩
       s(this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.65)
         .setInteractive().setDepth(compD))
         .on('pointerdown', closeComp);
-
-      const PDW = P(380), PDH = P(320);
-      const CW = P(158), CH = P(200), GAP = P(24);
-      const mx = W / 2 - PDW / 2;   // popup 左上角 x
-      const my = H / 2 - PDH / 2;   // popup 左上角 y
-      const pcx = W / 2;             // popup 中心 x
-      const TITLE_H = P(28);
-      const CARD_CY = my + TITLE_H + CH / 2 + P(10);
-      const BTN_Y = my + PDH - P(26);
 
       const bg = s(this.add.graphics().setDepth(compD + 1));
       bg.fillStyle(WD, 0.97); bg.fillRect(mx, my, PDW, PDH);
@@ -2542,6 +2558,7 @@ export class PrepScene extends Phaser.Scene {
       const drawItemCard = (
         item: import('../data/equipment-data').EquipmentItem,
         cx: number, labelTxt: string, labelColor: string,
+        side: 'cur' | 'nxt',
       ) => {
         const cy = CARD_CY;
         const qColorNum = QUALITY_COLORS[item.quality] ?? 0xffffff;
@@ -2564,19 +2581,30 @@ export class PrepScene extends Phaser.Scene {
           fontSize: F(15), fontStyle: 'bold', color: item.enhancement > 0 ? '#ffd060' : '#667766', stroke: '#000', strokeThickness: 1,
         }).setOrigin(0.5, 0).setDepth(compD + 3));
 
-        let ay = cy - CH / 2 + P(62);
-        item.affixes.forEach(a => {
-          s(this.add.text(cx, ay, `${STAT_NAMES[a.stat]}  +${fmtV(a.stat, a.value)}`, {
-            fontSize: F(15), fontStyle: 'bold', color: '#88cc88', stroke: '#000', strokeThickness: 1,
-          }).setOrigin(0.5, 0).setDepth(compD + 3));
-          ay += P(18);
-        });
-
+        let ay = cy - CH / 2 + HEADER_H;
+        for (const row of rows) {
+          const val = row[side];
+          if (val !== undefined) {
+            const isMatched = row.cur !== undefined && row.nxt !== undefined;
+            let color: string;
+            if (isMatched) {
+              if (side === 'nxt' && row.nxt! > row.cur!) color = '#aaffaa';
+              else if (side === 'nxt' && row.nxt! < row.cur!) color = '#ff9999';
+              else color = '#88cc88';
+            } else {
+              color = side === 'cur' ? '#cc8888' : '#aaffaa';
+            }
+            s(this.add.text(cx, ay, `${(STAT_NAMES as Record<string, string>)[row.stat]}  +${fmtV(row.stat, val)}`, {
+              fontSize: F(15), fontStyle: 'bold', color, stroke: '#000', strokeThickness: 1,
+            }).setOrigin(0.5, 0).setDepth(compD + 3));
+          }
+          ay += AFFIX_H;
+        }
       };
 
       const cardCX = CW / 2 + GAP / 2;
-      drawItemCard(currentItem, pcx - cardCX, '現有', '#ff9999');
-      drawItemCard(newItem, pcx + cardCX, '新增', '#99ff99');
+      drawItemCard(currentItem, pcx - cardCX, '現有', '#ff9999', 'cur');
+      drawItemCard(newItem, pcx + cardCX, '新增', '#99ff99', 'nxt');
 
       // ── Buttons ─────────────────────────────────────────
       const BW = P(118), BH = P(30);
@@ -2985,7 +3013,10 @@ export class PrepScene extends Phaser.Scene {
           linesGfx.fillCircle(NP(node.x), NP(node.y), r);
           linesGfx.strokeCircle(NP(node.x), NP(node.y), r);
           const lbl = labelTxts.get('1');
-          if (lbl) lbl.setStyle({ color: '#' + mc.toString(16).padStart(6, '0') });
+          if (lbl) {
+            lbl.setStyle({ color: '#' + mc.toString(16).padStart(6, '0') });
+            lbl.setText(ATTACK_MODES.find(a => a.id === SkillTreeStore.getAttackMode())?.label ?? node.label);
+          }
           continue;
         }
         const learned   = SkillTreeStore.isLearned(node.id);
@@ -3088,12 +3119,17 @@ export class PrepScene extends Phaser.Scene {
 
       // dim overlay (above picker)
       mi(this.add.rectangle(W / 2, mapTop + mapH / 2, W, mapH, 0x000000, 0.55)
-        .setDepth(D + 10).setInteractive()).on('pointerdown', closeModeInfo);
+        .setDepth(D + 10).setInteractive())
+        .on('pointerdown', (_p: any, _lx: any, _ly: any, ev: any) => { ev?.stopPropagation?.(); closeModeInfo(); });
 
       const bg = mi(this.add.graphics().setDepth(D + 11));
       bg.fillStyle(0x04090f, 0.98); bg.fillRoundedRect(ix, iy, IW, IH, P(8));
       bg.lineStyle(P(2), mc, 0.85);  bg.strokeRoundedRect(ix, iy, IW, IH, P(8));
       bg.fillStyle(mc, 0.25); bg.fillRect(ix, iy, IW, P(3));
+      // 攔截 panel 範圍內的點擊，防止穿透到後方遮罩
+      mi(this.add.rectangle(ix + IW / 2, iy + IH / 2, IW, IH, 0x000000, 0)
+        .setDepth(D + 11).setInteractive())
+        .on('pointerdown', (_p: any, _lx: any, _ly: any, ev: any) => { ev?.stopPropagation?.(); });
 
       mi(this.add.text(W / 2, iy + P(18), BEHAVIOR_NAMES[toBehaviorKey(m.id)], {
         fontSize: F(17), fontStyle: 'bold', color: mcHex, stroke: '#000', strokeThickness: 2,
@@ -3152,13 +3188,13 @@ export class PrepScene extends Phaser.Scene {
       const sp = <T extends Phaser.GameObjects.GameObject>(o: T) => { modePickerObjs.push(o); objs.push(o); return o; };
 
       sp(this.add.rectangle(W / 2, mapTop + mapH / 2, W, mapH, 0x000000, 0.78)
-        .setDepth(D + 6).setInteractive()).on('pointerdown', closePicker);
+        .setDepth(D + 6).setInteractive())
+        .on('pointerdown', (_p: any, _lx: any, _ly: any, ev: any) => { ev?.stopPropagation?.(); closePicker(); });
 
-      const availableModes = ATTACK_MODES.filter(m => !m.unlockedBy || SkillTreeStore.isLearned(m.unlockedBy));
       const MPW = Math.min(PW - P(40), P(320));
       const cols = 3, btnH = P(46);
       const btnW = Math.floor((MPW - P(16)) / cols);
-      const rows = Math.ceil(availableModes.length / cols);
+      const rows = Math.ceil(ATTACK_MODES.length / cols);
       const MPH = P(44) + rows * (btnH + P(6));
       const mpx = W / 2 - MPW / 2, mpy = mapTop + mapH / 2 - MPH / 2;
 
@@ -3168,27 +3204,34 @@ export class PrepScene extends Phaser.Scene {
       sp(this.add.text(W / 2, mpy + P(14), '選擇攻擊模式', {
         fontSize: F(15), fontStyle: 'bold', color: '#88ccff', stroke: '#000', strokeThickness: 2,
       }).setOrigin(0.5, 0).setDepth(D + 8));
-      availableModes.forEach((m, i) => {
+      ATTACK_MODES.forEach((m, i) => {
         const col = i % cols, row = Math.floor(i / cols);
         const bx = mpx + P(8) + col * btnW;
         const by = mpy + P(38) + row * (btnH + P(6));
-        const active = SkillTreeStore.getAttackMode() === m.id;
+        const isLocked = !!m.unlockedBy && !SkillTreeStore.isLearned(m.unlockedBy);
+        const active = !isLocked && SkillTreeStore.getAttackMode() === m.id;
         const mc = MODE_COLORS[m.id] ?? 0xaaaaaa;
         const mcHex = '#' + mc.toString(16).padStart(6, '0');
+        const bW = btnW - P(4);
+
         const bg = sp(this.add.graphics().setDepth(D + 7));
-        bg.fillStyle(active ? 0x1a3050 : 0x0d1828, 1);
-        bg.fillRoundedRect(bx, by, btnW - P(4), btnH, P(5));
-        bg.lineStyle(active ? P(2) : 1, active ? mc : 0x334455, active ? 1 : 0.5);
-        bg.strokeRoundedRect(bx, by, btnW - P(4), btnH, P(5));
-        sp(this.add.text(bx + (btnW - P(4)) / 2, by + btnH / 2, m.label, {
-          fontSize: F(15), fontStyle: 'bold', color: active ? mcHex : '#667788', stroke: '#000', strokeThickness: 1,
+        bg.fillStyle(isLocked ? 0x080808 : (active ? 0x1a3050 : 0x0d1828), 1);
+        bg.fillRoundedRect(bx, by, bW, btnH, P(5));
+        bg.lineStyle(active ? P(2) : 1, active ? mc : (isLocked ? 0x222222 : 0x334455), active ? 1 : 0.5);
+        bg.strokeRoundedRect(bx, by, bW, btnH, P(5));
+
+        sp(this.add.text(bx + bW / 2, by + btnH / 2, m.label, {
+          fontSize: F(15), fontStyle: 'bold',
+          color: isLocked ? '#333333' : (active ? mcHex : '#667788'),
+          stroke: '#000', strokeThickness: 1,
         }).setOrigin(0.5).setDepth(D + 8));
-        sp(this.add.rectangle(bx + (btnW - P(4)) / 2, by + btnH / 2, btnW - P(4), btnH)
-          .setDepth(D + 9).setInteractive({ useHandCursor: true }))
+
+        sp(this.add.rectangle(bx + bW / 2, by + btnH / 2, bW, btnH)
+          .setDepth(D + 9).setInteractive({ useHandCursor: !isLocked }))
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           .on('pointerdown', (_p: any, _lx: any, _ly: any, ev: any) => {
             ev.stopPropagation();
-            showModeInfo(m);
+            if (!isLocked) showModeInfo(m);
           });
       });
     };
@@ -3211,7 +3254,6 @@ export class PrepScene extends Phaser.Scene {
       .setDepth(D + 1).setInteractive({ useHandCursor: false }));
 
     const onDown = (ptr: Phaser.Input.Pointer) => {
-      if (modePickerObjs.length > 0) return;
       dragStartX = ptr.x; dragStartY = ptr.y;
       dragStartPanX = panX; dragStartPanY = panY;
       isDrag = false;
@@ -3908,7 +3950,7 @@ export class PrepScene extends Phaser.Scene {
         }).setOrigin(0.5, 0));
 
         // card name
-        slotPickLayer!.add(this.add.text(cx, cy - CH / 2 + P(24), def.name, {
+        slotPickLayer!.add(this.add.text(cx, cy - CH / 2 + P(24), getCardDisplayName(def.id), {
           fontSize: F(15), fontStyle: 'bold', color: '#f0d080', stroke: '#000', strokeThickness: 2,
           wordWrap: { width: CW - P(12) }, align: 'center',
         }).setOrigin(0.5, 0));
@@ -4152,7 +4194,7 @@ export class PrepScene extends Phaser.Scene {
       pop.add(cg);
 
       // ── Banner: card name (vertically centered) ───────
-      pop.add(this.add.text(0, -PDH / 2 + BANNER_H / 2, def.name, {
+      pop.add(this.add.text(0, -PDH / 2 + BANNER_H / 2, getCardDisplayName(def.id), {
         fontSize: F(15), fontStyle: 'bold',
         color: '#f0d080',
         stroke: '#1a0800', strokeThickness: 2,
@@ -4342,12 +4384,13 @@ export class PrepScene extends Phaser.Scene {
       _slotLabel: string,
       qty?: number,
     ) => {
-      // A/B/C 浮水印
-      const variant = def.id.slice(-1).toUpperCase();
-      if (variant === 'A' || variant === 'B' || variant === 'C') {
-        const vColor = '#ffffff';
+      // A/B/C 浮水印 — 用在同 monsterId 裡的排序位置決定字母
+      const _sameGroup = CARD_DEFS.filter(c => c.monsterId === def.monsterId);
+      const _groupIdx = _sameGroup.findIndex(c => c.id === def.id);
+      const variant = _groupIdx >= 0 && _groupIdx < 26 ? String.fromCharCode(65 + _groupIdx) : '';
+      if (variant) {
         target.add(this.add.text(cx, cy, variant, {
-          fontSize: F(88), fontStyle: 'bold', color: vColor,
+          fontSize: F(88), fontStyle: 'bold', color: '#ffffff',
         }).setOrigin(0.5).setAlpha(0.15));
       }
 
@@ -5078,7 +5121,7 @@ export class PrepScene extends Phaser.Scene {
         }
 
         // Each card placed in flowing 3-column grid
-        for (const card of cards) {
+        for (const [cardIdx, card] of cards.entries()) {
           const cx = -PW / 2 + EX_PAD + col * (EX_CW + CELL_GAP);
           const cy = curY;
           const tintHex = `#${card.tint.toString(16).padStart(6, '0')}`;
@@ -5109,8 +5152,8 @@ export class PrepScene extends Phaser.Scene {
             scrollCont.add(spr);
           }
 
-          // Grade badge (corner of icon)
-          const grade = card.id.slice(-1).toUpperCase();
+          // Grade badge (corner of icon) — always A/B/C by position in group
+          const grade = String.fromCharCode(65 + cardIdx);
           scrollCont.add(this.add.text(cx + P(7) + P(2), cy + P(8) + P(2), grade, {
             fontSize: F(15), fontStyle: 'bold', color: tintHex, stroke: '#000', strokeThickness: 2,
           }).setOrigin(0, 0));
@@ -5118,7 +5161,7 @@ export class PrepScene extends Phaser.Scene {
           // Name + desc (right of icon)
           const tx = cx + P(7) + ICON_SZ + P(5);
           const txtW = EX_CW - ICON_SZ - P(18);
-          scrollCont.add(this.add.text(tx, cy + P(7), card.name, {
+          scrollCont.add(this.add.text(tx, cy + P(7), getCardDisplayName(card.id), {
             fontSize: F(15), fontStyle: 'bold', color: tintHex,
             stroke: '#1a0800', strokeThickness: 2,
             wordWrap: { width: txtW }, maxLines: 1,
@@ -5164,7 +5207,7 @@ export class PrepScene extends Phaser.Scene {
             SaveStore.save();
             refreshOwned();
             drawBtn(false);
-            showToast(`兌換成功：${card.name}`, true);
+            showToast(`兌換成功：${getCardDisplayName(card.id)}`, true);
           });
           scrollCont.add(hit);
 

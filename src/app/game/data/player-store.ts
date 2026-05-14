@@ -84,8 +84,9 @@ export interface EffectiveStats {
   bloodlust?:                  number;
   bloodlustDmgPerStack?:       number;
   bloodlustMaxStacks?:         number;
-  bloodlustConvert?:           number;
-  bloodlustLifestealPerStack?: number;
+  sanguine?:                   number;
+  sanguineMaxStacks?:          number;
+  bloodlustAtkSpeedPerStack?:  number;
   damageSplash?:          number;
   damageSplashPct?:       number;
   damageSplashCount?:     number;
@@ -99,6 +100,10 @@ export interface EffectiveStats {
   summonFlowerChance?:   number;
   summonFlowerCap?:      number;
   summonFlowerCapPair?:  number;
+  skillFlowerChance?:    number;
+  skillFlowerCap?:       number;
+  skillFlowerHpPct?:     number;
+  summonFlowerDmgPct?:   number;
   flowerSummonMode?:     number;
   lavaSlimeCompanion?:   number;
   executeBelow15?:       number;

@@ -178,8 +178,9 @@ export const CardStore = {
       b.bloodlust                  = (b.bloodlust                  ?? 0) + (e.bloodlust                  ?? 0);
       b.bloodlustDmgPerStack       = (b.bloodlustDmgPerStack       ?? 0) + (e.bloodlustDmgPerStack       ?? 0);
       b.bloodlustMaxStacks         = (b.bloodlustMaxStacks         ?? 0) + (e.bloodlustMaxStacks         ?? 0);
-      b.bloodlustConvert           = (b.bloodlustConvert           ?? 0) + (e.bloodlustConvert           ?? 0);
-      b.bloodlustLifestealPerStack = (b.bloodlustLifestealPerStack ?? 0) + (e.bloodlustLifestealPerStack ?? 0);
+      b.sanguine                   = (b.sanguine                   ?? 0) + (e.sanguine                   ?? 0);
+      b.sanguineMaxStacks          = (b.sanguineMaxStacks          ?? 0) + (e.sanguineMaxStacks          ?? 0);
+      b.bloodlustAtkSpeedPerStack  = (b.bloodlustAtkSpeedPerStack  ?? 0) + (e.bloodlustAtkSpeedPerStack  ?? 0);
       b.damageSplash            = (b.damageSplash            ?? 0) + (e.damageSplash            ?? 0);
       b.damageSplashPct         = (b.damageSplashPct         ?? 0) + (e.damageSplashPct         ?? 0);
       b.damageSplashCount       = (b.damageSplashCount       ?? 0) + (e.damageSplashCount       ?? 0);
@@ -193,6 +194,10 @@ export const CardStore = {
       b.summonFlowerChance   = (b.summonFlowerChance   ?? 0) + (e.summonFlowerChance   ?? 0);
       b.summonFlowerCap      = (b.summonFlowerCap      ?? 0) + (e.summonFlowerCap      ?? 0);
       b.summonFlowerCapPair  = (b.summonFlowerCapPair  ?? 0) + (e.summonFlowerCapPair  ?? 0);
+      b.skillFlowerChance    = (b.skillFlowerChance    ?? 0) + (e.skillFlowerChance    ?? 0);
+      b.skillFlowerCap       = (b.skillFlowerCap       ?? 0) + (e.skillFlowerCap       ?? 0);
+      b.skillFlowerHpPct     = (b.skillFlowerHpPct     ?? 0) + (e.skillFlowerHpPct     ?? 0);
+      b.summonFlowerDmgPct   = (b.summonFlowerDmgPct   ?? 0) + (e.summonFlowerDmgPct   ?? 0);
       b.flowerSummonMode     = (b.flowerSummonMode     ?? 0) + (e.flowerSummonMode     ?? 0);
       b.lavaSlimeCompanion   = (b.lavaSlimeCompanion   ?? 0) + (e.lavaSlimeCompanion   ?? 0);
       b.executeBelow15       = (b.executeBelow15       ?? 0) + (e.executeBelow15       ?? 0);
@@ -218,7 +223,7 @@ export const CardStore = {
     const swordEnh = sword?.enhancement ?? 0;
     const enh8     = swordEnh >= 8;
     const MELEE_BEHAVIORS = ['slash180', 'whirlwind', 'dashPierce', 'aura', 'multiHit', 'chargeSlam'];
-    const meleeDef = MELEE_BEHAVIORS.includes(SkillTreeStore.getAttackMode()) ? 25 : 0;
+    const meleeDef = MELEE_BEHAVIORS.includes(SkillTreeStore.getAttackMode()) ? 15 : 0;
 
     // 精煉加成（每+2精煉 ATK/HP+X）
     const refineSteps = Math.floor(swordEnh / 2);
@@ -304,8 +309,9 @@ export const CardStore = {
       bloodlust:                  bonus.bloodlust,
       bloodlustDmgPerStack:       bonus.bloodlustDmgPerStack,
       bloodlustMaxStacks:         bonus.bloodlustMaxStacks,
-      bloodlustConvert:           bonus.bloodlustConvert,
-      bloodlustLifestealPerStack: bonus.bloodlustLifestealPerStack,
+      sanguine:                   bonus.sanguine,
+      sanguineMaxStacks:          bonus.sanguineMaxStacks,
+      bloodlustAtkSpeedPerStack:  bonus.bloodlustAtkSpeedPerStack,
       damageSplash:            bonus.damageSplash,
       damageSplashPct:         bonus.damageSplashPct,
       damageSplashCount:       bonus.damageSplashCount,
@@ -319,6 +325,10 @@ export const CardStore = {
       summonFlowerChance:   bonus.summonFlowerChance,
       summonFlowerCap:      bonus.summonFlowerCap,
       summonFlowerCapPair:  bonus.summonFlowerCapPair,
+      skillFlowerChance:    bonus.skillFlowerChance,
+      skillFlowerCap:       bonus.skillFlowerCap,
+      skillFlowerHpPct:     bonus.skillFlowerHpPct,
+      summonFlowerDmgPct:   bonus.summonFlowerDmgPct,
       flowerSummonMode:     bonus.flowerSummonMode,
       lavaSlimeCompanion:   bonus.lavaSlimeCompanion,
       executeBelow15:       bonus.executeBelow15,

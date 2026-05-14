@@ -2,7 +2,7 @@ export type EquipSlot     = 'hat' | 'outfit' | 'shoes' | 'ring1' | 'ring2' | 'sw
 export type EquipCategory = 'hat' | 'outfit' | 'shoes' | 'ring'  | 'sword';
 export type EquipQuality  = 'normal' | 'good' | 'fine' | 'perfect';
 export type StatKey       = 'atk' | 'hp' | 'def' | 'crit' | 'speed' | 'atkSpeed' | 'lifesteal' | 'evasion' | 'critDmg' | 'hpRegen' | 'dotBonus' | 'penetration';
-export type AttackBehavior = 'slash180' | 'whirlwind' | 'dashPierce' | 'projectile' | 'aura' | 'multiHit' | 'chargeSlam' | 'boomerang' | 'magicFire' | 'knifeThrow';
+export type AttackBehavior = 'slash180' | 'whirlwind' | 'dashPierce' | 'projectile' | 'aura' | 'multiHit' | 'chargeSlam' | 'boomerang' | 'magicFire' | 'knifeThrow' | 'flowerMode';
 
 export type Element = 'none' | 'water' | 'fire' | 'grass';
 
@@ -106,19 +106,24 @@ export interface StatBonus {
   overkillSplash?:      number;  // 溢出傷害AOE（1=啟用，半徑15px）
   overkillInfiniteChain?: number; // 溢出可無限連鎖
   overkillDmgPct?:        number; // 溢出傷害加成
-  bloodlust?:                  number; // 嗜血本能（1=啟用）
-  bloodlustDmgPerStack?:       number; // 每層傷害加成
-  bloodlustMaxStacks?:         number; // 嗜血上限層數
-  bloodlustConvert?:           number; // 轉化為吸血（1=啟用）
-  bloodlustLifestealPerStack?: number; // 每層吸血比例
+  bloodlust?:                  number; // 暴徒本能（1=啟用）
+  bloodlustDmgPerStack?:       number; // 暴徒：每層傷害加成
+  bloodlustMaxStacks?:         number; // 暴徒層數上限
+  sanguine?:                   number; // 嗜血本能（1=啟用）
+  sanguineMaxStacks?:          number; // 嗜血層數上限
+  bloodlustAtkSpeedPerStack?:  number; // 嗜血：每層攻速加成
   damageSplash?:          number; // 傷害濺射（1=啟用）
   damageSplashPct?:       number; // 濺射傷害比例
   damageSplashCount?:     number; // 濺射目標數量
   lightningStrike?:     number;  // 每秒落雷最遠敵人（1=啟用，ATK×12%）
   divineShieldChance?:  number;  // 攻擊時觸發神盾護體機率（DEF+20持續3秒，機率疊加）
-  summonFlowerChance?:  number;  // 攻擊時召喚友軍花怪機率（依當前星級）
-  summonFlowerCap?:     number;  // 友軍花怪上限 +N（基礎上限2，立即生效）
+  summonFlowerChance?:  number;  // 攻擊時召喚友軍花怪機率（卡片用）
+  summonFlowerCap?:     number;  // 友軍花怪上限 +N（卡片用）
   summonFlowerCapPair?: number;  // 友軍花怪上限 pair 加成（累積2才+1，菁英卡用）
+  skillFlowerChance?:   number;  // 攻擊時召喚不死花機率（技能樹用）
+  skillFlowerCap?:      number;  // 不死花同時存在上限（技能樹用，root=1）
+  skillFlowerHpPct?:    number;  // 不死花HP加成倍率（技能樹用）
+  summonFlowerDmgPct?:  number;  // 不死花傷害加成
   freeRevive?:          number;  // 每局免費復活次數（滿血，無敵1秒）
   // ── Boss卡片專屬效果 ──
   maxHpPct?:            number;  // 最大HP百分比變化（可負數，-0.2=-20%）
@@ -132,7 +137,7 @@ export interface StatBonus {
   infiniteDivineShield?:number;  // 無限神盾護體（1=啟用，受傷後立即重新觸發）
   weaponRefineAtk?:     number;  // 武器每精煉+2、ATK+X（累計）
   weaponRefineHp?:      number;  // 武器每精煉+2、HP+X（累計）
-  flowerSummonMode?:    number;  // 取消原攻擊，改為召喚花怪模式（最多3隻，CD 3s，ATK×45%，HP×100%，穿透，0.8s攻速，對BOSS-22.5%）
+  flowerSummonMode?:    number;  // 取消原攻擊，改為召喚花怪模式（最多3隻，CD 3s，ATK×35%，HP×100%，穿透，0.8s攻速，對BOSS-22.5%）
   lavaSlimeCompanion?:  number;  // 岩漿史萊姆夥伴（HP×120%，ATK×70%，40px巡邏，100px aggro，8s重生）
   executeBelow15?:      number;  // 敵人HP低於15%時直接斬殺
 }
@@ -237,6 +242,7 @@ export const BEHAVIOR_NAMES: Record<AttackBehavior, string> = {
   boomerang:  '迴旋飛刃',
   magicFire:   '地獄火',
   knifeThrow:  '飛刀投擲',
+  flowerMode:  '召喚植物',
 };
 
 export interface BehaviorInfo {
@@ -331,6 +337,14 @@ export const BEHAVIOR_INFO: Record<AttackBehavior, BehaviorInfo> = {
     relatedStats: [
       { stat: 'atk',      note: '決定傷害' },
       { stat: 'atkSpeed', note: '縮短冷卻' },
+    ],
+  },
+  flowerMode: {
+    desc:    '消耗充能召喚不死花友軍（ATK×35%、HP×100%、存活15秒），朝指定方向生成。',
+    formula: ['不死花傷害：攻擊力 × 35%', '不死花血量：最大HP × 100%', '充能冷卻：3秒 / 格'],
+    relatedStats: [
+      { stat: 'atk',   note: '決定不死花傷害' },
+      { stat: 'hp',    note: '決定不死花血量' },
     ],
   },
 };

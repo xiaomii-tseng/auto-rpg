@@ -3,21 +3,22 @@ import { StatBonus } from './equipment-data';
 
 export type AttackModeId =
   'aura' | 'projectile' | 'boomerang' | 'hellfire' |
-  'whirlwind' | 'slash180' | 'chargeSlam' | 'dashPierce' | 'multiHit' | 'knifeThrow';
+  'whirlwind' | 'slash180' | 'chargeSlam' | 'dashPierce' | 'multiHit' | 'knifeThrow' | 'flowerMode';
 
 export interface AttackModeInfo { id: AttackModeId; label: string; unlockedBy?: string; }
 
 export const ATTACK_MODES: AttackModeInfo[] = [
+  { id: 'slash180',    label: '半月斬'   },
   { id: 'aura',        label: '血環'     },
   { id: 'projectile',  label: '風刃'     },
   { id: 'boomerang',   label: '迴旋飛刃' },
   { id: 'hellfire',    label: '地獄火'   },
   { id: 'whirlwind',   label: '旋風斬'   },
-  { id: 'slash180',    label: '半月斬'   },
   { id: 'chargeSlam',  label: '蓄力重擊' },
   { id: 'dashPierce',  label: '瞬步斬'   },
   { id: 'multiHit',    label: '五連斬'   },
   { id: 'knifeThrow',  label: '飛刀投擲', unlockedBy: '6-1-2-1-2' },
+  { id: 'flowerMode',  label: '召喚植物', unlockedBy: '9-1-1-1'   },
 ];
 
 export interface SkillNode {
@@ -118,16 +119,25 @@ export const SKILL_NODES: SkillNode[] = [
   { id: '6',         label: '散射飛刀', desc: '每4秒散射飛刀（ATK×40%）',    x:  240, y:   50, isRoot: true },
   { id: '6-1',       label: '飛刀加速', desc: '冷卻 −2秒',                    x:  290, y:    5, parentId: '6'           },
   { id: '6-2',       label: '飛刀增援', desc: '飛刀數量加倍',                 x:  290, y:   50, parentId: '6'           },
-  { id: '6-1-2-1',   label: '飛刀強化', desc: '飛刀傷害 +30%',               x:  340, y:   28, parentId: '6-1', extraParentIds: ['6-2'] },
+  { id: '6-1-2-1',   label: '飛刀強化', desc: '飛刀傷害 +15%',               x:  340, y:   28, parentId: '6-1', extraParentIds: ['6-2'] },
   { id: '6-1-2-1-1', label: '追蹤飛刀', desc: '飛刀數量減半，改為追蹤敵人',  x:  390, y:   28, parentId: '6-1-2-1'    },
-  { id: '6-1-2-1-2', label: '飛刀投擲', desc: '解鎖攻擊模式：飛刀投擲（每次攻擊丟出追蹤飛刀）', x:  440, y:   28, parentId: '6-1-2-1-1'  },
+  { id: '6-1-2-1-2', label: '飛刀投擲', desc: '解鎖攻擊模式：飛刀投擲（每次攻擊丟出追蹤飛刀），飛刀傷害 +35%', x:  440, y:   28, parentId: '6-1-2-1-1'  },
 
-  // ── Cluster 7: 嗜血 (LEFT) ────────────────────────────────────────────────
-  { id: '7',     label: '嗜血本能', desc: '爆擊觸發嗜血（每層+0.5%傷害，持續3秒，上限5層）', x: -240, y:   50, isRoot: true },
-  { id: '7-1',   label: '嗜血強化', desc: '嗜血提升為每層 +1.5% 傷害',   x: -290, y:    5, parentId: '7'   },
-  { id: '7-1-1', label: '嗜血極限', desc: '嗜血上限 +5層',                x: -340, y:    5, parentId: '7-1' },
-  { id: '7-2',   label: '嗜血轉化', desc: '嗜血改為吸血效果（0.5%/層）', x: -290, y:   95, parentId: '7'   },
-  { id: '7-2-1', label: '吸血延伸', desc: '嗜血上限 +3層',                x: -340, y:   95, parentId: '7-2' },
+  // ── Cluster 7: 暴徒/嗜血 (LEFT) ─────────────────────────────────────────
+  { id: '7',     label: '暴徒本能', desc: '爆擊觸發暴徒效果（每層+0.5%傷害，持續3秒，上限5層）', x: -240, y:   15, isRoot: true },
+  { id: '7-1',   label: '暴徒強化', desc: '暴徒傷害提升為每層 +1.5%',    x: -305, y:   15, parentId: '7'   },
+  { id: '7-1-1', label: '暴徒極限', desc: '暴徒層數上限 +5',              x: -370, y:   15, parentId: '7-1' },
+  { id: '7-2',   label: '嗜血本能', desc: '命中觸發嗜血效果（每層 +1.5% 攻速，持續3秒，上限5層）', x: -240, y:   80, isRoot: true },
+  { id: '7-2-1', label: '嗜血強化', desc: '嗜血攻速提升為每層 +2.5%',    x: -305, y:   80, parentId: '7-2' },
+  { id: '7-2-2', label: '嗜血極限', desc: '嗜血層數上限 +5',              x: -370, y:   80, parentId: '7-2-1' },
+
+  // ── Cluster 9: 不死花召喚 (TOP CENTER, arc shape) ────────────────────────
+  { id: '9',           label: '不死花召喚',  desc: '攻擊低機率召喚不死花 (ATKx35%、HPx100%、15秒) 上限1朵',  x: -140, y: -250, isRoot: true       },
+  { id: '9-1',         label: '不死花強化',  desc: '不死花傷害 +30%',                                         x:  -95, y: -295, parentId: '9'         },
+  { id: '9-1-1',       label: '不死花增援',  desc: '不死花上限 +1',                                           x:  -30, y: -320, parentId: '9-1'       },
+  { id: '9-1-1-1',     label: '召喚植物',    desc: '解鎖攻擊模式：召喚植物，不死花傷害 +50%',                 x:   30, y: -320, parentId: '9-1-1'     },
+  { id: '9-1-1-1-1',   label: '不死花強韌',  desc: '不死花血量 +150%',                                       x:   95, y: -295, parentId: '9-1-1-1'   },
+  { id: '9-1-1-1-1-1', label: '不死花增援Ⅱ', desc: '不死花上限 +1',                                         x:  140, y: -250, parentId: '9-1-1-1-1' },
 
   // ── Cluster 8: 傷害溢出 (BOTTOM CENTER) ──────────────────────────────────
   { id: '8',     label: '傷害溢出', desc: '傷害溢出時對附近範圍內所有敵人造成溢出傷害', x:   0, y:  240, isRoot: true },
@@ -151,6 +161,7 @@ export const MODE_COLORS: Record<string, number> = {
   dashPierce:  0xffdd44,
   multiHit:    0xff66cc,
   knifeThrow:  0xddbbff,
+  flowerMode:  0x66ff88,
 };
 
 export const CLUSTER_COLORS: Record<string, number> = {
@@ -162,6 +173,7 @@ export const CLUSTER_COLORS: Record<string, number> = {
   '6': 0xaaaacc,
   '7': 0xff4466,
   '8': 0xcc66ff,
+  '9': 0x44ee88,
 };
 
 export function skillNodeColor(node: SkillNode): number {
@@ -207,6 +219,7 @@ export const SkillTreeStore = {
 
   resetAll(): void {
     _learned.clear();
+    _attackMode = 'slash180';
   },
 
   /** 將已學技能轉換為 StatBonus，由 CardStore.getTotalStats() 合併使用 */
@@ -249,12 +262,14 @@ export const SkillTreeStore = {
       overkillSplash:        (L('8') ? 1 : 0),
       overkillInfiniteChain: (L('8-1') ? 1 : 0),
       overkillDmgPct:        (L('8-1-1') ? 0.20 : 0),
-      // ── 嗜血本能 ──────────────────────────────────────────
+      // ── 暴徒本能（爆擊→傷害）─────────────────────────────
       bloodlust:                  (L('7') ? 1 : 0),
       bloodlustDmgPerStack:       (L('7') ? 0.005 : 0) + (L('7-1') ? 0.010 : 0),
-      bloodlustMaxStacks:         (L('7') ? 5 : 0) + (L('7-1-1') ? 5 : 0) + (L('7-2-1') ? 3 : 0),
-      bloodlustConvert:           (L('7-2') ? 1 : 0),
-      bloodlustLifestealPerStack: (L('7-2') ? 0.005 : 0),
+      bloodlustMaxStacks:         (L('7') ? 5 : 0) + (L('7-1-1') ? 5 : 0),
+      // ── 嗜血本能（命中→攻速）─────────────────────────────
+      sanguine:                   (L('7-2') ? 1 : 0),
+      sanguineMaxStacks:          (L('7-2') ? 5 : 0) + (L('7-2-2') ? 5 : 0),
+      bloodlustAtkSpeedPerStack:  (L('7-2') ? 0.015 : 0) + (L('7-2-1') ? 0.010 : 0),
       // ── 傷害濺射 ──────────────────────────────────────────
       damageSplash:          (L('2') ? 1 : 0),
       damageSplashPct:       (L('2') ? 0.10 : 0) + (L('2-1') ? 0.10 : 0),
@@ -268,7 +283,7 @@ export const SkillTreeStore = {
       knifeIntervalReduction:  (L('6-1') ? 2000 : 0),
       knifeDoubleCount:        (L('6-2') ? 1 : 0),
       knifeHoming:             (L('6-1-2-1-1') ? 1 : 0),
-      knifeDmgPct:             (L('6-1-2-1') ? 0.30 : 0) + (L('6-1-2-1-2') ? 0.30 : 0),
+      knifeDmgPct:             (L('6-1-2-1') ? 0.15 : 0) + (L('6-1-2-1-2') ? 0.35 : 0),
       // ── 召喚火球 ──────────────────────────────────────────
       orbitFireBalls:       (L('3') ? 2 : 0) + (L('3-1-1') ? 2 : 0),
       // ── 召喚冰球 ──────────────────────────────────────────
@@ -276,6 +291,11 @@ export const SkillTreeStore = {
       // ── 火球/冰球各自強化 ────────────────────────────────
       orbitFireBallDmgPct:  (L('3-1') ? 0.30 : 0),
       orbitIceBallDmgPct:   (L('4-1') ? 0.30 : 0),
+      // ── 不死花召喚 ────────────────────────────────────
+      skillFlowerChance:    (L('9') ? 0.065 : 0),
+      skillFlowerCap:       (L('9') ? 1 : 0) + (L('9-1-1') ? 1 : 0) + (L('9-1-1-1-1-1') ? 1 : 0),
+      skillFlowerHpPct:     (L('9-1-1-1-1') ? 1.50 : 0),
+      summonFlowerDmgPct:   (L('9-1') ? 0.30 : 0) + (L('9-1-1-1') ? 0.50 : 0),
     };
   },
 
