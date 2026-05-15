@@ -12,6 +12,7 @@ import { QuestStore, Quest, STAR_EQUIP_QUALITY, getStarWeights } from '../data/q
 import { SkillTreeStore, SKILL_NODES, SKILL_NODE_MAP, ATTACK_MODES, MODE_COLORS } from '../data/skill-tree-store';
 import { NetworkService } from '../network/network.service';
 import { SkinStore, SKINS } from '../data/skin-store';
+import { VirtualJoystick } from '../ui/joystick';
 import { VERSION } from '../version';
 
 
@@ -187,7 +188,7 @@ export class PrepScene extends Phaser.Scene {
   private _townZones: Array<{ wx: number; wy: number; hw: number; hh: number; ring: Phaser.GameObjects.Graphics; label: string; onActivate: () => void }> = [];
   private _townStoneRects: { x: number; y: number; r: number }[] = [];
   private _townBuildingRects: { cx: number; cy: number; hw: number; hh: number }[] = [];
-  private _dpadState = { up: false, down: false, left: false, right: false };
+  private _townJoystick?: VirtualJoystick;
   private _townCursors?: Phaser.Types.Input.Keyboard.CursorKeys;
   private _townWASD?: { up: Phaser.Input.Keyboard.Key; down: Phaser.Input.Keyboard.Key; left: Phaser.Input.Keyboard.Key; right: Phaser.Input.Keyboard.Key };
   private _townLocalNameLabel?: Phaser.GameObjects.Text;
@@ -5972,33 +5973,8 @@ export class PrepScene extends Phaser.Scene {
     this._townContainer?.add(this._townPlayerDebug);
   }
 
-  private _createTownDpad(H: number, _VIEW_Y: number, _VIEW_H: number): void {
-    // BOTTOM_H from global constant
-    const BTN = P(30);
-    const step = BTN + P(2);
-    const cx = P(55), cy = H - BOTTOM_H - P(58);
-
-    const dirs: { dir: 'up' | 'down' | 'left' | 'right'; label: string; ox: number; oy: number }[] = [
-      { dir: 'up',    label: '▲', ox: 0,    oy: -step },
-      { dir: 'down',  label: '▼', ox: 0,    oy:  step },
-      { dir: 'left',  label: '◀', ox: -step, oy: 0    },
-      { dir: 'right', label: '▶', ox:  step, oy: 0    },
-    ];
-    dirs.forEach(({ dir, label, ox, oy }) => {
-      const bx = cx + ox, by = cy + oy;
-      const gfx = this.add.graphics().setDepth(60).setAlpha(0.45);
-      gfx.fillStyle(0x334455);
-      gfx.fillRoundedRect(bx - BTN / 2, by - BTN / 2, BTN, BTN, P(6));
-      gfx.lineStyle(1.5, 0x7799bb, 0.8);
-      gfx.strokeRoundedRect(bx - BTN / 2, by - BTN / 2, BTN, BTN, P(6));
-      this.add.text(bx, by, label, { fontSize: F(12), color: '#99bbcc' })
-        .setOrigin(0.5).setDepth(61).setAlpha(0.7);
-      const hit = this.add.rectangle(bx, by, BTN + P(4), BTN + P(4))
-        .setInteractive({ useHandCursor: false }).setDepth(62).setAlpha(0.001);
-      hit.on('pointerdown', (ptr: Phaser.Input.Pointer) => { ptr.event.stopPropagation(); this._dpadState[dir] = true;  gfx.setAlpha(0.75); });
-      hit.on('pointerup',   () => { this._dpadState[dir] = false; gfx.setAlpha(0.45); });
-      hit.on('pointerout',  () => { this._dpadState[dir] = false; gfx.setAlpha(0.45); });
-    });
+  private _createTownDpad(_H: number, _VIEW_Y: number, _VIEW_H: number): void {
+    this._townJoystick = new VirtualJoystick(this);
   }
 
   private _createForestBorder(WW: number, WH: number): void {
@@ -6467,12 +6443,15 @@ export class PrepScene extends Phaser.Scene {
     const MARGIN = P(20);
 
     const keys = this._townCursors, wasd = this._townWASD;
-    let dx = 0, dy = 0;
-    if (keys?.left.isDown  || wasd?.left.isDown  || this._dpadState.left)  dx -= 1;
-    if (keys?.right.isDown || wasd?.right.isDown || this._dpadState.right) dx += 1;
-    if (keys?.up.isDown    || wasd?.up.isDown    || this._dpadState.up)    dy -= 1;
-    if (keys?.down.isDown  || wasd?.down.isDown  || this._dpadState.down)  dy += 1;
-    if (dx !== 0 && dy !== 0) { dx *= 0.707; dy *= 0.707; }
+    const joy  = this._townJoystick?.value;
+    let dx = joy?.x ?? 0;
+    let dy = joy?.y ?? 0;
+    if (keys?.left.isDown  || wasd?.left.isDown)  dx -= 1;
+    if (keys?.right.isDown || wasd?.right.isDown) dx += 1;
+    if (keys?.up.isDown    || wasd?.up.isDown)    dy -= 1;
+    if (keys?.down.isDown  || wasd?.down.isDown)  dy += 1;
+    const dlen = Math.sqrt(dx * dx + dy * dy);
+    if (dlen > 1) { dx /= dlen; dy /= dlen; }
 
     const PHW = P(13), PHH = P(5), PHY = P(10); // ← 半寬/半高/中心往下偏移
     const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
