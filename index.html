@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en" data-beasties-container>
+  <head>
+    <meta charset="utf-8">
+    <script>
+      // Compute effective DPR once so all game modules use the same value.
+      // Cap canvas pixels to ~1920×1080 to keep performance on low-end GPUs.
+      (function () {
+        var raw = window.devicePixelRatio || 1;
+        var maxByPixels = Math.sqrt(1920 * 1080 / (window.innerWidth * window.innerHeight));
+        window.__gameDpr = Math.min(raw, maxByPixels, 3);
+      })();
+    </script>
+    <title>Angular</title>
+    <base href="/auto-rpg/">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
+    <link rel="manifest" href="manifest.webmanifest">
+  <style>html,body,app-root{margin:0;padding:0;width:100%;height:100%;overflow:hidden;touch-action:none;background:#000;display:block}</style><link rel="stylesheet" href="styles-5FO5G3CS.css" media="print" onload="this.media='all'"><noscript><link rel="stylesheet" href="styles-5FO5G3CS.css"></noscript></head>
+  <body>
+    <app-root></app-root>
+    <noscript>Please enable JavaScript to continue using this application.</noscript>
+  <script src="main-5M7ND7CH.js" type="module"></script></body>
+</html>
