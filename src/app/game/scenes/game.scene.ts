@@ -136,6 +136,7 @@ export class GameScene extends Phaser.Scene {
   private bossMonsterId = 'boss_slime_white';
   private questStar = 1;
   private _mapSeed = 0;
+  private _mapTheme: 'grassland' | 'desert' | 'snow' | 'lava' | 'forest' | 'dungeon' = 'grassland';
   private _initBossId?: string;
   private _initQuestStar?: number;
   private _mapParams?: MapParams;
@@ -259,8 +260,10 @@ export class GameScene extends Phaser.Scene {
     this.generateTextures();
   }
 
-  init(data: { seed?: number; questStar?: number; bossMonsterId?: string; mapParams?: MapParams; partnerNickname?: string; ownSkinId?: number; partnerSkinId?: number }): void {
+  init(data: { seed?: number; questStar?: number; bossMonsterId?: string; mapParams?: MapParams; partnerNickname?: string; ownSkinId?: number; partnerSkinId?: number; mapTheme?: GameScene['_mapTheme'] }): void {
     this._mapSeed = data?.seed ?? Math.floor(Math.random() * 1_000_000);
+    const themes = ['grassland', 'desert', 'snow', 'lava', 'forest', 'dungeon'] as const;
+    this._mapTheme = data?.mapTheme ?? themes[new SeededRNG(this._mapSeed + 77777).between(0, themes.length - 1)];
     this._initQuestStar = data?.questStar;
     this._initBossId = data?.bossMonsterId;
     this._mapParams = data?.mapParams;
@@ -2839,68 +2842,38 @@ export class GameScene extends Phaser.Scene {
     const sharedMask = maskGfx.createGeometryMask();
 
     // ── Layer -1: dark cliff wall face (below grass) ─────
-    // strokeAll draws inner lines too, but they're hidden by the grass layer on top.
-    // Only the part outside the mask (corridor boundary outward) stays visible.
+    const wallColorMap: Record<string, [number, number, number]> = {
+      grassland: [0x060e02, 0x0f2205, 0x1a3a08],
+      desert:    [0x3a2008, 0x5a3810, 0x7a5020],
+      snow:      [0x1a2a3a, 0x2a3a4e, 0x3a4e62],
+      lava:      [0x100404, 0x1e0808, 0x2a1008],
+      forest:    [0x080e04, 0x10180a, 0x1a2810],
+      dungeon:   [0x0a0a10, 0x141420, 0x1e1e2e],
+    };
+    const wallColors = wallColorMap[this._mapTheme];
     const wallFace = this.add.graphics().setDepth(-0.5);
-    wallFace.lineStyle(P(28), 0x060e02, 1.0); strokeAll(wallFace);
-    wallFace.lineStyle(P(14), 0x0f2205, 0.90); strokeAll(wallFace);
-    wallFace.lineStyle(P(6), 0x1a3a08, 0.70); strokeAll(wallFace);
+    wallFace.lineStyle(P(28), wallColors[0], 1.0); strokeAll(wallFace);
+    wallFace.lineStyle(P(14), wallColors[1], 0.90); strokeAll(wallFace);
+    wallFace.lineStyle(P(6),  wallColors[2], 0.70); strokeAll(wallFace);
 
-    // ── Layer 0: base grass (masked to corridor) ─────────
-    // Use Tilemap (not TileSprite which allocates a worldW×worldH canvas).
-    // Scale the 64×64 source texture to P(64)×P(64) so tiles have integer pixel size,
-    // eliminating the sub-pixel gaps that appear when using setScale(fractionalDPR).
+    // ── Layer 0: base floor (masked to corridor) ─────────
+    const floorSrcKey = { grassland: 'grass', desert: 'desert_floor', snow: 'snow_floor', lava: 'lava_floor', forest: 'forest_floor', dungeon: 'dungeon_floor' }[this._mapTheme];
+    const floorTileKey = `${floorSrcKey}_tile`;
     {
       const SZ = P(64);
-      if (!this.textures.exists('grass_tile')) {
+      if (!this.textures.exists(floorTileKey)) {
         const canvas = document.createElement('canvas');
         canvas.width = SZ; canvas.height = SZ;
         const ctx = canvas.getContext('2d')!;
         ctx.imageSmoothingEnabled = false;
-        ctx.drawImage((this.textures.get('grass').source[0] as any).image, 0, 0, SZ, SZ);
-        this.textures.addCanvas('grass_tile', canvas);
+        ctx.drawImage((this.textures.get(floorSrcKey).source[0] as any).image, 0, 0, SZ, SZ);
+        this.textures.addCanvas(floorTileKey, canvas);
       }
       const gcols = Math.ceil(this.worldW / SZ) + 1, grows = Math.ceil(this.worldH / SZ) + 1;
       const gMap = this.make.tilemap({ tileWidth: SZ, tileHeight: SZ, width: gcols, height: grows });
-      const gLayer = gMap.createBlankLayer('grass_bg', gMap.addTilesetImage('grass_tile', 'grass_tile', SZ, SZ, 0, 0)!, 0, 0)!;
-      gMap.fill(0, 0, 0, gcols, grows, false, 'grass_bg');
+      const gLayer = gMap.createBlankLayer('floor_bg', gMap.addTilesetImage(floorTileKey, floorTileKey, SZ, SZ, 0, 0)!, 0, 0)!;
+      gMap.fill(0, 0, 0, gcols, grows, false, 'floor_bg');
       gLayer.setDepth(0).setMask(sharedMask);
-    }
-
-    // ── Layer 0.3: subtle inner-edge AO (fill, not stroke) ─
-    // Fill the walkable area dark at low alpha → then the grass on top is already drawn.
-    // We want ONLY the border ring dark, so we fill the whole area dark first, then
-    // fill a slightly inset version with slightly lighter grass tint to cancel center.
-    // Simpler: just fill border areas of each segment individually.
-    const aoGfx = this.add.graphics().setDepth(0.3).setMask(sharedMask);
-    // 走廊條帶兩端各裁切 rw，避免延伸進房間造成深色線
-    const aoTrim = hw * 2.2;
-    aoGfx.fillStyle(0x000000, 0.22);
-    for (const s of this.corridorSegs) {
-      if (Math.abs(s.y1 - s.y2) < 1) {               // 水平走廊
-        const x0 = Math.min(s.x1, s.x2) + aoTrim;
-        const x1b = Math.max(s.x1, s.x2) - aoTrim;
-        if (x1b <= x0) continue;
-        const ry = s.y1 - hw;
-        aoGfx.fillRect(x0, ry, x1b - x0, P(48));
-        aoGfx.fillRect(x0, ry + hw * 2 - P(48), x1b - x0, P(48));
-      } else {                                          // 垂直走廊
-        const y0 = Math.min(s.y1, s.y2) + aoTrim;
-        const y1b = Math.max(s.y1, s.y2) - aoTrim;
-        if (y1b <= y0) continue;
-        const rx = s.x1 - hw;
-        aoGfx.fillRect(rx, y0, P(48), y1b - y0);
-        aoGfx.fillRect(rx + hw * 2 - P(48), y0, P(48), y1b - y0);
-      }
-    }
-    // 房間角落 AO（只畫房間邊框，不穿入走廊）
-    aoGfx.fillStyle(0x000000, 0.16);
-    for (const c of [...this.cornerPts, ...this.waypoints]) {
-      const rw2 = this.CORR_HW * 2.2;
-      aoGfx.fillRect(c.x - rw2, c.y - rw2, rw2 * 2, P(40));
-      aoGfx.fillRect(c.x - rw2, c.y + rw2 - P(40), rw2 * 2, P(40));
-      aoGfx.fillRect(c.x - rw2, c.y - rw2, P(40), rw2 * 2);
-      aoGfx.fillRect(c.x + rw2 - P(40), c.y - rw2, P(40), rw2 * 2);
     }
 
     // walls handled by buildWallTilemap() after generateAndDrawMap()
@@ -2983,43 +2956,159 @@ export class GameScene extends Phaser.Scene {
         const jx = gx + Phaser.Math.Between(-P(60), P(60));
         const jy = gy + Phaser.Math.Between(-P(60), P(60));
         if (!this.isInOpenArea(jx, jy)) continue;
+        if (this.waypoints.some(wp => Phaser.Math.Distance.Between(jx, jy, wp.x, wp.y) < P(120))) continue;
+        this.spawnThemeDeco(jx, jy);
+      }
+    }
+  }
 
-        // Keep clear around waypoints so combat space is unobstructed
-        const tooClose = this.waypoints.some(
-          wp => Phaser.Math.Distance.Between(jx, jy, wp.x, wp.y) < P(120),
-        );
-        if (tooClose) continue;
+  private spawnThemeDeco(jx: number, jy: number): void {
+    const roll = Phaser.Math.Between(0, 9);
+    const D = jy + P(8);
 
-        const roll = Phaser.Math.Between(0, 9);
+    switch (this._mapTheme) {
+
+      case 'grassland':
         if (roll < 6) {
-          // Small rock — player can walk behind it
-          const sc = Phaser.Math.FloatBetween(0.55, 0.85) * DPR;
-          this.add.image(jx, jy, 'rock')
-            .setScale(sc)
-            .setDepth(jy + P(12))
-            .setTint(0xbbbbaa);
+          this.add.image(jx, jy, 'rock').setScale(Phaser.Math.FloatBetween(0.55, 0.85) * DPR).setDepth(D).setTint(0xbbbbaa);
         } else if (roll < 9) {
-          // Grass tuft cluster
+          // Grass bushes — each blade breathes at a different phase (wind sway)
           for (let k = 0; k < Phaser.Math.Between(2, 4); k++) {
-            const ox = Phaser.Math.Between(-P(14), P(14));
-            const oy = Phaser.Math.Between(-P(8), P(8));
-            this.add.graphics()
-              .setDepth(jy + oy + P(4))
-              .fillStyle(0x3a7a1a, 0.7)
-              .fillEllipse(jx + ox, jy + oy, Phaser.Math.Between(P(10), P(18)), Phaser.Math.Between(P(6), P(10)));
+            const ox = Phaser.Math.Between(-P(14), P(14)), oy = Phaser.Math.Between(-P(8), P(8));
+            const bush = this.add.graphics().setDepth(D);
+            bush.fillStyle(0x3a7a1a, 0.7); bush.fillEllipse(jx + ox, jy + oy, Phaser.Math.Between(P(10), P(18)), Phaser.Math.Between(P(6), P(10)));
+            this.tweens.add({ targets: bush, alpha: { from: 0.45, to: 0.90 }, duration: Phaser.Math.Between(900, 1600), yoyo: true, repeat: -1, ease: 'Sine.easeInOut', delay: k * 220 });
           }
         } else {
-          // Tiny dark pebble group
           for (let k = 0; k < 3; k++) {
-            const ox = Phaser.Math.Between(-P(10), P(10));
-            const oy = Phaser.Math.Between(-P(6), P(6));
-            this.add.graphics()
-              .setDepth(jy + oy + P(2))
-              .fillStyle(0x555544, 0.6)
-              .fillCircle(jx + ox, jy + oy, Phaser.Math.Between(P(2), P(4)));
+            const ox = Phaser.Math.Between(-P(10), P(10)), oy = Phaser.Math.Between(-P(6), P(6));
+            this.add.graphics().setDepth(D).fillStyle(0x555544, 0.6).fillCircle(jx + ox, jy + oy, Phaser.Math.Between(P(2), P(4)));
           }
         }
-      }
+        break;
+
+      case 'desert':
+        if (roll < 5) {
+          // Cactus — gentle pulse like heat shimmer
+          const g = this.add.graphics().setDepth(D);
+          g.fillStyle(0x4a8a30, 1); g.fillRect(jx - P(3), jy - P(14), P(6), P(18));
+          g.fillRect(jx - P(10), jy - P(8), P(7), P(4));
+          g.fillRect(jx + P(3), jy - P(6), P(7), P(4));
+          this.tweens.add({ targets: g, alpha: { from: 0.75, to: 1.0 }, duration: Phaser.Math.Between(1800, 2800), yoyo: true, repeat: -1, ease: 'Sine.easeInOut', delay: Phaser.Math.Between(0, 1000) });
+        } else if (roll < 8) {
+          // Sandy rock
+          this.add.image(jx, jy, 'rock').setScale(Phaser.Math.FloatBetween(0.5, 0.8) * DPR).setDepth(D).setTint(0xc8a060);
+        } else {
+          // Sand ripple — fades in and out like wind-driven ridges
+          const g = this.add.graphics().setDepth(D);
+          for (let k = 0; k < 3; k++) {
+            g.lineStyle(P(1), 0xb08040, 0.45 - k * 0.1);
+            g.beginPath(); g.arc(jx, jy + P(k * 5), P(10 + k * 4), Math.PI, 0); g.strokePath();
+          }
+          this.tweens.add({ targets: g, alpha: { from: 0.15, to: 0.85 }, duration: Phaser.Math.Between(1500, 2500), yoyo: true, repeat: -1, ease: 'Sine.easeInOut', delay: Phaser.Math.Between(0, 1200) });
+        }
+        break;
+
+      case 'snow':
+        if (roll < 4) {
+          // Ice crystal — shimmer
+          const g = this.add.graphics().setDepth(D);
+          g.fillStyle(0xaad8f8, 0.85);
+          for (const [a, l] of [[0, P(10)],[60, P(8)],[120, P(9)],[180, P(10)],[240, P(8)],[300, P(9)]] as number[][]) {
+            const rad = Phaser.Math.DegToRad(a);
+            g.fillRect(jx + Math.cos(rad) * l - P(1), jy + Math.sin(rad) * l - P(1), P(2), P(2));
+            g.lineStyle(P(1), 0xaad8f8, 0.7); g.beginPath(); g.moveTo(jx, jy); g.lineTo(jx + Math.cos(rad) * l, jy + Math.sin(rad) * l); g.strokePath();
+          }
+          this.tweens.add({ targets: g, alpha: { from: 0.4, to: 1.0 }, duration: Phaser.Math.Between(1200, 2200), yoyo: true, repeat: -1, ease: 'Sine.easeInOut', delay: Phaser.Math.Between(0, 1200) });
+        } else if (roll < 7) {
+          // Snowdrift — subtle alpha pulse like snow settling
+          const g = this.add.graphics().setDepth(D);
+          g.fillStyle(0xddeeff, 0.60); g.fillEllipse(jx, jy, P(28), P(10));
+          g.fillStyle(0xffffff, 0.40); g.fillEllipse(jx - P(4), jy - P(2), P(16), P(7));
+          this.tweens.add({ targets: g, alpha: { from: 0.50, to: 0.90 }, duration: Phaser.Math.Between(2000, 3500), yoyo: true, repeat: -1, ease: 'Sine.easeInOut', delay: Phaser.Math.Between(0, 1500) });
+        } else {
+          // Frozen rock
+          this.add.image(jx, jy, 'rock').setScale(Phaser.Math.FloatBetween(0.5, 0.8) * DPR).setDepth(D).setTint(0x88aace);
+        }
+        break;
+
+      case 'lava':
+        if (roll < 4) {
+          // Lava pool glow — pulse alpha
+          const g = this.add.graphics().setDepth(D - 2);
+          g.fillStyle(0xff4400, 0.25); g.fillEllipse(jx, jy, P(22), P(14));
+          g.fillStyle(0xff8800, 0.40); g.fillEllipse(jx, jy, P(14), P(9));
+          g.fillStyle(0xffcc44, 0.60); g.fillEllipse(jx, jy, P(6), P(4));
+          this.tweens.add({ targets: g, alpha: { from: 0.55, to: 1.0 }, duration: Phaser.Math.Between(800, 1400), yoyo: true, repeat: -1, ease: 'Sine.easeInOut', delay: Phaser.Math.Between(0, 800) });
+        } else if (roll < 7) {
+          // Volcanic rock chunk
+          const g = this.add.graphics().setDepth(D);
+          g.fillStyle(0x1e1008, 1); g.fillEllipse(jx, jy, Phaser.Math.Between(P(14), P(22)), Phaser.Math.Between(P(10), P(16)));
+          g.fillStyle(0xff3300, 0.30); g.fillRect(jx - P(2), jy - P(1), P(4), P(2));
+        } else {
+          // Ember sparks — float upward and reset
+          for (let k = 0; k < 4; k++) {
+            const ox = Phaser.Math.Between(-P(12), P(12)), oy = Phaser.Math.Between(-P(8), P(8));
+            const sp = this.add.graphics().setDepth(D);
+            sp.fillStyle(0xff6600, 0.7); sp.fillCircle(ox, oy, Phaser.Math.Between(P(1), P(2)));
+            sp.setPosition(jx, jy);
+            this.tweens.add({ targets: sp, y: sp.y - P(14), alpha: 0, duration: Phaser.Math.Between(700, 1300), delay: Phaser.Math.Between(0, 700), repeat: -1, onRepeat: (tw: Phaser.Tweens.Tween) => { const t = tw.targets[0] as Phaser.GameObjects.Graphics; t.y = jy + oy; t.setAlpha(0.7); } });
+          }
+        }
+        break;
+
+      case 'forest':
+        if (roll < 4) {
+          // Tree stump
+          const g = this.add.graphics().setDepth(D);
+          g.fillStyle(0x5a3810, 1); g.fillEllipse(jx, jy, P(18), P(12));
+          g.fillStyle(0x7a5028, 0.6); g.fillEllipse(jx, jy - P(2), P(14), P(8));
+          g.lineStyle(P(1), 0x3a2008, 0.5); g.strokeEllipse(jx, jy, P(18), P(12));
+        } else if (roll < 7) {
+          // Mushroom — gently bobs up/down like it's breathing
+          const g = this.add.graphics().setDepth(D);
+          g.fillStyle(0xddd8c8, 1); g.fillRect(jx - P(2), jy - P(6), P(4), P(8));
+          g.fillStyle(0xcc4422, 1); g.fillEllipse(jx, jy - P(8), P(14), P(10));
+          g.fillStyle(0xffffff, 0.6);
+          for (const [ox, oy] of [[-P(3), -P(7)], [P(2), -P(9)], [-P(1), -P(5)]] as number[][])
+            g.fillCircle(jx + ox, jy + oy, P(1.5));
+        } else {
+          // Moss patch — each blob breathes at different phases (moisture shimmer)
+          for (let k = 0; k < Phaser.Math.Between(2, 4); k++) {
+            const ox = Phaser.Math.Between(-P(12), P(12)), oy = Phaser.Math.Between(-P(8), P(8));
+            const moss = this.add.graphics().setDepth(D);
+            moss.fillStyle(0x508828, 0.55); moss.fillEllipse(jx + ox, jy + oy, Phaser.Math.Between(P(8), P(16)), Phaser.Math.Between(P(5), P(9)));
+            this.tweens.add({ targets: moss, alpha: { from: 0.30, to: 0.75 }, duration: Phaser.Math.Between(1400, 2400), yoyo: true, repeat: -1, ease: 'Sine.easeInOut', delay: k * 350 });
+          }
+        }
+        break;
+
+      case 'dungeon':
+        if (roll < 4) {
+          // Skull & bones — eerie dim flicker like candlelight reflection
+          const g = this.add.graphics().setDepth(D);
+          g.fillStyle(0xd8d8c8, 0.80); g.fillCircle(jx, jy - P(4), P(5));
+          g.fillRect(jx - P(6), jy, P(12), P(2));
+          g.fillRect(jx - P(4), jy + P(3), P(3), P(5));
+          g.fillRect(jx + P(1), jy + P(3), P(3), P(5));
+          this.tweens.add({ targets: g, alpha: { from: 0.40, to: 0.90 }, duration: Phaser.Math.Between(350, 700), yoyo: true, repeat: -1, ease: 'Sine.easeInOut', delay: Phaser.Math.Between(0, 500) });
+        } else if (roll < 7) {
+          // Cobweb — slowly sways as if in a draft
+          const g = this.add.graphics().setDepth(D);
+          g.lineStyle(P(1), 0xbbbbcc, 0.45);
+          for (let k = 0; k < 4; k++) {
+            g.beginPath(); g.moveTo(jx, jy); g.lineTo(jx + Phaser.Math.Between(-P(16), P(16)), jy + Phaser.Math.Between(-P(10), P(10))); g.strokePath();
+          }
+          g.strokeEllipse(jx, jy, P(12), P(8));
+          this.tweens.add({ targets: g, alpha: { from: 0.20, to: 0.60 }, duration: Phaser.Math.Between(2000, 3200), yoyo: true, repeat: -1, ease: 'Sine.easeInOut', delay: Phaser.Math.Between(0, 1000) });
+        } else {
+          // Rusty chains / debris
+          for (let k = 0; k < 3; k++) {
+            const ox = Phaser.Math.Between(-P(10), P(10)), oy = Phaser.Math.Between(-P(6), P(6));
+            this.add.graphics().setDepth(D).fillStyle(0x6a5030, 0.65).fillRect(jx + ox - P(2), jy + oy - P(1), P(5), P(2));
+          }
+        }
+        break;
     }
   }
 
@@ -7262,6 +7351,106 @@ export class GameScene extends Phaser.Scene {
       }
       gg.generateTexture('grass', 64, 64);
       gg.destroy();
+    }
+
+    // ── 沙漠地板 ────────────────────────────────────────────
+    if (!this.textures.exists('desert_floor')) {
+      const g = (this.make.graphics as any)({ x: 0, y: 0, add: false }) as Phaser.GameObjects.Graphics;
+      g.fillStyle(0xd4a94f, 1); g.fillRect(0, 0, 64, 64);
+      g.fillStyle(0xc09040, 0.40); g.fillRect(0, 0, 30, 20); g.fillRect(34, 40, 30, 24);
+      g.fillStyle(0xe8c070, 0.35); g.fillRect(20, 0, 44, 30); g.fillRect(0, 34, 28, 30);
+      g.fillStyle(0xb07830, 0.20); g.fillRect(8, 50, 48, 14);
+      // sand ripples
+      g.fillStyle(0xa86820, 0.25);
+      for (const [x, y, w] of [[4,12,20],[28,20,18],[10,34,22],[38,44,16],[6,54,24]] as number[][])
+        g.fillRect(x, y, w, 2);
+      g.fillStyle(0xf0d890, 0.30);
+      for (const [x, y] of [[6,10],[30,18],[12,32],[40,42],[8,52]] as number[][])
+        g.fillRect(x, y, 8, 1);
+      g.fillStyle(0x987040, 0.40);
+      for (const [x, y] of [[18,28],[44,8],[8,46],[54,30],[32,56]] as number[][])
+        g.fillRect(x, y, 3, 2);
+      g.generateTexture('desert_floor', 64, 64); g.destroy();
+    }
+
+    // ── 雪地地板 ────────────────────────────────────────────
+    if (!this.textures.exists('snow_floor')) {
+      const g = (this.make.graphics as any)({ x: 0, y: 0, add: false }) as Phaser.GameObjects.Graphics;
+      g.fillStyle(0xe8f0f8, 1); g.fillRect(0, 0, 64, 64);
+      g.fillStyle(0xc8ddf0, 0.40); g.fillRect(0, 0, 28, 28); g.fillRect(36, 36, 28, 28);
+      g.fillStyle(0xd8eaf8, 0.30); g.fillRect(28, 0, 36, 32); g.fillRect(0, 32, 32, 32);
+      g.fillStyle(0xa0c0e0, 0.20); g.fillRect(10, 48, 44, 16);
+      // snowflake sparkles
+      g.fillStyle(0xffffff, 0.80);
+      for (const [x, y] of [[6,6],[22,14],[42,4],[54,20],[10,38],[28,50],[48,44],[60,32],[4,28],[36,24]] as number[][])
+        g.fillRect(x, y, 2, 2);
+      g.fillStyle(0xb8d4ee, 0.35);
+      for (const [x, y] of [[14,22],[38,10],[8,52],[56,46],[30,34]] as number[][])
+        g.fillRect(x, y, 4, 4);
+      g.fillStyle(0x88aacc, 0.25);
+      for (const [x, y] of [[20,40],[44,16],[6,60],[58,8],[32,28]] as number[][])
+        g.fillRect(x, y, 3, 2);
+      g.generateTexture('snow_floor', 64, 64); g.destroy();
+    }
+
+    // ── 熔岩地板 ────────────────────────────────────────────
+    if (!this.textures.exists('lava_floor')) {
+      const g = (this.make.graphics as any)({ x: 0, y: 0, add: false }) as Phaser.GameObjects.Graphics;
+      g.fillStyle(0x1c1008, 1); g.fillRect(0, 0, 64, 64);
+      g.fillStyle(0x160c06, 0.45); g.fillRect(0, 0, 32, 32); g.fillRect(32, 32, 32, 32);
+      g.fillStyle(0x241408, 0.35); g.fillRect(32, 0, 32, 32); g.fillRect(0, 32, 32, 32);
+      // 稀疏裂縫（只留三條）
+      g.fillStyle(0xcc4400, 0.50);
+      g.fillRect(10, 18, 1, 20);
+      g.fillRect(30, 8, 22, 1);
+      g.fillRect(44, 40, 1, 18);
+      // 暗岩石紋
+      g.fillStyle(0x2e1a0c, 0.55);
+      for (const [x, y] of [[6,6],[36,14],[20,44],[50,32],[8,54],[54,50]] as number[][])
+        g.fillRect(x, y, 5, 3);
+      g.generateTexture('lava_floor', 64, 64); g.destroy();
+    }
+
+    // ── 森林地板 ────────────────────────────────────────────
+    if (!this.textures.exists('forest_floor')) {
+      const g = (this.make.graphics as any)({ x: 0, y: 0, add: false }) as Phaser.GameObjects.Graphics;
+      g.fillStyle(0x2a4a1a, 1); g.fillRect(0, 0, 64, 64);
+      g.fillStyle(0x1e3812, 0.45); g.fillRect(0, 0, 28, 28); g.fillRect(36, 36, 28, 28);
+      g.fillStyle(0x3a5e22, 0.35); g.fillRect(28, 0, 36, 32); g.fillRect(0, 32, 32, 32);
+      g.fillStyle(0x4a6e2a, 0.25); g.fillRect(10, 48, 44, 16);
+      // roots
+      g.fillStyle(0x5a3810, 0.50);
+      for (const [x, y, w, h] of [[8,4,2,18],[10,20,12,1],[22,16,1,8],[36,8,2,16],[38,22,14,1],[50,14,1,10],[4,36,2,16],[6,50,18,1],[24,44,1,12],[42,36,2,16],[44,50,16,1]] as number[][])
+        g.fillRect(x, y, w, h);
+      // moss
+      g.fillStyle(0x60a030, 0.35);
+      for (const [x, y] of [[14,30],[30,10],[50,40],[6,54],[40,26],[58,12],[20,48],[46,58]] as number[][])
+        g.fillRect(x, y, 4, 3);
+      g.fillStyle(0x283818, 0.45);
+      for (const [x, y] of [[18,36],[44,18],[8,22],[56,44],[32,54],[4,44]] as number[][])
+        g.fillRect(x, y, 3, 2);
+      g.generateTexture('forest_floor', 64, 64); g.destroy();
+    }
+
+    // ── 地下城地板 ──────────────────────────────────────────
+    if (!this.textures.exists('dungeon_floor')) {
+      const g = (this.make.graphics as any)({ x: 0, y: 0, add: false }) as Phaser.GameObjects.Graphics;
+      g.fillStyle(0x585858, 1); g.fillRect(0, 0, 64, 64);
+      // stone tile grid
+      g.fillStyle(0x404040, 0.60);
+      for (const x of [0, 32]) for (const y of [0, 32]) g.fillRect(x, y, 1, 64);
+      for (const y of [0, 32]) for (const x of [0, 64]) g.fillRect(0, y, 64, 1);
+      g.fillStyle(0x686868, 0.45); g.fillRect(2, 2, 28, 28); g.fillRect(34, 34, 28, 28);
+      g.fillStyle(0x4e4e4e, 0.40); g.fillRect(34, 2, 28, 28); g.fillRect(2, 34, 28, 28);
+      // subtle light reflection
+      g.fillStyle(0x888888, 0.20);
+      for (const [x, y] of [[4,4],[36,4],[4,36],[36,36]] as number[][])
+        g.fillRect(x, y, 6, 2);
+      // grout cracks
+      g.fillStyle(0x303030, 0.50);
+      for (const [x, y] of [[10,16],[20,8],[48,20],[40,10],[12,44],[22,52],[50,40],[42,54]] as number[][])
+        g.fillRect(x, y, 4, 1);
+      g.generateTexture('dungeon_floor', 64, 64); g.destroy();
     }
     if (!this.textures.exists('stone')) {
       const sg = (this.make.graphics as any)({ x: 0, y: 0, add: false }) as Phaser.GameObjects.Graphics;

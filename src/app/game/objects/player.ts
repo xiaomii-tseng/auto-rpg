@@ -206,7 +206,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       repeat: 5,
     });
 
-    this.scene.time.delayedCall(1000, () => {
+    this.scene.time.delayedCall(600, () => {
       this.invincible = false;
       this.setAlpha(1);
       this.flashTween?.stop();
