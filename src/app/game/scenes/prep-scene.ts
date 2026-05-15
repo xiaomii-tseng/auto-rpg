@@ -154,6 +154,13 @@ export class PrepScene extends Phaser.Scene {
   private _partnerNick = '';
   private _partnerLevel = 0;
   private _partnerSkinId = 0;
+  // Party invite state
+  private _partyState: 'none' | 'in_party' = 'none';
+  private _amPartyLeader = false;
+  private _partyPartnerSid = '';
+  private _partyPanelObjs: Phaser.GameObjects.GameObject[] = [];
+  private _invitePopupObjs: Phaser.GameObjects.GameObject[] = [];
+  private _inviteCountdown?: ReturnType<typeof setTimeout>;
   private _sceneW = 0;
   private _sceneH = 0;
   private _heroY = 0;
@@ -363,37 +370,49 @@ export class PrepScene extends Phaser.Scene {
     });
 
     // Restore room state if returning from game while still connected.
-    // Schema state is unreliable (version mismatch) — rely purely on custom messages.
     if (NetworkService.connected) {
-      NetworkService.onPartnerJoined(data => {
-        this._partnerIn = true;
-        this._partnerNick = data.nickname || this._partnerNick || '?';
-        this._partnerLevel = data.level || this._partnerLevel || 1;
-        this._partnerSkinId = data.skinId ?? this._partnerSkinId ?? 0;
-        this.refreshRoomOverlay();
-      });
-      NetworkService.onPartnerLeft(() => { this._partnerIn = false; this.refreshRoomOverlay(); });
-      NetworkService.onRoomClosed(() => { NetworkService.disconnect(); this._partnerIn = false; this.refreshRoomOverlay(); this._showToast('房主已離開，房間關閉'); });
-      NetworkService.onGameStart(p => {
-        if (NetworkService.isHost) {
-          this.scene.start('GameScene', {
-            seed: p.seed, questStar: p.questStar, bossMonsterId: p.bossMonsterId,
-            mapParams: p.mapParams, partnerNickname: p.guestNickname,
-            ownSkinId: p.hostSkinId, partnerSkinId: p.guestSkinId,
-          });
-        } else {
-          try { if (p.questId) QuestStore.acceptQuest(p.questId); } catch { /* guest */ }
-          this.scene.start('GameScene', {
-            seed: p.seed, questStar: p.questStar, bossMonsterId: p.bossMonsterId,
-            mapParams: p.mapParams, partnerNickname: p.hostNickname,
-            ownSkinId: p.guestSkinId, partnerSkinId: p.hostSkinId,
-          });
-        }
-      });
-      // sendPlayerInfo triggers the server to send back the partner's info as partnerJoined
-      NetworkService.sendPlayerInfo(getPlayerName(), PlayerStore.getLevel(), SkinStore.get());
+      if (NetworkService.partyMode) {
+        // Returned from game via party invite — restore party panel
+        this._partyState    = 'in_party';
+        this._amPartyLeader = NetworkService.isHost;
+        const partner = NetworkService.getPartnerState() as any;
+        this._partnerIn   = !!partner;
+        this._partnerNick = partner?.nickname ?? '';
+        this._setupGameRoomCallbacks();
+        NetworkService.sendPlayerInfo(getPlayerName(), PlayerStore.getLevel(), SkinStore.get());
+        this.time.delayedCall(100, () => this._buildPartyPanel());
+      } else {
+        NetworkService.onPartnerJoined(data => {
+          this._partnerIn = true;
+          this._partnerNick = data.nickname || this._partnerNick || '?';
+          this._partnerLevel = data.level || this._partnerLevel || 1;
+          this._partnerSkinId = data.skinId ?? this._partnerSkinId ?? 0;
+          this.refreshRoomOverlay();
+        });
+        NetworkService.onPartnerLeft(() => { this._partnerIn = false; this.refreshRoomOverlay(); });
+        NetworkService.onRoomClosed(() => { NetworkService.disconnect(); this._partnerIn = false; this.refreshRoomOverlay(); this._showToast('房主已離開，房間關閉'); });
+        NetworkService.onGameStart(p => {
+          if (NetworkService.isHost) {
+            this.scene.start('BattleLoadScene', {
+              seed: p.seed, questStar: p.questStar, bossMonsterId: p.bossMonsterId,
+              mapParams: p.mapParams, partnerNickname: p.guestNickname,
+              ownSkinId: p.hostSkinId, partnerSkinId: p.guestSkinId,
+            });
+          } else {
+            try { if (p.questId) QuestStore.acceptQuest(p.questId); } catch { /* guest */ }
+            this.scene.start('BattleLoadScene', {
+              seed: p.seed, questStar: p.questStar, bossMonsterId: p.bossMonsterId,
+              mapParams: p.mapParams, partnerNickname: p.hostNickname,
+              ownSkinId: p.guestSkinId, partnerSkinId: p.hostSkinId,
+            });
+          }
+        });
+        NetworkService.sendPlayerInfo(getPlayerName(), PlayerStore.getLevel(), SkinStore.get());
+        this.time.delayedCall(100, () => this.refreshRoomOverlay());
+      }
+    } else {
+      this.time.delayedCall(100, () => this.refreshRoomOverlay());
     }
-    this.time.delayedCall(100, () => this.refreshRoomOverlay());
   }
 
   // ── Item icon textures (shared with GameScene) ──────────
@@ -497,13 +516,9 @@ export class PrepScene extends Phaser.Scene {
     avG.lineStyle(1, WH, 0.25);
     avG.strokeCircle(AV_CX, AV_CY, AV_R - P(4));
 
-    const lvAvatar = this.add.text(AV_CX, AV_CY - P(4), `${PlayerStore.getLevel()}`, {
+    const lvAvatar = this.add.text(AV_CX, AV_CY, `${PlayerStore.getLevel()}`, {
       fontSize: F(19), fontStyle: 'bold',
       color: '#ffe0a0', stroke: '#1a0800', strokeThickness: 2,
-    }).setOrigin(0.5).setDepth(32);
-    this.add.text(AV_CX, AV_CY + P(12), 'LV', {
-      fontSize: F(9), fontStyle: 'bold',
-      color: '#c09060', stroke: '#1a0800', strokeThickness: 1,
     }).setOrigin(0.5).setDepth(32);
 
     // Name
@@ -1161,7 +1176,7 @@ export class PrepScene extends Phaser.Scene {
         if (NetworkService.connected && NetworkService.isHost) {
           NetworkService.sendReady(getPlayerName(), PlayerStore.getLevel(), quest.id, quest.star, quest.bossId);
         } else {
-          this.scene.start('GameScene', { ownSkinId: SkinStore.get() });
+          this.scene.start('BattleLoadScene', { ownSkinId: SkinStore.get(), questStar: quest.star, bossMonsterId: quest.bossId });
         }
       });
 
@@ -5476,7 +5491,7 @@ export class PrepScene extends Phaser.Scene {
         NetworkService.onPartnerLeft(() => { this._partnerIn = false; this.refreshRoomOverlay(); });
         NetworkService.onRoomClosed(() => { NetworkService.disconnect(); this._partnerIn = false; this.refreshRoomOverlay(); this._showToast('房主已離開，房間關閉'); });
         NetworkService.onGameStart(p => {
-          this.scene.start('GameScene', {
+          this.scene.start('BattleLoadScene', {
             seed: p.seed, questStar: p.questStar, bossMonsterId: p.bossMonsterId,
             mapParams: p.mapParams, partnerNickname: p.guestNickname,
             ownSkinId: p.hostSkinId, partnerSkinId: p.guestSkinId,
@@ -5572,7 +5587,7 @@ export class PrepScene extends Phaser.Scene {
         NetworkService.onRoomClosed(() => { NetworkService.disconnect(); this._partnerIn = false; this.refreshRoomOverlay(); this._showToast('房主已離開，房間關閉'); });
         NetworkService.onGameStart(payload => {
           try { if (payload.questId) QuestStore.acceptQuest(payload.questId); } catch { /* guest */ }
-          this.scene.start('GameScene', {
+          this.scene.start('BattleLoadScene', {
             seed: payload.seed, questStar: payload.questStar, bossMonsterId: payload.bossMonsterId,
             mapParams: payload.mapParams, partnerNickname: payload.hostNickname,
             ownSkinId: payload.guestSkinId, partnerSkinId: payload.hostSkinId,
@@ -5612,6 +5627,7 @@ export class PrepScene extends Phaser.Scene {
   }
 
   private refreshRoomOverlay(): void {
+    if (this._partyState === 'in_party') return;
     this.roomOverlayObjs.forEach(o => o.destroy());
     this.roomOverlayObjs = [];
 
@@ -6148,7 +6164,10 @@ export class PrepScene extends Phaser.Scene {
       onActivate: () => void;
     }> = [
       { xf: 0.45, yf: 0.20, icon: '⚔', label: '出戰',  color: 0xcc4400, buildingKey: 'building_battle',
-        tapW: P(80), tapH: P(72), collW: P(120), collH: P(55), shadow: true, buildingScale: 1.4, labelBelow: true, onActivate: () => this.showQuestPanel(W, H) },
+        tapW: P(80), tapH: P(72), collW: P(120), collH: P(55), shadow: true, buildingScale: 1.4, labelBelow: true, onActivate: () => {
+          if (this._partyState === 'in_party' && !this._amPartyLeader) { this._showToast('你不是隊長'); return; }
+          this.showQuestPanel(W, H);
+        } },
       { xf: 0.33, yf: 0.65, icon: '✦', label: '商店',  color: 0xd47820, buildingKey: 'building_shop',
         tapW: P(80), tapH: P(72), collW: P(130), collH: P(55), tent: true, onActivate: () => this.showShopPanel(W, H) },
       { xf: 0.65, yf: 0.50, icon: '⚒', label: '鍛造',  color: 0xd47820, buildingKey: 'building_forge',
@@ -6356,12 +6375,254 @@ export class PrepScene extends Phaser.Scene {
       payload.existing?.forEach((p: any) =>
         this._spawnTownRemotePlayer(p.sessionId, p.x, p.y, p.lastDir, p.nickname, p.level, p.skinId),
       );
+
+      // ── Party invite callbacks ──────────────────────────────
+      NetworkService.onPartyInvite(data => {
+        if (this._partyState !== 'none') return;
+        this._showInvitePopup(data.fromSessionId, data.fromNickname);
+      });
+
+      NetworkService.onPartyAccepted(async data => {
+        // We are the leader — create GameRoom then forward code to guest
+        try {
+          await NetworkService.createRoom(getPlayerName());
+          NetworkService.partyMode = true;
+          this._setupGameRoomCallbacks();
+          NetworkService.sendPlayerInfo(getPlayerName(), PlayerStore.getLevel(), SkinStore.get());
+          NetworkService.sendPartyRoomReady(data.guestSessionId, NetworkService.gameCode);
+          this._partyState = 'in_party';
+          this._amPartyLeader = true;
+          this._partyPartnerSid = data.guestSessionId;
+          this._buildPartyPanel();
+        } catch { this._showToast('建立房間失敗'); }
+      });
+
+      NetworkService.onPartyRoomCode(async data => {
+        // We are the guest — join GameRoom via code
+        try {
+          await NetworkService.joinRoom(data.roomCode, getPlayerName());
+          NetworkService.partyMode = true;
+          this._setupGameRoomCallbacks();
+          NetworkService.sendPlayerInfo(getPlayerName(), PlayerStore.getLevel(), SkinStore.get());
+          this._partyState = 'in_party';
+          this._amPartyLeader = false;
+          this._buildPartyPanel();
+        } catch { this._showToast('加入房間失敗'); }
+      });
+
+      NetworkService.onPartyDeclined(data => {
+        this._showToast(data.reason === 'declined' ? '對方拒絕了邀請' : '對方不在線上');
+      });
+
+      NetworkService.onPartyCancelled(() => {
+        this._clearInvitePopup();
+        if (this._partyState === 'in_party') {
+          this._partyState = 'none';
+          this._destroyPartyPanel();
+          NetworkService.disconnect();
+          this._showToast('隊伍已解散');
+        }
+      });
     }).catch((err: any) => { console.warn('[Town] joinTown failed:', err); });
+  }
+
+  // ── Party system ─────────────────────────────────────────────────────────
+
+  private _setupGameRoomCallbacks(): void {
+    NetworkService.onPartnerLeft(() => {
+      this._partyState = 'none';
+      this._destroyPartyPanel();
+      NetworkService.disconnect();
+      this._showToast('隊伍已解散');
+    });
+    NetworkService.onRoomClosed(() => {
+      this._partyState = 'none';
+      this._destroyPartyPanel();
+      NetworkService.disconnect();
+      this._showToast('房間已關閉');
+    });
+    NetworkService.onGameStart(p => {
+      NetworkService.clearLobbyCallbacks();
+      if (NetworkService.isHost) {
+        this.scene.start('BattleLoadScene', {
+          seed: p.seed, questStar: p.questStar, bossMonsterId: p.bossMonsterId,
+          mapParams: p.mapParams, partnerNickname: p.guestNickname,
+          ownSkinId: p.hostSkinId, partnerSkinId: p.guestSkinId,
+        });
+      } else {
+        try { if (p.questId) QuestStore.acceptQuest(p.questId); } catch { /* guest */ }
+        this.scene.start('BattleLoadScene', {
+          seed: p.seed, questStar: p.questStar, bossMonsterId: p.bossMonsterId,
+          mapParams: p.mapParams, partnerNickname: p.hostNickname,
+          ownSkinId: p.guestSkinId, partnerSkinId: p.hostSkinId,
+        });
+      }
+    });
+  }
+
+  private _onTownPlayerClick(sessionId: string, nickname: string): void {
+    if (this._partyState !== 'none') return;
+    // Destroy any existing invite popup first
+    this._invitePopupObjs.forEach(o => o.destroy());
+    this._invitePopupObjs = [];
+
+    const W = this._sceneW, H = this._sceneH;
+    const PW = P(220), PH = P(80);
+    const px = W / 2 - PW / 2, py = H / 2 - PH / 2;
+    const D = 600;
+
+    const bg = this.add.graphics().setDepth(D);
+    bg.fillStyle(0x1a1200, 0.95);
+    bg.fillRoundedRect(px, py, PW, PH, P(8));
+    bg.lineStyle(P(2), 0x887733, 0.9);
+    bg.strokeRoundedRect(px, py, PW, PH, P(8));
+
+    const title = this.add.text(W / 2, py + P(18), `邀請 ${nickname} 組隊？`, {
+      fontSize: F(13), fontStyle: 'bold', color: '#ffe066', stroke: '#1a0800', strokeThickness: 2,
+    }).setOrigin(0.5, 0.5).setDepth(D + 1);
+
+    const confirmHit = this.add.rectangle(W / 2 - P(40), py + PH - P(20), P(70), P(26), 0x336633)
+      .setOrigin(0.5).setDepth(D + 1).setInteractive({ useHandCursor: true });
+    const confirmTxt = this.add.text(W / 2 - P(40), py + PH - P(20), '邀請', {
+      fontSize: F(13), fontStyle: 'bold', color: '#aaffaa',
+    }).setOrigin(0.5).setDepth(D + 2);
+
+    const cancelHit = this.add.rectangle(W / 2 + P(40), py + PH - P(20), P(50), P(26), 0x553333)
+      .setOrigin(0.5).setDepth(D + 1).setInteractive({ useHandCursor: true });
+    const cancelTxt = this.add.text(W / 2 + P(40), py + PH - P(20), '取消', {
+      fontSize: F(13), color: '#ffaaaa',
+    }).setOrigin(0.5).setDepth(D + 2);
+
+    const close = () => { this._invitePopupObjs.forEach(o => o.destroy()); this._invitePopupObjs = []; };
+
+    confirmHit.on('pointerup', (_p: any, _lx: any, _ly: any, ev: any) => {
+      ev?.stopPropagation?.();
+      close();
+      NetworkService.sendPartyInvite(sessionId, getPlayerName());
+      this._showToast('邀請已送出，等待對方回應…');
+    });
+    cancelHit.on('pointerup', (_p: any, _lx: any, _ly: any, ev: any) => { ev?.stopPropagation?.(); close(); });
+
+    this._invitePopupObjs = [bg, title, confirmHit, confirmTxt, cancelHit, cancelTxt];
+  }
+
+  private _showInvitePopup(fromSessionId: string, fromNickname: string): void {
+    this._clearInvitePopup();
+
+    const W = this._sceneW, H = this._sceneH;
+    const PW = P(260), PH = P(110);
+    const px = W / 2 - PW / 2, py = H / 2 - PH / 2;
+    const D = 610;
+
+    const bg = this.add.graphics().setDepth(D);
+    bg.fillStyle(0x1a1200, 0.97);
+    bg.fillRoundedRect(px, py, PW, PH, P(8));
+    bg.lineStyle(P(2), 0xcc9933, 0.9);
+    bg.strokeRoundedRect(px, py, PW, PH, P(8));
+
+    const title = this.add.text(W / 2, py + P(22), `${fromNickname} 邀請你組隊`, {
+      fontSize: F(14), fontStyle: 'bold', color: '#ffe066', stroke: '#1a0800', strokeThickness: 2,
+    }).setOrigin(0.5).setDepth(D + 1);
+
+    let secs = 30;
+    const countdown = this.add.text(W / 2, py + P(46), `(${secs}秒後自動拒絕)`, {
+      fontSize: F(11), color: '#aaaaaa',
+    }).setOrigin(0.5).setDepth(D + 1);
+
+    const acceptHit = this.add.rectangle(W / 2 - P(50), py + PH - P(22), P(80), P(28), 0x336633)
+      .setOrigin(0.5).setDepth(D + 1).setInteractive({ useHandCursor: true });
+    const acceptTxt = this.add.text(W / 2 - P(50), py + PH - P(22), '接受', {
+      fontSize: F(13), fontStyle: 'bold', color: '#aaffaa',
+    }).setOrigin(0.5).setDepth(D + 2);
+
+    const declineHit = this.add.rectangle(W / 2 + P(50), py + PH - P(22), P(80), P(28), 0x553333)
+      .setOrigin(0.5).setDepth(D + 1).setInteractive({ useHandCursor: true });
+    const declineTxt = this.add.text(W / 2 + P(50), py + PH - P(22), '拒絕', {
+      fontSize: F(13), color: '#ffaaaa',
+    }).setOrigin(0.5).setDepth(D + 2);
+
+    this._invitePopupObjs = [bg, title, countdown, acceptHit, acceptTxt, declineHit, declineTxt];
+
+    this._inviteCountdown = setInterval(() => {
+      secs--;
+      if (countdown.active) countdown.setText(`(${secs}秒後自動拒絕)`);
+      if (secs <= 0) this._clearInvitePopup();
+    }, 1000) as unknown as ReturnType<typeof setTimeout>;
+
+    acceptHit.on('pointerup', (_p: any, _lx: any, _ly: any, ev: any) => {
+      ev?.stopPropagation?.();
+      this._clearInvitePopup();
+      NetworkService.sendPartyInviteResponse(true, fromSessionId);
+    });
+    declineHit.on('pointerup', (_p: any, _lx: any, _ly: any, ev: any) => {
+      ev?.stopPropagation?.();
+      this._clearInvitePopup();
+      NetworkService.sendPartyInviteResponse(false, fromSessionId);
+    });
+  }
+
+  private _clearInvitePopup(): void {
+    if (this._inviteCountdown) { clearInterval(this._inviteCountdown as any); this._inviteCountdown = undefined; }
+    this._invitePopupObjs.forEach(o => o.destroy());
+    this._invitePopupObjs = [];
+  }
+
+  private _buildPartyPanel(): void {
+    this._destroyPartyPanel();
+    const W = this._sceneW, H = this._sceneH;
+    const PW = P(190), PH = P(100);
+    const px = W - PW - P(8), py = H - PH - P(70);
+    const D = 55;
+
+    const bg = this.add.graphics().setDepth(D);
+    bg.fillStyle(0x1a1200, 0.92);
+    bg.fillRoundedRect(px, py, PW, PH, P(6));
+    bg.lineStyle(P(2), 0x887733, 0.85);
+    bg.strokeRoundedRect(px, py, PW, PH, P(6));
+
+    const rawNick = this._townRemotePlayers.get(this._partyPartnerSid)?.nameLabel.text ?? '隊友';
+    const nick = rawNick.length > 8 ? rawNick.slice(0, 8) + '…' : rawNick;
+    const leaderLabel = this._amPartyLeader ? '♛ 你（隊長）' : `♛ ${nick}（隊長）`;
+    const memberLabel = this._amPartyLeader ? nick : '你';
+
+    const leader = this.add.text(px + P(10), py + P(14), leaderLabel, {
+      fontSize: F(15), fontStyle: 'bold', color: '#ffe066', stroke: '#1a0800', strokeThickness: 2,
+    }).setDepth(D + 1);
+    const member = this.add.text(px + P(10), py + P(38), memberLabel, {
+      fontSize: F(15), fontStyle: 'bold', color: '#ccddcc', stroke: '#1a0800', strokeThickness: 2,
+    }).setDepth(D + 1);
+
+    const disbandHit = this.add.rectangle(px + PW - P(34), py + P(14), P(52), P(26), 0x553333)
+      .setOrigin(0.5, 0).setDepth(D + 1).setInteractive({ useHandCursor: true });
+    const disbandTxt = this.add.text(px + PW - P(34), py + P(27), '解散', {
+      fontSize: F(15), fontStyle: 'bold', color: '#ffaaaa', stroke: '#1a0800', strokeThickness: 2,
+    }).setOrigin(0.5).setDepth(D + 2);
+
+    disbandHit.on('pointerup', (_p: any, _lx: any, _ly: any, ev: any) => {
+      ev?.stopPropagation?.();
+      NetworkService.sendPartyDisband(this._partyPartnerSid);
+      this._partyState = 'none';
+      this._destroyPartyPanel();
+      NetworkService.disconnect();
+      this._showToast('已解散隊伍');
+    });
+
+    const hint = this.add.text(px + P(10), py + P(72),
+      this._amPartyLeader ? '按出戰選關卡' : '等待隊長出發', {
+        fontSize: F(15), fontStyle: 'bold', color: '#888866', stroke: '#1a0800', strokeThickness: 1,
+      }).setDepth(D + 1);
+
+    this._partyPanelObjs = [bg, leader, member, disbandHit, disbandTxt, hint];
+  }
+
+  private _destroyPartyPanel(): void {
+    this._partyPanelObjs.forEach(o => o.destroy());
+    this._partyPanelObjs = [];
   }
 
   private _spawnTownRemotePlayer(
     sessionId: string, nx: number, ny: number, lastDir: string,
-    nickname: string, level: number, skinId: number,
+    nickname: string, _level: number, skinId: number,
   ): void {
     console.log('[Town] spawn remote player', sessionId, nx, ny);
     if (this._townRemotePlayers.has(sessionId)) return;
@@ -6393,19 +6654,17 @@ export class PrepScene extends Phaser.Scene {
     (sprite as any).__skinId = skinId;
     const initAnim = `town_remote_idle_${skinId}_${lastDir}`;
     if (this.anims.exists(initAnim)) sprite.play(initAnim, true);
+    sprite.setInteractive({ useHandCursor: true })
+      .on('pointerup', (_p: any, _lx: any, _ly: any, ev: any) => {
+        ev?.stopPropagation?.();
+        this._onTownPlayerClick(sessionId, nickname);
+      });
     this._townContainer?.add(sprite);
 
     const nameTxt = this.add.text(sx, sy - P(28), nickname || '?', {
       fontSize: F(11), color: '#aaddff', stroke: '#000000', strokeThickness: 2,
     }).setOrigin(0.5, 1).setDepth(11);
     this._townContainer?.add(nameTxt);
-
-    if (level > 1) {
-      const lvTxt = this.add.text(sx, sy - P(16), `Lv.${level}`, {
-        fontSize: F(9), color: '#88aacc',
-      }).setOrigin(0.5, 1).setDepth(11);
-      this._townContainer?.add(lvTxt);
-    }
 
     this._townRemotePlayers.set(sessionId, { sprite, nameLabel: nameTxt, fromX: sx, fromY: sy, targetX: sx, targetY: sy, lerpT: 1, lerpDur: 110 });
   }

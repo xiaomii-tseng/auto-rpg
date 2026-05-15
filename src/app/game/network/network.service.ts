@@ -34,6 +34,12 @@ interface TownCallbacks {
   townPlayerJoined?: (data: { sessionId: string; x: number; y: number; lastDir: string; nickname: string; level: number; skinId: number }) => void;
   townPlayerLeft?:   (data: { sessionId: string }) => void;
   townPlayerInfo?:   (data: { sessionId: string; nickname: string; level: number; skinId: number }) => void;
+  // Party invite flow
+  partyInvite?:    (data: { fromSessionId: string; fromNickname: string }) => void;
+  partyAccepted?:  (data: { guestSessionId: string }) => void;
+  partyDeclined?:  (data: { reason: string }) => void;
+  partyRoomCode?:  (data: { roomCode: string }) => void;
+  partyCancelled?: () => void;
 }
 
 // ── Replaceable callback slots ─────────────────────────────────────────────
@@ -72,6 +78,7 @@ class NetworkServiceClass {
   isHost    = false;
   sessionId = '';
   gameCode  = '';
+  partyMode = false; // true when room was formed via town party invite
 
   private _cbs: Callbacks = {};
   private _autoLobby = false;
@@ -424,6 +431,11 @@ class NetworkServiceClass {
     r.onMessage('townPlayerJoined', (d: any) => this._townCbs.townPlayerJoined?.(d));
     r.onMessage('townPlayerLeft',   (d: any) => this._townCbs.townPlayerLeft?.(d));
     r.onMessage('townPlayerInfo',   (d: any) => this._townCbs.townPlayerInfo?.(d));
+    r.onMessage('partyInvite',      (d: any) => this._townCbs.partyInvite?.(d));
+    r.onMessage('partyAccepted',    (d: any) => this._townCbs.partyAccepted?.(d));
+    r.onMessage('partyDeclined',    (d: any) => this._townCbs.partyDeclined?.(d));
+    r.onMessage('partyRoomCode',    (d: any) => this._townCbs.partyRoomCode?.(d));
+    r.onMessage('partyCancelled',   ()       => this._townCbs.partyCancelled?.());
   }
 
   sendTownMove(x: number, y: number, lastDir: string): void {
@@ -432,6 +444,22 @@ class NetworkServiceClass {
 
   sendTownInfo(nickname: string, level: number, skinId: number): void {
     this.townRoom?.send('townInfo', { nickname, level, skinId });
+  }
+
+  sendPartyInvite(targetSessionId: string, fromNickname: string): void {
+    this.townRoom?.send('partyInvite', { targetSessionId, fromNickname });
+  }
+
+  sendPartyInviteResponse(accept: boolean, toSessionId: string): void {
+    this.townRoom?.send('partyInviteResponse', { accept, toSessionId });
+  }
+
+  sendPartyRoomReady(targetSessionId: string, roomCode: string): void {
+    this.townRoom?.send('partyRoomReady', { targetSessionId, roomCode });
+  }
+
+  sendPartyDisband(targetSessionId: string): void {
+    this.townRoom?.send('partyDisband', { targetSessionId });
   }
 
   onTownPos(cb: (data: { sessionId: string; x: number; y: number; lastDir: string }) => void): void {
@@ -448,6 +476,26 @@ class NetworkServiceClass {
 
   onTownPlayerInfo(cb: (data: { sessionId: string; nickname: string; level: number; skinId: number }) => void): void {
     this._townCbs.townPlayerInfo = cb;
+  }
+
+  onPartyInvite(cb: (data: { fromSessionId: string; fromNickname: string }) => void): void {
+    this._townCbs.partyInvite = cb;
+  }
+
+  onPartyAccepted(cb: (data: { guestSessionId: string }) => void): void {
+    this._townCbs.partyAccepted = cb;
+  }
+
+  onPartyDeclined(cb: (data: { reason: string }) => void): void {
+    this._townCbs.partyDeclined = cb;
+  }
+
+  onPartyRoomCode(cb: (data: { roomCode: string }) => void): void {
+    this._townCbs.partyRoomCode = cb;
+  }
+
+  onPartyCancelled(cb: () => void): void {
+    this._townCbs.partyCancelled = cb;
   }
 
   leaveTown(): void {
@@ -471,6 +519,7 @@ class NetworkServiceClass {
     this.isHost    = false;
     this.sessionId = '';
     this.gameCode  = '';
+    this.partyMode = false;
     this._cbs      = {};
   }
 }
