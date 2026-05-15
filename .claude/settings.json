@@ -61,7 +61,18 @@
       "WebFetch(domain:herosiege.wiki.gg)",
       "WebFetch(domain:steamcommunity.com)",
       "Bash(grep -v \"//.*隨機\\\\|//.*成功\")",
-      "Bash(grep -v \"//\")"
+      "Bash(grep -v \"//\")",
+      "Bash(Get-ChildItem -Path \"c:\\\\MyCode\\\\auto-rpg\\\\src\\\\app\\\\game\\\\scenes\\\\\" -File | Select-Object FullName)",
+      "Bash(dir \"c:\\\\MyCode\\\\auto-rpg\" /b)",
+      "Bash(curl http://localhost:3001/health)",
+      "PowerShell(Get-ChildItem -Path \"C:\\\\MyCode\\\\auto-rpg\\\\public\\\\tilesets2\" -Recurse -Force | Select-Object FullName, @{Name=\"Type\"; Expression={if\\($_.PSIsContainer\\){\"DIR\"}else{\"FILE\"}}} | Format-Table -AutoSize)",
+      "Bash(python -c \"from PIL import Image; img=Image.open\\('2.png'\\); print\\(img.size, img.mode\\)\")",
+      "Read(//MyCode/auto-rpg/src/app/game/scenes/**)",
+      "Read(//c/MyCode/auto-rpg/src/app/game/scenes/**)"
+    ],
+    "additionalDirectories": [
+      "\\MyCode\\auto-rpg\\src\\app\\game\\scenes",
+      "c:\\MyCode\\auto-rpg\\src\\app\\game\\scenes"
     ]
   }
 }

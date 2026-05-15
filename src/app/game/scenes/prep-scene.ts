@@ -19,15 +19,17 @@ const DPR = (window as any).__gameDpr as number;
 const F = (n: number): string => `${Math.round(n * DPR)}px`;
 const P = (n: number): number => Math.round(n * DPR);
 
-const TOP_H = P(52);
+const TOP_H    = 0;
+const BOTTOM_H = 0;
 
 // Wood palette
-const WB = 0x140a02; // base (near-black)
-const WD = 0x2a1408; // dark wood
-const WM = 0x4a2814; // medium dark
-const WMI = 0x5c3418; // medium
-const WL = 0x8b5e3c; // light wood
-const WH = 0xb07030; // highlight grain
+const WB   = 0x2e1a0a; // panel bg (dark base)
+const WBD  = 0x1a0e06; // panel bg deeper / shadow fill
+const WD   = 0x3c2210; // dark wood
+const WM   = 0x5a3420; // medium dark
+const WMI  = 0x5c3418; // medium
+const WL   = 0x8b5e3c; // light wood
+const WH   = 0xb07030; // highlight grain
 const GOLD = 0xd4a044;
 const IRON = 0x4a5560;
 
@@ -154,9 +156,42 @@ export class PrepScene extends Phaser.Scene {
   private _sceneW = 0;
   private _sceneH = 0;
   private _heroY = 0;
-  private _multiBtnGfx?: Phaser.GameObjects.Graphics;
   private _multiBtnTxt?: Phaser.GameObjects.Text;
   private _multiBtnHit?: Phaser.GameObjects.Rectangle;
+
+  // ── Town world ────────────────────────────────────────────
+  private _townContainer?: Phaser.GameObjects.Container;
+  private _townPlayer?: Phaser.GameObjects.Sprite;
+  private _townPlayerX  = 0;
+  private _townPlayerY  = 0;
+  private _townPlayerDir: 'down' | 'left' | 'right' | 'up' = 'down';
+  private _townMoveSendTimer = 0;
+  private _townLastSentX = -1;
+  private _townLastSentY = -1;
+  private _townLastSentDir = '';
+  private _townRemotePlayers = new Map<string, {
+    sprite: Phaser.GameObjects.Sprite;
+    nameLabel: Phaser.GameObjects.Text;
+    fromX: number; fromY: number;
+    targetX: number; targetY: number;
+    lerpT: number; lerpDur: number;
+  }>();
+  private _townInteractLabel?: Phaser.GameObjects.Text;
+  private _townNearZone: string | null = null;
+  private _townActiveZone: string | null = null;
+  private _townViewW = 0;
+  private _townViewH = 0;
+  private _townViewY = 0;
+  private _townWorldW = 0;
+  private _townWorldH = 0;
+  private _townZones: Array<{ wx: number; wy: number; hw: number; hh: number; ring: Phaser.GameObjects.Graphics; label: string; onActivate: () => void }> = [];
+  private _townStoneRects: { x: number; y: number; r: number }[] = [];
+  private _townBuildingRects: { cx: number; cy: number; hw: number; hh: number }[] = [];
+  private _dpadState = { up: false, down: false, left: false, right: false };
+  private _townCursors?: Phaser.Types.Input.Keyboard.CursorKeys;
+  private _townWASD?: { up: Phaser.Input.Keyboard.Key; down: Phaser.Input.Keyboard.Key; left: Phaser.Input.Keyboard.Key; right: Phaser.Input.Keyboard.Key };
+  private _townLocalNameLabel?: Phaser.GameObjects.Text;
+  private _townPlayerDebug?: Phaser.GameObjects.Graphics;
 
   static fmtGold(n: number): string {
     if (n >= 100_000_000) return `${(n / 100_000_000).toFixed(1)}億`;
@@ -173,12 +208,61 @@ export class PrepScene extends Phaser.Scene {
     const _skin = SKINS[SkinStore.get()];
     if (!this.textures.exists('player_idle_shadow'))
       this.load.spritesheet('player_idle_shadow', `${_skin.folder}/${_skin.prefix}_Idle_with_shadow.png`, cfg);
-    // Load all skin idle previews for wardrobe panel
+    if (!this.textures.exists('player_run_shadow'))
+      this.load.spritesheet('player_run_shadow', `${_skin.folder}/${_skin.prefix}_Run_with_shadow.png`, cfg);
+    // Load all skin idle + run previews for wardrobe panel and town remote players
     SKINS.forEach((s, i) => {
       const key = `skin_preview_${i}`;
       if (!this.textures.exists(key))
         this.load.spritesheet(key, `${s.folder}/${s.prefix}_Idle_with_shadow.png`, cfg);
+      const runKey = `skin_run_preview_${i}`;
+      if (!this.textures.exists(runKey))
+        this.load.spritesheet(runKey, `${s.folder}/${s.prefix}_Run_with_shadow.png`, cfg);
     });
+    // Town ground tiles
+    if (!this.textures.exists('tile_grass'))
+      this.load.image('tile_grass', 'tilesets/1 Tiles/FieldsTile_38.png');
+    if (!this.textures.exists('tileset_fields'))
+      this.load.spritesheet('tileset_fields', 'tilesets/1 Tiles/FieldsTileset.png', { frameWidth: 32, frameHeight: 32 });
+    // Town grass decorations
+    for (let n = 1; n <= 6; n++) {
+      if (!this.textures.exists(`deco_grass${n}`))
+        this.load.image(`deco_grass${n}`, `tilesets/2 Objects/5 Grass/${n}.png`);
+    }
+    if (!this.textures.exists('tree_oak'))
+      this.load.image('tree_oak', 'tilesets/2 Objects/7 Decor/Tree1.png');
+    if (!this.textures.exists('building_shop'))
+      this.load.image('building_shop', 'tilesets2/2 Objects/7 House/1.png');
+    if (!this.textures.exists('deco_tent'))
+      this.load.image('deco_tent', 'tilesets2/2 Objects/6 Tent/3.png');
+    if (!this.textures.exists('deco_tent_shadow'))
+      this.load.image('deco_tent_shadow', 'tilesets2/2 Objects/1 Shadow/5.png');
+    if (!this.textures.exists('building_forge'))
+      this.load.image('building_forge', 'tilesets2/2 Objects/7 House/4.png');
+    if (!this.textures.exists('building_battle'))
+      this.load.image('building_battle', 'tilesets2/2 Objects/7 House/3.png');
+    if (!this.textures.exists('campfire'))
+      this.load.spritesheet('campfire', 'tilesets/3 Animated Objects/2 Campfire/2.png', { frameWidth: 32, frameHeight: 32 });
+    if (!this.textures.exists('building_warehouse'))
+      this.load.image('building_warehouse', 'tilesets2/2 Objects/6 Tent/4.png');
+    if (!this.textures.exists('deco_warehouse_box'))
+      this.load.image('deco_warehouse_box', 'tilesets2/2 Objects/4 Box/3.png');
+    if (!this.textures.exists('deco_shadow5'))
+      this.load.image('deco_shadow5', 'tilesets/2 Objects/1 Shadow/5.png');
+    if (!this.textures.exists('deco_stump'))
+      this.load.image('deco_stump', 'tilesets/2 Objects/7 Decor/Tree2.png');
+    if (!this.textures.exists('deco_stump_shadow'))
+      this.load.image('deco_stump_shadow', 'tilesets/2 Objects/1 Shadow/4.png');
+    if (!this.textures.exists('tree_shadow'))
+      this.load.image('tree_shadow', 'tilesets/2 Objects/1 Shadow/6.png');
+    for (let n = 1; n <= 6; n++) {
+      if (!this.textures.exists(`deco_stone${n}`))
+        this.load.image(`deco_stone${n}`, `tilesets/2 Objects/4 Stone/${n}.png`);
+    }
+    for (let n = 1; n <= 12; n++) {
+      if (!this.textures.exists(`deco_flower${n}`))
+        this.load.image(`deco_flower${n}`, `tilesets/2 Objects/6 Flower/${n}.png`);
+    }
     if (!this.textures.exists('bg_prep'))
       this.load.image('bg_prep', 'other/bg1.png');
     if (!this.textures.exists('icon_fight'))
@@ -258,11 +342,9 @@ export class PrepScene extends Phaser.Scene {
       repeat: 0,
     });
 
-    this.drawBackground(W, H);
+    this.createTownWorld(W, H);
     this.drawTopBar(W);
-    this.drawCenterHero(W, H);
     this.drawBottomNav(W, H);
-    this.drawAmbientParticles(W, H);
 
     const onGoldChange = () => {
       this.goldText?.setText(InventoryStore.getGold().toLocaleString());
@@ -376,536 +458,237 @@ export class PrepScene extends Phaser.Scene {
     });
   }
 
-  // ── Top bar (wooden beam) ───────────────────────────────
+  // ── Top bar: compact floating player card ──────────────
 
   private drawTopBar(W: number): void {
-    const CY = TOP_H / 2;
-    const AV_R = P(19);   // avatar radius
-    const AV_CX = P(8) + AV_R;
-    const AV_CY = CY;
-    const SET_W = P(36);
-    const SET_X = W - SET_W - P(5);
+    const H = this.scale.height;
 
-    // Name block width ~90px, then EXP bar fills to settings
-    const nameBlockW = P(90);
-    const EXP_X0 = AV_CX + AV_R + P(10) + nameBlockW + P(8);
-    const EXP_X1 = SET_X - P(8);
-    const EXP_BAR_H = P(9);
-    const EXP_BAR_Y = CY + P(9);
+    // ── Player card (top-left) — level | name / exp / gold ─
+    const CARD_W = P(196), CARD_H = P(76);
+    const CX = P(4), CY = P(4);
+    const AV_R  = P(22);
+    const AV_CX = CX + P(10) + AV_R;
+    const AV_CY = CY + CARD_H / 2;
+    const TXT_X = AV_CX + AV_R + P(10);
+    const TXT_W = CARD_W - (TXT_X - CX) - P(8);
 
-    // ── Bar background ────────────────────────────────────
-    const gfx = this.add.graphics();
-    gfx.fillStyle(0x180a02, 1);
-    gfx.fillRect(0, 0, W, TOP_H);
-    // Subtle top highlight
-    gfx.fillStyle(0xffd060, 0.12);
-    gfx.fillRect(0, 0, W, 2);
-    // Bottom gold ledge
-    gfx.fillStyle(GOLD, 0.7);
-    gfx.fillRect(0, TOP_H - 2, W, 1);
-    gfx.fillStyle(WB, 1);
-    gfx.fillRect(0, TOP_H - 1, W, 1);
+    // Card bg
+    const gfx = this.add.graphics().setDepth(30);
+    gfx.fillStyle(0x000000, 0.5);
+    gfx.fillRoundedRect(CX + P(2), CY + P(2), CARD_W, CARD_H, P(10));
+    gfx.fillStyle(WB, 0.92);
+    gfx.fillRoundedRect(CX, CY, CARD_W, CARD_H, P(10));
+    gfx.lineStyle(1.5, GOLD, 0.55);
+    gfx.strokeRoundedRect(CX, CY, CARD_W, CARD_H, P(10));
+    gfx.fillStyle(GOLD, 0.08);
+    gfx.fillRoundedRect(CX + P(1), CY + P(1), CARD_W - P(2), P(10),
+      { tl: P(10), tr: P(10), bl: 0, br: 0 });
+    // Divider between avatar and text
+    gfx.lineStyle(1, GOLD, 0.2);
+    gfx.lineBetween(AV_CX + AV_R + P(5), CY + P(10), AV_CX + AV_R + P(5), CY + CARD_H - P(10));
 
-    // ── Avatar (circle) ───────────────────────────────────
-    const avG = this.add.graphics();
-    // Outer gold ring glow
-    avG.fillStyle(GOLD, 0.25);
-    avG.fillCircle(AV_CX, AV_CY, AV_R + P(4));
-    // Body
-    avG.fillStyle(WM, 1);
+    // Level circle
+    const avG = this.add.graphics().setDepth(31);
+    avG.fillStyle(WMI, 1);
     avG.fillCircle(AV_CX, AV_CY, AV_R);
-    // Inner top highlight
-    avG.fillStyle(0xffffff, 0.08);
-    avG.fillCircle(AV_CX - P(3), AV_CY - P(5), AV_R * 0.55);
-    // Gold ring border
     avG.lineStyle(2.5, GOLD, 0.9);
     avG.strokeCircle(AV_CX, AV_CY, AV_R);
-    avG.lineStyle(1, 0xffe8a0, 0.3);
+    avG.lineStyle(1, WH, 0.25);
     avG.strokeCircle(AV_CX, AV_CY, AV_R - P(4));
 
-    this.add.text(AV_CX, AV_CY + 1, '勇', {
-      fontSize: F(15), fontStyle: 'bold',
+    const lvAvatar = this.add.text(AV_CX, AV_CY - P(4), `${PlayerStore.getLevel()}`, {
+      fontSize: F(19), fontStyle: 'bold',
       color: '#ffe0a0', stroke: '#1a0800', strokeThickness: 2,
-    }).setOrigin(0.5);
+    }).setOrigin(0.5).setDepth(32);
+    this.add.text(AV_CX, AV_CY + P(12), 'LV', {
+      fontSize: F(9), fontStyle: 'bold',
+      color: '#c09060', stroke: '#1a0800', strokeThickness: 1,
+    }).setOrigin(0.5).setDepth(32);
 
-    // ── Name + Lv stacked ─────────────────────────────────
-    const nameX = AV_CX + AV_R + P(10);
-    this.playerNameTxt = this.add.text(nameX, CY - P(8), getPlayerName(), {
+    // Name
+    this.playerNameTxt = this.add.text(TXT_X, CY + P(12), getPlayerName(), {
       fontSize: F(15), fontStyle: 'bold',
-      color: '#ffe8b0', stroke: '#1a0800', strokeThickness: 3,
-    }).setOrigin(0, 0.5);
-    // Hit zone for name editing
-    const nameHit = this.add.rectangle(nameX + P(45), CY - P(8), P(90), P(22))
-      .setInteractive({ useHandCursor: true }).setDepth(30);
-    nameHit.on('pointerdown', () => this.showNameEditDialog(W, this.scale.height));
+      color: '#ffe8b0', stroke: '#1a0800', strokeThickness: 2,
+    }).setOrigin(0, 0).setDepth(32);
 
-    const lvLabel = this.add.text(nameX, CY + P(9), '', {
-      fontSize: F(15), fontStyle: 'bold', color: '#c8a050', stroke: '#1a0800', strokeThickness: 2,
-    }).setOrigin(0, 0.5);
+    // EXP bar
+    const EXP_Y = CY + P(34);
+    const expTrack = this.add.graphics().setDepth(32);
+    expTrack.fillStyle(0x080402, 1);
+    expTrack.fillRoundedRect(TXT_X, EXP_Y, TXT_W, P(8), P(4));
+    expTrack.lineStyle(1, GOLD, 0.3);
+    expTrack.strokeRoundedRect(TXT_X, EXP_Y, TXT_W, P(8), P(4));
+    const expFillGfx = this.add.graphics().setDepth(33);
 
-    // ── EXP bar ───────────────────────────────────────────
-    const expBarW = EXP_X1 - EXP_X0;
-    const expTrack = this.add.graphics();
-    // Track shadow
-    expTrack.fillStyle(0x000000, 0.5);
-    expTrack.fillRoundedRect(EXP_X0, EXP_BAR_Y - EXP_BAR_H / 2 + 1, expBarW, EXP_BAR_H, P(4));
-    // Track bg — dark wood
-    expTrack.fillStyle(0x160c02, 1);
-    expTrack.fillRoundedRect(EXP_X0, EXP_BAR_Y - EXP_BAR_H / 2, expBarW, EXP_BAR_H, P(4));
-    expTrack.lineStyle(1, GOLD, 0.35);
-    expTrack.strokeRoundedRect(EXP_X0, EXP_BAR_Y - EXP_BAR_H / 2, expBarW, EXP_BAR_H, P(4));
-    // EXP label above bar
-    this.add.text(EXP_X0 + expBarW / 2, EXP_BAR_Y - EXP_BAR_H / 2 - P(5), 'EXP', {
-      fontSize: F(15), fontStyle: 'bold', color: '#c8a050', stroke: '#000', strokeThickness: 2,
-    }).setOrigin(0.5, 1);
-
-    const expFillGfx = this.add.graphics();
-
-    // ── Gold badge (below topbar, right-aligned, fixed width) ──
-    const BADGE_W = P(154);
-    const BADGE_H = P(28);
-    const BADGE_Y = TOP_H + P(4);
-    const BADGE_X = W - BADGE_W - P(4);   // left edge
-
-    const goldBg = this.add.graphics().setDepth(5);
-    goldBg.fillStyle(0x0e0600, 0.9);
-    goldBg.fillRoundedRect(BADGE_X, BADGE_Y, BADGE_W, BADGE_H, { tl: 0, tr: 0, bl: 10, br: 10 });
-    goldBg.lineStyle(1.5, GOLD, 0.55);
-    goldBg.strokeRoundedRect(BADGE_X, BADGE_Y, BADGE_W, BADGE_H, { tl: 0, tr: 0, bl: 10, br: 10 });
-    goldBg.fillStyle(GOLD, 0.18);
-    goldBg.fillRect(BADGE_X, BADGE_Y, BADGE_W, 2);
-
-    const ICON_X = BADGE_X + P(16);
-    const TXT_CY = BADGE_Y + BADGE_H / 2;
-    this.add.image(ICON_X, TXT_CY, 'icon_coin').setDisplaySize(P(20), P(20)).setDepth(6);
-    this.goldText = this.add.text(ICON_X + P(14), TXT_CY,
+    // Gold row
+    const GOLD_Y = CY + P(54);
+    this.add.image(TXT_X + P(7), GOLD_Y, 'icon_coin')
+      .setDisplaySize(P(14), P(14)).setDepth(31);
+    this.goldText = this.add.text(TXT_X + P(19), GOLD_Y,
       InventoryStore.getGold().toLocaleString(), {
-      fontSize: F(15), fontStyle: 'bold',
-      color: '#f0d090', stroke: '#1a0800', strokeThickness: 2,
-    }).setOrigin(0, 0.5).setDepth(6);
-
-    // ── Version badge (left, mirrors gold badge) ──────────
-    const verBg = this.add.graphics().setDepth(5);
-    verBg.fillStyle(0x0e0600, 0.9);
-    verBg.fillRoundedRect(P(4), BADGE_Y, BADGE_W, BADGE_H, { tl: 0, tr: 0, bl: 10, br: 10 });
-    verBg.lineStyle(1.5, GOLD, 0.35);
-    verBg.strokeRoundedRect(P(4), BADGE_Y, BADGE_W, BADGE_H, { tl: 0, tr: 0, bl: 10, br: 10 });
-    verBg.fillStyle(GOLD, 0.10);
-    verBg.fillRect(P(4), BADGE_Y, BADGE_W, 2);
-    this.add.text(P(4) + BADGE_W / 2, TXT_CY, VERSION, {
       fontSize: F(13), fontStyle: 'bold',
-      color: '#8a7050', stroke: '#1a0800', strokeThickness: 2,
-    }).setOrigin(0.5, 0.5).setDepth(6);
+      color: '#f0d090', stroke: '#1a0800', strokeThickness: 2,
+    }).setOrigin(0, 0.5).setDepth(31);
 
-    // ── Settings button ───────────────────────────────────
-    const sg = this.add.graphics();
-    sg.fillStyle(WM, 1);
-    sg.fillRoundedRect(SET_X, CY - P(15), SET_W, P(30), P(6));
-    sg.lineStyle(1.5, WL, 0.6);
-    sg.strokeRoundedRect(SET_X, CY - P(15), SET_W, P(30), P(6));
-    sg.fillStyle(GOLD, 0.18);
-    sg.fillRoundedRect(SET_X, CY - P(15), SET_W, P(8), { tl: P(6), tr: P(6), bl: 0, br: 0 });
-    this.add.text(SET_X + SET_W / 2, CY + P(1), '≡', {
-      fontSize: F(22), fontStyle: 'bold', color: '#d4a050', stroke: '#1a0800', strokeThickness: 1,
-    }).setOrigin(0.5);
+    // Tap card → edit name
+    this.add.rectangle(CX + CARD_W / 2, CY + CARD_H / 2, CARD_W, CARD_H)
+      .setInteractive({ useHandCursor: true }).setDepth(34).setAlpha(0.001)
+      .on('pointerdown', () => this.showNameEditDialog(W, H));
 
-    // ── Reactive update ───────────────────────────────────
+    // ── Settings button (top-right only) ──────────────────
+    const SET_S = P(36);
+    const SET_X = W - SET_S - P(4), SET_Y = P(4);
+    const sg = this.add.graphics().setDepth(30);
+    sg.fillStyle(0x000000, 0.5);
+    sg.fillRoundedRect(SET_X + P(2), SET_Y + P(2), SET_S, SET_S, P(8));
+    sg.fillStyle(WB, 0.92);
+    sg.fillRoundedRect(SET_X, SET_Y, SET_S, SET_S, P(8));
+    sg.fillStyle(0xffffff, 0.04);
+    sg.fillRoundedRect(SET_X + P(1), SET_Y + P(1), SET_S - P(2), SET_S * 0.45,
+      { tl: P(7), tr: P(7), bl: 0, br: 0 });
+    sg.lineStyle(1.5, GOLD, 0.4);
+    sg.strokeRoundedRect(SET_X, SET_Y, SET_S, SET_S, P(8));
+    this.add.text(SET_X + SET_S / 2, SET_Y + SET_S / 2 + P(1), '≡', {
+      fontSize: F(20), color: '#d4a050', stroke: '#1a0800', strokeThickness: 1,
+    }).setOrigin(0.5).setDepth(31);
+    this.add.rectangle(SET_X + SET_S / 2, SET_Y + SET_S / 2, SET_S, SET_S)
+      .setInteractive({ useHandCursor: true }).setDepth(35).setAlpha(0.001);
+
+    // ── Quick-access buttons (horizontal, bottom-right) ───
+    const QB_S   = SET_S * 1.5;
+    const QB_GAP = P(6);
+    const qbItems: { label: string; onClick: () => void }[] = [
+      { label: '裝備', onClick: () => this.showEquipmentPanel(W, H) },
+      { label: '技能', onClick: () => this.showSkillTree(W, H) },
+      { label: '卡片', onClick: () => this.openCardWindow(W, H) },
+      { label: '物品', onClick: () => this.showItemPanel(W, H) },
+    ];
+    const qbGfx = this.add.graphics().setDepth(30);
+    const QB_BOT = H - P(8);
+    qbItems.slice().reverse().forEach((item, ri) => {
+      const bx = W - P(8) - QB_S * (ri + 1) - QB_GAP * ri;
+      const by = QB_BOT - QB_S;
+      qbGfx.fillStyle(0x000000, 0.45);
+      qbGfx.fillRoundedRect(bx + P(2), by + P(2), QB_S, QB_S, P(10));
+      qbGfx.fillStyle(WB, 0.92);
+      qbGfx.fillRoundedRect(bx, by, QB_S, QB_S, P(10));
+      qbGfx.fillStyle(0xffffff, 0.04);
+      qbGfx.fillRoundedRect(bx + P(1), by + P(1), QB_S - P(2), QB_S * 0.45, P(9));
+      qbGfx.lineStyle(1.5, GOLD, 0.45);
+      qbGfx.strokeRoundedRect(bx, by, QB_S, QB_S, P(10));
+      this.add.text(bx + QB_S / 2, by + QB_S / 2, item.label, {
+        fontSize: F(15), fontStyle: 'bold', color: '#e8cc90', stroke: '#1a0800', strokeThickness: 2,
+      }).setOrigin(0.5).setDepth(31);
+      this.add.rectangle(bx + QB_S / 2, by + QB_S / 2, QB_S, QB_S)
+        .setInteractive({ useHandCursor: true }).setDepth(35).setAlpha(0.001)
+        .on('pointerdown', item.onClick);
+    });
+
+    // ── Reactive updates ──────────────────────────────────
     const drawExpBar = () => {
-      const cur = PlayerStore.getExp();
-      const need = PlayerStore.expToNext();
-      const pct = Phaser.Math.Clamp(cur / need, 0, 1);
-
+      const pct = Phaser.Math.Clamp(PlayerStore.getExp() / PlayerStore.expToNext(), 0, 1);
       expFillGfx.clear();
       if (pct > 0) {
-        const fillW = Math.max(5, (expBarW - 2) * pct);
-        // Main fill — amber
+        const fillW = Math.max(P(3), (TXT_W - 2) * pct);
         expFillGfx.fillStyle(0xc87020, 1);
-        expFillGfx.fillRoundedRect(EXP_X0 + 1, EXP_BAR_Y - EXP_BAR_H / 2 + 1, fillW, EXP_BAR_H - 2, P(3));
-        // Top gloss — bright gold
-        expFillGfx.fillStyle(0xffcc44, 0.45);
-        expFillGfx.fillRoundedRect(EXP_X0 + 1, EXP_BAR_Y - EXP_BAR_H / 2 + 1, fillW, P(4), { tl: P(3), tr: P(3), bl: 0, br: 0 });
-        // Edge glow — amber
-        expFillGfx.fillStyle(0xffaa22, 0.6);
-        expFillGfx.fillRect(EXP_X0 + fillW - 2, EXP_BAR_Y - EXP_BAR_H / 2 + 2, P(3), EXP_BAR_H - P(4));
+        expFillGfx.fillRoundedRect(TXT_X + 1, EXP_Y + 1, fillW, P(6), P(3));
+        expFillGfx.fillStyle(0xffcc44, 0.4);
+        expFillGfx.fillRoundedRect(TXT_X + 1, EXP_Y + 1, fillW, P(3),
+          { tl: P(3), tr: P(3), bl: 0, br: 0 });
       }
-      lvLabel.setText(`Lv.${PlayerStore.getLevel()}`);
+      lvAvatar.setText(`${PlayerStore.getLevel()}`);
     };
     drawExpBar();
-
     PlayerStore.onChange(drawExpBar);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => PlayerStore.offChange(drawExpBar));
   }
 
-  // ── Bottom navigation bar ──────────────────────────────
+  // ── Wardrobe panel ─────────────────────────────────────
 
-  private drawBottomNav(W: number, H: number): void {
-    const BAR_H = P(78);
-    const barY = H - BAR_H;
-    const gfx = this.add.graphics().setDepth(20);
-
-    // Bar background — two-tone: slightly lighter strip at top
-    gfx.fillStyle(0x0e0806, 1);
-    gfx.fillRect(0, barY, W, BAR_H);
-    gfx.fillStyle(0x1c1008, 1);
-    gfx.fillRect(0, barY, W, P(14));
-
-    // Gold top border (2 lines: bright + dark)
-    gfx.fillStyle(0xffd060, 0.7);
-    gfx.fillRect(0, barY, W, 1);
-    gfx.fillStyle(0x8b5010, 0.5);
-    gfx.fillRect(0, barY + 1, W, 2);
-
-    // Bottom fade-out hint
-    gfx.fillStyle(0x000000, 0.3);
-    gfx.fillRect(0, barY + BAR_H - P(6), W, P(6));
-
-    // ── Battle button constants (needed for gap calc) ─────
-    const BTN_W = P(100);
-    const BTN_H = P(68);
-    const cx = W / 2;
-    const bcy = barY + BAR_H / 2;   // centred in bar
-    const CENTER_R = BTN_W / 2 + P(28);   // half of no-draw zone on each side
-
-    // ── Platform arch under battle button ─────────────────
-    const archGfx = this.add.graphics().setDepth(21);
-    const archW = (CENTER_R + P(2)) * 2;
-    const archX = cx - CENTER_R - P(2);
-    // Outer shadow
-    archGfx.fillStyle(0x000000, 0.4);
-    archGfx.fillRoundedRect(archX + P(2), barY, archW, BAR_H + P(4), { tl: P(20), tr: P(20), bl: 0, br: 0 });
-    // Body
-    archGfx.fillStyle(0x1c0e04, 1);
-    archGfx.fillRoundedRect(archX, barY - P(2), archW, BAR_H + P(4), { tl: P(20), tr: P(20), bl: 0, br: 0 });
-    // Inner top highlight
-    archGfx.fillStyle(0xffffff, 0.04);
-    archGfx.fillRoundedRect(archX + P(2), barY - P(2), archW - P(4), P(10), { tl: P(18), tr: P(18), bl: 0, br: 0 });
-    // Gold arc top
-    archGfx.fillStyle(GOLD, 0.75);
-    archGfx.fillRoundedRect(archX, barY - P(2), archW, P(2), { tl: P(20), tr: P(20), bl: 0, br: 0 });
-    // Gold border sides
-    archGfx.lineStyle(1.5, GOLD, 0.45);
-    archGfx.strokeRoundedRect(archX, barY - P(2), archW, BAR_H + P(4), { tl: P(20), tr: P(20), bl: 0, br: 0 });
-
-    // ── Nav buttons ──────────────────────────────────────
-    const navItems: { label: string; icon: string; accent: number; onClick: () => void }[] = [
-      { label: '裝備', icon: '⚔', accent: 0xaa88cc, onClick: () => this.showEquipmentPanel(W, H) },
-      { label: '卡片', icon: '♦', accent: 0xcc6688, onClick: () => this.openCardWindow(W, H) },
-      { label: '技能', icon: '✿', accent: 0x44aadd, onClick: () => this.showSkillTree(W, H) },
-      { label: '物品', icon: '⊕', accent: 0x70b858, onClick: () => this.showItemPanel(W, H) },
-      { label: '商店', icon: '✦', accent: 0xd47820, onClick: () => this.showShopPanel(W, H) },
-    ];
-
-    // Left side 3 slots, right side 2 slots
-    const sideW   = cx - CENTER_R;
-    const slotW_L = sideW / 3;
-    const slotW_R = sideW / 2;
-    const btnH    = BAR_H - P(8);
-    const btnSlots = [
-      slotW_L * 0.5, slotW_L * 1.5, slotW_L * 2.5,
-      W - slotW_R * 1.5, W - slotW_R * 0.5,
-    ];
-    const btnWidths = [
-      slotW_L - P(4), slotW_L - P(4), slotW_L - P(4),
-      slotW_R - P(6), slotW_R - P(6),
-    ];
-
-    navItems.forEach((item, pos) => {
-      const bx = btnSlots[pos];
-      const by = barY + btnH / 2 + P(4);
-      this.addNavBtn(gfx, bx, by, btnWidths[pos], btnH, item.icon, item.label, item.accent, item.onClick);
-    });
-
-    // ── Battle button (center, elevated) ──────────────────
-    const btng = this.add.graphics().setDepth(22);
-
-    // Edge glow — single thin outward stroke
-    const EX = cx - BTN_W / 2, EY = bcy - BTN_H / 2;
-    btng.lineStyle(4, 0xffcc44, 0.6);
-    btng.strokeRoundedRect(EX - P(3), EY - P(3), BTN_W + P(6), BTN_H + P(6), P(17));
-
-    // Button drop shadow
-    btng.fillStyle(0x000000, 0.5);
-    btng.fillRoundedRect(cx - BTN_W / 2 + P(4), bcy - BTN_H / 2 + P(6), BTN_W, BTN_H, P(14));
-
-    // Main body
-    btng.fillStyle(0xb83800, 1);
-    btng.fillRoundedRect(cx - BTN_W / 2, bcy - BTN_H / 2, BTN_W, BTN_H, P(14));
-
-    // Top highlight (lighter gradient band)
-    btng.fillStyle(0xff7722, 1);
-    btng.fillRoundedRect(cx - BTN_W / 2 + P(2), bcy - BTN_H / 2 + P(2), BTN_W - P(4), BTN_H * 0.5, P(12));
-
-    // Specular gleam top-left
-    btng.fillStyle(0xffffff, 0.10);
-    btng.fillRoundedRect(cx - BTN_W / 2 + P(6), bcy - BTN_H / 2 + P(5), BTN_W * 0.4, P(8), P(4));
-
-    // Outer gold border
-    btng.lineStyle(3, 0xffcc44, 1);
-    btng.strokeRoundedRect(cx - BTN_W / 2, bcy - BTN_H / 2, BTN_W, BTN_H, P(14));
-
-    // Inner bright ring
-    btng.lineStyle(1, 0xffee88, 0.55);
-    btng.strokeRoundedRect(cx - BTN_W / 2 + P(3), bcy - BTN_H / 2 + P(3), BTN_W - P(6), BTN_H - P(6), P(11));
-
-    // Shimmer scan bar — masked to button shape
-    const maskShape = this.add.graphics().setVisible(false);
-    maskShape.fillStyle(0xffffff, 1);
-    maskShape.fillRoundedRect(EX, EY, BTN_W, BTN_H, 14);
-
-    const shimmerGfx = this.add.graphics().setDepth(22.5);
-    shimmerGfx.setMask(maskShape.createGeometryMask());
-
-    const sh = { p: -0.25 };
-    this.tweens.add({
-      targets: sh, p: 1.25,
-      duration: 1600, repeat: -1, repeatDelay: 1200, ease: 'Sine.easeIn',
-      onUpdate: () => {
-        shimmerGfx.clear();
-        const sx = EX + sh.p * BTN_W;
-        shimmerGfx.fillStyle(0xffffff, 0.04);
-        shimmerGfx.fillRect(sx - P(14), EY, P(14), BTN_H);
-        shimmerGfx.fillStyle(0xffffff, 0.16);
-        shimmerGfx.fillRect(sx, EY, P(14), BTN_H);
-        shimmerGfx.fillStyle(0xffffff, 0.04);
-        shimmerGfx.fillRect(sx + P(14), EY, P(14), BTN_H);
-      },
-    });
-
-    // Container at button center — safe to scale (scales from its own origin)
-    const btnCnt = this.add.container(cx, bcy).setDepth(23);
-
-    const fightIcon = this.add.image(0, -P(10), 'icon_fight').setDisplaySize(P(36), P(36));
-    const battleTxt = this.add.text(0, P(20), '出  戰', {
-      fontSize: F(17), fontStyle: 'bold',
-      color: '#fff8e0', stroke: '#6b1800', strokeThickness: 3,
-    }).setOrigin(0.5);
-    btnCnt.add([fightIcon, battleTxt]);
-
-    // Idle alpha pulse (btng separately — Graphics must NOT be scaled)
-    this.tweens.add({
-      targets: [btng, btnCnt],
-      alpha: { from: 1, to: 0.82 },
-      duration: 900, yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
-    });
-
-    const battleHit = this.add.rectangle(cx, bcy, BTN_W, BTN_H)
-      .setInteractive({ useHandCursor: true })
-      .setDepth(24);
-
-    battleHit.on('pointerdown', () => {
-      this.tweens.killTweensOf([btng, btnCnt]);
-      this.tweens.add({ targets: btnCnt, scaleX: 0.88, scaleY: 0.88, alpha: 0.85, duration: 80, ease: 'Sine.easeOut' });
-      this.tweens.add({ targets: btng, alpha: 0.85, duration: 80 });
-      this.showQuestPanel(W, H);
-    });
-
-    battleHit.on('pointerup', () => {
-      this.tweens.killTweensOf([btng, btnCnt]);
-      this.tweens.add({ targets: btnCnt, scaleX: 1, scaleY: 1, alpha: 1, duration: 120, ease: 'Back.easeOut' });
-      this.tweens.add({ targets: btng, alpha: 1, duration: 120 });
-    });
-
-    // ── Wardrobe button (bottom-left, above nav bar) ─────────
-    const skinBtnW = P(72);
-    const skinBtnH = P(26);
-    const skinBtnX = P(10) + skinBtnW / 2;
-    const skinBtnY = barY - P(24);
-    const skinGfx = this.add.graphics().setDepth(25);
-    const drawSkinBtn = () => {
-      skinGfx.clear();
-      skinGfx.fillStyle(0x000000, 0.35);
-      skinGfx.fillRoundedRect(skinBtnX - skinBtnW / 2 + P(2), skinBtnY - skinBtnH / 2 + P(2), skinBtnW, skinBtnH, P(5));
-      skinGfx.fillStyle(0x1a0e04, 1);
-      skinGfx.fillRoundedRect(skinBtnX - skinBtnW / 2, skinBtnY - skinBtnH / 2, skinBtnW, skinBtnH, P(5));
-      skinGfx.lineStyle(1.5, 0x886622, 0.8);
-      skinGfx.strokeRoundedRect(skinBtnX - skinBtnW / 2, skinBtnY - skinBtnH / 2, skinBtnW, skinBtnH, P(5));
-    };
-    drawSkinBtn();
-    const skinLabel = this.add.text(skinBtnX, skinBtnY, '造型', {
-      fontSize: F(13), color: '#d4a044',
-    }).setOrigin(0.5).setDepth(26);
-
-    const openWardrobePanel = () => {
-      const PD = 30;
-      const COLS = 2;
-      const CARD_W = P(100), CARD_H = P(110);
-      const GAP = P(12);
-      const panelW = COLS * CARD_W + (COLS + 1) * GAP;
-      const panelH = Math.ceil(SKINS.length / COLS) * (CARD_H + GAP) + GAP + P(PD);
-      const px = W / 2, py = barY - panelH / 2 - P(8);
-      const wardObjs: Phaser.GameObjects.GameObject[] = [];
-      const bg = this.add.graphics().setDepth(60);
-      bg.fillStyle(0x000000, 0.55);
-      bg.fillRect(0, 0, W, H);
-      bg.fillStyle(0x1a0e04, 1);
-      bg.fillRoundedRect(px - panelW / 2, py - panelH / 2, panelW, panelH, P(12));
-      bg.lineStyle(1.5, 0xffd060, 0.6);
-      bg.strokeRoundedRect(px - panelW / 2, py - panelH / 2, panelW, panelH, P(12));
-      wardObjs.push(bg);
-      const title = this.add.text(px, py - panelH / 2 + P(14), '選擇造型', {
-        fontSize: F(14), color: '#ffd060', fontStyle: 'bold',
-      }).setOrigin(0.5, 0).setDepth(61);
-      wardObjs.push(title);
-      const currentSkin = SkinStore.get();
-      SKINS.forEach((skin, i) => {
-        const col = i % COLS;
-        const row = Math.floor(i / COLS);
-        const cx = px - panelW / 2 + GAP + col * (CARD_W + GAP) + CARD_W / 2;
-        const cy = py - panelH / 2 + P(PD) + GAP + row * (CARD_H + GAP) + CARD_H / 2;
-        const isSelected = i === currentSkin;
-        const cardGfx = this.add.graphics().setDepth(61);
-        const drawCard = (hover: boolean) => {
-          cardGfx.clear();
-          cardGfx.fillStyle(isSelected ? 0x3a2200 : (hover ? 0x2a1800 : 0x0e0806), 1);
-          cardGfx.fillRoundedRect(cx - CARD_W / 2, cy - CARD_H / 2, CARD_W, CARD_H, P(8));
-          cardGfx.lineStyle(1.5, isSelected ? 0xffd060 : (hover ? 0xaa7722 : 0x554422), isSelected ? 1 : 0.7);
-          cardGfx.strokeRoundedRect(cx - CARD_W / 2, cy - CARD_H / 2, CARD_W, CARD_H, P(8));
-        };
-        drawCard(false);
-        wardObjs.push(cardGfx);
-        const previewKey = `skin_preview_${i}`;
-        const sp = this.add.sprite(cx, cy - P(14), previewKey)
-          .setScale(1.6 * DPR).setDepth(62).setFrame(0);
-        wardObjs.push(sp);
-        const lbl = this.add.text(cx, cy + CARD_H / 2 - P(18), skin.label, {
-          fontSize: F(11), color: isSelected ? '#ffd060' : '#c8a060',
-        }).setOrigin(0.5).setDepth(62);
-        wardObjs.push(lbl);
-        const hit = this.add.rectangle(cx, cy, CARD_W, CARD_H)
-          .setInteractive({ useHandCursor: true }).setDepth(63);
-        wardObjs.push(hit);
-        hit.on('pointerover', () => { if (!isSelected) drawCard(true); });
-        hit.on('pointerout', () => { if (!isSelected) drawCard(false); });
-        hit.on('pointerdown', () => {
-          wardObjs.forEach(o => o.destroy());
-          if (i !== currentSkin) {
-            SkinStore.set(i);
-            if (this.textures.exists('player_idle_shadow')) this.textures.remove('player_idle_shadow');
-            if (this.anims.exists('player_idle_shadow')) this.anims.remove('player_idle_shadow');
-            if (this.anims.exists('_lobby_idle')) this.anims.remove('_lobby_idle');
-            this.scene.restart();
-          }
-        });
-      });
-      // Close on backdrop click
-      const closeBg = this.add.rectangle(W / 2, H / 2, W, H)
-        .setInteractive().setDepth(59).setAlpha(0.001);
-      wardObjs.push(closeBg);
-      closeBg.on('pointerdown', () => wardObjs.forEach(o => o.destroy()));
-    };
-
-    this.add.rectangle(skinBtnX, skinBtnY, skinBtnW, skinBtnH)
-      .setInteractive({ useHandCursor: true }).setDepth(27)
-      .on('pointerdown', () => openWardrobePanel())
-      .on('pointerover', () => { skinLabel.setColor('#ffe080'); })
-      .on('pointerout', () => { skinLabel.setColor('#d4a044'); });
-
-    battleHit.on('pointerover', () => {
-      this.tweens.killTweensOf([btng, btnCnt]);
-      this.tweens.add({ targets: btnCnt, scaleX: 1.08, scaleY: 1.08, alpha: 1, duration: 150, ease: 'Back.easeOut' });
-      this.tweens.add({ targets: btng, alpha: 1, duration: 150 });
-    });
-
-    battleHit.on('pointerout', () => {
-      this.tweens.killTweensOf([btng, btnCnt]);
-      this.tweens.add({
-        targets: btnCnt, scaleX: 1, scaleY: 1, duration: 120, ease: 'Sine.easeOut',
-        onComplete: () => {
-          this.tweens.add({ targets: [btng, btnCnt], alpha: { from: 1, to: 0.82 }, duration: 900, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
-        },
+  private _openWardrobePanel(): void {
+    const W = this._sceneW, H = this.scale.height;
+    const PD = 30;
+    const COLS = 2;
+    const CARD_W = P(100), CARD_H = P(110);
+    const GAP = P(12);
+    const panelW = COLS * CARD_W + (COLS + 1) * GAP;
+    const panelH = Math.ceil(SKINS.length / COLS) * (CARD_H + GAP) + GAP + P(PD);
+    const px = W / 2, py = H / 2 - P(20);
+    const wardObjs: Phaser.GameObjects.GameObject[] = [];
+    const bg = this.add.graphics().setDepth(60);
+    bg.fillStyle(0x000000, 0.55);
+    bg.fillRect(0, 0, W, H);
+    bg.fillStyle(WB, 1);
+    bg.fillRoundedRect(px - panelW / 2, py - panelH / 2, panelW, panelH, P(12));
+    bg.lineStyle(1.5, 0xffd060, 0.6);
+    bg.strokeRoundedRect(px - panelW / 2, py - panelH / 2, panelW, panelH, P(12));
+    wardObjs.push(bg);
+    const title = this.add.text(px, py - panelH / 2 + P(14), '選擇造型', {
+      fontSize: F(15), color: '#ffd060', fontStyle: 'bold',
+    }).setOrigin(0.5, 0).setDepth(61);
+    wardObjs.push(title);
+    const currentSkin = SkinStore.get();
+    SKINS.forEach((skin, i) => {
+      const col = i % COLS;
+      const row = Math.floor(i / COLS);
+      const cardCx = px - panelW / 2 + GAP + col * (CARD_W + GAP) + CARD_W / 2;
+      const cardCy = py - panelH / 2 + P(PD) + GAP + row * (CARD_H + GAP) + CARD_H / 2;
+      const isSelected = i === currentSkin;
+      const cardGfx = this.add.graphics().setDepth(61);
+      const drawCard = (hover: boolean) => {
+        cardGfx.clear();
+        cardGfx.fillStyle(isSelected ? 0x3a2200 : (hover ? 0x2a1800 : WBD), 1);
+        cardGfx.fillRoundedRect(cardCx - CARD_W / 2, cardCy - CARD_H / 2, CARD_W, CARD_H, P(8));
+        cardGfx.lineStyle(1.5, isSelected ? 0xffd060 : (hover ? 0xaa7722 : 0x554422), isSelected ? 1 : 0.7);
+        cardGfx.strokeRoundedRect(cardCx - CARD_W / 2, cardCy - CARD_H / 2, CARD_W, CARD_H, P(8));
+      };
+      drawCard(false);
+      wardObjs.push(cardGfx);
+      const previewKey = `skin_preview_${i}`;
+      const sp = this.add.sprite(cardCx, cardCy - P(14), previewKey)
+        .setScale(1.6 * DPR).setDepth(62).setFrame(0);
+      wardObjs.push(sp);
+      const lbl = this.add.text(cardCx, cardCy + CARD_H / 2 - P(18), skin.label, {
+        fontSize: F(15), color: isSelected ? '#ffd060' : '#c8a060',
+      }).setOrigin(0.5).setDepth(62);
+      wardObjs.push(lbl);
+      const hit = this.add.rectangle(cardCx, cardCy, CARD_W, CARD_H)
+        .setInteractive({ useHandCursor: true }).setDepth(63);
+      wardObjs.push(hit);
+      hit.on('pointerover', () => { if (!isSelected) drawCard(true); });
+      hit.on('pointerout', () => { if (!isSelected) drawCard(false); });
+      hit.on('pointerdown', () => {
+        wardObjs.forEach(o => o.destroy());
+        if (i !== currentSkin) {
+          SkinStore.set(i);
+          if (this.textures.exists('player_idle_shadow')) this.textures.remove('player_idle_shadow');
+          if (this.anims.exists('player_idle_shadow')) this.anims.remove('player_idle_shadow');
+          if (this.anims.exists('_lobby_idle')) this.anims.remove('_lobby_idle');
+          this.scene.restart();
+        }
       });
     });
+    const closeBg = this.add.rectangle(W / 2, H / 2, W, H)
+      .setInteractive().setDepth(59).setAlpha(0.001);
+    wardObjs.push(closeBg);
+    closeBg.on('pointerdown', () => wardObjs.forEach(o => o.destroy()));
+  }
 
-    // ── Multi button (bottom-right, mirrors wardrobe button) ─────
-    const multiBtnW = P(72);
-    const multiBtnH = P(26);
-    const multiBtnX = W - P(10) - multiBtnW / 2;
-    const multiBtnY = barY - P(24);
+  // ── Multi button infrastructure (party system deferred) ─
 
-    this._multiBtnGfx = this.add.graphics().setDepth(25);
-    this._multiBtnTxt = this.add.text(multiBtnX, multiBtnY, '多人', {
-      fontSize: F(13), color: '#d4a044',
-    }).setOrigin(0.5).setDepth(26);
-    this._multiBtnHit = this.add.rectangle(multiBtnX, multiBtnY, multiBtnW, multiBtnH)
-      .setInteractive({ useHandCursor: true }).setDepth(27) as Phaser.GameObjects.Rectangle;
+  private drawBottomNav(_W: number, _H: number): void {
+    // Multi button kept as invisible stub so network overlay code compiles
+    this._multiBtnTxt = this.add.text(0, 0, '').setVisible(false);
+    this._multiBtnHit = this.add.rectangle(0, 0, 1, 1) as Phaser.GameObjects.Rectangle;
     this._multiBtnHit.on('pointerdown', () => this.showMultiPopup());
-
-    const drawMultiBtn = (connected: boolean) => {
-      this._multiBtnGfx!.clear();
-      const col = connected ? 0x1a1a1a : 0x1a0e04;
-      const border = connected ? 0x446644 : 0x886622;
-      const txtCol = connected ? '#556655' : '#d4a044';
-      this._multiBtnGfx!.fillStyle(0x000000, 0.35);
-      this._multiBtnGfx!.fillRoundedRect(multiBtnX - multiBtnW / 2 + P(2), multiBtnY - multiBtnH / 2 + P(2), multiBtnW, multiBtnH, P(5));
-      this._multiBtnGfx!.fillStyle(col, 1);
-      this._multiBtnGfx!.fillRoundedRect(multiBtnX - multiBtnW / 2, multiBtnY - multiBtnH / 2, multiBtnW, multiBtnH, P(5));
-      this._multiBtnGfx!.lineStyle(1.5, border, 0.8);
-      this._multiBtnGfx!.strokeRoundedRect(multiBtnX - multiBtnW / 2, multiBtnY - multiBtnH / 2, multiBtnW, multiBtnH, P(5));
-      this._multiBtnTxt!.setColor(txtCol);
-    };
+    const drawMultiBtn = (_connected: boolean) => { /* party system TBD */ };
     drawMultiBtn(false);
     (this as any)._drawMultiBtn = drawMultiBtn;
   }
 
-  private addNavBtn(
-    gfx: Phaser.GameObjects.Graphics,
-    x: number, y: number, w: number, h: number,
-    icon: string, label: string, _accent: number, onClick: () => void,
-  ): void {
-    const halfW = w / 2;
-    const halfH = h / 2;
-
-    // Drop shadow
-    gfx.fillStyle(0x000000, 0.4);
-    gfx.fillRoundedRect(x - halfW + P(2), y - halfH + P(3), w, h, P(8));
-
-    // Wood base
-    gfx.fillStyle(0x1e0e06, 1);
-    gfx.fillRoundedRect(x - halfW, y - halfH, w, h, P(8));
-
-    // Wood grain — inner lighter panel
-    gfx.fillStyle(0x2e1a0a, 1);
-    gfx.fillRoundedRect(x - halfW + P(1), y - halfH + P(1), w - P(2), h - P(2), P(7));
-
-    // Top edge highlight
-    gfx.fillStyle(0x4a2e14, 0.7);
-    gfx.fillRoundedRect(x - halfW + P(2), y - halfH + P(2), w - P(4), h * 0.42, { tl: P(6), tr: P(6), bl: 0, br: 0 });
-
-    // Outer aged-gold border
-    gfx.lineStyle(1.5, GOLD, 0.75);
-    gfx.strokeRoundedRect(x - halfW, y - halfH, w, h, P(8));
-
-    // Inner highlight border
-    gfx.lineStyle(0.5, 0xffd080, 0.22);
-    gfx.strokeRoundedRect(x - halfW + P(2), y - halfH + P(2), w - P(4), h - P(4), P(6));
-
-    // Icon glyph — warm gold
-    this.add.text(x, y - P(10), icon, {
-      fontSize: F(18), fontStyle: 'bold', color: '#ffd060',
-      stroke: '#1a0800', strokeThickness: 2,
-    }).setOrigin(0.5).setDepth(21);
-
-    // Label — parchment
-    this.add.text(x, y + P(13), label, {
-      fontSize: F(15), fontStyle: 'bold',
-      color: '#e8cc90', stroke: '#1a0800', strokeThickness: 2,
-    }).setOrigin(0.5).setDepth(21);
-
-    const hit = this.add.rectangle(x, y, w, h)
-      .setInteractive({ useHandCursor: true })
-      .setDepth(22);
-
-    hit.on('pointerdown', () => {
-      this.tweens.add({ targets: hit, scaleX: 0.93, scaleY: 0.93, duration: 60, yoyo: true, ease: 'Sine.easeOut' });
-      onClick();
-    });
-  }
 
   // ── Craft panel ─────────────────────────────────────────
 
-  private openForgeWindow(_W: number, _H: number): void {
-    // 製作系統已移除，裝備改由懸賞任務獲得
-  }
 
 
   // ── Quest panel (wanted posters, horizontal scroll) ────
@@ -4653,7 +4436,7 @@ export class PrepScene extends Phaser.Scene {
 
     const box = this.add.graphics().setDepth(D + 1);
     objs.push(box);
-    box.fillStyle(0x1a0e04, 0.97); box.fillRoundedRect(bx, by, bw, bh, P(8));
+    box.fillStyle(WB, 0.97); box.fillRoundedRect(bx, by, bw, bh, P(8));
     box.lineStyle(P(2), GOLD, 0.85); box.strokeRoundedRect(bx, by, bw, bh, P(8));
 
     objs.push(this.add.text(W / 2, by + P(18), '設定名稱', {
@@ -4679,6 +4462,7 @@ export class PrepScene extends Phaser.Scene {
       const name = inp.getValue() || '勇者';
       setPlayerName(name);
       this.playerNameTxt?.setText(name);
+      this._townLocalNameLabel?.setText(name);
       close();
     });
   }
@@ -5549,7 +5333,7 @@ export class PrepScene extends Phaser.Scene {
 
   private drawCenterHero(W: number, H: number): void {
     const cx = W / 2;
-    const BOTTOM_H = P(78);
+    // BOTTOM_H from global constant
     const availH = H - TOP_H - BOTTOM_H;
     const heroY = TOP_H + availH * 0.50;
     this._heroY = heroY;
@@ -5576,7 +5360,7 @@ export class PrepScene extends Phaser.Scene {
 
 
   private drawAmbientParticles(W: number, H: number): void {
-    const BOTTOM_H = P(78);
+    // BOTTOM_H from global constant
     const zoneTop = TOP_H + P(40);
     const zoneBot = H - BOTTOM_H - P(20);
     const colors = [0xffd060, 0x88ddff, 0xffaa44, 0xaaffcc, 0xff88cc];
@@ -5641,7 +5425,7 @@ export class PrepScene extends Phaser.Scene {
     // Panel
     const pg = this.add.graphics().setDepth(D + 1);
     objs.push(pg);
-    pg.fillStyle(0x0e0806, 0.97); pg.fillRoundedRect(px, py, PW, PH, P2(12));
+    pg.fillStyle(WBD, 0.97); pg.fillRoundedRect(px, py, PW, PH, P2(12));
     pg.lineStyle(2, GOLD, 0.6); pg.strokeRoundedRect(px, py, PW, PH, P2(12));
 
     objs.push(this.add.text(W / 2, py + P2(24), '多人連線', {
@@ -5744,7 +5528,7 @@ export class PrepScene extends Phaser.Scene {
     const bd = this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.75).setDepth(D).setInteractive();
     objs.push(bd);
     const pg = this.add.graphics().setDepth(D + 1); objs.push(pg);
-    pg.fillStyle(0x0e0806, 0.97); pg.fillRoundedRect(px, py, PW, PH, P(12));
+    pg.fillStyle(WBD, 0.97); pg.fillRoundedRect(px, py, PW, PH, P(12));
     pg.lineStyle(2, GOLD, 0.6); pg.strokeRoundedRect(px, py, PW, PH, P(12));
 
     objs.push(this.add.text(W / 2, py + P(24), '輸入房間代碼', {
@@ -5849,18 +5633,16 @@ export class PrepScene extends Phaser.Scene {
     if (!connected) return;
 
     // ── Room code + leave button in the bottom-right corner ──────
-    const BAR_H = P(78);
-    const barY = H - BAR_H;
-    const panelW = P(108);                          // 原 P(72) 放大 50%
-    const panelH = P(82);                           // 原 P(54) 放大 50%
-    const panelCX = W - P(10) - panelW / 2;          // 右對齊
-    const panelY = barY - P(6) - panelH;
+    const panelW = P(108);
+    const panelH = P(82);
+    const panelCX = W - P(10) - panelW / 2;
+    const panelY = H - BOTTOM_H - P(6) - panelH;
 
     const rpgfx = this.add.graphics().setDepth(25);
     this.roomOverlayObjs.push(rpgfx);
     rpgfx.fillStyle(0x000000, 0.35);
     rpgfx.fillRoundedRect(panelCX - panelW / 2 + P(2), panelY + P(2), panelW, panelH, P(8));
-    rpgfx.fillStyle(0x0e0806, 1);
+    rpgfx.fillStyle(WBD, 1);
     rpgfx.fillRoundedRect(panelCX - panelW / 2, panelY, panelW, panelH, P(8));
     rpgfx.lineStyle(1.5, 0xffcc44, 0.5);
     rpgfx.strokeRoundedRect(panelCX - panelW / 2, panelY, panelW, panelH, P(8));
@@ -5927,11 +5709,9 @@ export class PrepScene extends Phaser.Scene {
 
     // Guest overlay on battle button (blocks 出戰)
     if (!NetworkService.isHost) {
-      const BTN_W = P(100);
-      const BTN_H = P(68);
-      const BAR_H = P(78);
-      const barY = H - BAR_H;
-      const bcy = barY + BAR_H / 2;
+      const BTN_W = P(88);
+      const BTN_H = P(52);
+      const bcy = H - BOTTOM_H / 2;
       const overlayGfx = this.add.graphics().setDepth(28);
       this.roomOverlayObjs.push(overlayGfx);
       overlayGfx.fillStyle(0x000000, 0.7);
@@ -5945,5 +5725,823 @@ export class PrepScene extends Phaser.Scene {
         .setInteractive().setDepth(30);
       this.roomOverlayObjs.push(blocker);
     }
+  }
+
+  // ── Town world ───────────────────────────────────────────────────────────
+
+  private createTownWorld(W: number, H: number): void {
+    // BOTTOM_H from global constant
+    const VIEW_Y   = TOP_H;
+    const VIEW_W   = W;
+    const VIEW_H   = H - TOP_H - BOTTOM_H;
+    this._townViewW = VIEW_W;
+    this._townViewH = VIEW_H;
+    this._townViewY = VIEW_Y;
+    this._heroY     = VIEW_Y + VIEW_H / 2;
+
+    // Container for all scrollable world objects, clipped to viewport
+    this._townContainer = this.add.container(0, VIEW_Y).setDepth(2);
+    const maskGfx = (this.make.graphics as any)({ x: 0, y: 0, add: false }) as Phaser.GameObjects.Graphics;
+    maskGfx.fillStyle(0xffffff);
+    maskGfx.fillRect(0, VIEW_Y, VIEW_W, VIEW_H);
+    this._townContainer.setMask(maskGfx.createGeometryMask());
+
+    const VW = VIEW_W, VH = VIEW_H;
+    const WW = Math.round(VW * 1.3), WH = Math.round(VH * 1.8);
+    this._townWorldW = WW;
+    this._townWorldH = WH;
+
+    // Ground
+    this._drawTownGround(WW, WH);
+    this._createForestBorder(WW, WH);
+    this._createTownStumps(WW, WH);
+
+    // Local player (spawns at world centre)
+    this._createTownLocalPlayer(WW, WH);
+
+    // Input
+    if (this.input.keyboard) {
+      this._townCursors  = this.input.keyboard.createCursorKeys();
+      this._townWASD = {
+        up:    this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.W),
+        down:  this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.S),
+        left:  this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.A),
+        right: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.D),
+      };
+    }
+
+    // D-pad for mobile
+    this._createTownDpad(H, VIEW_Y, VIEW_H);
+
+    // World interactive objects
+    this._createTownObjects(WW, WH);
+
+    // Interaction prompt (bottom-center of viewport)
+    this._townInteractLabel = this.add.text(W / 2, VIEW_Y + VIEW_H - P(12), '', {
+      fontSize: F(15), color: '#ffffa0', stroke: '#1a0800', strokeThickness: 2,
+      backgroundColor: '#00000099', padding: { x: P(8), y: P(3) },
+    }).setOrigin(0.5, 1).setDepth(55).setVisible(false);
+
+    // Join TownRoom (non-blocking)
+    this._joinTownRoom();
+
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      NetworkService.leaveTown();
+      this._townRemotePlayers.forEach(r => { r.sprite.destroy(); r.nameLabel.destroy(); });
+      this._townRemotePlayers.clear();
+      this._townZones = [];
+    });
+  }
+
+  private _drawTownGround(WW: number, WH: number): void {
+    // ── Layer 1: grass base (single tileSprite, very cheap) ──────────────────
+    if (this.textures.exists('tile_grass')) {
+      this.textures.get('tile_grass').setFilter(Phaser.Textures.FilterMode.NEAREST);
+      this._townContainer?.add(
+        this.add.tileSprite(0, 0, WW, WH, 'tile_grass')
+          .setOrigin(0, 0).setTileScale(DPR, DPR).setDepth(1),
+      );
+    }
+    if (!this.textures.exists('tileset_fields')) return;
+    this.textures.get('tileset_fields').setFilter(Phaser.Textures.FilterMode.NEAREST);
+
+    // ── Autotile frame pools (0-indexed: FieldsTile_XX → frame XX-1) ─────────
+    // Bitmask: N=8  S=4  W=2  E=1  (bit set = that neighbour is grass)
+    const POOL: Record<number, number[]> = {
+      0b0000: [0, 10, 17, 19, 26],    // interior cobble
+      0b1000: [6, 33, 34, 35, 36],    // grass N  (top edge)
+      0b0100: [1,  2,  3],            // grass S  (bottom edge)
+      0b0010: [12, 20, 28],           // grass W  (left edge)
+      0b0001: [8,  16, 24],           // grass E  (right edge)
+      0b1010: [5,  9],                // grass N+W (TL outer corner)
+      0b1001: [7,  11],               // grass N+E (TR outer corner)
+      0b0110: [21, 25],               // grass S+W (BL outer corner)
+      0b0101: [23, 27],               // grass S+E (BR outer corner)
+      0b1100: [29, 30, 38],           // grass N+S (thin vertical path)
+      0b0011: [31, 39],               // grass E+W (thin horizontal path)
+      0b1110: [40],                   // grass N+S+W (cobble E only)
+      0b1101: [41],                   // grass N+S+E (cobble W only)
+      0b1011: [42],                   // grass N+E+W (cobble S only)
+      0b0111: [43],                   // grass S+E+W (cobble N only)
+      0b1111: [46],                   // isolated single tile
+    };
+
+    const TS    = Math.round(32 * DPR);
+    const COLS  = Math.ceil(WW / TS);
+    const ROWS  = Math.ceil(WH / TS);
+
+    // ── Build cobblestone grid ────────────────────────────────────────────────
+    const grid = new Uint8Array(COLS * ROWS);
+    const fill = (xf: number, yf: number, wf: number, hf: number) => {
+      const c0 = Math.floor(xf * COLS), c1 = Math.ceil((xf + wf) * COLS);
+      const r0 = Math.floor(yf * ROWS), r1 = Math.ceil((yf + hf) * ROWS);
+      for (let r = Math.max(0, r0); r < Math.min(ROWS, r1); r++)
+        for (let c = Math.max(0, c0); c < Math.min(COLS, c1); c++)
+          grid[r * COLS + c] = 1;
+    };
+
+    // ── Road network ─────────────────────────────────────────────────────────
+    // Road widths in tiles so they stay consistent across screen sizes
+    const rW = TS / WW;   // 1 tile as fraction of WW
+    const rH = TS / WH;   // 1 tile as fraction of WH
+    const R  = 2.0;        // main road width (tiles) — 2 guarantees ≥2 rows/cols regardless of yf alignment
+
+    fill(0.42, 0.00, rW * R, 0.93);      // V_main: N-S spine (gate → 出戰 → spawn → 造型)
+
+    fill(0.20, 0.28, 0.24, rH * R);      // H_warehouse: → 倉庫  (xf=0.23, yf=0.30)
+    fill(0.42, 0.50, 0.28, rH * R);      // H_forge:     → 鍛造  (xf=0.65, yf=0.50)
+    fill(0.18, 0.65, 0.26, rH * R);      // H_shop:      → 商店  (xf=0.33, yf=0.65)
+
+    // ── Stamp tiles into a single RenderTexture (drawn once, then static) ─────
+    const rt = this.add.renderTexture(0, 0, WW, WH).setOrigin(0, 0).setDepth(2);
+    const stamper = this.add.image(0, 0, 'tileset_fields', 0)
+      .setScale(DPR).setOrigin(0, 0).setVisible(false);
+
+    const isC = (r: number, c: number) =>
+      r >= 0 && r < ROWS && c >= 0 && c < COLS && grid[r * COLS + c] === 1;
+
+    rt.beginDraw();
+    for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c < COLS; c++) {
+        if (!isC(r, c)) continue;
+        const mask =
+          (isC(r - 1, c) ? 0 : 8) |
+          (isC(r + 1, c) ? 0 : 4) |
+          (isC(r, c - 1) ? 0 : 2) |
+          (isC(r, c + 1) ? 0 : 1);
+        const pool  = POOL[mask] ?? POOL[0b0000];
+        const frame = pool[(r * 7 + c * 13) % pool.length];
+        stamper.setFrame(frame).setPosition(c * TS, r * TS);
+        rt.batchDraw(stamper);
+      }
+    }
+    rt.endDraw();
+
+    stamper.destroy();
+    this._townContainer?.add(rt);
+
+    // ── Scatter decorations on grass tiles ───────────────────────────────────
+    this._townStoneRects = [];
+    // keep a 3-tile clear zone around the player spawn (world centre)
+    const spawnC = Math.round(COLS / 2), spawnR = Math.round(ROWS / 2);
+
+    for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c < COLS; c++) {
+        if (isC(r, c)) continue;
+        // no decorations within 3 tiles of spawn
+        if (Math.abs(c - spawnC) <= 3 && Math.abs(r - spawnR) <= 3) continue;
+
+        const wx = c * TS + TS / 2;
+        const wy = r * TS + TS / 2;
+        const h1 = (r * 1619 + c * 3167 + r * c * 7)   % 100;
+        const h2 = (r * 2311 + c * 1447 + r * c * 13)  % 100;
+        const h3 = (r * 3571 + c * 2741 + r * c * 17)  % 100;
+
+        // stones ~6 % (decorative only, no collision)
+        if (h1 < 6) {
+          const n = h2 % 6 + 1;
+          const key = `deco_stone${n}`;
+          if (this.textures.exists(key)) {
+            this.textures.get(key).setFilter(Phaser.Textures.FilterMode.NEAREST);
+            this._townContainer?.add(
+              this.add.image(wx, wy, key).setScale(DPR).setOrigin(0.5, 1).setDepth(3),
+            );
+          }
+          continue;
+        }
+
+        // flowers ~10 %
+        if (h2 < 10) {
+          const n = h3 % 12 + 1;
+          const key = `deco_flower${n}`;
+          if (this.textures.exists(key)) {
+            this.textures.get(key).setFilter(Phaser.Textures.FilterMode.NEAREST);
+            this._townContainer?.add(
+              this.add.image(wx, wy, key).setScale(DPR).setOrigin(0.5, 1).setDepth(3),
+            );
+          }
+          continue;
+        }
+
+        // grass tufts ~15 %
+        if (h3 < 15) {
+          const n = (r * 13 + c * 7) % 6 + 1;
+          const key = `deco_grass${n}`;
+          if (this.textures.exists(key)) {
+            this.textures.get(key).setFilter(Phaser.Textures.FilterMode.NEAREST);
+            this._townContainer?.add(
+              this.add.image(wx, wy, key).setScale(DPR).setOrigin(0.5, 1).setDepth(3),
+            );
+          }
+        }
+      }
+    }
+  }
+
+  private _createTownLocalPlayer(WW: number, WH: number): void {
+    const mk = (key: string, tex: string, s: number, e: number, rate: number) => {
+      if (!this.anims.exists(key))
+        this.anims.create({ key, frames: this.anims.generateFrameNumbers(tex, { start: s, end: e }), frameRate: rate, repeat: -1 });
+    };
+    mk('player_idle_down',  'player_idle_shadow', 0,  3,  8);
+    mk('player_idle_left',  'player_idle_shadow', 12, 15, 8);
+    mk('player_idle_right', 'player_idle_shadow', 24, 27, 8);
+    mk('player_idle_up',    'player_idle_shadow', 36, 39, 8);
+    if (this.textures.exists('player_run_shadow')) {
+      mk('player_run_down',  'player_run_shadow', 0,  7,  10);
+      mk('player_run_left',  'player_run_shadow', 8,  15, 10);
+      mk('player_run_right', 'player_run_shadow', 16, 23, 10);
+      mk('player_run_up',    'player_run_shadow', 24, 31, 10);
+    }
+
+    this._townPlayerX = WW * 0.50;
+    this._townPlayerY = WH * 0.50;
+
+    this.textures.get('player_idle_shadow').setFilter(Phaser.Textures.FilterMode.NEAREST);
+    this._townPlayer = this.add.sprite(this._townPlayerX, this._townPlayerY, 'player_idle_shadow', 0)
+      .setScale(1.5 * DPR).setDepth(10);
+    this._townPlayer.play('player_idle_down');
+    this._townContainer?.add(this._townPlayer);
+
+    this._townLocalNameLabel = this.add.text(this._townPlayerX, this._townPlayerY - P(28), getPlayerName(), {
+      fontSize: F(11), color: '#ffffff', stroke: '#000000', strokeThickness: 2,
+    }).setOrigin(0.5, 1).setDepth(11);
+    this._townContainer?.add(this._townLocalNameLabel);
+
+    this._townPlayerDebug = this.add.graphics().setDepth(999);
+    this._townContainer?.add(this._townPlayerDebug);
+  }
+
+  private _createTownDpad(H: number, _VIEW_Y: number, _VIEW_H: number): void {
+    // BOTTOM_H from global constant
+    const BTN = P(30);
+    const step = BTN + P(2);
+    const cx = P(55), cy = H - BOTTOM_H - P(58);
+
+    const dirs: { dir: 'up' | 'down' | 'left' | 'right'; label: string; ox: number; oy: number }[] = [
+      { dir: 'up',    label: '▲', ox: 0,    oy: -step },
+      { dir: 'down',  label: '▼', ox: 0,    oy:  step },
+      { dir: 'left',  label: '◀', ox: -step, oy: 0    },
+      { dir: 'right', label: '▶', ox:  step, oy: 0    },
+    ];
+    dirs.forEach(({ dir, label, ox, oy }) => {
+      const bx = cx + ox, by = cy + oy;
+      const gfx = this.add.graphics().setDepth(60).setAlpha(0.45);
+      gfx.fillStyle(0x334455);
+      gfx.fillRoundedRect(bx - BTN / 2, by - BTN / 2, BTN, BTN, P(6));
+      gfx.lineStyle(1.5, 0x7799bb, 0.8);
+      gfx.strokeRoundedRect(bx - BTN / 2, by - BTN / 2, BTN, BTN, P(6));
+      this.add.text(bx, by, label, { fontSize: F(12), color: '#99bbcc' })
+        .setOrigin(0.5).setDepth(61).setAlpha(0.7);
+      const hit = this.add.rectangle(bx, by, BTN + P(4), BTN + P(4))
+        .setInteractive({ useHandCursor: false }).setDepth(62).setAlpha(0.001);
+      hit.on('pointerdown', (ptr: Phaser.Input.Pointer) => { ptr.event.stopPropagation(); this._dpadState[dir] = true;  gfx.setAlpha(0.75); });
+      hit.on('pointerup',   () => { this._dpadState[dir] = false; gfx.setAlpha(0.45); });
+      hit.on('pointerout',  () => { this._dpadState[dir] = false; gfx.setAlpha(0.45); });
+    });
+  }
+
+  private _createForestBorder(WW: number, WH: number): void {
+    if (!this.textures.exists('tree_oak')) return;
+    const TS   = Math.round(32 * DPR);
+    const STEP = Math.round(TS * 1.5);
+    const EDGE = Math.round(TS * 0.6);
+
+    const gateX  = WW * 0.44;
+    const gateHW = TS * 1.2;
+
+    // Deterministic pseudo-random from world position + salt
+    const rng = (x: number, y: number, s: number) =>
+      Math.abs((Math.sin(x * 127.1 + y * 311.7 + s * 74.3) * 43758.5453) % 1);
+
+    const place = (bx: number, by: number, isBottom = false, depthCap = Infinity) => {
+      // Random positional jitter
+      const px = bx + (rng(bx, by, 1) - 0.5) * STEP * 0.65;
+      const py = by + (rng(bx, by, 2) - 0.5) * STEP * 0.45;
+      // Random scale ±15%
+      const sc = 1.0 + (rng(bx, by, 3) - 0.5) * 0.3;
+      // Float depth: random within ±0.7 of y-based tier so same-row trees overlap
+      // chaotically, while trees one STEP further south (Δ=1.5 tiers) always win.
+      const depth = Math.min(4 + py / TS + (rng(bx, by, 4) - 0.5) * 1.4, depthCap);
+
+      if (this.textures.exists('tree_shadow')) {
+        this._townContainer?.add(
+          this.add.image(px + TS * 0.1, py - TS * 0.1, 'tree_shadow')
+            .setScale(DPR * sc).setOrigin(0.5, 0.5).setDepth(2).setAlpha(0.45),
+        );
+      }
+      // Bottom-row trees: origin 0.35 so trunk extends below world boundary (masked),
+      // only the canopy remains visible
+      const originY = isBottom ? 0.35 : 1;
+      this._townContainer?.add(
+        this.add.image(px, py, 'tree_oak')
+          .setScale(DPR * sc * 1.2).setOrigin(0.5, originY).setDepth(depth),
+      );
+    };
+
+    const BOTTOM_Y = WH - EDGE * 0.2;
+    // Max depth the bottom row can reach (used to cap side-tree depth at bottom)
+    const bottomDepthCap = 4 + Math.floor(BOTTOM_Y / TS) + 3;
+
+    // Top edge — gate gap for 出戰 exit; depth capped so trees never cover player
+    for (let x = -STEP / 2; x <= WW + STEP / 2; x += STEP) {
+      if (Math.abs(x - gateX) < gateHW) continue;
+      place(x, EDGE + TS * 0.5, false, 4.5);
+    }
+
+    // Bottom edge — fully filled (no gate)
+    for (let x = -STEP / 2; x <= WW + STEP / 2; x += STEP)
+      place(x, BOTTOM_Y, true);
+
+    // Left/right edges — extend one extra step past the bottom row for corner coverage;
+    // trees below BOTTOM_Y use isBottom origin and are depth-capped so they don't
+    // render on top of the bottom-row trees
+    const placeSide = (bx: number, by: number) => {
+      const isBot = by >= BOTTOM_Y - STEP * 0.5;
+      const bxOrig = bx, byOrig = by;
+      const px = bx + (rng(bx, by, 1) - 0.5) * STEP * 0.65;
+      const py = by + (rng(bx, by, 2) - 0.5) * STEP * 0.45;
+      const sc = 1.0 + (rng(bxOrig, byOrig, 3) - 0.5) * 0.3;
+      const rawDepth = 4 + py / TS + (rng(bxOrig, byOrig, 4) - 0.5) * 1.4;
+      const depth = isBot ? Math.min(rawDepth, bottomDepthCap) : rawDepth;
+      if (this.textures.exists('tree_shadow')) {
+        this._townContainer?.add(
+          this.add.image(px + TS * 0.1, py - TS * 0.1, 'tree_shadow')
+            .setScale(DPR * sc).setOrigin(0.5, 0.5).setDepth(2).setAlpha(0.45),
+        );
+      }
+      const originY = isBot ? 0.35 : 1;
+      this._townContainer?.add(
+        this.add.image(px, py, 'tree_oak')
+          .setScale(DPR * sc * 1.2).setOrigin(0.5, originY).setDepth(depth),
+      );
+    };
+
+    for (let y = STEP; y <= BOTTOM_Y + STEP; y += STEP)
+      placeSide(EDGE * 0.5, y);
+    placeSide(EDGE * 0.5, BOTTOM_Y + STEP * 0.6);
+    // Corner fill: 2 trees to bridge gap between side column and bottom row
+    place(EDGE * 0.5,  BOTTOM_Y, true);
+    place(STEP * 0.35, BOTTOM_Y, true);
+
+    for (let y = STEP; y <= BOTTOM_Y + STEP; y += STEP)
+      placeSide(WW - EDGE * 0.5, y);
+    place(WW - EDGE * 0.5,  BOTTOM_Y, true);
+    place(WW - STEP * 0.35, BOTTOM_Y, true);
+
+    // Top wall collision — two rects either side of the gate gap
+    const wallY  = EDGE + TS * 0.5;
+    const wallH  = TS * 1.2;  // collision thickness
+    const leftW  = gateX - gateHW;
+    const rightW = WW - (gateX + gateHW);
+    if (leftW > 0)
+      this._townBuildingRects.push({ cx: leftW / 2, cy: wallY, hw: leftW / 2, hh: wallH / 2 });
+    if (rightW > 0)
+      this._townBuildingRects.push({ cx: gateX + gateHW + rightW / 2, cy: wallY, hw: rightW / 2, hh: wallH / 2 });
+
+    // Path trees — flank the entrance corridor from gate down to 出戰 building
+    const PATH_END_Y = WH * 0.30;         // ↓ 調這裡：停在建築前多高
+    const PATH_L_X   = gateX - gateHW * 2.2;  // ↓ 調這裡：左排 x
+    const PATH_R_X   = gateX + gateHW * 2.8;  // ↓ 調這裡：右排 x
+    const PCW = P(20), PCH = P(12); // path tree collision size (same as stumps)
+    const placePathTree = (bx: number, by: number) => {
+      place(bx, by, false);
+      this._townBuildingRects.push({ cx: bx, cy: by - PCH / 2, hw: PCW / 2, hh: PCH / 2 });
+    };
+
+    let li = 0;
+    for (let y = EDGE + STEP * 1.2; y < PATH_END_Y; y += STEP, li++)
+      if (li !== 2) placePathTree(PATH_L_X, y);
+    let ri = 0, rCount = 0;
+    for (let y = EDGE + STEP * 1.2; y < PATH_END_Y; y += STEP) rCount++;
+    for (let y = EDGE + STEP * 1.2; y < PATH_END_Y; y += STEP, ri++)
+      if (ri !== rCount - 1) placePathTree(PATH_R_X, y);
+  }
+
+  private _createTownStumps(WW: number, WH: number): void {
+    if (!this.textures.exists('deco_stump')) return;
+    this.textures.get('deco_stump').setFilter(Phaser.Textures.FilterMode.NEAREST);
+
+    // ↓ 調這裡：每棵樹墩的位置 (xf, yf)，避開道路和建築
+    const STUMPS: { xf: number; yf: number }[] = [
+      { xf: 0.14, yf: 0.42 },
+      { xf: 0.78, yf: 0.32 },
+      { xf: 0.12, yf: 0.78 },
+      { xf: 0.72, yf: 0.72 },
+      { xf: 0.26, yf: 0.88 },
+      { xf: 0.84, yf: 0.62 },
+    ];
+
+    const CW = P(31), CH = P(19); // collision box half-width / half-height × 2 ← adjust here
+
+    for (const s of STUMPS) {
+      const sx = WW * s.xf, sy = WH * s.yf;
+      const depth = 4 + sy / Math.round(32 * DPR) + 0.3;
+      if (this.textures.exists('deco_stump_shadow'))
+        this._townContainer?.add(
+          this.add.image(sx, sy - P(8), 'deco_stump_shadow')
+            .setScale(DPR * 1.2).setOrigin(0.5, 0.5).setAlpha(0.5).setDepth(2),
+        );
+      this._townContainer?.add(
+        this.add.image(sx, sy, 'deco_stump')
+          .setScale(DPR * 1.2).setOrigin(0.5, 1).setDepth(depth),
+      );
+      this._townBuildingRects.push({ cx: sx, cy: sy - CH / 2, hw: CW / 2, hh: CH / 2 });
+
+    }
+  }
+
+  private _createTownObjects(WW: number, WH: number): void {
+    const W = this._sceneW, H = this.scale.height;
+    const TS = Math.round(32 * DPR);
+    const objs: Array<{
+      xf: number; yf: number;
+      icon: string; label: string; color: number;
+      buildingKey?: string;
+      tapW?: number; tapH?: number;
+      collW?: number; collH?: number;  // collision rect size (defaults to tapW/tapH)
+      buildingScale?: number;
+      tent?: boolean;
+      shadow?: boolean;
+      shadowKey?: string;
+      shadowOX?: number; shadowOY?: number;
+      animKey?: string;
+      labelBelow?: boolean;
+      decoKey?: string; decoOX?: number; decoOY?: number; decoScale?: number;
+      debugBox?: boolean;
+      onActivate: () => void;
+    }> = [
+      { xf: 0.45, yf: 0.20, icon: '⚔', label: '出戰',  color: 0xcc4400, buildingKey: 'building_battle',
+        tapW: P(80), tapH: P(72), collW: P(120), collH: P(55), shadow: true, buildingScale: 1.4, labelBelow: true, onActivate: () => this.showQuestPanel(W, H) },
+      { xf: 0.33, yf: 0.65, icon: '✦', label: '商店',  color: 0xd47820, buildingKey: 'building_shop',
+        tapW: P(80), tapH: P(72), collW: P(130), collH: P(55), tent: true, onActivate: () => this.showShopPanel(W, H) },
+      { xf: 0.65, yf: 0.50, icon: '⚒', label: '鍛造',  color: 0xd47820, buildingKey: 'building_forge',
+        tapW: P(80), tapH: P(72), collW: P(190), collH: P(55), shadow: true, shadowOX: P(0), shadowOY: P(10), onActivate: () => this._showToast('功能待開發') },
+      { xf: 0.23, yf: 0.30, icon: '⊕', label: '倉庫',  color: 0x70b858, buildingKey: 'building_warehouse',
+        tapW: P(80), tapH: P(60), collW: P(85), collH: P(20), buildingScale: 1.4,
+        shadow: true, shadowKey: 'deco_shadow5', shadowOX: P(0), shadowOY: P(10),
+        decoKey: 'deco_warehouse_box', decoOX: P(10), decoOY: P(0), decoScale: 1.2,
+        onActivate: () => this._showToast('功能待開發') },
+      { xf: 0.45, yf: 0.90, icon: '✧', label: '造型',  color: 0xdd88aa, animKey: 'campfire',
+        tapW: P(48), tapH: P(40), collW: P(48), collH: P(20), onActivate: () => this._openWardrobePanel() },
+    ];
+
+    for (const obj of objs) {
+      const wx = WW * obj.xf;
+      const wy = WH * obj.yf;
+      const PAD_W = P(64), PAD_H = P(26);
+      const colorHex = `#${obj.color.toString(16).padStart(6, '0')}`;
+
+      if (obj.buildingKey && this.textures.exists(obj.buildingKey)) {
+        // Building sprite — depth = base Y so player sorts correctly by feet position
+        const bDepth = 4 + wy / TS;
+        const bImg = this.add.image(wx, wy, obj.buildingKey)
+          .setScale(DPR * (obj.buildingScale ?? 1.4)).setOrigin(0.5, 1).setDepth(bDepth)
+          .setInteractive({ useHandCursor: true })
+          .on('pointerup', (_p: any, _lx: any, _ly: any, ev: any) => { ev?.stopPropagation?.(); obj.onActivate(); });
+
+        // Collision rect (red debug box — adjust collW/collH to fit)
+        const cW = obj.collW ?? (obj.tapW ?? PAD_W + P(20));
+        const cH = obj.collH ?? (obj.tapH ?? PAD_H + P(40));
+        const cCX = wx, cCY = wy - cH / 2;
+        this._townBuildingRects.push({ cx: cCX, cy: cCY, hw: cW / 2, hh: cH / 2 });
+
+        // Building shadow — adjust shadowOX/shadowOY in the zone entry to reposition
+        const _shadowTex = obj.shadowKey ?? 'deco_tent_shadow';
+        if (obj.shadow && this.textures.exists(_shadowTex)) {
+          const sox = obj.shadowOX ?? P(0), soy = obj.shadowOY ?? P(10);
+          this._townContainer?.add(
+            this.add.image(wx + sox, wy + soy, _shadowTex)
+              .setScale(DPR * (obj.buildingScale ?? 1.4)).setOrigin(0.5, 1).setAlpha(0.5).setDepth(2),
+          );
+        }
+
+        this._townContainer?.add(bImg);
+
+        // Secondary deco image (e.g. box in front of warehouse tent)
+        // ↓ 調 decoOX/decoOY/decoScale 在 zone entry
+        if (obj.decoKey && this.textures.exists(obj.decoKey)) {
+          const dox = obj.decoOX ?? P(0), doy = obj.decoOY ?? P(0);
+          const dsc = obj.decoScale ?? 1.2;
+          this._townContainer?.add(
+            this.add.image(wx + dox, wy + doy, obj.decoKey)
+              .setScale(DPR * dsc).setOrigin(0.5, 1).setDepth(bDepth + 0.01),
+          );
+        }
+
+        if (obj.debugBox) {
+          const dbg = this.add.graphics().setDepth(20);
+          dbg.lineStyle(2, 0xff0000, 1);
+          dbg.strokeRect(cCX - cW / 2, cCY - cH / 2, cW, cH);
+          this._townContainer?.add(dbg);
+        }
+
+        // Tent — placed to the left of the building
+        // ↓ 調這裡：位置 OX/OY，碰撞框 TCW(寬) TCH(高) TCOX/TCOY(框中心偏移)
+        if (obj.tent && this.textures.exists('deco_tent')) {
+          const TENT_OX = -P(100), TENT_OY = P(0);
+          const TCW = P(70),  TCH = P(15);   // collision half-width / half-height × 2
+          const TCOX = P(0),  TCOY = P(0);   // collision center offset from tent base
+
+          const tx = wx + TENT_OX, ty = wy + TENT_OY;
+
+          // Shadow — adjust SHADOW_OX/SHADOW_OY to reposition
+          if (this.textures.exists('deco_tent_shadow')) {
+            const SHADOW_OX = P(0), SHADOW_OY = P(6);
+            this._townContainer?.add(
+              this.add.image(tx + SHADOW_OX, ty + SHADOW_OY, 'deco_tent_shadow')
+                .setScale(DPR * 1.1).setOrigin(0.5, 1).setAlpha(0.5).setDepth(2),
+            );
+          }
+
+          const tentImg = this.add.image(tx, ty, 'deco_tent')
+            .setScale(DPR * 1.1).setOrigin(0.5, 1)
+            .setDepth(bDepth - 0.000000000000001);
+          this._townContainer?.add(tentImg);
+
+          // Collision rect
+          const tCX = tx + TCOX, tCY = ty - TCH / 2 + TCOY;
+          this._townBuildingRects.push({ cx: tCX, cy: tCY, hw: TCW / 2, hh: TCH / 2 });
+
+        }
+
+        // Sign label — above or below building
+        const signY = obj.labelBelow ? wy - P(22) : wy - bImg.displayHeight - P(4);
+        const signTxt = this.add.text(wx, signY, obj.label, {
+          fontSize: F(15), fontStyle: 'bold',
+          color: colorHex, stroke: '#1a0800', strokeThickness: 2,
+          backgroundColor: '#00000088',
+          padding: { x: P(6), y: P(3) },
+        }).setOrigin(0.5, obj.labelBelow ? 0 : 1).setDepth(obj.labelBelow ? 3 : bDepth + 1);
+        this._townContainer?.add(signTxt);
+      } else if (obj.animKey && this.textures.exists(obj.animKey)) {
+        // Animated sprite (e.g. campfire)
+        const aDepth = 4 + wy / TS;
+        const animSprite = this.add.sprite(wx, wy, obj.animKey)
+          .setScale(DPR * 2).setOrigin(0.5, 1).setDepth(aDepth)
+          .setInteractive({ useHandCursor: true })
+          .on('pointerup', (_p: any, _lx: any, _ly: any, ev: any) => { ev?.stopPropagation?.(); obj.onActivate(); });
+        const animKey = obj.animKey + '_anim';
+        if (!this.anims.exists(animKey))
+          this.anims.create({ key: animKey, frames: this.anims.generateFrameNumbers(obj.animKey, { start: 0, end: 3 }), frameRate: 8, repeat: -1 });
+        animSprite.play(animKey);
+        this._townContainer?.add(animSprite);
+
+        // Collision rect
+        const cW = obj.collW ?? P(40), cH = obj.collH ?? P(20);
+        this._townBuildingRects.push({ cx: wx, cy: wy - cH / 2, hw: cW / 2, hh: cH / 2 });
+
+        if (obj.debugBox) {
+          const dbg = this.add.graphics().setDepth(20);
+          dbg.lineStyle(2, 0xff0000, 1);
+          dbg.strokeRect(wx - cW / 2, wy - cH, cW, cH);
+          this._townContainer?.add(dbg);
+        }
+
+        // Label above sprite
+        const signTxtA = this.add.text(wx, wy - animSprite.displayHeight - P(4), obj.label, {
+          fontSize: F(15), fontStyle: 'bold',
+          color: colorHex, stroke: '#1a0800', strokeThickness: 2,
+          backgroundColor: '#00000088', padding: { x: P(6), y: P(3) },
+        }).setOrigin(0.5, 1).setDepth(aDepth + 1);
+        this._townContainer?.add(signTxtA);
+      } else {
+        // Platform
+        const padGfx = this.add.graphics().setDepth(5);
+        padGfx.fillStyle(0x000000, 0.40);
+        padGfx.fillRoundedRect(wx - PAD_W / 2 + P(2), wy - PAD_H / 2 + P(2), PAD_W, PAD_H, P(6));
+        padGfx.fillStyle(WD, 1);
+        padGfx.fillRoundedRect(wx - PAD_W / 2, wy - PAD_H / 2, PAD_W, PAD_H, P(6));
+        padGfx.lineStyle(2, obj.color, 0.85);
+        padGfx.strokeRoundedRect(wx - PAD_W / 2, wy - PAD_H / 2, PAD_W, PAD_H, P(6));
+        this._townContainer?.add(padGfx);
+
+        // Icon above platform
+        const iconTxt = this.add.text(wx, wy - PAD_H / 2 - P(20), obj.icon, {
+          fontSize: F(22), color: colorHex, stroke: '#1a0800', strokeThickness: 2,
+        }).setOrigin(0.5, 1).setDepth(6);
+        this._townContainer?.add(iconTxt);
+
+        // Name label inside platform
+        const nameTxt = this.add.text(wx, wy, obj.label, {
+          fontSize: F(15), fontStyle: 'bold',
+          color: '#ffe8b0', stroke: '#1a0800', strokeThickness: 2,
+        }).setOrigin(0.5).setDepth(6);
+        this._townContainer?.add(nameTxt);
+      }
+
+    }
+  }
+
+  private _joinTownRoom(): void {
+    console.log('[Town] joining town room...');
+    NetworkService.joinTown().then(payload => {
+      console.log('[Town] joined, sessionId=', payload.sessionId, 'existing=', payload.existing?.length);
+      if (!this.scene.isActive()) return;
+      NetworkService.sendTownInfo(getPlayerName(), PlayerStore.getLevel(), SkinStore.get());
+
+      NetworkService.onTownPos(data => {
+        const r = this._townRemotePlayers.get(data.sessionId);
+        if (!r) return;
+        r.fromX = r.sprite.x;
+        r.fromY = r.sprite.y;
+        r.targetX = data.x * this._townWorldW;
+        r.targetY = data.y * this._townWorldH;
+        r.lerpT = 0;
+        r.lerpDur = 110;
+        const sk = (r.sprite as any).__skinId ?? 0;
+        const runKey  = `town_remote_run_${sk}_${data.lastDir}`;
+        const idleKey = `town_remote_idle_${sk}_${data.lastDir}`;
+        if (this.anims.exists(runKey)) r.sprite.play(runKey, true);
+        clearTimeout((r.sprite as any).__idleTimer);
+        (r.sprite as any).__idleTimer = setTimeout(() => {
+          if (!r.sprite.active) return;
+          if (this.anims.exists(idleKey)) r.sprite.play(idleKey, true);
+        }, 400);
+      });
+
+      NetworkService.onTownPlayerJoined(data => {
+        if (data.sessionId === NetworkService.townSessionId) return;
+        this._spawnTownRemotePlayer(data.sessionId, data.x, data.y, data.lastDir, data.nickname, data.level, data.skinId);
+      });
+
+      NetworkService.onTownPlayerLeft(data => {
+        const r = this._townRemotePlayers.get(data.sessionId);
+        if (!r) return;
+        r.sprite.destroy(); r.nameLabel.destroy();
+        this._townRemotePlayers.delete(data.sessionId);
+      });
+
+      NetworkService.onTownPlayerInfo(data => {
+        const r = this._townRemotePlayers.get(data.sessionId);
+        if (r) r.nameLabel.setText(data.nickname || '?');
+      });
+
+      payload.existing?.forEach((p: any) =>
+        this._spawnTownRemotePlayer(p.sessionId, p.x, p.y, p.lastDir, p.nickname, p.level, p.skinId),
+      );
+    }).catch((err: any) => { console.warn('[Town] joinTown failed:', err); });
+  }
+
+  private _spawnTownRemotePlayer(
+    sessionId: string, nx: number, ny: number, lastDir: string,
+    nickname: string, level: number, skinId: number,
+  ): void {
+    console.log('[Town] spawn remote player', sessionId, nx, ny);
+    if (this._townRemotePlayers.has(sessionId)) return;
+    const sx = nx * this._townWorldW, sy = ny * this._townWorldH;
+
+    const skinKey = `skin_preview_${skinId}`;
+    const runSkinKey = `skin_run_preview_${skinId}`;
+    if (this.textures.exists(skinKey)) {
+      this.textures.get(skinKey).setFilter(Phaser.Textures.FilterMode.NEAREST);
+      (['down', 'left', 'right', 'up'] as const).forEach((dir, i) => {
+        const idleStart = i * 12;
+        const akey = `town_remote_idle_${skinId}_${dir}`;
+        if (!this.anims.exists(akey))
+          this.anims.create({ key: akey, frames: this.anims.generateFrameNumbers(skinKey, { start: idleStart, end: idleStart + 3 }), frameRate: 5, repeat: -1 });
+      });
+    }
+    if (this.textures.exists(runSkinKey)) {
+      this.textures.get(runSkinKey).setFilter(Phaser.Textures.FilterMode.NEAREST);
+      (['down', 'left', 'right', 'up'] as const).forEach((dir, i) => {
+        const runStart = i * 8;
+        const rkey = `town_remote_run_${skinId}_${dir}`;
+        if (!this.anims.exists(rkey))
+          this.anims.create({ key: rkey, frames: this.anims.generateFrameNumbers(runSkinKey, { start: runStart, end: runStart + 7 }), frameRate: 10, repeat: -1 });
+      });
+    }
+
+    const texKey = this.textures.exists(skinKey) ? skinKey : 'player_idle_shadow';
+    const sprite = this.add.sprite(sx, sy, texKey, 0).setScale(1.5 * DPR).setDepth(10);
+    (sprite as any).__skinId = skinId;
+    const initAnim = `town_remote_idle_${skinId}_${lastDir}`;
+    if (this.anims.exists(initAnim)) sprite.play(initAnim, true);
+    this._townContainer?.add(sprite);
+
+    const nameTxt = this.add.text(sx, sy - P(28), nickname || '?', {
+      fontSize: F(11), color: '#aaddff', stroke: '#000000', strokeThickness: 2,
+    }).setOrigin(0.5, 1).setDepth(11);
+    this._townContainer?.add(nameTxt);
+
+    if (level > 1) {
+      const lvTxt = this.add.text(sx, sy - P(16), `Lv.${level}`, {
+        fontSize: F(9), color: '#88aacc',
+      }).setOrigin(0.5, 1).setDepth(11);
+      this._townContainer?.add(lvTxt);
+    }
+
+    this._townRemotePlayers.set(sessionId, { sprite, nameLabel: nameTxt, fromX: sx, fromY: sy, targetX: sx, targetY: sy, lerpT: 1, lerpDur: 110 });
+  }
+
+  private _updateTownInteractions(): void {
+    const MARGIN = P(32);
+    let nearest: (typeof this._townZones)[0] | null = null;
+    let nearestDist = Infinity;
+
+    for (const zone of this._townZones) {
+      zone.ring.setAlpha(0);
+      const dx = Math.abs(this._townPlayerX - zone.wx);
+      const dy = this._townPlayerY - (zone.wy - zone.hh);
+      const inRange = dx < zone.hw + MARGIN && Math.abs(dy) < zone.hh + MARGIN;
+      const dist = Math.hypot(dx, dy);
+      if (inRange && dist < nearestDist) { nearestDist = dist; nearest = zone; }
+    }
+
+    this._townInteractLabel?.setVisible(false);
+
+    const currLabel = nearest?.label ?? null;
+    if (currLabel !== this._townActiveZone) {
+      this._townActiveZone = currLabel;
+      if (nearest) nearest.onActivate();
+    }
+  }
+
+  override update(_time: number, delta: number): void {
+    if (!this._townPlayer || !this._townContainer) return;
+
+    const dt  = delta / 1000;
+    const VW  = this._townViewW, VH = this._townViewH;
+    const WW  = this._townWorldW, WH = this._townWorldH;
+    const SPEED  = Math.min(VW, VH) * 0.45 * dt;
+    const MARGIN = P(20);
+
+    const keys = this._townCursors, wasd = this._townWASD;
+    let dx = 0, dy = 0;
+    if (keys?.left.isDown  || wasd?.left.isDown  || this._dpadState.left)  dx -= 1;
+    if (keys?.right.isDown || wasd?.right.isDown || this._dpadState.right) dx += 1;
+    if (keys?.up.isDown    || wasd?.up.isDown    || this._dpadState.up)    dy -= 1;
+    if (keys?.down.isDown  || wasd?.down.isDown  || this._dpadState.down)  dy += 1;
+    if (dx !== 0 && dy !== 0) { dx *= 0.707; dy *= 0.707; }
+
+    const PHW = P(13), PHH = P(5), PHY = P(10); // ← 半寬/半高/中心往下偏移
+    const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+    const overlapsStone = (nx: number, ny: number) =>
+      this._townStoneRects.some(s => Math.hypot(nx - s.x, ny + PHY - s.y) < PHW + s.r) ||
+      this._townBuildingRects.some(b =>
+        Math.abs(nx - b.cx) < b.hw + PHW && Math.abs((ny + PHY) - b.cy) < b.hh + PHH);
+
+    let nx = clamp(this._townPlayerX + dx * SPEED, MARGIN, WW - MARGIN);
+    let ny = clamp(this._townPlayerY + dy * SPEED, MARGIN, WH - MARGIN);
+    if (overlapsStone(nx, ny)) {
+      // try slide: X only, then Y only
+      if (!overlapsStone(nx, this._townPlayerY)) ny = this._townPlayerY;
+      else if (!overlapsStone(this._townPlayerX, ny)) nx = this._townPlayerX;
+      else { nx = this._townPlayerX; ny = this._townPlayerY; }
+    }
+    this._townPlayerX = nx;
+    this._townPlayerY = ny;
+    this._townPlayer.setPosition(this._townPlayerX, this._townPlayerY);
+
+    // Update depth after final position — higher Y (lower on screen) = higher depth = in front
+    const TS2 = Math.round(32 * DPR);
+    const playerDepth = 4 + this._townPlayerY / TS2 + 0.5;
+    this._townPlayer.setDepth(playerDepth);
+    this._townLocalNameLabel?.setDepth(playerDepth + 0.1);
+    // Container children render in insertion order, not by depth — re-sort every frame
+    this._townContainer.sort('depth');
+
+    // Camera: keep player centred, clamped to world bounds
+    const camX = Math.max(0, Math.min(this._townPlayerX - VW / 2, WW - VW));
+    const camY = Math.max(0, Math.min(this._townPlayerY - VH / 2, WH - VH));
+    this._townContainer.setPosition(-camX, this._townViewY - camY);
+
+    const moving = dx !== 0 || dy !== 0;
+    if (moving) {
+      this._townPlayerDir = Math.abs(dx) >= Math.abs(dy)
+        ? (dx > 0 ? 'right' : 'left')
+        : (dy > 0 ? 'down'  : 'up');
+    }
+    const hasRun = this.textures.exists('player_run_shadow');
+    const animKey = (moving && hasRun) ? `player_run_${this._townPlayerDir}` : `player_idle_${this._townPlayerDir}`;
+    if (this._townPlayer.anims.currentAnim?.key !== animKey)
+      this._townPlayer.play(animKey, true);
+
+    this._townLocalNameLabel?.setPosition(this._townPlayerX, this._townPlayerY - P(28));
+    if (this._townPlayerDebug) this._townPlayerDebug.clear();
+
+    this._townMoveSendTimer += delta;
+    if (this._townMoveSendTimer >= 80 && NetworkService.townConnected) {
+      this._townMoveSendTimer = 0;
+      const nx = this._townPlayerX / WW;
+      const ny = this._townPlayerY / WH;
+      const nd = this._townPlayerDir;
+      if (nx !== this._townLastSentX || ny !== this._townLastSentY || nd !== this._townLastSentDir) {
+        this._townLastSentX = nx;
+        this._townLastSentY = ny;
+        this._townLastSentDir = nd;
+        NetworkService.sendTownMove(nx, ny, nd);
+      }
+    }
+
+    // linear interpolation: travel from→target over lerpDur ms (slightly longer than send interval)
+    this._townRemotePlayers.forEach(r => {
+      if (r.lerpT >= 1) return;
+      r.lerpT = Math.min(1, r.lerpT + delta / r.lerpDur);
+      const nx = Phaser.Math.Linear(r.fromX, r.targetX, r.lerpT);
+      const ny = Phaser.Math.Linear(r.fromY, r.targetY, r.lerpT);
+      r.sprite.setPosition(nx, ny);
+      r.nameLabel.setPosition(nx, ny - P(28));
+    });
   }
 }

@@ -8,6 +8,7 @@
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
     "server": "ng serve --host 0.0.0.0",
+    "server-uat": "ng serve --host 0.0.0.0 --configuration=uat",
     "deploy": "ng build --base-href /auto-rpg/ && node deploy.mjs"
   },
   "private": true,

@@ -1,13 +1,9 @@
 import { Client, Room } from 'colyseus.js';
 import { GameRoomState, PlayerState, MapParams, MsgMove, MsgHpUpdate, MsgMinionSync, MsgMinionHit, MsgBossHit, MsgBossSync, MsgRewardSync, MsgMinionAttack } from '../../../../shared/types';
+import { environment } from '../../../environments/environment';
 
-// ← 部署到 Render 後把這裡換成你的網址（不含 https://）
-const RENDER_HOST = 'minirpg-q1zq.onrender.com';
-
-const localHost = window.location.hostname;
-const isProd    = localHost !== 'localhost' && localHost !== '127.0.0.1';
-const WS_URL   = isProd ? `wss://${RENDER_HOST}`         : `ws://${localHost}:3001`;
-const HTTP_URL = isProd ? `https://${RENDER_HOST}`        : `http://${localHost}:3001`;
+const WS_URL   = environment.wsUrl;
+const HTTP_URL = WS_URL.replace(/^wss?/, (m: string) => m === 'wss' ? 'https' : 'http');
 
 export interface JoinedPayload {
   sessionId:     string;
@@ -30,6 +26,14 @@ export interface GameStartPayload {
   guestNickname: string;
   hostSkinId:    number;
   guestSkinId:   number;
+}
+
+// ── Town callbacks ─────────────────────────────────────────────────────────
+interface TownCallbacks {
+  townPos?:          (data: { sessionId: string; x: number; y: number; lastDir: string }) => void;
+  townPlayerJoined?: (data: { sessionId: string; x: number; y: number; lastDir: string; nickname: string; level: number; skinId: number }) => void;
+  townPlayerLeft?:   (data: { sessionId: string }) => void;
+  townPlayerInfo?:   (data: { sessionId: string; nickname: string; level: number; skinId: number }) => void;
 }
 
 // ── Replaceable callback slots ─────────────────────────────────────────────
@@ -58,6 +62,12 @@ interface Callbacks {
 class NetworkServiceClass {
   private client?: Client;
   private room?:   Room<GameRoomState>;
+
+  // ── TownRoom (shared hub, separate connection) ─────────
+  private townClient?: Client;
+  private townRoom?:   Room<any>;
+  private _townCbs: TownCallbacks = {};
+  townSessionId = '';
 
   isHost    = false;
   sessionId = '';
@@ -391,6 +401,64 @@ class NetworkServiceClass {
     this._cbs.runEnd        = undefined;
     this._cbs.potionEffect  = undefined;
   }
+
+  // ── Town room ─────────────────────────────────────────────
+
+  async joinTown(): Promise<{ sessionId: string; x: number; y: number; existing: any[] }> {
+    if (this.townRoom) return { sessionId: this.townSessionId, x: 0.5, y: 0.5, existing: [] };
+    console.log('[Town] connecting to:', WS_URL);
+    this.townClient = new Client(WS_URL);
+    this.townRoom = await this.townClient.joinOrCreate<any>('town');
+    this._registerTownForwarders();
+    return new Promise(resolve => {
+      this.townRoom!.onMessage<any>('townJoined', payload => {
+        this.townSessionId = payload.sessionId;
+        resolve(payload);
+      });
+    });
+  }
+
+  private _registerTownForwarders(): void {
+    const r = this.townRoom!;
+    r.onMessage('townPos',          (d: any) => this._townCbs.townPos?.(d));
+    r.onMessage('townPlayerJoined', (d: any) => this._townCbs.townPlayerJoined?.(d));
+    r.onMessage('townPlayerLeft',   (d: any) => this._townCbs.townPlayerLeft?.(d));
+    r.onMessage('townPlayerInfo',   (d: any) => this._townCbs.townPlayerInfo?.(d));
+  }
+
+  sendTownMove(x: number, y: number, lastDir: string): void {
+    this.townRoom?.send('townMove', { x, y, lastDir });
+  }
+
+  sendTownInfo(nickname: string, level: number, skinId: number): void {
+    this.townRoom?.send('townInfo', { nickname, level, skinId });
+  }
+
+  onTownPos(cb: (data: { sessionId: string; x: number; y: number; lastDir: string }) => void): void {
+    this._townCbs.townPos = cb;
+  }
+
+  onTownPlayerJoined(cb: (data: { sessionId: string; x: number; y: number; lastDir: string; nickname: string; level: number; skinId: number }) => void): void {
+    this._townCbs.townPlayerJoined = cb;
+  }
+
+  onTownPlayerLeft(cb: (data: { sessionId: string }) => void): void {
+    this._townCbs.townPlayerLeft = cb;
+  }
+
+  onTownPlayerInfo(cb: (data: { sessionId: string; nickname: string; level: number; skinId: number }) => void): void {
+    this._townCbs.townPlayerInfo = cb;
+  }
+
+  leaveTown(): void {
+    this.townRoom?.leave();
+    this.townRoom    = undefined;
+    this.townClient  = undefined;
+    this.townSessionId = '';
+    this._townCbs    = {};
+  }
+
+  get townConnected(): boolean { return !!this.townRoom; }
 
   disconnect(): void {
     document.removeEventListener('visibilitychange', this._visibilityHandler);

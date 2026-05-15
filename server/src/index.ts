@@ -3,6 +3,7 @@ import cors       from 'cors';
 import { Server } from 'colyseus';
 import { createServer } from 'http';
 import { GameRoom }     from './rooms/GameRoom';
+import { TownRoom }     from './rooms/TownRoom';
 import { codeMap }      from './codeRegistry';
 
 const PORT = Number(process.env.PORT) || 3001;
@@ -24,6 +25,8 @@ const httpServer  = createServer(app);
 const gameServer  = new Server({ server: httpServer });
 
 gameServer.define('game', GameRoom);
+gameServer.define('town', TownRoom);
+console.log('[server] rooms registered: game, town');
 
 httpServer.listen(PORT, () => {
   console.log(`[auto-rpg] server running on http://localhost:${PORT}`);

@@ -80,6 +80,17 @@
               "optimization": false,
               "extractLicenses": false,
               "sourceMap": true
+            },
+            "uat": {
+              "optimization": false,
+              "extractLicenses": false,
+              "sourceMap": true,
+              "fileReplacements": [
+                {
+                  "replace": "src/environments/environment.ts",
+                  "with": "src/environments/environment.uat.ts"
+                }
+              ]
             }
           },
           "defaultConfiguration": "production"
@@ -92,6 +103,9 @@
             },
             "development": {
               "buildTarget": "auto-rpg:build:development"
+            },
+            "uat": {
+              "buildTarget": "auto-rpg:build:uat"
             }
           },
           "defaultConfiguration": "development"
