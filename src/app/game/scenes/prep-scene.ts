@@ -158,6 +158,9 @@ export class PrepScene extends Phaser.Scene {
   private _partyState: 'none' | 'in_party' = 'none';
   private _amPartyLeader = false;
   private _partyPartnerSid = '';
+  private _partyPartnerNick = '';
+  private _partyPartnerLevel = 0;
+  private _pendingInviteFromSid = '';
   private _partyPanelObjs: Phaser.GameObjects.GameObject[] = [];
   private _invitePopupObjs: Phaser.GameObjects.GameObject[] = [];
   private _inviteCountdown?: ReturnType<typeof setTimeout>;
@@ -180,6 +183,7 @@ export class PrepScene extends Phaser.Scene {
   private _townRemotePlayers = new Map<string, {
     sprite: Phaser.GameObjects.Sprite;
     nameLabel: Phaser.GameObjects.Text;
+    level: number;
     fromX: number; fromY: number;
     targetX: number; targetY: number;
     lerpT: number; lerpDur: number;
@@ -214,10 +218,17 @@ export class PrepScene extends Phaser.Scene {
   preload(): void {
     const cfg = { frameWidth: 64, frameHeight: 64 };
     const _skin = SKINS[SkinStore.get()];
-    if (!this.textures.exists('player_idle_shadow'))
-      this.load.spritesheet('player_idle_shadow', `${_skin.folder}/${_skin.prefix}_Idle_with_shadow.png`, cfg);
-    if (!this.textures.exists('player_run_shadow'))
-      this.load.spritesheet('player_run_shadow', `${_skin.folder}/${_skin.prefix}_Run_with_shadow.png`, cfg);
+    // Always remove and reload player textures + animations so they reflect the current skin.
+    // Safe here because preload runs before any rendering.
+    ['player_idle_shadow', 'player_run_shadow'].forEach(k => {
+      if (this.textures.exists(k)) this.textures.remove(k);
+    });
+    ['player_idle_shadow', '_lobby_idle',
+     'player_idle_down', 'player_idle_left', 'player_idle_right', 'player_idle_up',
+     'player_run_down',  'player_run_left',  'player_run_right',  'player_run_up',
+    ].forEach(k => { if (this.anims.exists(k)) this.anims.remove(k); });
+    this.load.spritesheet('player_idle_shadow', `${_skin.folder}/${_skin.prefix}_Idle_with_shadow.png`, cfg);
+    this.load.spritesheet('player_run_shadow',  `${_skin.folder}/${_skin.prefix}_Run_with_shadow.png`,  cfg);
     // Load all skin idle + run previews for wardrobe panel and town remote players
     SKINS.forEach((s, i) => {
       const key = `skin_preview_${i}`;
@@ -677,9 +688,6 @@ export class PrepScene extends Phaser.Scene {
         wardObjs.forEach(o => o.destroy());
         if (i !== currentSkin) {
           SkinStore.set(i);
-          if (this.textures.exists('player_idle_shadow')) this.textures.remove('player_idle_shadow');
-          if (this.anims.exists('player_idle_shadow')) this.anims.remove('player_idle_shadow');
-          if (this.anims.exists('_lobby_idle')) this.anims.remove('_lobby_idle');
           this.scene.restart();
         }
       });
@@ -1375,7 +1383,7 @@ export class PrepScene extends Phaser.Scene {
       PlayerStore.offChange(onStoreChange);
       if (container.active) container.destroy();
     };
-    closeBtn.on('pointerdown', closePanelFn);
+    closeBtn.on('pointerup', closePanelFn);
     container.once('destroy', () => { if (closeBtn.active) closeBtn.destroy(); });
 
     // ── Slot definitions ──────────────────────────────────
@@ -2609,7 +2617,9 @@ export class PrepScene extends Phaser.Scene {
 
         const tap = this.add.rectangle(cx2 + cellSz / 2, cy2 + cellSz / 2, cellSz, cellSz)
           .setInteractive({ useHandCursor: true });
-        tap.on('pointerdown', () => showItemDetail(item));
+        let _tapStartY = 0;
+        tap.on('pointerdown', (ptr: Phaser.Input.Pointer) => { _tapStartY = ptr.y; });
+        tap.on('pointerup',   (ptr: Phaser.Input.Pointer) => { if (Math.abs(ptr.y - _tapStartY) < P(8)) showItemDetail(item); });
         scrollCnt.add(tap);
       });
 
@@ -2693,8 +2703,9 @@ export class PrepScene extends Phaser.Scene {
     const updatePts = () => ptsTxt.setText(`技能點 ${SkillTreeStore.getAvailablePoints()} / ${SkillTreeStore.getTotalPoints()}`);
     updatePts();
 
-    const xBtn = s(this.add.text(px + PW - P(18), py + hdrH / 2, '✕', { fontSize: F(18), fontStyle: 'bold', color: '#cc4444', stroke: '#000', strokeThickness: 2 }).setOrigin(0.5).setDepth(D + 3).setInteractive({ useHandCursor: true }));
-    xBtn.on('pointerdown', close);
+    const xBtn = s(this.add.text(px + PW - P(18), py + hdrH / 2, '✕', { fontSize: F(18), fontStyle: 'bold', color: '#cc4444', stroke: '#000', strokeThickness: 2 }).setOrigin(0.5).setDepth(D + 3));
+    const xHit = s(this.add.rectangle(px + PW - P(18), py + hdrH / 2, P(44), P(44)).setDepth(D + 4).setInteractive({ useHandCursor: true }).setAlpha(0.001));
+    xHit.on('pointerup', close);
 
     // ── Reset button (right of skill-points text) ─────────────────────────
     const resetBg = s(this.add.graphics().setDepth(D + 3));
@@ -2849,7 +2860,8 @@ export class PrepScene extends Phaser.Scene {
     const tipG  = s(this.add.graphics().setDepth(D + 5));
     const tipT1 = s(this.add.text(0, 0, '', { fontSize: F(15), fontStyle: 'bold', color: '#ffe8a0', stroke: '#000', strokeThickness: 2 }).setDepth(D + 6));
     const tipT2 = s(this.add.text(0, 0, '', { fontSize: F(15), fontStyle: 'bold', color: '#aaccdd', stroke: '#000', strokeThickness: 1, wordWrap: { width: TW - P(20) } }).setDepth(D + 6));
-    const tipBtn = s(this.add.text(0, 0, '', { fontSize: F(15), fontStyle: 'bold', color: '#88ffaa', stroke: '#000', strokeThickness: 2 }).setDepth(D + 6).setInteractive({ useHandCursor: true }));
+    const tipBtnG = s(this.add.graphics().setDepth(D + 6));
+    const tipBtn  = s(this.add.text(0, 0, '', { fontSize: F(15), fontStyle: 'bold', color: '#88ffaa', stroke: '#000', strokeThickness: 2 }).setDepth(D + 7).setInteractive({ useHandCursor: true }));
     let _tipNodeId = '';
     const showTip = (node: import('../data/skill-tree-store').SkillNode) => {
       _tipNodeId = node.id;
@@ -2861,13 +2873,29 @@ export class PrepScene extends Phaser.Scene {
       tipT2.setPosition(tx + P(10), ty + P(26)).setText(node.desc);
       const learned   = SkillTreeStore.isLearned(node.id);
       const available = SkillTreeStore.canLearn(node.id);
-      const btnTxt = learned ? '✓ 已學習' : available ? `學習（消耗 1 點）` : '（未解鎖）';
-      const btnCol = learned ? '#888888' : available ? '#88ffaa' : '#556677';
-      tipBtn.setPosition(tx + TW / 2, ty + TH - P(16)).setText(btnTxt).setStyle({ color: btnCol }).setOrigin(0.5);
+      const btnTxt = learned ? '✓ 已學習' : available ? '學習（消耗 1 點）' : '（未解鎖）';
+      const btnCol = learned ? '#aaaaaa' : available ? '#ccffdd' : '#778899';
+      // Button geometry
+      const BTN_W = P(160), BTN_H = P(30);
+      const bx = tx + TW / 2 - BTN_W / 2, by = ty + TH - BTN_H - P(8);
+      tipBtnG.clear();
+      if (available) {
+        tipBtnG.fillStyle(0x1a6633, 1);    tipBtnG.fillRoundedRect(bx, by, BTN_W, BTN_H, P(5));
+        tipBtnG.lineStyle(P(1.5), 0x44ff88, 0.9); tipBtnG.strokeRoundedRect(bx, by, BTN_W, BTN_H, P(5));
+      } else if (learned) {
+        tipBtnG.fillStyle(0x222222, 1);    tipBtnG.fillRoundedRect(bx, by, BTN_W, BTN_H, P(5));
+        tipBtnG.lineStyle(P(1.5), 0x555555, 0.7); tipBtnG.strokeRoundedRect(bx, by, BTN_W, BTN_H, P(5));
+      } else {
+        tipBtnG.fillStyle(0x1a1a2a, 1);    tipBtnG.fillRoundedRect(bx, by, BTN_W, BTN_H, P(5));
+        tipBtnG.lineStyle(P(1.5), 0x334455, 0.6); tipBtnG.strokeRoundedRect(bx, by, BTN_W, BTN_H, P(5));
+      }
+      tipBtn.setPosition(tx + TW / 2, by + BTN_H / 2).setText(btnTxt).setStyle({ color: btnCol }).setOrigin(0.5);
+      // Expand interactive hit area to cover the full button rect
+      tipBtn.setInteractive(new Phaser.Geom.Rectangle(-BTN_W / 2, -BTN_H / 2, BTN_W, BTN_H), Phaser.Geom.Rectangle.Contains);
     };
     const hideTip = () => {
       _tipNodeId = '';
-      tipG.clear(); tipT1.setText(''); tipT2.setText(''); tipBtn.setText('');
+      tipG.clear(); tipBtnG.clear(); tipT1.setText(''); tipT2.setText(''); tipBtn.setText('');
     };
     hideTip();
 
@@ -3556,7 +3584,7 @@ export class PrepScene extends Phaser.Scene {
     const closeBtn = this.add.text(px + PW - P(20), py + P(18), '✕', {
       fontSize: F(15), fontStyle: 'bold', color: '#cc4444', stroke: '#1a0800', strokeThickness: 2,
     }).setOrigin(0.5).setInteractive({ hitArea: new Phaser.Geom.Rectangle(-P(18), -P(16), P(44), P(44)), hitAreaCallback: Phaser.Geom.Rectangle.Contains, useHandCursor: true });
-    closeBtn.on('pointerdown', () => { cleanup(); container.destroy(); });
+    closeBtn.on('pointerup', () => { cleanup(); container.destroy(); });
     container.add(closeBtn);
 
     // Layout constants
@@ -4360,28 +4388,38 @@ export class PrepScene extends Phaser.Scene {
       });
 
       // Drag scroll
-      this.input.on('pointermove', (ptr: Phaser.Input.Pointer) => {
+      cardScrollHandler = (ptr: Phaser.Input.Pointer) => {
         if (!ptr.isDown || detailPopup) return;
         applyScroll(ptr.prevPosition.y - ptr.y);
-      });
+      };
 
       // Wheel scroll
-      this.input.on('wheel', (_ptr: unknown, _objs: unknown, _dx: number, dy: number) => {
+      cardWheelHandler = (_ptr: unknown, _objs: unknown, _dx: number, dy: number) => {
         if (detailPopup) return;
-        applyScroll(dy * 0.6);
-      });
+        applyScroll((dy as number) * 0.6);
+      };
+
+      this.input.on('pointermove', cardScrollHandler);
+      this.input.on('wheel', cardWheelHandler);
     };
+
+    let cardScrollHandler: ((ptr: Phaser.Input.Pointer) => void) | null = null;
+    let cardWheelHandler: ((...args: any[]) => void) | null = null;
 
     rebuild();
 
     // Auto-update on card change
-    const onCardChange = () => rebuild();
+    const onCardChange = () => {
+      if (cardScrollHandler) this.input.off('pointermove', cardScrollHandler);
+      if (cardWheelHandler)  this.input.off('wheel', cardWheelHandler);
+      rebuild();
+    };
     CardStore.onChange(onCardChange);
 
     const cleanup = () => {
       CardStore.offChange(onCardChange);
-      this.input.off('pointermove');
-      this.input.off('wheel');
+      if (cardScrollHandler) this.input.off('pointermove', cardScrollHandler);
+      if (cardWheelHandler)  this.input.off('wheel', cardWheelHandler);
     };
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, cleanup);
   }
@@ -4560,7 +4598,7 @@ export class PrepScene extends Phaser.Scene {
       hitAreaCallback: Phaser.Geom.Rectangle.Contains,
       useHandCursor: true,
     });
-    closeBtn.on('pointerdown', () => container.destroy());
+    closeBtn.on('pointerup', () => container.destroy());
     container.add(closeBtn);
 
     // Floating toast notification
@@ -6369,7 +6407,7 @@ export class PrepScene extends Phaser.Scene {
 
       NetworkService.onTownPlayerInfo(data => {
         const r = this._townRemotePlayers.get(data.sessionId);
-        if (r) r.nameLabel.setText(data.nickname || '?');
+        if (r) { r.nameLabel.setText(data.nickname || '?'); r.level = data.level ?? r.level; }
       });
 
       payload.existing?.forEach((p: any) =>
@@ -6379,6 +6417,7 @@ export class PrepScene extends Phaser.Scene {
       // ── Party invite callbacks ──────────────────────────────
       NetworkService.onPartyInvite(data => {
         if (this._partyState !== 'none') return;
+        this._pendingInviteFromSid = data.fromSessionId;
         this._showInvitePopup(data.fromSessionId, data.fromNickname);
       });
 
@@ -6393,6 +6432,9 @@ export class PrepScene extends Phaser.Scene {
           this._partyState = 'in_party';
           this._amPartyLeader = true;
           this._partyPartnerSid = data.guestSessionId;
+          const guestInfo = this._townRemotePlayers.get(data.guestSessionId);
+          this._partyPartnerNick = guestInfo?.nameLabel.text ?? '隊友';
+          this._partyPartnerLevel = guestInfo?.level ?? 0;
           this._buildPartyPanel();
         } catch { this._showToast('建立房間失敗'); }
       });
@@ -6406,6 +6448,10 @@ export class PrepScene extends Phaser.Scene {
           NetworkService.sendPlayerInfo(getPlayerName(), PlayerStore.getLevel(), SkinStore.get());
           this._partyState = 'in_party';
           this._amPartyLeader = false;
+          this._partyPartnerSid = this._pendingInviteFromSid;
+          const leaderInfo = this._townRemotePlayers.get(this._pendingInviteFromSid);
+          this._partyPartnerNick = leaderInfo?.nameLabel.text ?? '隊友';
+          this._partyPartnerLevel = leaderInfo?.level ?? 0;
           this._buildPartyPanel();
         } catch { this._showToast('加入房間失敗'); }
       });
@@ -6429,6 +6475,11 @@ export class PrepScene extends Phaser.Scene {
   // ── Party system ─────────────────────────────────────────────────────────
 
   private _setupGameRoomCallbacks(): void {
+    NetworkService.onPartnerJoined(data => {
+      if (data.nickname) this._partyPartnerNick = data.nickname;
+      if (data.level)    this._partyPartnerLevel = data.level;
+      if (this._partyState === 'in_party') this._buildPartyPanel();
+    });
     NetworkService.onPartnerLeft(() => {
       this._partyState = 'none';
       this._destroyPartyPanel();
@@ -6481,16 +6532,17 @@ export class PrepScene extends Phaser.Scene {
       fontSize: F(13), fontStyle: 'bold', color: '#ffe066', stroke: '#1a0800', strokeThickness: 2,
     }).setOrigin(0.5, 0.5).setDepth(D + 1);
 
-    const confirmHit = this.add.rectangle(W / 2 - P(40), py + PH - P(20), P(70), P(26), 0x336633)
+    const BTN_W = P(70), BTN_H = P(26);
+    const confirmHit = this.add.rectangle(W / 2 - P(44), py + PH - P(20), BTN_W, BTN_H, 0x336633)
       .setOrigin(0.5).setDepth(D + 1).setInteractive({ useHandCursor: true });
-    const confirmTxt = this.add.text(W / 2 - P(40), py + PH - P(20), '邀請', {
+    const confirmTxt = this.add.text(W / 2 - P(44), py + PH - P(20), '邀請', {
       fontSize: F(13), fontStyle: 'bold', color: '#aaffaa',
     }).setOrigin(0.5).setDepth(D + 2);
 
-    const cancelHit = this.add.rectangle(W / 2 + P(40), py + PH - P(20), P(50), P(26), 0x553333)
+    const cancelHit = this.add.rectangle(W / 2 + P(44), py + PH - P(20), BTN_W, BTN_H, 0x553333)
       .setOrigin(0.5).setDepth(D + 1).setInteractive({ useHandCursor: true });
-    const cancelTxt = this.add.text(W / 2 + P(40), py + PH - P(20), '取消', {
-      fontSize: F(13), color: '#ffaaaa',
+    const cancelTxt = this.add.text(W / 2 + P(44), py + PH - P(20), '取消', {
+      fontSize: F(13), fontStyle: 'bold', color: '#ffaaaa',
     }).setOrigin(0.5).setDepth(D + 2);
 
     const close = () => { this._invitePopupObjs.forEach(o => o.destroy()); this._invitePopupObjs = []; };
@@ -6570,7 +6622,7 @@ export class PrepScene extends Phaser.Scene {
   private _buildPartyPanel(): void {
     this._destroyPartyPanel();
     const W = this._sceneW, H = this._sceneH;
-    const PW = P(190), PH = P(100);
+    const PW = P(190), PH = P(130);
     const px = W - PW - P(8), py = H - PH - P(70);
     const D = 55;
 
@@ -6580,23 +6632,30 @@ export class PrepScene extends Phaser.Scene {
     bg.lineStyle(P(2), 0x887733, 0.85);
     bg.strokeRoundedRect(px, py, PW, PH, P(6));
 
-    const rawNick = this._townRemotePlayers.get(this._partyPartnerSid)?.nameLabel.text ?? '隊友';
+    const rawNick = this._partyPartnerNick || '隊友';
     const nick = rawNick.length > 8 ? rawNick.slice(0, 8) + '…' : rawNick;
-    const leaderLabel = this._amPartyLeader ? '♛ 你（隊長）' : `♛ ${nick}（隊長）`;
-    const memberLabel = this._amPartyLeader ? nick : '你';
+    const lvStr = this._partyPartnerLevel > 0 ? `Lv.${this._partyPartnerLevel} ` : '';
+    const leaderName = this._amPartyLeader ? '你' : `${lvStr}${nick}`;
+    const memberName = this._amPartyLeader ? `${lvStr}${nick}` : '你';
 
-    const leader = this.add.text(px + P(10), py + P(14), leaderLabel, {
+    const leaderTag = this.add.text(px + P(10), py + P(12), '隊長', {
+      fontSize: F(11), color: '#aa8833', stroke: '#1a0800', strokeThickness: 1,
+    }).setDepth(D + 1);
+    const leader = this.add.text(px + P(10), py + P(24), leaderName, {
       fontSize: F(15), fontStyle: 'bold', color: '#ffe066', stroke: '#1a0800', strokeThickness: 2,
     }).setDepth(D + 1);
-    const member = this.add.text(px + P(10), py + P(38), memberLabel, {
+    const memberTag = this.add.text(px + P(10), py + P(50), '隊員', {
+      fontSize: F(11), color: '#778877', stroke: '#1a0800', strokeThickness: 1,
+    }).setDepth(D + 1);
+    const member = this.add.text(px + P(10), py + P(62), memberName, {
       fontSize: F(15), fontStyle: 'bold', color: '#ccddcc', stroke: '#1a0800', strokeThickness: 2,
     }).setDepth(D + 1);
 
-    const disbandHit = this.add.rectangle(px + PW - P(34), py + P(14), P(52), P(26), 0x553333)
-      .setOrigin(0.5, 0).setDepth(D + 1).setInteractive({ useHandCursor: true });
-    const disbandTxt = this.add.text(px + PW - P(34), py + P(27), '解散', {
+    const disbandHit = this.add.rectangle(px + PW - P(34), py + PH - P(27), P(52), P(26), 0x553333)
+      .setOrigin(0.5, 0.5).setDepth(D + 1).setInteractive({ useHandCursor: true });
+    const disbandTxt = this.add.text(px + PW - P(34), py + PH - P(27), '解散', {
       fontSize: F(15), fontStyle: 'bold', color: '#ffaaaa', stroke: '#1a0800', strokeThickness: 2,
-    }).setOrigin(0.5).setDepth(D + 2);
+    }).setOrigin(0.5, 0.5).setDepth(D + 2);
 
     disbandHit.on('pointerup', (_p: any, _lx: any, _ly: any, ev: any) => {
       ev?.stopPropagation?.();
@@ -6607,12 +6666,12 @@ export class PrepScene extends Phaser.Scene {
       this._showToast('已解散隊伍');
     });
 
-    const hint = this.add.text(px + P(10), py + P(72),
+    const hint = this.add.text(px + P(10), py + P(100),
       this._amPartyLeader ? '按出戰選關卡' : '等待隊長出發', {
         fontSize: F(15), fontStyle: 'bold', color: '#888866', stroke: '#1a0800', strokeThickness: 1,
       }).setDepth(D + 1);
 
-    this._partyPanelObjs = [bg, leader, member, disbandHit, disbandTxt, hint];
+    this._partyPanelObjs = [bg, leaderTag, leader, memberTag, member, disbandHit, disbandTxt, hint];
   }
 
   private _destroyPartyPanel(): void {
@@ -6657,7 +6716,8 @@ export class PrepScene extends Phaser.Scene {
     sprite.setInteractive({ useHandCursor: true })
       .on('pointerup', (_p: any, _lx: any, _ly: any, ev: any) => {
         ev?.stopPropagation?.();
-        this._onTownPlayerClick(sessionId, nickname);
+        const current = this._townRemotePlayers.get(sessionId);
+        this._onTownPlayerClick(sessionId, current?.nameLabel.text || nickname);
       });
     this._townContainer?.add(sprite);
 
@@ -6666,7 +6726,7 @@ export class PrepScene extends Phaser.Scene {
     }).setOrigin(0.5, 1).setDepth(11);
     this._townContainer?.add(nameTxt);
 
-    this._townRemotePlayers.set(sessionId, { sprite, nameLabel: nameTxt, fromX: sx, fromY: sy, targetX: sx, targetY: sy, lerpT: 1, lerpDur: 110 });
+    this._townRemotePlayers.set(sessionId, { sprite, nameLabel: nameTxt, level: _level, fromX: sx, fromY: sy, targetX: sx, targetY: sy, lerpT: 1, lerpDur: 110 });
   }
 
   private _updateTownInteractions(): void {

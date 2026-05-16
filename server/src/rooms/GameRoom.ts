@@ -115,7 +115,18 @@ export class GameRoom extends Room<GameRoomState> {
 
     this.onMessage<MsgMinionSync>('minionSync', (client, msg) => {
       if (client.sessionId !== this.state.hostId) return;
-      msg.minions.forEach(m => { this.minionState[m.id] = m; });
+      msg.minions.forEach(m => {
+        const existing = this.minionState[m.id];
+        if (!existing) {
+          // First time we see this minion — initialise fully
+          this.minionState[m.id] = m;
+        } else if (!existing.isDead) {
+          // Only update movement data; HP is authoritative from minionHit accumulation
+          existing.x        = m.x;
+          existing.y        = m.y;
+          existing.isDashing = m.isDashing;
+        }
+      });
       this.broadcast('minionSync', msg, { except: client });
     });
 

@@ -464,16 +464,33 @@ export function randomQuality(weights?: Partial<Record<EquipQuality, number>>): 
 
 export type MonsterType = 'small' | 'elite' | 'boss';
 
-const DROP_QUALITY_BASE: Record<MonsterType, Record<EquipQuality, number>> = {
-  small: { normal: 70,   good: 25, fine: 2.25, perfect: 0.2 },
-  elite: { normal: 50,   good: 35, fine: 10.4, perfect: 1.0 },
-  boss:  { normal: 50,   good: 28, fine: 12,   perfect: 0.7 },
+const DROP_QUALITY_WEIGHTS: Record<MonsterType, Record<number, Record<EquipQuality, number>>> = {
+  small: {
+    1: { normal: 95,   good:  5,    fine:  0,    perfect: 0   },
+    2: { normal: 80,   good: 20,    fine:  0,    perfect: 0   },
+    3: { normal: 78,   good: 20.5,  fine:  1.5,  perfect: 0   },
+    4: { normal: 75,   good: 21.4,  fine:  3.0,  perfect: 0.6 },
+    5: { normal: 70,   good: 24,    fine:  5.1,  perfect: 0.9 },
+  },
+  elite: {
+    1: { normal: 78.8, good: 21.2,  fine:  0,    perfect: 0   },
+    2: { normal: 58.8, good: 41.2,  fine:  0,    perfect: 0   },
+    3: { normal: 50,   good: 44,    fine:  6,    perfect: 0   },
+    4: { normal: 47.2, good: 36,    fine: 15.4,  perfect: 1.4 },
+    5: { normal: 44.7, good: 31.3,  fine: 21,    perfect: 3   },
+  },
+  boss: {
+    1: { normal: 85.8, good: 15,    fine:  0,    perfect: 0   },
+    2: { normal: 70,   good: 30,    fine:  0,    perfect: 0   },
+    3: { normal: 55,   good: 33,    fine: 12,    perfect: 0   },
+    4: { normal: 49,   good: 28,    fine: 20.9,  perfect: 2.1 },
+    5: { normal: 47.1, good: 23.4,  fine: 25.7,  perfect: 3.8 },
+  },
 };
 
 export function getDropQualityWeights(type: MonsterType, star: number): Record<EquipQuality, number> {
-  const b = DROP_QUALITY_BASE[type];
-  const IR = Math.pow(1.20, star - 1);
-  return { normal: b.normal, good: b.good, fine: b.fine * IR, perfect: b.perfect * IR * IR };
+  const s = Math.min(Math.max(Math.round(star), 1), 5);
+  return DROP_QUALITY_WEIGHTS[type][s];
 }
 
 export function getItemStats(item: EquipmentItem): Partial<Record<StatKey, number>> {

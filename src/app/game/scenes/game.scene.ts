@@ -395,6 +395,11 @@ export class GameScene extends Phaser.Scene {
       NetworkService.onPartnerPos(({ x, y, lastDir, hp, maxHp }) => {
         if (!this.partnerSprite) return;
         const wx = x * DPR, wy = y * DPR;  // restore to local DPR space
+        if (hp !== undefined) this._partnerHp = hp;
+        if (maxHp !== undefined) this._partnerMaxHp = maxHp;
+        this.drawPartnerHpBar();
+        // Don't update position or animation while partner is dead
+        if (this.partnerIsDead) return;
         const moved = Math.abs(wx - this._partnerPrevX) > 0.5 || Math.abs(wy - this._partnerPrevY) > 0.5;
         // Don't override a playing attack animation
         if (!this.partnerSprite.anims.currentAnim?.key.includes('attack') &&
@@ -408,9 +413,6 @@ export class GameScene extends Phaser.Scene {
         this._partnerPrevX = wx;
         this._partnerPrevY = wy;
         this._partnerPrevDir = lastDir as 'down' | 'left' | 'right' | 'up';
-        if (hp !== undefined) this._partnerHp = hp;
-        if (maxHp !== undefined) this._partnerMaxHp = maxHp;
-        this.drawPartnerHpBar();
       });
 
       // Send HP whenever it changes, via the attack channel (no server changes needed)
@@ -447,9 +449,11 @@ export class GameScene extends Phaser.Scene {
       });
 
       // Send local attack info to partner (DPR-normalised)
-      this.player.onAttackAnim = (key) => {
+      this.player.onAttackAnim = (key, targetAngle?) => {
         const behavior = SkillTreeStore.getAttackMode();
-        NetworkService.sendAttack(key, this.player.x / DPR, this.player.y / DPR, this.player.lastDir, behavior);
+        // Prefer exact radian angle; fall back to cardinal dir extracted from animKey
+        const dir = targetAngle !== undefined ? String(targetAngle) : (key.split('_').pop() ?? this.player.lastDir);
+        NetworkService.sendAttack(key, this.player.x / DPR, this.player.y / DPR, dir, behavior);
       };
 
       NetworkService.onPartnerLeft(() => {
@@ -6210,7 +6214,10 @@ export class GameScene extends Phaser.Scene {
   // ── Partner attack VFX ───────────────────────────────────────
   private showPartnerAttackFX(behavior: string, x: number, y: number, dir: string): void {
     const D = 20;
-    const dirRad = ({ down: Math.PI / 2, up: -Math.PI / 2, left: Math.PI, right: 0 } as Record<string, number>)[dir] ?? 0;
+    const parsed = parseFloat(dir);
+    const dirRad = isNaN(parsed)
+      ? (({ down: Math.PI / 2, up: -Math.PI / 2, left: Math.PI, right: 0 } as Record<string, number>)[dir] ?? 0)
+      : parsed;
     const deg = Phaser.Math.RadToDeg(dirRad);
 
     switch (behavior) {
