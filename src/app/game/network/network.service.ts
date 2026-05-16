@@ -1,9 +1,9 @@
 import { Client, Room } from 'colyseus.js';
 import { GameRoomState, PlayerState, MapParams, MsgMove, MsgHpUpdate, MsgMinionSync, MsgMinionHit, MsgBossHit, MsgBossSync, MsgRewardSync, MsgMinionAttack } from '../../../../shared/types';
-import { environment } from '../../../environments/environment';
 
-const WS_URL   = environment.wsUrl;
-const HTTP_URL = WS_URL.replace(/^wss?/, (m: string) => m === 'wss' ? 'https' : 'http');
+const isLocal  = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+const WS_URL   = isLocal ? 'ws://localhost:3001' : 'wss://minirpg-q1zq.onrender.com';
+const HTTP_URL = isLocal ? 'http://localhost:3001' : 'https://minirpg-q1zq.onrender.com';
 
 export interface JoinedPayload {
   sessionId:     string;
