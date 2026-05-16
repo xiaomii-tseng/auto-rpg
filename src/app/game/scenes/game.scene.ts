@@ -28,7 +28,7 @@ import { PotionBarStore } from '../data/potion-bar-store';
 import { ITEM_POTION_HEALTH_S, ITEM_POTION_HEALTH_M, ITEM_POTION_HEALTH_L, ITEM_POTION_REVIVE, ITEM_POTION_ATK, ITEM_POTION_DEF, ITEM_POTION_SPEED, ITEM_STONE_BROKEN, ITEM_STONE_INTACT, ITEM_STONE_RECAST, ITEM_QUEST_REROLL, ITEM_BLANK_CARD, getHealthPotionForStar } from '../data/monster-data';
 import type { MapParams } from '../../../../shared/types';
 
-const CO_OP_HP_MULT = 1.6;
+const CO_OP_HP_MULTS: number[] = [1, 1, 1.6, 2.4]; // indexed by player count; extend for future 4+ support
 
 /** Deterministic seeded RNG (Park-Miller LCG) — not affected by Phaser or JS RNG state */
 class SeededRNG {
@@ -78,6 +78,22 @@ type SessionLootEntry =
   | { type: 'item';  itemId: string; itemName: string; qty: number }
   | { type: 'card';  cardId: string; itemName: string }
   | { type: 'equip'; equip: EquipmentItem; itemName: string };
+
+interface PartnerData {
+  sessionId:  string;
+  sprite:     Phaser.GameObjects.Sprite;
+  label:      Phaser.GameObjects.Text;
+  hpBar:      Phaser.GameObjects.Graphics;
+  auraRing:   Phaser.GameObjects.Graphics;
+  hp:         number;
+  maxHp:      number;
+  isDead:     boolean;
+  prevX:      number;
+  prevY:      number;
+  prevDir:    string;
+  behavior:   string;
+  skinId:     number;
+}
 
 export class GameScene extends Phaser.Scene {
   private player!: Player;
@@ -140,20 +156,11 @@ export class GameScene extends Phaser.Scene {
   private _initBossId?: string;
   private _initQuestStar?: number;
   private _mapParams?: MapParams;
-  private partnerSprite?: Phaser.GameObjects.Sprite;
-  private partnerLabel?: Phaser.GameObjects.Text;
-  private partnerHpBar?: Phaser.GameObjects.Graphics;
-  private _partnerHp = 100;
-  private _partnerMaxHp = 100;
+  private _partners = new Map<string, PartnerData>();
   private _partnerNickname = '';
+  private _playerCount = 1;
   private _ownSkinId = 0;
   private _partnerSkinId = 0;
-  private partnerIsDead = false;
-  private _partnerPrevX = 0;
-  private _partnerPrevY = 0;
-  private _partnerPrevDir: 'down' | 'left' | 'right' | 'up' = 'down';
-  private _partnerBehavior = 'slash180';
-  private partnerAuraRing?: Phaser.GameObjects.Graphics;
   private _minionTargets = new Map<string, { x: number; y: number; isDashing: boolean }>();
   private bossActive = false;
   private lootDrops: LootDrop[] = [];
@@ -260,7 +267,7 @@ export class GameScene extends Phaser.Scene {
     this.generateTextures();
   }
 
-  init(data: { seed?: number; questStar?: number; bossMonsterId?: string; mapParams?: MapParams; partnerNickname?: string; ownSkinId?: number; partnerSkinId?: number; mapTheme?: GameScene['_mapTheme'] }): void {
+  init(data: { seed?: number; questStar?: number; bossMonsterId?: string; mapParams?: MapParams; partnerNickname?: string; playerCount?: number; ownSkinId?: number; partnerSkinId?: number; mapTheme?: GameScene['_mapTheme'] }): void {
     this._mapSeed = data?.seed ?? Math.floor(Math.random() * 1_000_000);
     const themes = ['grassland', 'desert', 'snow', 'lava', 'forest', 'dungeon'] as const;
     this._mapTheme = data?.mapTheme ?? themes[new SeededRNG(this._mapSeed + 77777).between(0, themes.length - 1)];
@@ -268,6 +275,7 @@ export class GameScene extends Phaser.Scene {
     this._initBossId = data?.bossMonsterId;
     this._mapParams = data?.mapParams;
     this._partnerNickname = data?.partnerNickname ?? '';
+    this._playerCount = data?.playerCount ?? (this._partnerNickname ? 2 : 1);
     this._ownSkinId = data?.ownSkinId ?? 0;
     this._partnerSkinId = data?.partnerSkinId ?? 0;
 
@@ -366,53 +374,50 @@ export class GameScene extends Phaser.Scene {
     this.player.onDead = () => this.handlePlayerDead();
     this.player.onEvade = (x, y) => this.spawnEvadeText(x, y);
 
-    // ── Co-op: partner sprite + position sync ─────────────
+    // ── Co-op: partner sprites + position sync ─────────────
     if (NetworkService.connected) {
-      const pScale = 1.5 * DPR;
-      this.partnerSprite = this.add.sprite(this.playerStartX, this.playerStartY, 'partner_idle_shadow')
-        .setScale(pScale).setDepth(9).setTint(0x44aaff);
-      this.partnerSprite.play('partner_idle_down');
-
-      this.partnerAuraRing = this.add.graphics().setDepth(8).setVisible(false);
-      this.tweens.add({
-        targets: this.partnerAuraRing, alpha: { from: 0.25, to: 0.55 },
-        duration: 900, yoyo: true, repeat: -1, ease: 'Sine.InOut',
+      // Partner sprites are created lazily on first partnerPos / partnerJoined.
+      NetworkService.onPartnerJoined(({ sessionId, nickname, level: _l, skinId }) => {
+        if (!sessionId) return;
+        const pd = this._getOrCreatePartner(sessionId, nickname ?? '', skinId ?? 0);
+        if (nickname) pd.label.setText(nickname);
       });
 
-      // Send sword behavior + our nickname to partner
-      this.time.delayedCall(800, () => {
+      // Send player info so all partners receive our name via partnerJoined (reliable for 3+ players).
+      // Also send behavior/nickname via attack channel as a fast-path fallback.
+      this.time.delayedCall(600, () => {
+        NetworkService.sendPlayerInfo(
+          localStorage.getItem('playerName') ?? '',
+          PlayerStore.getLevel(),
+          this._ownSkinId,
+        );
         const behavior = SkillTreeStore.getAttackMode();
         const nickname = localStorage.getItem('playerName') ?? '';
         NetworkService.sendAttack(`__behavior_init__:${nickname}`, 0, 0, 'down', behavior);
       });
 
-      this.partnerLabel = this.add.text(this.playerStartX, this.playerStartY - P(40), this._partnerNickname, {
-        fontSize: F(11), fontStyle: 'bold', color: '#88ccff', stroke: '#000', strokeThickness: 2,
-      }).setOrigin(0.5, 1).setDepth(12);
-
-      this.partnerHpBar = this.add.graphics().setDepth(11);
-
-      NetworkService.onPartnerPos(({ x, y, lastDir, hp, maxHp }) => {
-        if (!this.partnerSprite) return;
+      NetworkService.onPartnerPos(({ sessionId, x, y, lastDir, hp, maxHp }) => {
+        const sid = sessionId ?? '__unknown__';
+        const pd = this._getOrCreatePartner(sid);
         const wx = x * DPR, wy = y * DPR;  // restore to local DPR space
-        if (hp !== undefined) this._partnerHp = hp;
-        if (maxHp !== undefined) this._partnerMaxHp = maxHp;
-        this.drawPartnerHpBar();
+        if (hp !== undefined) pd.hp = hp;
+        if (maxHp !== undefined) pd.maxHp = maxHp;
+        this._drawPartnerHpBarFor(pd);
         // Don't update position or animation while partner is dead
-        if (this.partnerIsDead) return;
-        const moved = Math.abs(wx - this._partnerPrevX) > 0.5 || Math.abs(wy - this._partnerPrevY) > 0.5;
+        if (pd.isDead) return;
+        const moved = Math.abs(wx - pd.prevX) > 0.5 || Math.abs(wy - pd.prevY) > 0.5;
         // Don't override a playing attack animation
-        if (!this.partnerSprite.anims.currentAnim?.key.includes('attack') &&
-          !this.partnerSprite.anims.currentAnim?.key.includes('whirlwind') &&
-          !this.partnerSprite.anims.currentAnim?.key.includes('multihit')) {
+        if (!pd.sprite.anims.currentAnim?.key.includes('attack') &&
+          !pd.sprite.anims.currentAnim?.key.includes('whirlwind') &&
+          !pd.sprite.anims.currentAnim?.key.includes('multihit')) {
           const animKey = moved ? `partner_run_${lastDir}` : `partner_idle_${lastDir}`;
-          if (this.partnerSprite.anims.currentAnim?.key !== animKey) this.partnerSprite.play(animKey, true);
+          if (pd.sprite.anims.currentAnim?.key !== animKey) pd.sprite.play(animKey, true);
         }
-        this.partnerSprite.setPosition(wx, wy);
-        this.partnerLabel?.setPosition(wx, wy - P(40));
-        this._partnerPrevX = wx;
-        this._partnerPrevY = wy;
-        this._partnerPrevDir = lastDir as 'down' | 'left' | 'right' | 'up';
+        pd.sprite.setPosition(wx, wy);
+        pd.label.setPosition(wx, wy - P(40));
+        pd.prevX = wx;
+        pd.prevY = wy;
+        pd.prevDir = lastDir;
       });
 
       // Send HP whenever it changes, via the attack channel (no server changes needed)
@@ -422,30 +427,35 @@ export class GameScene extends Phaser.Scene {
       // Send initial HP so partner bar starts correct
       NetworkService.sendAttack(`__hp__:${this.player.currentHp}:${this.player.maxHpValue}`, 0, 0, 'down', '');
 
-      NetworkService.onPartnerAttack(({ animKey, x, y, dir, behavior }) => {
+      NetworkService.onPartnerAttack(({ sessionId, animKey, x: _x, y: _y, dir, behavior }) => {
         // HP update piggybacked on attack channel
         if (animKey.startsWith('__hp__:')) {
           const parts = animKey.split(':');
-          this._partnerHp = parseInt(parts[1]);
-          this._partnerMaxHp = parseInt(parts[2]);
-          this.drawPartnerHpBar();
+          const sid = sessionId ?? '__unknown__';
+          const pd = this._getOrCreatePartner(sid);
+          pd.hp = parseInt(parts[1]);
+          pd.maxHp = parseInt(parts[2]);
+          this._drawPartnerHpBarFor(pd);
           return;
         }
         // Behavior handshake — store partner's weapon type and nickname
         if (animKey.startsWith('__behavior_init__')) {
-          this._partnerBehavior = behavior;
+          const sid = sessionId ?? '__unknown__';
+          const pd = this._getOrCreatePartner(sid);
+          pd.behavior = behavior;
           const colon = animKey.indexOf(':');
-          if (colon !== -1) this.partnerLabel?.setText(animKey.slice(colon + 1));
+          if (colon !== -1) pd.label.setText(animKey.slice(colon + 1));
           return;
         }
-        if (!this.partnerSprite) return;
+        const sid = sessionId ?? '__unknown__';
+        const pd = this._partners.get(sid);
+        if (!pd) return;
         const partnerAnimKey = animKey.replace(/^player_/, 'partner_');
-        this.partnerSprite.play(partnerAnimKey, true);
-        this.partnerSprite.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => {
-          if (!this.partnerSprite) return;
-          this.partnerSprite.play(`partner_idle_${this._partnerPrevDir}`, true);
+        pd.sprite.play(partnerAnimKey, true);
+        pd.sprite.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => {
+          pd.sprite.play(`partner_idle_${pd.prevDir}`, true);
         });
-        this.showPartnerAttackFX(behavior, this.partnerSprite.x, this.partnerSprite.y, dir);
+        this.showPartnerAttackFX(behavior, pd.sprite.x, pd.sprite.y, dir);
       });
 
       // Send local attack info to partner (DPR-normalised)
@@ -457,24 +467,31 @@ export class GameScene extends Phaser.Scene {
       };
 
       NetworkService.onPartnerLeft(() => {
-        this.partnerSprite?.setVisible(false);
-        this.partnerLabel?.setVisible(false);
-        this.partnerHpBar?.setVisible(false);
+        this._partners.forEach(pd => {
+          pd.sprite.setVisible(false);
+          pd.label.setVisible(false);
+          pd.hpBar.setVisible(false);
+        });
       });
 
       NetworkService.onReconnected(() => this._onReconnected());
       NetworkService.onReconnectFailed(() => this._onReconnectFailed());
 
-      NetworkService.onPartnerDead(() => {
-        if (!this.partnerSprite) return;
-        this.partnerIsDead = true;
-        this.partnerSprite.stop();
-        this.partnerSprite.setTexture('partner_death_shadow', 6);
+      NetworkService.onPartnerDead((data) => {
+        const sid = data?.sessionId ?? '';
+        if (sid) {
+          const pd = this._partners.get(sid);
+          if (pd) { pd.isDead = true; pd.sprite.stop(); pd.sprite.setTexture('partner_death_shadow', 6); }
+        } else {
+          // fallback: mark all partners dead
+          this._partners.forEach(pd => { pd.isDead = true; pd.sprite.stop(); pd.sprite.setTexture('partner_death_shadow', 6); });
+        }
       });
 
       NetworkService.onPotionEffect(({ type, amount }) => {
-        const sx = this.partnerSprite?.x ?? this.player.x;
-        const sy = this.partnerSprite?.y ?? this.player.y;
+        const firstPartner = this._partners.values().next().value as PartnerData | undefined;
+        const sx = firstPartner?.sprite?.x ?? this.player.x;
+        const sy = firstPartner?.sprite?.y ?? this.player.y;
         const range = P(this.POTION_RANGE);
         if (type === 'heal') {
           this.player.heal(amount);
@@ -588,7 +605,7 @@ export class GameScene extends Phaser.Scene {
     const bossWp = this.waypoints[this.waypoints.length - 1];
     const bossDef = getMonsterDef(this.bossMonsterId)!;
     const hpMult = STAR_HP_MULT[this.questStar] ?? 1;
-    const coopMult = NetworkService.connected ? CO_OP_HP_MULT : 1;
+    const coopMult = CO_OP_HP_MULTS[this._playerCount] ?? CO_OP_HP_MULTS[2];
     const bossInitHp = Math.round(bossDef.hp * hpMult * coopMult);
     this.boss = this.createBoss(bossDef, bossInitHp);
     this.boss.questStar = this.questStar;
@@ -1755,52 +1772,53 @@ export class GameScene extends Phaser.Scene {
     }
 
     // 夥伴血環（僅在對方裝備 aura 時顯示）
-    if (this.partnerAuraRing && this.partnerSprite?.active) {
-      const isPartnerAura = this._partnerBehavior === 'aura';
-      this.partnerAuraRing.setVisible(isPartnerAura && !this.gameOver);
-      if (isPartnerAura) {
-        const g = this.partnerAuraRing;
-        const R = this.AURA_RANGE;
-        const t = this.time.now / 1000;
-        const px = this.partnerSprite.x, py = this.partnerSprite.y;
-        g.setPosition(px, py + 10);
-        g.setRotation(t * 0.4);
-        g.clear();
-        g.fillStyle(0xdd0000, 0.28); g.fillCircle(0, 0, R);
-        g.fillStyle(0xff2200, 0.22); g.fillCircle(0, 0, R * 0.7);
-        g.fillStyle(0xff4400, 0.16); g.fillCircle(0, 0, R * 0.4);
-        for (let i = 0; i < 6; i++) {
-          const a = (i / 6) * Math.PI * 2;
-          g.lineStyle(2.5, 0xff3300, 0.65);
-          g.beginPath();
-          g.moveTo(Math.cos(a) * R * 0.08, Math.sin(a) * R * 0.08);
-          g.lineTo(Math.cos(a) * R * 0.88, Math.sin(a) * R * 0.88);
-          g.strokePath();
-        }
-        const hexPts: { x: number; y: number }[] = [];
-        const hex2 = -t * 0.95;
-        for (let i = 0; i <= 6; i++) {
-          const a = (i / 6) * Math.PI * 2 + hex2;
-          hexPts.push({ x: Math.cos(a) * R * 0.48, y: Math.sin(a) * R * 0.48 });
-        }
-        g.lineStyle(2, 0xff6600, 0.70); g.strokePoints(hexPts, true);
-        const pulse = R * 0.28 + Math.sin(t * 4) * 4;
-        g.lineStyle(2, 0xff8800, 0.75 + Math.sin(t * 4) * 0.15);
-        g.strokeCircle(0, 0, pulse);
-        g.lineStyle(2.5, 0xff4400, 0.90); g.strokeCircle(0, 0, R);
-        for (let i = 0; i < 18; i++) {
-          const a = (i / 18) * Math.PI * 2;
-          const phase = (i / 18) * Math.PI * 4;
-          const h = 9 + Math.sin(t * 5 + phase) * 4;
-          g.fillStyle(0xff4400, 0.55 + Math.sin(t * 7 + phase) * 0.2);
-          g.fillTriangle(
-            Math.cos(a - 0.13) * R, Math.sin(a - 0.13) * R,
-            Math.cos(a + 0.13) * R, Math.sin(a + 0.13) * R,
-            Math.cos(a) * (R + h), Math.sin(a) * (R + h),
-          );
+    this._partners.forEach(pd => {
+      if (pd.auraRing && pd.sprite.active) {
+        const isAura = pd.behavior === 'aura';
+        pd.auraRing.setVisible(isAura && !this.gameOver);
+        if (isAura) {
+          const g = pd.auraRing;
+          const R = this.AURA_RANGE;
+          const t = this.time.now / 1000;
+          g.setPosition(pd.sprite.x, pd.sprite.y + 10);
+          g.setRotation(t * 0.4);
+          g.clear();
+          g.fillStyle(0xdd0000, 0.28); g.fillCircle(0, 0, R);
+          g.fillStyle(0xff2200, 0.22); g.fillCircle(0, 0, R * 0.7);
+          g.fillStyle(0xff4400, 0.16); g.fillCircle(0, 0, R * 0.4);
+          for (let i = 0; i < 6; i++) {
+            const a = (i / 6) * Math.PI * 2;
+            g.lineStyle(2.5, 0xff3300, 0.65);
+            g.beginPath();
+            g.moveTo(Math.cos(a) * R * 0.08, Math.sin(a) * R * 0.08);
+            g.lineTo(Math.cos(a) * R * 0.88, Math.sin(a) * R * 0.88);
+            g.strokePath();
+          }
+          const hexPts: { x: number; y: number }[] = [];
+          const hex2 = -t * 0.95;
+          for (let i = 0; i <= 6; i++) {
+            const a = (i / 6) * Math.PI * 2 + hex2;
+            hexPts.push({ x: Math.cos(a) * R * 0.48, y: Math.sin(a) * R * 0.48 });
+          }
+          g.lineStyle(2, 0xff6600, 0.70); g.strokePoints(hexPts, true);
+          const pulse = R * 0.28 + Math.sin(t * 4) * 4;
+          g.lineStyle(2, 0xff8800, 0.75 + Math.sin(t * 4) * 0.15);
+          g.strokeCircle(0, 0, pulse);
+          g.lineStyle(2.5, 0xff4400, 0.90); g.strokeCircle(0, 0, R);
+          for (let i = 0; i < 18; i++) {
+            const a = (i / 18) * Math.PI * 2;
+            const phase = (i / 18) * Math.PI * 4;
+            const h = 9 + Math.sin(t * 5 + phase) * 4;
+            g.fillStyle(0xff4400, 0.55 + Math.sin(t * 7 + phase) * 0.2);
+            g.fillTriangle(
+              Math.cos(a - 0.13) * R, Math.sin(a - 0.13) * R,
+              Math.cos(a + 0.13) * R, Math.sin(a + 0.13) * R,
+              Math.cos(a) * (R + h), Math.sin(a) * (R + h),
+            );
+          }
         }
       }
-    }
+    });
 
     // Reveal minions when player walks within range (AI already running since 400ms after spawn)
     const SHOW_DIST = P(500);
@@ -3142,9 +3160,12 @@ export class GameScene extends Phaser.Scene {
     let best: [number, number] = [this.player.x, this.player.y];
     let bestDist = Phaser.Math.Distance.Between(fromX, fromY, this.player.x, this.player.y);
 
-    if (NetworkService.connected && NetworkService.isHost && this.partnerSprite?.active) {
-      const dg = Phaser.Math.Distance.Between(fromX, fromY, this.partnerSprite.x, this.partnerSprite.y);
-      if (dg < bestDist) { bestDist = dg; best = [this.partnerSprite.x, this.partnerSprite.y]; }
+    if (NetworkService.connected && NetworkService.isHost) {
+      this._partners.forEach(pd => {
+        if (!pd.sprite.active || pd.isDead) return;
+        const dg = Phaser.Math.Distance.Between(fromX, fromY, pd.sprite.x, pd.sprite.y);
+        if (dg < bestDist) { bestDist = dg; best = [pd.sprite.x, pd.sprite.y]; }
+      });
     }
 
     // 友軍花怪也納入敵人的追擊目標
@@ -3306,7 +3327,7 @@ export class GameScene extends Phaser.Scene {
     if (!def) return;
     const hpMult = STAR_HP_MULT[this.questStar] ?? 1;
     const atkMult = STAR_STAT_MULT[this.questStar] ?? 1;
-    const coopMult = NetworkService.connected ? CO_OP_HP_MULT : 1;
+    const coopMult = CO_OP_HP_MULTS[this._playerCount] ?? CO_OP_HP_MULTS[2];
     const hp = Math.round(def.hp * hpMult * coopMult * (isElite ? ELITE_HP_MULT : 1));
     const atk = Math.round(def.atk * atkMult * (isElite ? 1.5 : 1));
     const a = Phaser.Math.FloatBetween(0, Math.PI * 2);
@@ -3390,7 +3411,7 @@ export class GameScene extends Phaser.Scene {
     const otherPool = GENERAL_POOL.filter(id => id !== mainMinionId);
     const hpMult = STAR_HP_MULT[this.questStar] ?? 1;
     const atkMult = STAR_STAT_MULT[this.questStar] ?? 1;
-    const coopMult = NetworkService.connected ? CO_OP_HP_MULT : 1;
+    const coopMult = CO_OP_HP_MULTS[this._playerCount] ?? CO_OP_HP_MULTS[2];
 
     // 每星級數量 × 1.3^(star-1)
     const countMult = Math.pow(1.15, this.questStar - 1);
@@ -4594,21 +4615,21 @@ export class GameScene extends Phaser.Scene {
   private _onReconnected(): void {
     this._hideReconnectOverlay();
     // Re-sync partner info display
-    const partner = NetworkService.getPartnerState() as any;
-    if (partner?.nickname && this.partnerLabel) {
-      this.partnerLabel.setText(partner.nickname);
-      this.partnerSprite?.setVisible(true);
-      this.partnerLabel.setVisible(true);
-      this.partnerHpBar?.setVisible(true);
-    }
+    this._partners.forEach(pd => {
+      pd.sprite.setVisible(true);
+      pd.label.setVisible(true);
+      pd.hpBar.setVisible(true);
+    });
   }
 
   private _onReconnectFailed(): void {
     this._hideReconnectOverlay();
     // Treat as partner leaving — just show disconnected state without kicking to lobby
-    this.partnerSprite?.setVisible(false);
-    this.partnerLabel?.setVisible(false);
-    this.partnerHpBar?.setVisible(false);
+    this._partners.forEach(pd => {
+      pd.sprite.setVisible(false);
+      pd.label.setVisible(false);
+      pd.hpBar.setVisible(false);
+    });
   }
 
   private exitToLobby(): void {
@@ -4967,22 +4988,27 @@ export class GameScene extends Phaser.Scene {
     const healAmt = itemId === ITEM_POTION_HEALTH_L ? 150 : itemId === ITEM_POTION_HEALTH_M ? 80 : 40;
     if (itemId === ITEM_POTION_HEALTH_S || itemId === ITEM_POTION_HEALTH_M || itemId === ITEM_POTION_HEALTH_L) {
       this.player.heal(healAmt);
-      if (NetworkService.connected && this.partnerSprite?.active && !this.partnerIsDead) {
-        const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, this.partnerSprite.x, this.partnerSprite.y);
-        if (d <= range) NetworkService.sendPotionEffect('heal', healAmt);
+      if (NetworkService.connected) {
+        const anyNear = [...this._partners.values()].some(pd =>
+          !pd.isDead && Phaser.Math.Distance.Between(this.player.x, this.player.y, pd.sprite.x, pd.sprite.y) <= range
+        );
+        if (anyNear) NetworkService.sendPotionEffect('heal', healAmt);
       }
     } else if (itemId === ITEM_POTION_REVIVE) {
       if (this.gameOver) {
         this.gameOver = false;
         this.player.revive(0.30);
         this.player.play(`player_idle_${this.player.lastDir}`);
-      } else if (NetworkService.connected && this.partnerIsDead && this.partnerSprite) {
-        const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, this.partnerSprite.x, this.partnerSprite.y);
-        if (d <= range) {
-          NetworkService.sendPotionEffect('revive', 30);
-          this.partnerIsDead = false;
-          this.partnerSprite.play(`partner_idle_${this._partnerPrevDir}`, true);
-        }
+      } else if (NetworkService.connected) {
+        this._partners.forEach(pd => {
+          if (!pd.isDead) return;
+          const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, pd.sprite.x, pd.sprite.y);
+          if (d <= range) {
+            NetworkService.sendPotionEffect('revive', 30);
+            pd.isDead = false;
+            pd.sprite.play(`partner_idle_${pd.prevDir}`, true);
+          }
+        });
       }
     } else if (itemId === ITEM_POTION_ATK) {
       this._atkBuffActive = true;
@@ -4995,9 +5021,11 @@ export class GameScene extends Phaser.Scene {
       this._buffExpiry.set(ITEM_POTION_ATK, this.time.now + 30000);
       this.refreshBuffHud();
       this.showBuffText('ATK +20%', rangeColor);
-      if (NetworkService.connected && this.partnerSprite?.active && !this.partnerIsDead) {
-        const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, this.partnerSprite.x, this.partnerSprite.y);
-        if (d <= range) NetworkService.sendPotionEffect('atk', 30000);
+      if (NetworkService.connected) {
+        const anyNear = [...this._partners.values()].some(pd =>
+          !pd.isDead && Phaser.Math.Distance.Between(this.player.x, this.player.y, pd.sprite.x, pd.sprite.y) <= range
+        );
+        if (anyNear) NetworkService.sendPotionEffect('atk', 30000);
       }
     } else if (itemId === ITEM_POTION_DEF) {
       this.player.defBonus = 20;
@@ -5009,9 +5037,11 @@ export class GameScene extends Phaser.Scene {
       this._buffExpiry.set(ITEM_POTION_DEF, this.time.now + 30000);
       this.refreshBuffHud();
       this.showBuffText('DEF +20', rangeColor);
-      if (NetworkService.connected && this.partnerSprite?.active && !this.partnerIsDead) {
-        const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, this.partnerSprite.x, this.partnerSprite.y);
-        if (d <= range) NetworkService.sendPotionEffect('def', 30000);
+      if (NetworkService.connected) {
+        const anyNear = [...this._partners.values()].some(pd =>
+          !pd.isDead && Phaser.Math.Distance.Between(this.player.x, this.player.y, pd.sprite.x, pd.sprite.y) <= range
+        );
+        if (anyNear) NetworkService.sendPotionEffect('def', 30000);
       }
     } else if (itemId === ITEM_POTION_SPEED) {
       this.player.speedBonus = 20;
@@ -5023,9 +5053,11 @@ export class GameScene extends Phaser.Scene {
       this._buffExpiry.set(ITEM_POTION_SPEED, this.time.now + 30000);
       this.refreshBuffHud();
       this.showBuffText('SPD +20', rangeColor);
-      if (NetworkService.connected && this.partnerSprite?.active && !this.partnerIsDead) {
-        const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, this.partnerSprite.x, this.partnerSprite.y);
-        if (d <= range) NetworkService.sendPotionEffect('speed', 30000);
+      if (NetworkService.connected) {
+        const anyNear = [...this._partners.values()].some(pd =>
+          !pd.isDead && Phaser.Math.Distance.Between(this.player.x, this.player.y, pd.sprite.x, pd.sprite.y) <= range
+        );
+        if (anyNear) NetworkService.sendPotionEffect('speed', 30000);
       }
     }
 
@@ -6193,21 +6225,52 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
-  private drawPartnerHpBar(): void {
-    if (!this.partnerHpBar || !this.partnerSprite) return;
-    const bx = this.partnerSprite.x;
-    const by = this.partnerSprite.y - P(35);
+  private _getOrCreatePartner(sessionId: string, nickname = '', skinId = 0): PartnerData {
+    if (this._partners.has(sessionId)) return this._partners.get(sessionId)!;
+
+    const tints = [0x44aaff, 0xffaa44, 0xee44ee];
+    const tint  = tints[this._partners.size % tints.length];
+
+    const pScale = 1.5 * DPR;
+    const sprite = this.add.sprite(this.playerStartX, this.playerStartY, 'partner_idle_shadow')
+      .setScale(pScale).setDepth(9).setTint(tint);
+    sprite.play('partner_idle_down', true);
+
+    const label = this.add.text(this.playerStartX, this.playerStartY - P(40), nickname || '?', {
+      fontSize: F(11), fontStyle: 'bold', color: '#88ccff', stroke: '#000', strokeThickness: 2,
+    }).setOrigin(0.5, 1).setDepth(12);
+
+    const hpBar    = this.add.graphics().setDepth(11);
+    const auraRing = this.add.graphics().setDepth(8).setVisible(false);
+    this.tweens.add({
+      targets: auraRing, alpha: { from: 0.25, to: 0.55 },
+      duration: 900, yoyo: true, repeat: -1, ease: 'Sine.InOut',
+    });
+
+    const pd: PartnerData = {
+      sessionId, sprite, label, hpBar, auraRing,
+      hp: 100, maxHp: 100, isDead: false,
+      prevX: 0, prevY: 0, prevDir: 'down',
+      behavior: 'slash180', skinId,
+    };
+    this._partners.set(sessionId, pd);
+    return pd;
+  }
+
+  private _drawPartnerHpBarFor(pd: PartnerData): void {
+    const bx = pd.sprite.x;
+    const by = pd.sprite.y - P(35);
     const W = P(44), H = P(5);
-    const pct = this._partnerMaxHp > 0 ? Math.max(0, Math.min(1, this._partnerHp / this._partnerMaxHp)) : 1;
+    const pct = pd.maxHp > 0 ? Math.max(0, Math.min(1, pd.hp / pd.maxHp)) : 1;
     const fillColor = pct > 0.5 ? 0x44ff88 : pct > 0.25 ? 0xffee44 : 0xff4444;
-    this.partnerHpBar.clear();
-    this.partnerHpBar.fillStyle(0x000000, 0.65);
-    this.partnerHpBar.fillRect(bx - W / 2 - 1, by - 1, W + 2, H + 2);
-    this.partnerHpBar.fillStyle(0x222222, 0.9);
-    this.partnerHpBar.fillRect(bx - W / 2, by, W, H);
+    pd.hpBar.clear();
+    pd.hpBar.fillStyle(0x000000, 0.65);
+    pd.hpBar.fillRect(bx - W / 2 - 1, by - 1, W + 2, H + 2);
+    pd.hpBar.fillStyle(0x222222, 0.9);
+    pd.hpBar.fillRect(bx - W / 2, by, W, H);
     if (pct > 0) {
-      this.partnerHpBar.fillStyle(fillColor, 1);
-      this.partnerHpBar.fillRect(bx - W / 2 + 1, by + 1, (W - 2) * pct, H - 2);
+      pd.hpBar.fillStyle(fillColor, 1);
+      pd.hpBar.fillRect(bx - W / 2 + 1, by + 1, (W - 2) * pct, H - 2);
     }
   }
 

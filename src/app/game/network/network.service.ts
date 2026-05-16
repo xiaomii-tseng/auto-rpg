@@ -16,16 +16,19 @@ export interface JoinedPayload {
 }
 
 export interface GameStartPayload {
-  seed:          number;
-  questStar:     number;
-  bossMonsterId: string;
-  hostId:        string;
-  questId:       string;
-  mapParams:     MapParams;
-  hostNickname:  string;
-  guestNickname: string;
-  hostSkinId:    number;
-  guestSkinId:   number;
+  seed:           number;
+  questStar:      number;
+  bossMonsterId:  string;
+  hostId:         string;
+  questId:        string;
+  mapParams:      MapParams;
+  playerCount:    number;
+  hostNickname:   string;
+  guestNickname:  string;
+  hostSkinId:     number;
+  guestSkinId:    number;
+  guestNicknames?: string[];
+  guestSkinIds?:   number[];
 }
 
 // ── Town callbacks ─────────────────────────────────────────────────────────
@@ -35,9 +38,9 @@ interface TownCallbacks {
   townPlayerLeft?:   (data: { sessionId: string }) => void;
   townPlayerInfo?:   (data: { sessionId: string; nickname: string; level: number; skinId: number }) => void;
   // Party invite flow
-  partyInvite?:    (data: { fromSessionId: string; fromNickname: string }) => void;
+  partyInvite?:    (data: { fromSessionId: string; fromNickname: string; roomCode: string }) => void;
   partyAccepted?:  (data: { guestSessionId: string }) => void;
-  partyDeclined?:  (data: { reason: string }) => void;
+  partyDeclined?:  (data: { reason: string; targetSessionId?: string }) => void;
   partyRoomCode?:  (data: { roomCode: string }) => void;
   partyCancelled?: () => void;
 }
@@ -45,13 +48,13 @@ interface TownCallbacks {
 // ── Replaceable callback slots ─────────────────────────────────────────────
 interface Callbacks {
   gameStart?:        (p: GameStartPayload) => void;
-  partnerJoined?:    (data: { nickname: string; level: number; skinId: number }) => void;
+  partnerJoined?:    (data: { sessionId?: string; nickname: string; level: number; skinId: number }) => void;
   partnerInfoReady?: (name: string, level: number, skinId: number) => void;
   partnerMove?:      (players: GameRoomState['players']) => void;
-  partnerPos?:       (data: { x: number; y: number; lastDir: string; hp: number; maxHp: number }) => void;
-  partnerAttack?:    (data: { animKey: string; x: number; y: number; dir: string; behavior: string }) => void;
+  partnerPos?:       (data: { sessionId?: string; x: number; y: number; lastDir: string; hp: number; maxHp: number }) => void;
+  partnerAttack?:    (data: { sessionId?: string; animKey: string; x: number; y: number; dir: string; behavior: string }) => void;
   partnerLeft?:      () => void;
-  partnerDead?:      () => void;
+  partnerDead?:      (data?: { sessionId?: string }) => void;
   roomClosed?:       () => void;
   minionSync?:       (data: MsgMinionSync) => void;
   minionHit?:        (data: { minionId: string; hp: number; isDead: boolean }) => void;
@@ -79,6 +82,7 @@ class NetworkServiceClass {
   sessionId = '';
   gameCode  = '';
   partyMode = false; // true when room was formed via town party invite
+  private _hostSid = ''; // cached from gameStart message (schema-independent)
 
   private _cbs: Callbacks = {};
   private _autoLobby = false;
@@ -118,13 +122,13 @@ class NetworkServiceClass {
   // to the replaceable _cbs slots, so re-registering scene callbacks is safe.
   private _registerForwarders(): void {
     const r = this.room!;
-    r.onMessage<GameStartPayload>('gameStart',    p  => this._cbs.gameStart?.(p));
+    r.onMessage<GameStartPayload>('gameStart',    p  => { this._hostSid = p.hostId; this._cbs.gameStart?.(p); });
     r.onMessage('partnerJoined',  (d: any)        => this._cbs.partnerJoined?.(d));
     r.onMessage('partnerPos',     (d: any)        => this._cbs.partnerPos?.(d));
     r.onMessage('attack',         (d: any)        => this._cbs.partnerAttack?.(d));
     r.onMessage('partnerLeft',    ()              => this._cbs.partnerLeft?.());
     r.onMessage('roomClosed',     ()              => this._cbs.roomClosed?.());
-    r.onMessage('partnerDead',    ()              => this._cbs.partnerDead?.());
+    r.onMessage('partnerDead',    (d: any)        => this._cbs.partnerDead?.(d));
     r.onMessage<MsgMinionSync>('minionSync',      d  => this._cbs.minionSync?.(d));
     r.onMessage('minionHit',      (d: any)        => this._cbs.minionHit?.(d));
     r.onMessage<MsgMinionAttack>('minionAttack',  d  => this._cbs.minionAttack?.(d));
@@ -269,11 +273,11 @@ class NetworkServiceClass {
   // The underlying Colyseus listener is registered once per room in _registerForwarders.
 
   /** Fires on the host when the 2nd player joins the room */
-  onPartnerJoined(cb: (data: { nickname: string; level: number; skinId: number }) => void): void {
+  onPartnerJoined(cb: (data: { sessionId?: string; nickname: string; level: number; skinId: number }) => void): void {
     this._cbs.partnerJoined = cb;
-    // If guest is already in room (reconnected session), fire immediately
-    const partner = this.getPartnerState() as any;
-    if (partner?.nickname) cb({ nickname: partner.nickname, level: partner.level ?? 1, skinId: partner.skinId ?? 0 });
+    // No immediate fire from schema — schema is unreliable on the client (classes not registered).
+    // The server's playerInfo handler sends partnerJoined for all existing players back to the
+    // new joiner, so all partners are always delivered via WebSocket message.
   }
 
   /** Fires whenever the partner's info first appears (or changes) in the Colyseus schema */
@@ -296,11 +300,11 @@ class NetworkServiceClass {
     this._cbs.partnerMove = cb;
   }
 
-  onPartnerPos(cb: (data: { x: number; y: number; lastDir: string; hp: number; maxHp: number }) => void): void {
+  onPartnerPos(cb: (data: { sessionId?: string; x: number; y: number; lastDir: string; hp: number; maxHp: number }) => void): void {
     this._cbs.partnerPos = cb;
   }
 
-  onPartnerAttack(cb: (data: { animKey: string; x: number; y: number; dir: string; behavior: string }) => void): void {
+  onPartnerAttack(cb: (data: { sessionId?: string; animKey: string; x: number; y: number; dir: string; behavior: string }) => void): void {
     this._cbs.partnerAttack = cb;
   }
 
@@ -340,7 +344,7 @@ class NetworkServiceClass {
     this._cbs.roomClosed = cb;
   }
 
-  onPartnerDead(cb: () => void): void {
+  onPartnerDead(cb: (data?: { sessionId?: string }) => void): void {
     this._cbs.partnerDead = cb;
   }
 
@@ -366,6 +370,20 @@ class NetworkServiceClass {
       if (p.sessionId !== this.sessionId) found = p;
     });
     return found;
+  }
+
+  getPartnersState(): PlayerState[] {
+    const result: PlayerState[] = [];
+    const players = this.room?.state.players as any;
+    if (!players) return result;
+    players.forEach((p: PlayerState) => {
+      if (p.sessionId !== this.sessionId) result.push(p);
+    });
+    return result;
+  }
+
+  get hostSessionId(): string {
+    return this._hostSid || (this.room?.state as any)?.hostId || '';
   }
 
   get roomCode(): string  { return this.room?.roomId ?? ''; }
@@ -446,8 +464,8 @@ class NetworkServiceClass {
     this.townRoom?.send('townInfo', { nickname, level, skinId });
   }
 
-  sendPartyInvite(targetSessionId: string, fromNickname: string): void {
-    this.townRoom?.send('partyInvite', { targetSessionId, fromNickname });
+  sendPartyInvite(targetSessionId: string, fromNickname: string, roomCode: string): void {
+    this.townRoom?.send('partyInvite', { targetSessionId, fromNickname, roomCode });
   }
 
   sendPartyInviteResponse(accept: boolean, toSessionId: string): void {
@@ -478,7 +496,7 @@ class NetworkServiceClass {
     this._townCbs.townPlayerInfo = cb;
   }
 
-  onPartyInvite(cb: (data: { fromSessionId: string; fromNickname: string }) => void): void {
+  onPartyInvite(cb: (data: { fromSessionId: string; fromNickname: string; roomCode: string }) => void): void {
     this._townCbs.partyInvite = cb;
   }
 
@@ -486,7 +504,7 @@ class NetworkServiceClass {
     this._townCbs.partyAccepted = cb;
   }
 
-  onPartyDeclined(cb: (data: { reason: string }) => void): void {
+  onPartyDeclined(cb: (data: { reason: string; targetSessionId?: string }) => void): void {
     this._townCbs.partyDeclined = cb;
   }
 
@@ -520,6 +538,7 @@ class NetworkServiceClass {
     this.sessionId = '';
     this.gameCode  = '';
     this.partyMode = false;
+    this._hostSid  = '';
     this._cbs      = {};
   }
 }

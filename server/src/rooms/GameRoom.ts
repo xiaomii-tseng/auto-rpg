@@ -18,7 +18,7 @@ import {
 } from '../../../shared/types';
 
 export class GameRoom extends Room<GameRoomState> {
-  maxClients = 2;
+  maxClients = 3;
 
   private _gameCode = '';
   private minionState: Record<string, import('../../../shared/types').MinionState> = {};
@@ -63,7 +63,7 @@ export class GameRoom extends Room<GameRoomState> {
       // Guest sends ready right after joining — notify host with name+level
       if (!isHost) {
         const hostClient = this.clients.find(c => c.sessionId === this.state.hostId);
-        hostClient?.send('partnerJoined', { nickname: msg.nickname, level: p.level, skinId: p.skinId });
+        hostClient?.send('partnerJoined', { sessionId: client.sessionId, nickname: msg.nickname, level: p.level, skinId: p.skinId });
       }
 
       if (msg.questId)       this.state.questId       = msg.questId;
@@ -77,11 +77,11 @@ export class GameRoom extends Room<GameRoomState> {
       if (!p) return;
       p.x = msg.x; p.y = msg.y; p.lastDir = msg.lastDir;
       p.hp = msg.hp; p.maxHp = msg.maxHp;
-      this.broadcast('partnerPos', { x: msg.x, y: msg.y, lastDir: msg.lastDir, hp: msg.hp, maxHp: msg.maxHp }, { except: client });
+      this.broadcast('partnerPos', { sessionId: client.sessionId, x: msg.x, y: msg.y, lastDir: msg.lastDir, hp: msg.hp, maxHp: msg.maxHp }, { except: client });
     });
 
     this.onMessage<{ animKey: string }>('attack', (client, msg) => {
-      this.broadcast('attack', msg, { except: client });
+      this.broadcast('attack', { ...msg, sessionId: client.sessionId }, { except: client });
     });
 
     this.onMessage<MsgHpUpdate>('hp', (client, msg) => {
@@ -100,17 +100,15 @@ export class GameRoom extends Room<GameRoomState> {
       // Notify every other connected client about this player's updated info
       this.clients.forEach(other => {
         if (other.sessionId !== client.sessionId) {
-          other.send('partnerJoined', { nickname: p.nickname, level: p.level, skinId: p.skinId });
+          other.send('partnerJoined', { sessionId: client.sessionId, nickname: p.nickname, level: p.level, skinId: p.skinId });
         }
       });
-      // Also send back the partner's info to the sender (covers restore-from-game / late-join cases)
-      let partner: import('./GameRoomSchema').PlayerState | undefined;
+      // Send back ALL other partners' info to the sender (covers restore-from-game / 3+ player cases)
       this.state.players.forEach((pl: import('./GameRoomSchema').PlayerState) => {
-        if (pl.sessionId !== client.sessionId) partner = pl;
+        if (pl.sessionId !== client.sessionId && pl.nickname) {
+          client.send('partnerJoined', { sessionId: pl.sessionId, nickname: pl.nickname, level: pl.level, skinId: pl.skinId });
+        }
       });
-      if (partner?.nickname) {
-        client.send('partnerJoined', { nickname: partner.nickname, level: partner.level, skinId: partner.skinId });
-      }
     });
 
     this.onMessage<MsgMinionSync>('minionSync', (client, msg) => {
@@ -169,7 +167,7 @@ export class GameRoom extends Room<GameRoomState> {
     });
 
     this.onMessage('playerDead', (client) => {
-      this.broadcast('partnerDead', {}, { except: client });
+      this.broadcast('partnerDead', { sessionId: client.sessionId }, { except: client });
     });
 
     this.onMessage<{ type: string; amount: number }>('potionEffect', (client, msg) => {
@@ -199,6 +197,9 @@ export class GameRoom extends Room<GameRoomState> {
       hostLevel:       !isHost ? (hostP?.level    ?? 1)  : 0,
       hostSkinId:      !isHost ? (hostP?.skinId   ?? 0)  : 0,
     });
+
+    // If host already sent 'ready' before this player joined, retry game start.
+    if (!isHost) this.tryStartGame();
   }
 
   async onLeave(client: Client, consented: boolean): Promise<void> {
@@ -228,7 +229,7 @@ export class GameRoom extends Room<GameRoomState> {
   private tryStartGame(): void {
     const players = [...this.state.players.values()];
     const host = players.find(p => p.sessionId === this.state.hostId);
-    if (players.length === 2 && host?.isReady && !!this.state.questId) {
+    if (players.length >= 2 && host?.isReady && !!this.state.questId) {
       this.state.phase = 'playing';
 
       // Generate map layout on the server so both clients receive identical params
@@ -241,7 +242,7 @@ export class GameRoom extends Room<GameRoomState> {
       }));
       const mapParams: MapParams = { angle0, segments, bossArenaShape: rng.between(0, 3) };
 
-      const guest = players.find(p => p.sessionId !== this.state.hostId);
+      const guests = players.filter(p => p.sessionId !== this.state.hostId);
       this.broadcast('gameStart', {
         seed:          this.state.seed,
         questStar:     this.state.questStar,
@@ -249,10 +250,14 @@ export class GameRoom extends Room<GameRoomState> {
         hostId:        this.state.hostId,
         questId:       this.state.questId,
         mapParams,
-        hostNickname:  host?.nickname  ?? '',
-        guestNickname: guest?.nickname ?? '',
-        hostSkinId:    host?.skinId    ?? 0,
-        guestSkinId:   guest?.skinId   ?? 0,
+        playerCount:   players.length,
+        hostNickname:  host?.nickname     ?? '',
+        guestNickname: guests[0]?.nickname ?? '',
+        hostSkinId:    host?.skinId        ?? 0,
+        guestSkinId:   guests[0]?.skinId   ?? 0,
+        // All non-host players (for 3+ player display)
+        guestNicknames: guests.map(g => g.nickname ?? ''),
+        guestSkinIds:   guests.map(g => g.skinId   ?? 0),
       });
     }
   }

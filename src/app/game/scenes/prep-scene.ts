@@ -148,19 +148,20 @@ export function setPlayerName(name: string): void {
 
 export class PrepScene extends Phaser.Scene {
   private goldText!: Phaser.GameObjects.Text;
-  private playerNameTxt?: Phaser.GameObjects.Text;
   private roomOverlayObjs: Phaser.GameObjects.GameObject[] = [];
   private _partnerIn = false;
   private _partnerNick = '';
   private _partnerLevel = 0;
   private _partnerSkinId = 0;
   // Party invite state
-  private _partyState: 'none' | 'in_party' = 'none';
+  private _partyState: 'none' | 'open' | 'in_party' = 'none';
   private _amPartyLeader = false;
-  private _partyPartnerSid = '';
-  private _partyPartnerNick = '';
-  private _partyPartnerLevel = 0;
-  private _pendingInviteFromSid = '';
+  private _partyMembers: { sid: string; nick: string; level: number }[] = [];
+  private _partyPendingInvites: { sid: string; nick: string }[] = [];
+  private _partyRoomCode = '';
+  private _pendingInviteRoomCode = '';  // guest stores roomCode from incoming invite
+  private _toastStack: Phaser.GameObjects.Text[] = [];
+  private _partyCreateBtnObjs: Phaser.GameObjects.GameObject[] = [];
   private _partyPanelObjs: Phaser.GameObjects.GameObject[] = [];
   private _invitePopupObjs: Phaser.GameObjects.GameObject[] = [];
   private _inviteCountdown?: ReturnType<typeof setTimeout>;
@@ -386,10 +387,21 @@ export class PrepScene extends Phaser.Scene {
         // Returned from game via party invite — restore party panel
         this._partyState    = 'in_party';
         this._amPartyLeader = NetworkService.isHost;
-        const partner = NetworkService.getPartnerState() as any;
-        this._partnerIn   = !!partner;
-        this._partnerNick = partner?.nickname ?? '';
+        const partners = NetworkService.getPartnersState() as any[];
+        this._partnerIn   = partners.length > 0;
+        // Sort: leader first so _partyMembers[0] is always the host (guest panel depends on this)
+        const hostSid = NetworkService.hostSessionId;
+        const sorted  = [
+          ...partners.filter((p: any) => p.sessionId === hostSid),
+          ...partners.filter((p: any) => p.sessionId !== hostSid),
+        ];
+        this._partnerNick = sorted[0]?.nickname ?? '';
+        // Pre-populate _partyMembers from current room state so panel renders immediately
+        this._partyMembers = sorted
+          .filter((p: any) => p.sessionId)
+          .map((p: any) => ({ sid: p.sessionId, nick: p.nickname ?? '隊友', level: p.level ?? 0 }));
         this._setupGameRoomCallbacks();
+        // sendPlayerInfo triggers server to re-send all partners' partnerJoined → names update
         NetworkService.sendPlayerInfo(getPlayerName(), PlayerStore.getLevel(), SkinStore.get());
         this.time.delayedCall(100, () => this._buildPartyPanel());
       } else {
@@ -408,6 +420,7 @@ export class PrepScene extends Phaser.Scene {
               seed: p.seed, questStar: p.questStar, bossMonsterId: p.bossMonsterId,
               mapParams: p.mapParams, partnerNickname: p.guestNickname,
               ownSkinId: p.hostSkinId, partnerSkinId: p.guestSkinId,
+              playerCount: p.playerCount ?? 2,
             });
           } else {
             try { if (p.questId) QuestStore.acceptQuest(p.questId); } catch { /* guest */ }
@@ -415,6 +428,7 @@ export class PrepScene extends Phaser.Scene {
               seed: p.seed, questStar: p.questStar, bossMonsterId: p.bossMonsterId,
               mapParams: p.mapParams, partnerNickname: p.hostNickname,
               ownSkinId: p.guestSkinId, partnerSkinId: p.hostSkinId,
+              playerCount: p.playerCount ?? 2,
             });
           }
         });
@@ -533,7 +547,7 @@ export class PrepScene extends Phaser.Scene {
     }).setOrigin(0.5).setDepth(32);
 
     // Name
-    this.playerNameTxt = this.add.text(TXT_X, CY + P(12), getPlayerName(), {
+    this.add.text(TXT_X, CY + P(12), getPlayerName(), {
       fontSize: F(15), fontStyle: 'bold',
       color: '#ffe8b0', stroke: '#1a0800', strokeThickness: 2,
     }).setOrigin(0, 0).setDepth(32);
@@ -688,7 +702,7 @@ export class PrepScene extends Phaser.Scene {
         wardObjs.forEach(o => o.destroy());
         if (i !== currentSkin) {
           SkinStore.set(i);
-          this.scene.restart();
+          this._applySkin(i);
         }
       });
     });
@@ -4513,11 +4527,15 @@ export class PrepScene extends Phaser.Scene {
       .setInteractive({ useHandCursor: true }).setDepth(D + 4);
     objs.push(btnHit);
     btnHit.on('pointerdown', () => {
+      if (this._partyState !== 'none') {
+        this._showToast('組隊中無法改名');
+        close();
+        return;
+      }
       const name = inp.getValue() || '勇者';
       setPlayerName(name);
-      this.playerNameTxt?.setText(name);
-      this._townLocalNameLabel?.setText(name);
       close();
+      this.scene.restart();
     });
   }
 
@@ -5533,6 +5551,7 @@ export class PrepScene extends Phaser.Scene {
             seed: p.seed, questStar: p.questStar, bossMonsterId: p.bossMonsterId,
             mapParams: p.mapParams, partnerNickname: p.guestNickname,
             ownSkinId: p.hostSkinId, partnerSkinId: p.guestSkinId,
+            playerCount: p.playerCount ?? 2,
           });
         });
         this.refreshRoomOverlay();
@@ -5629,6 +5648,7 @@ export class PrepScene extends Phaser.Scene {
             seed: payload.seed, questStar: payload.questStar, bossMonsterId: payload.bossMonsterId,
             mapParams: payload.mapParams, partnerNickname: payload.hostNickname,
             ownSkinId: payload.guestSkinId, partnerSkinId: payload.hostSkinId,
+            playerCount: payload.playerCount ?? 2,
           });
         });
         NetworkService.sendPlayerInfo(nick, PlayerStore.getLevel(), SkinStore.get());
@@ -5656,12 +5676,36 @@ export class PrepScene extends Phaser.Scene {
 
   /** Destroys and redraws room overlay: room code, leave button, partner sprite, guest overlay */
   private _showToast(msg: string): void {
-    const W = this._sceneW; const H = this._sceneH;
-    const t = this.add.text(W / 2, H / 2 - P(60), msg, {
+    const W = this._sceneW, H = this._sceneH;
+    const STEP = P(28), MAX = 3;
+    const baseY = H / 2 - P(60);
+
+    // Push existing toasts up
+    this._toastStack.forEach((t, i) => {
+      this.tweens.add({ targets: t, y: baseY - STEP * (this._toastStack.length - i), duration: 150 });
+    });
+
+    // Remove oldest if already at max
+    if (this._toastStack.length >= MAX) {
+      const old = this._toastStack.shift()!;
+      this.tweens.killTweensOf(old);
+      old.destroy();
+    }
+
+    const t = this.add.text(W / 2, baseY, msg, {
       fontSize: F(15), fontStyle: 'bold', color: '#ffcc44',
       stroke: '#000', strokeThickness: 3,
     }).setOrigin(0.5).setDepth(500);
-    this.tweens.add({ targets: t, alpha: 0, delay: 1800, duration: 600, onComplete: () => t.destroy() });
+    this._toastStack.push(t);
+
+    this.tweens.add({
+      targets: t, alpha: 0, delay: 1800, duration: 600,
+      onComplete: () => {
+        t.destroy();
+        const idx = this._toastStack.indexOf(t);
+        if (idx !== -1) this._toastStack.splice(idx, 1);
+      },
+    });
   }
 
   private refreshRoomOverlay(): void {
@@ -5836,6 +5880,9 @@ export class PrepScene extends Phaser.Scene {
       fontSize: F(15), color: '#ffffa0', stroke: '#1a0800', strokeThickness: 2,
       backgroundColor: '#00000099', padding: { x: P(8), y: P(3) },
     }).setOrigin(0.5, 1).setDepth(55).setVisible(false);
+
+    // Party create button (bottom-right)
+    this._buildPartyCreateBtn(W, H);
 
     // Join TownRoom (non-blocking)
     this._joinTownRoom();
@@ -6366,6 +6413,39 @@ export class PrepScene extends Phaser.Scene {
     }
   }
 
+  private _applySkin(skinId: number): void {
+    const idleTex = `skin_preview_${skinId}`;
+    const runTex  = `skin_run_preview_${skinId}`;
+    if (!this.textures.exists(idleTex)) return;
+
+    // Redefine player animations to use the new skin's pre-loaded textures
+    const animDefs: [string, string, number, number, number][] = [
+      ['player_idle_down',  idleTex, 0,  3,  8],
+      ['player_idle_left',  idleTex, 12, 15, 8],
+      ['player_idle_right', idleTex, 24, 27, 8],
+      ['player_idle_up',    idleTex, 36, 39, 8],
+      ['player_run_down',   runTex,  0,  7,  10],
+      ['player_run_left',   runTex,  8,  15, 10],
+      ['player_run_right',  runTex,  16, 23, 10],
+      ['player_run_up',     runTex,  24, 31, 10],
+    ];
+    animDefs.forEach(([key, tex, s, e, rate]) => {
+      if (!this.textures.exists(tex)) return;
+      if (this.anims.exists(key)) this.anims.remove(key);
+      this.anims.create({ key, frames: this.anims.generateFrameNumbers(tex, { start: s, end: e }), frameRate: rate, repeat: -1 });
+    });
+
+    // Swap the local player sprite to the new skin texture
+    if (this._townPlayer) {
+      this._townPlayer.setTexture(idleTex, 0);
+      this._townPlayer.play(`player_idle_${this._townPlayerDir}`, true);
+    }
+
+    // Notify town and game room of new skin
+    NetworkService.sendTownInfo(getPlayerName(), PlayerStore.getLevel(), skinId);
+    if (NetworkService.connected) NetworkService.sendPlayerInfo(getPlayerName(), PlayerStore.getLevel(), skinId);
+  }
+
   private _joinTownRoom(): void {
     console.log('[Town] joining town room...');
     NetworkService.joinTown().then(payload => {
@@ -6416,31 +6496,41 @@ export class PrepScene extends Phaser.Scene {
 
       // ── Party invite callbacks ──────────────────────────────
       NetworkService.onPartyInvite(data => {
-        if (this._partyState !== 'none') return;
-        this._pendingInviteFromSid = data.fromSessionId;
+        if (this._partyState !== 'none') {
+          NetworkService.sendPartyInviteResponse(false, data.fromSessionId);
+          return;
+        }
+        this._pendingInviteRoomCode = data.roomCode;
         this._showInvitePopup(data.fromSessionId, data.fromNickname);
       });
 
+      // Leader: a guest accepted — move from pending to confirmed
       NetworkService.onPartyAccepted(async data => {
-        // We are the leader — create GameRoom then forward code to guest
-        try {
-          await NetworkService.createRoom(getPlayerName());
-          NetworkService.partyMode = true;
-          this._setupGameRoomCallbacks();
-          NetworkService.sendPlayerInfo(getPlayerName(), PlayerStore.getLevel(), SkinStore.get());
-          NetworkService.sendPartyRoomReady(data.guestSessionId, NetworkService.gameCode);
-          this._partyState = 'in_party';
-          this._amPartyLeader = true;
-          this._partyPartnerSid = data.guestSessionId;
+        const pendingIdx = this._partyPendingInvites.findIndex(p => p.sid === data.guestSessionId);
+        if (pendingIdx >= 0) {
+          const pending = this._partyPendingInvites[pendingIdx];
+          this._partyPendingInvites.splice(pendingIdx, 1);
+          // onPartnerJoined may have already promoted this player (race: GameRoom WS faster than TownRoom WS).
+          // Match by any known nickname variant to guard against label-update timing differences.
           const guestInfo = this._townRemotePlayers.get(data.guestSessionId);
-          this._partyPartnerNick = guestInfo?.nameLabel.text ?? '隊友';
-          this._partyPartnerLevel = guestInfo?.level ?? 0;
+          const labelNick = guestInfo?.nameLabel.text ?? '';
+          const alreadyIn = this._partyMembers.find(
+            m => m.nick === pending.nick || (labelNick && m.nick === labelNick),
+          );
+          if (!alreadyIn) {
+            this._partyMembers.push({
+              sid:   data.guestSessionId,
+              nick:  labelNick || pending.nick,
+              level: guestInfo?.level ?? 0,
+            });
+          }
+          if (this._partyState === 'open') this._partyState = 'in_party';
           this._buildPartyPanel();
-        } catch { this._showToast('建立房間失敗'); }
+        }
       });
 
+      // Guest: accepted, join GameRoom directly using roomCode from the invite
       NetworkService.onPartyRoomCode(async data => {
-        // We are the guest — join GameRoom via code
         try {
           await NetworkService.joinRoom(data.roomCode, getPlayerName());
           NetworkService.partyMode = true;
@@ -6448,25 +6538,32 @@ export class PrepScene extends Phaser.Scene {
           NetworkService.sendPlayerInfo(getPlayerName(), PlayerStore.getLevel(), SkinStore.get());
           this._partyState = 'in_party';
           this._amPartyLeader = false;
-          this._partyPartnerSid = this._pendingInviteFromSid;
-          const leaderInfo = this._townRemotePlayers.get(this._pendingInviteFromSid);
-          this._partyPartnerNick = leaderInfo?.nameLabel.text ?? '隊友';
-          this._partyPartnerLevel = leaderInfo?.level ?? 0;
           this._buildPartyPanel();
         } catch { this._showToast('加入房間失敗'); }
       });
 
       NetworkService.onPartyDeclined(data => {
-        this._showToast(data.reason === 'declined' ? '對方拒絕了邀請' : '對方不在線上');
+        // Remove the pending invite slot for the target that declined
+        if (data.targetSessionId) {
+          this._partyPendingInvites = this._partyPendingInvites.filter(p => p.sid !== data.targetSessionId);
+          if (this._partyState === 'open' || this._partyState === 'in_party') this._buildPartyPanel();
+        }
+        this._showToast(
+          data.reason === 'declined'  ? '對方拒絕了邀請' :
+          data.reason === 'timeout'   ? '邀請逾時未回應' : '對方不在線上',
+        );
       });
 
       NetworkService.onPartyCancelled(() => {
         this._clearInvitePopup();
-        if (this._partyState === 'in_party') {
+        if (this._partyState !== 'none') {
           this._partyState = 'none';
+          this._partyMembers = [];
+          this._partyPendingInvites = [];
           this._destroyPartyPanel();
           NetworkService.disconnect();
           this._showToast('隊伍已解散');
+          this._buildPartyCreateBtn(this._sceneW, this._sceneH);
         }
       });
     }).catch((err: any) => { console.warn('[Town] joinTown failed:', err); });
@@ -6476,21 +6573,45 @@ export class PrepScene extends Phaser.Scene {
 
   private _setupGameRoomCallbacks(): void {
     NetworkService.onPartnerJoined(data => {
-      if (data.nickname) this._partyPartnerNick = data.nickname;
-      if (data.level)    this._partyPartnerLevel = data.level;
-      if (this._partyState === 'in_party') this._buildPartyPanel();
+      if (data.sessionId && data.nickname) {
+        // Match by sid first; fall back to nickname to handle town-sid → game-room-sid migration
+        let m = this._partyMembers.find(m => m.sid === data.sessionId);
+        if (!m) {
+          m = this._partyMembers.find(pm => pm.nick === data.nickname);
+          if (m) m.sid = data.sessionId; // migrate to game-room sid
+        }
+        if (m) {
+          m.nick = data.nickname;
+          if (data.level) m.level = data.level;
+        } else {
+          this._partyMembers.push({ sid: data.sessionId, nick: data.nickname, level: data.level ?? 0 });
+        }
+        // Leader: if this player is still in pending (race — partyAccepted not yet arrived),
+        // skip rebuild now to avoid showing them in both sections simultaneously.
+        // partyAccepted will clear pending and rebuild. For guests there is no partyAccepted,
+        // so always rebuild.
+        const stillPending = this._amPartyLeader &&
+          this._partyPendingInvites.some(p => p.nick === data.nickname);
+        if (!stillPending && this._partyState === 'in_party') this._buildPartyPanel();
+      }
     });
     NetworkService.onPartnerLeft(() => {
       this._partyState = 'none';
+      this._partyMembers = [];
+      this._partyPendingInvites = [];
       this._destroyPartyPanel();
       NetworkService.disconnect();
       this._showToast('隊伍已解散');
+      this._buildPartyCreateBtn(this._sceneW, this._sceneH);
     });
     NetworkService.onRoomClosed(() => {
       this._partyState = 'none';
+      this._partyMembers = [];
+      this._partyPendingInvites = [];
       this._destroyPartyPanel();
       NetworkService.disconnect();
       this._showToast('房間已關閉');
+      this._buildPartyCreateBtn(this._sceneW, this._sceneH);
     });
     NetworkService.onGameStart(p => {
       NetworkService.clearLobbyCallbacks();
@@ -6499,6 +6620,7 @@ export class PrepScene extends Phaser.Scene {
           seed: p.seed, questStar: p.questStar, bossMonsterId: p.bossMonsterId,
           mapParams: p.mapParams, partnerNickname: p.guestNickname,
           ownSkinId: p.hostSkinId, partnerSkinId: p.guestSkinId,
+          playerCount: p.playerCount ?? 2,
         });
       } else {
         try { if (p.questId) QuestStore.acceptQuest(p.questId); } catch { /* guest */ }
@@ -6506,14 +6628,26 @@ export class PrepScene extends Phaser.Scene {
           seed: p.seed, questStar: p.questStar, bossMonsterId: p.bossMonsterId,
           mapParams: p.mapParams, partnerNickname: p.hostNickname,
           ownSkinId: p.guestSkinId, partnerSkinId: p.hostSkinId,
+          playerCount: p.playerCount ?? 2,
         });
       }
     });
   }
 
   private _onTownPlayerClick(sessionId: string, nickname: string): void {
-    if (this._partyState !== 'none') return;
-    // Destroy any existing invite popup first
+    const totalSlots = this._partyMembers.length + this._partyPendingInvites.length;
+    const alreadyPending = this._partyPendingInvites.some(p => p.sid === sessionId);
+    const alreadyMember  = this._partyMembers.some(m => m.sid === sessionId);
+
+    if (this._partyState === 'none') return;
+
+    // Party open/in_party — leader confirms then invites
+    if (!this._amPartyLeader) return;
+    if (alreadyMember)  { this._showToast('對方已是隊員'); return; }
+    if (alreadyPending) { this._showToast('已送出邀請，等待回應中'); return; }
+    if (totalSlots >= 2) { this._showToast('隊伍已滿'); return; }
+
+    // Confirm popup
     this._invitePopupObjs.forEach(o => o.destroy());
     this._invitePopupObjs = [];
 
@@ -6528,9 +6662,9 @@ export class PrepScene extends Phaser.Scene {
     bg.lineStyle(P(2), 0x887733, 0.9);
     bg.strokeRoundedRect(px, py, PW, PH, P(8));
 
-    const title = this.add.text(W / 2, py + P(18), `邀請 ${nickname} 組隊？`, {
+    const title = this.add.text(W / 2, py + P(18), `邀請 ${nickname} 加入隊伍？`, {
       fontSize: F(13), fontStyle: 'bold', color: '#ffe066', stroke: '#1a0800', strokeThickness: 2,
-    }).setOrigin(0.5, 0.5).setDepth(D + 1);
+    }).setOrigin(0.5).setDepth(D + 1);
 
     const BTN_W = P(70), BTN_H = P(26);
     const confirmHit = this.add.rectangle(W / 2 - P(44), py + PH - P(20), BTN_W, BTN_H, 0x336633)
@@ -6550,12 +6684,17 @@ export class PrepScene extends Phaser.Scene {
     confirmHit.on('pointerup', (_p: any, _lx: any, _ly: any, ev: any) => {
       ev?.stopPropagation?.();
       close();
-      NetworkService.sendPartyInvite(sessionId, getPlayerName());
-      this._showToast('邀請已送出，等待對方回應…');
+      this._sendPartyInvite(sessionId, nickname);
+      this._buildPartyPanel();
     });
     cancelHit.on('pointerup', (_p: any, _lx: any, _ly: any, ev: any) => { ev?.stopPropagation?.(); close(); });
 
     this._invitePopupObjs = [bg, title, confirmHit, confirmTxt, cancelHit, cancelTxt];
+  }
+
+  private _sendPartyInvite(sessionId: string, nickname: string): void {
+    this._partyPendingInvites.push({ sid: sessionId, nick: nickname });
+    NetworkService.sendPartyInvite(sessionId, getPlayerName(), this._partyRoomCode);
   }
 
   private _showInvitePopup(fromSessionId: string, fromNickname: string): void {
@@ -6601,16 +6740,75 @@ export class PrepScene extends Phaser.Scene {
       if (secs <= 0) this._clearInvitePopup();
     }, 1000) as unknown as ReturnType<typeof setTimeout>;
 
-    acceptHit.on('pointerup', (_p: any, _lx: any, _ly: any, ev: any) => {
+    acceptHit.on('pointerup', async (_p: any, _lx: any, _ly: any, ev: any) => {
       ev?.stopPropagation?.();
       this._clearInvitePopup();
       NetworkService.sendPartyInviteResponse(true, fromSessionId);
+      try {
+        await NetworkService.joinRoom(this._pendingInviteRoomCode, getPlayerName());
+        NetworkService.partyMode = true;
+        this._setupGameRoomCallbacks();
+        NetworkService.sendPlayerInfo(getPlayerName(), PlayerStore.getLevel(), SkinStore.get());
+        this._partyState = 'in_party';
+        this._amPartyLeader = false;
+        this._partyCreateBtnObjs.forEach(o => o.destroy());
+        this._partyCreateBtnObjs = [];
+        const leaderInfo = this._townRemotePlayers.get(fromSessionId);
+        this._partyMembers = [{
+          sid:   fromSessionId,
+          nick:  leaderInfo?.nameLabel.text ?? '隊長',
+          level: leaderInfo?.level ?? 0,
+        }];
+        this._buildPartyPanel();
+      } catch { this._showToast('加入隊伍失敗'); }
     });
     declineHit.on('pointerup', (_p: any, _lx: any, _ly: any, ev: any) => {
       ev?.stopPropagation?.();
       this._clearInvitePopup();
       NetworkService.sendPartyInviteResponse(false, fromSessionId);
     });
+  }
+
+  private _buildPartyCreateBtn(W: number, H: number): void {
+    this._partyCreateBtnObjs.forEach(o => o.destroy());
+    this._partyCreateBtnObjs = [];
+    if (this._partyState !== 'none') return;
+
+    const BW = P(84), BH = P(32);
+    const bx = W - P(8) - BW / 2;
+    const by = H / 2;
+    const D  = 56;
+
+    const bg = this.add.graphics().setDepth(D);
+    bg.fillStyle(0x1a3a10, 0.92);
+    bg.fillRoundedRect(bx - BW / 2, by - BH / 2, BW, BH, P(6));
+    bg.lineStyle(P(2), 0x44aa33, 0.85);
+    bg.strokeRoundedRect(bx - BW / 2, by - BH / 2, BW, BH, P(6));
+
+    const txt = this.add.text(bx, by, '建立隊伍', {
+      fontSize: F(14), fontStyle: 'bold', color: '#88ee66', stroke: '#0a1a04', strokeThickness: 2,
+    }).setOrigin(0.5).setDepth(D + 1);
+
+    const hit = this.add.rectangle(bx, by, BW, BH)
+      .setOrigin(0.5).setDepth(D + 2).setInteractive({ useHandCursor: true });
+
+    hit.on('pointerup', async (_p: any, _lx: any, _ly: any, ev: any) => {
+      ev?.stopPropagation?.();
+      try {
+        await NetworkService.createRoom(getPlayerName());
+        NetworkService.partyMode = true;
+        this._setupGameRoomCallbacks();
+        NetworkService.sendPlayerInfo(getPlayerName(), PlayerStore.getLevel(), SkinStore.get());
+        this._partyRoomCode = NetworkService.gameCode;
+        this._partyState = 'open';
+        this._amPartyLeader = true;
+        this._partyCreateBtnObjs.forEach(o => o.destroy());
+        this._partyCreateBtnObjs = [];
+        this._buildPartyPanel();
+      } catch { this._showToast('建立隊伍失敗'); }
+    });
+
+    this._partyCreateBtnObjs = [bg, txt, hit];
   }
 
   private _clearInvitePopup(): void {
@@ -6622,56 +6820,105 @@ export class PrepScene extends Phaser.Scene {
   private _buildPartyPanel(): void {
     this._destroyPartyPanel();
     const W = this._sceneW, H = this._sceneH;
-    const PW = P(190), PH = P(130);
-    const px = W - PW - P(8), py = H - PH - P(70);
-    const D = 55;
+    const fmtName = (nick: string, level: number) => {
+      const n = nick.length > 8 ? nick.slice(0, 8) + '…' : nick;
+      return level > 0 ? `Lv.${level} ${n}` : n;
+    };
 
-    const bg = this.add.graphics().setDepth(D);
+    // Rows: confirmed members + pending invites (leader view) or self + other guests (guest view)
+    // Guest: _partyMembers[0] = leader (shown in leader section), [1+] = other guests
+    const confirmedRows: { nick: string; level: number; pending?: boolean; sid?: string }[] =
+      this._amPartyLeader
+        ? [
+            ...this._partyMembers.map(m => ({ nick: m.nick, level: m.level, sid: m.sid })),
+            ...this._partyPendingInvites.map(p => ({ nick: p.nick, level: 0, pending: true, sid: p.sid })),
+          ]
+        : [
+            { nick: '你', level: 0 },
+            ...this._partyMembers.slice(1).map(m => ({ nick: m.nick, level: m.level, sid: m.sid })),
+          ];
+
+    const rowCount = Math.max(confirmedRows.length, 1);
+    const PW = P(200), PH = P(58) + P(22) * rowCount + P(46);
+    const px = W - PW - P(8), py = H / 2 - PH / 2;
+    const D = 55;
+    const objs: Phaser.GameObjects.GameObject[] = [];
+    const o = <T extends Phaser.GameObjects.GameObject>(x: T) => { objs.push(x); return x; };
+
+    const bg = o(this.add.graphics().setDepth(D));
     bg.fillStyle(0x1a1200, 0.92);
     bg.fillRoundedRect(px, py, PW, PH, P(6));
     bg.lineStyle(P(2), 0x887733, 0.85);
     bg.strokeRoundedRect(px, py, PW, PH, P(6));
 
-    const rawNick = this._partyPartnerNick || '隊友';
-    const nick = rawNick.length > 8 ? rawNick.slice(0, 8) + '…' : rawNick;
-    const lvStr = this._partyPartnerLevel > 0 ? `Lv.${this._partyPartnerLevel} ` : '';
-    const leaderName = this._amPartyLeader ? '你' : `${lvStr}${nick}`;
-    const memberName = this._amPartyLeader ? `${lvStr}${nick}` : '你';
-
-    const leaderTag = this.add.text(px + P(10), py + P(12), '隊長', {
+    // Leader row
+    o(this.add.text(px + P(10), py + P(10), '隊長', {
       fontSize: F(11), color: '#aa8833', stroke: '#1a0800', strokeThickness: 1,
-    }).setDepth(D + 1);
-    const leader = this.add.text(px + P(10), py + P(24), leaderName, {
+    }).setDepth(D + 1));
+    const leaderName = this._amPartyLeader ? '你' : fmtName(this._partyMembers[0]?.nick ?? '隊長', 0);
+    o(this.add.text(px + P(10), py + P(22), leaderName, {
       fontSize: F(15), fontStyle: 'bold', color: '#ffe066', stroke: '#1a0800', strokeThickness: 2,
-    }).setDepth(D + 1);
-    const memberTag = this.add.text(px + P(10), py + P(50), '隊員', {
+    }).setDepth(D + 1));
+
+    // Member section
+    o(this.add.text(px + P(10), py + P(44), '隊員', {
       fontSize: F(11), color: '#778877', stroke: '#1a0800', strokeThickness: 1,
-    }).setDepth(D + 1);
-    const member = this.add.text(px + P(10), py + P(62), memberName, {
-      fontSize: F(15), fontStyle: 'bold', color: '#ccddcc', stroke: '#1a0800', strokeThickness: 2,
-    }).setDepth(D + 1);
+    }).setDepth(D + 1));
 
-    const disbandHit = this.add.rectangle(px + PW - P(34), py + PH - P(27), P(52), P(26), 0x553333)
-      .setOrigin(0.5, 0.5).setDepth(D + 1).setInteractive({ useHandCursor: true });
-    const disbandTxt = this.add.text(px + PW - P(34), py + PH - P(27), '解散', {
+    confirmedRows.forEach((row, i) => {
+      const rowY = py + P(56) + i * P(22);
+      if (row.pending) {
+        // Pending invite slot
+        o(this.add.text(px + P(10), rowY, `⋯ ${row.nick}`, {
+          fontSize: F(13), color: '#888866', stroke: '#1a0800', strokeThickness: 1,
+        }).setDepth(D + 1));
+        // Cancel button
+        const cancelX = px + PW - P(20);
+        const cancelHit = o(this.add.text(cancelX, rowY, '✕', {
+          fontSize: F(13), color: '#cc4444',
+        }).setOrigin(1, 0).setDepth(D + 2).setInteractive({ useHandCursor: true }));
+        cancelHit.on('pointerup', (_p: any, _lx: any, _ly: any, ev: any) => {
+          ev?.stopPropagation?.();
+          this._partyPendingInvites = this._partyPendingInvites.filter(p => p.sid !== row.sid);
+          this._buildPartyPanel();
+        });
+      } else {
+        o(this.add.text(px + P(10), rowY, fmtName(row.nick, row.level), {
+          fontSize: F(15), fontStyle: 'bold', color: '#ccddcc', stroke: '#1a0800', strokeThickness: 2,
+        }).setDepth(D + 1));
+      }
+    });
+
+    if (confirmedRows.length === 0) {
+      o(this.add.text(px + P(10), py + P(56), '點擊玩家來邀請', {
+        fontSize: F(12), color: '#666655', stroke: '#1a0800', strokeThickness: 1,
+      }).setDepth(D + 1));
+    }
+
+    const disbandHit = o(this.add.rectangle(px + PW - P(34), py + PH - P(27), P(52), P(26), 0x553333)
+      .setOrigin(0.5, 0.5).setDepth(D + 1).setInteractive({ useHandCursor: true }));
+    o(this.add.text(px + PW - P(34), py + PH - P(27), '解散', {
       fontSize: F(15), fontStyle: 'bold', color: '#ffaaaa', stroke: '#1a0800', strokeThickness: 2,
-    }).setOrigin(0.5, 0.5).setDepth(D + 2);
+    }).setOrigin(0.5, 0.5).setDepth(D + 2));
 
-    disbandHit.on('pointerup', (_p: any, _lx: any, _ly: any, ev: any) => {
+    (disbandHit as Phaser.GameObjects.Rectangle).on('pointerup', (_p: any, _lx: any, _ly: any, ev: any) => {
       ev?.stopPropagation?.();
-      NetworkService.sendPartyDisband(this._partyPartnerSid);
+      this._partyMembers.forEach(m => NetworkService.sendPartyDisband(m.sid));
       this._partyState = 'none';
+      this._partyMembers = [];
+      this._partyPendingInvites = [];
       this._destroyPartyPanel();
       NetworkService.disconnect();
       this._showToast('已解散隊伍');
+      this._buildPartyCreateBtn(this._sceneW, this._sceneH);
     });
 
-    const hint = this.add.text(px + P(10), py + P(100),
+    o(this.add.text(px + P(10), py + PH - P(44),
       this._amPartyLeader ? '按出戰選關卡' : '等待隊長出發', {
         fontSize: F(15), fontStyle: 'bold', color: '#888866', stroke: '#1a0800', strokeThickness: 1,
-      }).setDepth(D + 1);
+      }).setDepth(D + 1));
 
-    this._partyPanelObjs = [bg, leaderTag, leader, memberTag, member, disbandHit, disbandTxt, hint];
+    this._partyPanelObjs = objs;
   }
 
   private _destroyPartyPanel(): void {
@@ -6810,7 +7057,7 @@ export class PrepScene extends Phaser.Scene {
         ? (dx > 0 ? 'right' : 'left')
         : (dy > 0 ? 'down'  : 'up');
     }
-    const hasRun = this.textures.exists('player_run_shadow');
+    const hasRun = this.anims.exists(`player_run_${this._townPlayerDir}`);
     const animKey = (moving && hasRun) ? `player_run_${this._townPlayerDir}` : `player_idle_${this._townPlayerDir}`;
     if (this._townPlayer.anims.currentAnim?.key !== animKey)
       this._townPlayer.play(animKey, true);
@@ -6833,13 +7080,17 @@ export class PrepScene extends Phaser.Scene {
     }
 
     // linear interpolation: travel from→target over lerpDur ms (slightly longer than send interval)
+    const tileSize = Math.round(32 * DPR);
     this._townRemotePlayers.forEach(r => {
-      if (r.lerpT >= 1) return;
-      r.lerpT = Math.min(1, r.lerpT + delta / r.lerpDur);
-      const nx = Phaser.Math.Linear(r.fromX, r.targetX, r.lerpT);
-      const ny = Phaser.Math.Linear(r.fromY, r.targetY, r.lerpT);
-      r.sprite.setPosition(nx, ny);
-      r.nameLabel.setPosition(nx, ny - P(28));
+      if (r.lerpT < 1) {
+        r.lerpT = Math.min(1, r.lerpT + delta / r.lerpDur);
+        const nx = Phaser.Math.Linear(r.fromX, r.targetX, r.lerpT);
+        const ny = Phaser.Math.Linear(r.fromY, r.targetY, r.lerpT);
+        r.sprite.setPosition(nx, ny);
+        r.nameLabel.setPosition(nx, ny - P(28));
+      }
+      r.sprite.setDepth(4 + r.sprite.y / tileSize);
+      r.nameLabel.setDepth(4 + r.sprite.y / tileSize + 0.1);
     });
   }
 }

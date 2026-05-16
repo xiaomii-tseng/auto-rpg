@@ -1,5 +1,14 @@
 import { Room, Client } from 'colyseus';
-import { TownRoomState, TownPlayerState } from './TownRoomSchema';
+
+interface TownPlayer {
+  sessionId: string;
+  x:         number;
+  y:         number;
+  lastDir:   string;
+  nickname:  string;
+  level:     number;
+  skinId:    number;
+}
 
 interface PendingInvite {
   fromSid: string;
@@ -7,16 +16,14 @@ interface PendingInvite {
   timer:   ReturnType<typeof setTimeout>;
 }
 
-export class TownRoom extends Room<TownRoomState> {
+export class TownRoom extends Room {
   maxClients = 30;
-  private _pendingInvites = new Map<string, PendingInvite>(); // key = fromSid
+  private _players        = new Map<string, TownPlayer>();
+  private _pendingInvites = new Map<string, PendingInvite>(); // key = toSid
 
   onCreate(): void {
-    const { TownRoomState: TRS } = require('./TownRoomSchema');
-    this.setState(new TRS());
-
     this.onMessage<{ x: number; y: number; lastDir: string }>('townMove', (client, msg) => {
-      const p = this.state.players.get(client.sessionId);
+      const p = this._players.get(client.sessionId);
       if (!p) return;
       p.x = Math.max(0, Math.min(1, msg.x));
       p.y = Math.max(0, Math.min(1, msg.y));
@@ -27,7 +34,7 @@ export class TownRoom extends Room<TownRoomState> {
     });
 
     this.onMessage<{ nickname: string; level: number; skinId: number }>('townInfo', (client, msg) => {
-      const p = this.state.players.get(client.sessionId);
+      const p = this._players.get(client.sessionId);
       if (!p) return;
       p.nickname = msg.nickname || '';
       p.level    = msg.level   ?? 1;
@@ -39,30 +46,30 @@ export class TownRoom extends Room<TownRoomState> {
 
     // ── Party invite ──────────────────────────────────────────
 
-    this.onMessage<{ targetSessionId: string; fromNickname: string }>('partyInvite', (client, msg) => {
+    // Key = toSid so leader can have multiple pending invites simultaneously
+    this.onMessage<{ targetSessionId: string; fromNickname: string; roomCode: string }>('partyInvite', (client, msg) => {
       const target = this.clients.find(c => c.sessionId === msg.targetSessionId);
-      if (!target) { client.send('partyDeclined', { reason: 'offline' }); return; }
+      if (!target) { client.send('partyDeclined', { reason: 'offline', targetSessionId: msg.targetSessionId }); return; }
 
-      // Cancel any existing outgoing invite from this client
-      const prev = this._pendingInvites.get(client.sessionId);
-      if (prev) { clearTimeout(prev.timer); this._pendingInvites.delete(client.sessionId); }
+      // Cancel any existing invite already pending TO this target
+      const prev = this._pendingInvites.get(msg.targetSessionId);
+      if (prev) { clearTimeout(prev.timer); this._pendingInvites.delete(msg.targetSessionId); }
 
       const timer = setTimeout(() => {
-        this._pendingInvites.delete(client.sessionId);
-        client.send('partyCancelled', {});
-        const t = this.clients.find(c => c.sessionId === msg.targetSessionId);
-        t?.send('partyCancelled', {});
+        this._pendingInvites.delete(msg.targetSessionId);
+        client.send('partyDeclined', { reason: 'timeout', targetSessionId: msg.targetSessionId });
+        target.send('partyCancelled', {});
       }, 30000);
 
-      this._pendingInvites.set(client.sessionId, { fromSid: client.sessionId, toSid: msg.targetSessionId, timer });
-      target.send('partyInvite', { fromSessionId: client.sessionId, fromNickname: msg.fromNickname });
+      this._pendingInvites.set(msg.targetSessionId, { fromSid: client.sessionId, toSid: msg.targetSessionId, timer });
+      target.send('partyInvite', { fromSessionId: client.sessionId, fromNickname: msg.fromNickname, roomCode: msg.roomCode });
     });
 
     this.onMessage<{ accept: boolean; toSessionId: string }>('partyInviteResponse', (client, msg) => {
-      const invite = this._pendingInvites.get(msg.toSessionId);
-      if (!invite || invite.toSid !== client.sessionId) return;
+      const invite = this._pendingInvites.get(client.sessionId);
+      if (!invite || invite.fromSid !== msg.toSessionId) return;
       clearTimeout(invite.timer);
-      this._pendingInvites.delete(msg.toSessionId);
+      this._pendingInvites.delete(client.sessionId);
 
       const inviter = this.clients.find(c => c.sessionId === msg.toSessionId);
       if (!inviter) return;
@@ -70,7 +77,7 @@ export class TownRoom extends Room<TownRoomState> {
       if (msg.accept) {
         inviter.send('partyAccepted', { guestSessionId: client.sessionId });
       } else {
-        inviter.send('partyDeclined', { reason: 'declined' });
+        inviter.send('partyDeclined', { reason: 'declined', targetSessionId: client.sessionId });
       }
     });
 
@@ -88,20 +95,20 @@ export class TownRoom extends Room<TownRoomState> {
   }
 
   onJoin(client: Client): void {
-    const p = new TownPlayerState();
-    p.sessionId = client.sessionId;
-    p.x = 0.45 + (Math.random() - 0.5) * 0.10;
-    p.y = 0.45 + (Math.random() - 0.5) * 0.10;
-    this.state.players.set(client.sessionId, p);
+    const p: TownPlayer = {
+      sessionId: client.sessionId,
+      x:         0.45 + (Math.random() - 0.5) * 0.10,
+      y:         0.45 + (Math.random() - 0.5) * 0.10,
+      lastDir:   'down',
+      nickname:  '',
+      level:     1,
+      skinId:    0,
+    };
+    this._players.set(client.sessionId, p);
 
-    const existing: { sessionId: string; x: number; y: number; lastDir: string; nickname: string; level: number; skinId: number }[] = [];
-    this.state.players.forEach(pl => {
-      if (pl.sessionId !== client.sessionId) {
-        existing.push({
-          sessionId: pl.sessionId, x: pl.x, y: pl.y, lastDir: pl.lastDir,
-          nickname: pl.nickname, level: pl.level, skinId: pl.skinId,
-        });
-      }
+    const existing: TownPlayer[] = [];
+    this._players.forEach(pl => {
+      if (pl.sessionId !== client.sessionId) existing.push({ ...pl });
     });
     client.send('townJoined', { sessionId: client.sessionId, x: p.x, y: p.y, existing });
 
@@ -121,7 +128,7 @@ export class TownRoom extends Room<TownRoomState> {
         other?.send('partyCancelled', {});
       }
     });
-    this.state.players.delete(client.sessionId);
+    this._players.delete(client.sessionId);
     this.broadcast('townPlayerLeft', { sessionId: client.sessionId });
   }
 }
