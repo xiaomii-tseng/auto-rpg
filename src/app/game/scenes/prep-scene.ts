@@ -289,13 +289,18 @@ export class PrepScene extends Phaser.Scene {
       this.load.image('icon_fight', 'other/fight.webp');
     if (!this.textures.exists('icon_coin'))
       this.load.image('icon_coin', 'other/coin.webp');
-    ['hat', 'outfit', 'shoes', 'ring', 'sword'].forEach(cat => {
+    ['hat', 'outfit', 'shoes', 'ring'].forEach(cat => {
       for (let i = 1; i <= 5; i++) {
         const key = `equip_${cat}${i}`;
         if (!this.textures.exists(key))
           this.load.image(key, `equip/${cat}${i}.webp`);
       }
     });
+    for (let i = 1; i <= 70; i++) {
+      const key = `equip_sword${i}`;
+      if (!this.textures.exists(key))
+        this.load.image(key, `equip/weapons/Icons/Iicon_32_${String(i).padStart(2, '0')}.png`);
+    }
     // Boss idle sprites for quest panel
     const bossSprites: [string, string][] = [
       ['slime_idle', 'sprite/slime/PNG/Slime1/With_shadow/Slime1_Idle_with_shadow.png'],

@@ -398,7 +398,7 @@ export const ATTACK_BEHAVIORS: AttackBehavior[] = [
 ];
 
 const TEXTURE_COUNT: Record<EquipCategory, number> = {
-  hat: 5, outfit: 5, shoes: 5, ring: 5, sword: 5,
+  hat: 5, outfit: 5, shoes: 5, ring: 5, sword: 70,
 };
 
 const PCT_STATS = new Set<StatKey>(['crit', 'atkSpeed', 'lifesteal', 'evasion', 'critDmg', 'dotBonus', 'hpRegen']);
