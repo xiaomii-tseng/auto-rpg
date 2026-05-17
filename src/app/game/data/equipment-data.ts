@@ -139,7 +139,14 @@ export interface StatBonus {
   weaponRefineHp?:      number;  // 武器每精煉+2、HP+X（累計）
   flowerSummonMode?:    number;  // 取消原攻擊，改為召喚花怪模式（最多3隻，CD 3s，ATK×35%，HP×100%，穿透，0.8s攻速，對BOSS-22.5%）
   lavaSlimeCompanion?:  number;  // 岩漿史萊姆夥伴（HP×120%，ATK×70%，40px巡邏，100px aggro，8s重生）
-  executeBelow15?:      number;  // 敵人HP低於15%時直接斬殺
+  executeBelow15?:      number;  // 敵人HP低於12%時直接斬殺（欄位名稱保留相容舊存檔）
+  burnedEnemyDmgAmp?:  number;  // 對燃燒中敵人傷害加成
+  condLowHpAtk?:       number;  // 玩家HP<40%時ATK+X
+  // ── 組合加成專用乘算欄位 ──
+  critDmgMult?:         number;  // 爆擊傷害乘算（1.25 = ×1.25）
+  atkSpeedMult?:        number;  // 攻速乘算
+  summonDmgMult?:       number;  // 召喚物傷害乘算
+  defToEvasion?:        number;  // 每N防禦轉換迴避率（值為除數，30 = 每30防禦+3%迴避）
 }
 
 // ── Affix system ───────────────────────────────────────────────────────────────

@@ -107,6 +107,8 @@ export interface EffectiveStats {
   flowerSummonMode?:     number;
   lavaSlimeCompanion?:   number;
   executeBelow15?:       number;
+  burnedEnemyDmgAmp?:   number;
+  condLowHpAtk?:        number;
   freeRevive?:           number;
   maxHpPct?:             number;
   weaponRefineAtk?:      number;

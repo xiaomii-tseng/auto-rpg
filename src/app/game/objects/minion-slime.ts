@@ -161,7 +161,7 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
     this.flashWhite();
     if (this.hp <= 0) {
       this.die();
-    } else if (!this.isAlly && (CardStore.getTotalStats().executeBelow15 ?? 0) > 0 && this.hp / this.maxHp < 0.15) {
+    } else if (!this.isAlly && (CardStore.getTotalStats().executeBelow15 ?? 0) > 0 && this.hp / this.maxHp < 0.12) {
       this.hp = 0;
       this.die();
     }

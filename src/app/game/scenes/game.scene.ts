@@ -255,11 +255,16 @@ export class GameScene extends Phaser.Scene {
     if (!this.textures.exists('icon_stone_intact')) this.load.image('icon_stone_intact', 'other/ore1.webp');
     if (!this.textures.exists('icon_stone_guard')) this.load.image('icon_stone_guard', 'other/ore3.webp');
     if (!this.textures.exists('icon_quest_reroll')) this.load.image('icon_quest_reroll', 'other/ore4.webp');
-    if (!this.textures.exists('icon_equip_drop'))   this.load.image('icon_equip_drop',   'other/fight.webp');
-    for (let i = 1; i <= 70; i++) {
+    if (!this.textures.exists('icon_equip_drop'))   this.load.image('icon_equip_drop',   'equip/weapons/Icons/Iicon_32_01.png');
+    for (let i = 1; i <= 40; i++) {
       const key = `equip_sword${i}`;
       if (!this.textures.exists(key))
         this.load.image(key, `equip/weapons/Icons/Iicon_32_${String(i).padStart(2, '0')}.png`);
+    }
+    for (let i = 1; i <= 30; i++) {
+      const key = `equip_sword${i + 40}`;
+      if (!this.textures.exists(key))
+        this.load.image(key, `equip/weapons/Icons/icon_32_2_${String(i).padStart(2, '0')}.png`);
     }
     if (!this.textures.exists('icon_gold')) this.load.image('icon_gold', 'other/coin.webp');
     if (!this.textures.exists('icon_potion_health_s')) this.load.image('icon_potion_health_s', 'other/coin.webp');
@@ -2050,6 +2055,7 @@ export class GameScene extends Phaser.Scene {
     if (stats.dmgVsSlime && (target as any).race === 'slime') targetMult += stats.dmgVsSlime;
     if (stats.dmgVsPlant && (target as any).race === 'plant') targetMult += stats.dmgVsPlant;
     if (stats.dmgVsBoss && isBoss) targetMult += stats.dmgVsBoss;
+    if (stats.burnedEnemyDmgAmp && (target as any).burnStacks > 0) targetMult += stats.burnedEnemyDmgAmp;
 
     // 暴徒本能：爆擊觸發，每次攻擊只計一次
     const bloodlustActive = (stats.bloodlust ?? 0) >= 1;
@@ -2069,7 +2075,8 @@ export class GameScene extends Phaser.Scene {
 
     const allMult = 1 + (stats.allDmgPct ?? 0);
     const atkBuffMult = this._atkBuffActive ? 1.2 : 1;
-    const dmg = Math.round(stats.atk * Phaser.Math.FloatBetween(0.85, 1.15) * dmgMult * (isCrit ? (1 + stats.critDmg) : 1) * elemMult * targetMult * allMult * atkBuffMult * bloodlustDmgMult);
+    const lowHpAtk = (stats.condLowHpAtk && this.player.currentHp / this.player.maxHpValue < 0.4) ? (stats.condLowHpAtk ?? 0) : 0;
+    const dmg = Math.round((stats.atk + lowHpAtk) * Phaser.Math.FloatBetween(0.85, 1.15) * dmgMult * (isCrit ? (1 + stats.critDmg) : 1) * elemMult * targetMult * allMult * atkBuffMult * bloodlustDmgMult);
     const pen = isBoss ? stats.penetration : 0;
 
     let overkill = 0;

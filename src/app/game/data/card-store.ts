@@ -3,9 +3,9 @@ import { PlayerStore, EffectiveStats } from './player-store';
 import { getCardDef } from './monster-data';
 import { SkillTreeStore } from './skill-tree-store';
 
-export const CARD_SLOT_COUNT = 5;
+export const CARD_SLOT_COUNT = 3;
 
-// 5個裝備槽 (cardId or null)
+// 3個裝備槽 (cardId or null)
 const equipped: (string | null)[] = Array(CARD_SLOT_COUNT).fill(null);
 
 // 卡片庫存: cardId → 數量 (可疊加)
@@ -13,14 +13,141 @@ const inventory: Map<string, number> = new Map();
 
 const listeners: Array<() => void> = [];
 
-// 依 monsterId 前綴決定同張卡的裝備上限
+// 依 cardType 決定同張卡的裝備上限
 function getCardStackLimit(cardId: string): number {
   const def = getCardDef(cardId);
   if (!def) return 1;
-  if (def.monsterId.startsWith('boss_'))  return 1;
-  if (def.monsterId.startsWith('elite_')) return 2;
-  return 3;
+  if (def.cardType === 'b') return 1;
+  if (def.cardType === 'e') return 2;
+  return 3;  // normal
 }
+
+// ── 組合偵測與加成 ─────────────────────────────────────────
+// 傳入已裝備的卡片 ID 陣列，回傳所有觸發的組合加成總和
+
+export interface ComboInfo {
+  id: string;    // 組合識別碼
+  name: string;  // 顯示名稱
+  bonus: StatBonus;
+}
+
+function detectCombos(slots: ReadonlyArray<string | null>): ComboInfo[] {
+  const cards = slots.filter(Boolean).map(id => getCardDef(id!)).filter(Boolean) as NonNullable<ReturnType<typeof getCardDef>>[];
+  if (cards.length === 0) return [];
+
+  const raceCount   = new Map<string, number>();
+  const typeSet     = new Set<string>();
+  const familySet   = new Set<string>();
+  const cardIdCount = new Map<string, number>();
+
+  for (const c of cards) {
+    raceCount.set(c.race, (raceCount.get(c.race) ?? 0) + 1);
+    typeSet.add(c.cardType);
+    familySet.add(c.family);
+    cardIdCount.set(c.id, (cardIdCount.get(c.id) ?? 0) + 1);
+  }
+
+  // ── 精通（Combo5）：同一張卡疊滿，疊加在任意陣型 combo 上 ──
+  let masteryCombo: ComboInfo | null = null;
+  for (const [cardId, cnt] of cardIdCount.entries()) {
+    const def = getCardDef(cardId);
+    if (!def || def.cardType === 'b') continue;
+    if (cnt >= getCardStackLimit(cardId)) {
+      masteryCombo = {
+        id: `combo5_${cardId}`,
+        name: `${def.name}精通`,
+        bonus: scaleBonusByFactor(def.effect, 0.5),
+      };
+      break;
+    }
+  }
+
+  // ── 陣型 combo（互斥，取最高優先）──
+  let formationCombo: ComboInfo | null = null;
+
+  // 優先 1：Combo1 同家族×3
+  if (!formationCombo && familySet.size === 1 && cards.length === CARD_SLOT_COUNT) {
+    const family = [...familySet][0];
+    const combo = COMBO1_BONUSES[family];
+    if (combo) formationCombo = { id: `combo1_${family}`, name: combo.name, bonus: combo.bonus };
+  }
+
+  // 優先 2：Combo2 同種族跨家族 n/e/b 各一
+  if (!formationCombo) {
+    for (const [race, count] of raceCount.entries()) {
+      if (count === 3 && familySet.size >= 2 && typeSet.has('n') && typeSet.has('e') && typeSet.has('b')) {
+        if (cards.every(c => c.race === race)) {
+          const combo = COMBO2_BONUSES[race];
+          if (combo) { formationCombo = { id: `combo2_${race}`, name: combo.name, bonus: combo.bonus }; break; }
+        }
+      }
+    }
+  }
+
+  // 優先 3：Combo4 同階級×3
+  if (!formationCombo && typeSet.size === 1 && cards.length === CARD_SLOT_COUNT) {
+    const type = [...typeSet][0];
+    const combo = COMBO4_BONUSES[type];
+    if (combo) formationCombo = { id: `combo4_${type}`, name: combo.name, bonus: combo.bonus };
+  }
+
+  // 優先 4：Combo3 同種族×3 保底
+  if (!formationCombo) {
+    for (const [race, count] of raceCount.entries()) {
+      if (count === 3) {
+        const combo = COMBO3_BONUSES[race];
+        if (combo) { formationCombo = { id: `combo3_${race}`, name: combo.name, bonus: combo.bonus }; break; }
+      }
+    }
+  }
+
+  const results: ComboInfo[] = [];
+  if (formationCombo) results.push(formationCombo);
+  if (masteryCombo)   results.push(masteryCombo);
+  return results;
+}
+
+/** 將 StatBonus 所有數值乘以 factor（用於精通加成） */
+function scaleBonusByFactor(src: StatBonus, factor: number): StatBonus {
+  const result: StatBonus = {};
+  for (const key of Object.keys(src) as (keyof StatBonus)[]) {
+    const v = src[key];
+    if (typeof v === 'number') (result as any)[key] = v * factor;
+  }
+  return result;
+}
+
+// ── 組合一加成表（每個家族的專屬效果）──
+const COMBO1_BONUSES: Record<string, { name: string; bonus: StatBonus }> = {
+  slime_green: { name: '綠史萊姆家族：生命強化', bonus: { hpPct: 0.15 } },
+  slime_red:   { name: '紅史萊姆家族：爆擊強化', bonus: { critDmgMult: 1.25 } },
+  slime_blue:  { name: '藍史萊姆家族：防禦轉換', bonus: { defToEvasion: 30 } },  // 每30防禦+3%迴避
+  slime_white: { name: '白史萊姆家族：迅捷強化', bonus: { atkSpeedMult: 1.20 } },
+  slime_zombie:{ name: '殭屍史萊姆家族：燃燒延長', bonus: { burnMaxStackBonus: 3 } },
+  slime_lava:  { name: '熔岩史萊姆家族：穿透爆發', bonus: { condPenAtk: 28 } },  // 穿透≥100時攻擊+28
+  plant1:      { name: '食人花家族：強攻陣容', bonus: { atk: 15, dmgVsEliteOrBoss: 0.08 } },
+  plant2:      { name: '藤蔓花家族：危機本能', bonus: { evasion: 0.06 } },
+  plant3:      { name: '不死花家族：召喚強化', bonus: { summonDmgMult: 1.20 } },
+};
+
+// ── 組合二加成表（同種族 N+E+B 不同家族）──
+const COMBO2_BONUSES: Record<string, { name: string; bonus: StatBonus }> = {
+  slime:  { name: '史萊姆跨族陣容', bonus: { dmgVsAnyElement: 0.10, condCritDmgBonus: 0.10 } },
+  flower: { name: '花怪跨族陣容',   bonus: { hpRegen: 2.0, takenDmgPct: -0.08 } },
+};
+
+// ── 組合四加成表（同階級×3）──
+const COMBO4_BONUSES: Record<string, { name: string; bonus: StatBonus }> = {
+  n: { name: '普通卡陣容', bonus: { allDmgPct: 0.10 } },
+  e: { name: '菁英卡陣容', bonus: { dmgVsEliteOrBoss: 0.15 } },
+  b: { name: 'Boss卡陣容',  bonus: { dmgVsBoss: 0.25 } },
+};
+
+// ── 組合三加成表（同種族任意三張）──
+const COMBO3_BONUSES: Record<string, { name: string; bonus: StatBonus }> = {
+  slime:  { name: '史萊姆族共鳴', bonus: { dmgVsAnyElement: 0.08 } },
+  flower: { name: '花怪族共鳴',   bonus: { hpRegen: 1.5 } },
+};
 
 export const CardStore = {
 
@@ -201,6 +328,8 @@ export const CardStore = {
       b.flowerSummonMode     = (b.flowerSummonMode     ?? 0) + (e.flowerSummonMode     ?? 0);
       b.lavaSlimeCompanion   = (b.lavaSlimeCompanion   ?? 0) + (e.lavaSlimeCompanion   ?? 0);
       b.executeBelow15       = (b.executeBelow15       ?? 0) + (e.executeBelow15       ?? 0);
+      b.burnedEnemyDmgAmp    = (b.burnedEnemyDmgAmp    ?? 0) + (e.burnedEnemyDmgAmp    ?? 0);
+      b.condLowHpAtk         = (b.condLowHpAtk         ?? 0) + (e.condLowHpAtk         ?? 0);
       b.freeRevive           = (b.freeRevive           ?? 0) + (e.freeRevive           ?? 0);
       b.maxHpPct             = (b.maxHpPct             ?? 0) + (e.maxHpPct             ?? 0);
       b.weaponRefineAtk      = (b.weaponRefineAtk      ?? 0) + (e.weaponRefineAtk      ?? 0);
@@ -214,10 +343,22 @@ export const CardStore = {
     const base     = PlayerStore.getStats();
     const cardBonus = this.getEquippedBonus();
     const skillBonus = SkillTreeStore.getBonus();
-    // 合併技能樹加成
+
+    // 合併組合加成
+    const combos = detectCombos(equipped);
     const bonus: StatBonus = { ...cardBonus };
     for (const key of Object.keys(skillBonus) as (keyof StatBonus)[]) {
       (bonus as any)[key] = ((bonus[key] as number) ?? 0) + ((skillBonus[key] as number) ?? 0);
+    }
+    for (const combo of combos) {
+      for (const key of Object.keys(combo.bonus) as (keyof StatBonus)[]) {
+        // 乘算欄位取最大值而非累加（避免多組合疊乘過強）
+        if (key === 'critDmgMult' || key === 'atkSpeedMult' || key === 'summonDmgMult') {
+          (bonus as any)[key] = Math.max((bonus[key] as number) ?? 1, (combo.bonus[key] as number) ?? 1);
+        } else {
+          (bonus as any)[key] = ((bonus[key] as number) ?? 0) + ((combo.bonus[key] as number) ?? 0);
+        }
+      }
     }
     const sword    = PlayerStore.getEquipped().sword;
     const swordEnh = sword?.enhancement ?? 0;
@@ -242,17 +383,27 @@ export const CardStore = {
     const condHpPct  = (bonus.condHpPct     && flatHp   >= 800)  ? (bonus.condHpPct     ?? 0) : 0;
     const condCritDmg= (bonus.condCritDmgBonus && flatCrit >= 0.5) ? (bonus.condCritDmgBonus ?? 0) : 0;
 
+    // 組合一乘算欄位處理
+    const critDmgMult    = bonus.critDmgMult    ?? 1;
+    const atkSpeedMult   = bonus.atkSpeedMult   ?? 1;
+    const summonDmgMult  = bonus.summonDmgMult  ?? 1;
+    // 藍史萊姆組合一：每 defToEvasion 防禦 → +3% 迴避
+    const defVal = Math.round((base.def + (bonus.def ?? 0) + meleeDef) * (1 + (bonus.defPct ?? 0)));
+    const defEvasion = (bonus.defToEvasion && bonus.defToEvasion > 0)
+      ? Math.floor(defVal / bonus.defToEvasion) * 0.03
+      : 0;
+
     return {
       atk:         Math.round((flatAtk + condAtk) * (1 + (bonus.atkPct ?? 0))),
       maxHp:       Math.round(flatHp * (1 + (bonus.hpPct ?? 0) + condHpPct + (bonus.maxHpPct ?? 0))),
-      def:         Math.round((base.def + (bonus.def ?? 0) + meleeDef) * (1 + (bonus.defPct ?? 0))),
+      def:         defVal,
       speed:       base.speed     + (bonus.speed    ?? 0),
       crit:        flatCrit,
       attackArc:   Math.min(base.attackArc + (bonus.attackArc ?? 0), 360),
-      atkSpeed:    base.atkSpeed    + (bonus.atkSpeed    ?? 0),
+      atkSpeed:    (base.atkSpeed    + (bonus.atkSpeed    ?? 0)) * atkSpeedMult,
       lifesteal:   Math.min(base.lifesteal + (bonus.lifesteal ?? 0), 0.12),
-      evasion:     base.evasion     + (bonus.evasion     ?? 0),
-      critDmg:     flatCritDmg + condCritDmg,
+      evasion:     base.evasion     + (bonus.evasion     ?? 0) + defEvasion,
+      critDmg:     (flatCritDmg + condCritDmg) * critDmgMult,
       hpRegen:     base.hpRegen     + (bonus.hpRegen     ?? 0),
       dotBonus:    base.dotBonus    + (bonus.dotBonus    ?? 0) + (enh8 ? (bonus.weaponEnhance8DotBonus ?? 0) : 0) + ((bonus.burnSpread ?? 0) >= 2 ? 0.10 : 0),
       penetration: flatPen,
@@ -328,15 +479,22 @@ export const CardStore = {
       skillFlowerChance:    bonus.skillFlowerChance,
       skillFlowerCap:       bonus.skillFlowerCap,
       skillFlowerHpPct:     bonus.skillFlowerHpPct,
-      summonFlowerDmgPct:   bonus.summonFlowerDmgPct,
+      summonFlowerDmgPct:   (bonus.summonFlowerDmgPct ?? 0) * summonDmgMult || bonus.summonFlowerDmgPct,
       flowerSummonMode:     bonus.flowerSummonMode,
       lavaSlimeCompanion:   bonus.lavaSlimeCompanion,
       executeBelow15:       bonus.executeBelow15,
+      burnedEnemyDmgAmp:    bonus.burnedEnemyDmgAmp,
+      condLowHpAtk:         bonus.condLowHpAtk,
       freeRevive:           bonus.freeRevive,
       maxHpPct:             bonus.maxHpPct,
       weaponRefineAtk:      bonus.weaponRefineAtk,
       weaponRefineHp:       bonus.weaponRefineHp,
     };
+  },
+
+  /** 回傳目前觸發的所有組合資訊（供 UI 顯示用） */
+  getComboInfos(): ComboInfo[] {
+    return detectCombos(equipped);
   },
 
   // ── Internal load helpers (used by SaveStore only) ────────

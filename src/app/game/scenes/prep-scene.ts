@@ -3,7 +3,7 @@ import { InventoryStore } from '../data/inventory-store';
 import { PlayerStore } from '../data/player-store';
 import { PotionBarStore } from '../data/potion-bar-store';
 import { ITEM_POTION_HEALTH_S, ITEM_POTION_HEALTH_M, ITEM_POTION_HEALTH_L, ITEM_POTION_REVIVE, ITEM_POTION_ATK, ITEM_POTION_DEF, ITEM_POTION_SPEED, ITEM_STONE_BROKEN, ITEM_STONE_INTACT, ITEM_BLANK_CARD, ITEM_QUEST_REROLL } from '../data/monster-data';
-import { generateEquipment, randomQuality, QUALITY_NAMES, QUALITY_COLORS, SLOT_NAMES, STAT_NAMES, BEHAVIOR_INFO, BEHAVIOR_NAMES, EquipSlot, EquipmentItem, applyEnhancement, recastItem, ENHANCE_COST, ENHANCE_RATE, ENHANCE_COMPLETE_BONUS, ENHANCE_MAX, fmtAffixValue } from '../data/equipment-data';
+import { generateEquipment, randomQuality, QUALITY_NAMES, QUALITY_COLORS, SLOT_NAMES, STAT_NAMES, BEHAVIOR_INFO, BEHAVIOR_NAMES, EquipSlot, EquipmentItem, applyEnhancement, recastItem, ENHANCE_COST, ENHANCE_RATE, ENHANCE_COMPLETE_BONUS, ENHANCE_MAX, fmtAffixValue, StatBonus } from '../data/equipment-data';
 import { SaveStore } from '../data/save-store';
 import { CardStore, CARD_SLOT_COUNT } from '../data/card-store';
 
@@ -296,10 +296,15 @@ export class PrepScene extends Phaser.Scene {
           this.load.image(key, `equip/${cat}${i}.webp`);
       }
     });
-    for (let i = 1; i <= 70; i++) {
+    for (let i = 1; i <= 40; i++) {
       const key = `equip_sword${i}`;
       if (!this.textures.exists(key))
         this.load.image(key, `equip/weapons/Icons/Iicon_32_${String(i).padStart(2, '0')}.png`);
+    }
+    for (let i = 1; i <= 30; i++) {
+      const key = `equip_sword${i + 40}`;
+      if (!this.textures.exists(key))
+        this.load.image(key, `equip/weapons/Icons/icon_32_2_${String(i).padStart(2, '0')}.png`);
     }
     // Boss idle sprites for quest panel
     const bossSprites: [string, string][] = [
@@ -326,8 +331,6 @@ export class PrepScene extends Phaser.Scene {
     if (!this.textures.exists('icon_potion_speed')) this.load.image('icon_potion_speed', 'other/coin.webp');
     if (!this.textures.exists('icon_gold')) this.load.image('icon_gold', 'other/coin.webp');
     if (!this.textures.exists('icon_blank_card')) this.load.image('icon_blank_card', 'other/card.webp');
-    if (!this.textures.exists('icon___gacha__')) this.load.image('icon___gacha__', 'other/chest2.webp');
-    if (!this.textures.exists('icon___card_gacha__')) this.load.image('icon___card_gacha__', 'other/chest1.webp');
   }
 
   create(): void {
@@ -353,6 +356,7 @@ export class PrepScene extends Phaser.Scene {
       InventoryStore.addGold(200000);
       InventoryStore.addItem('quest_reroll', '任務重製石', 10);
     }
+
 
 
     this.generateItemIcons();
@@ -3554,7 +3558,7 @@ export class PrepScene extends Phaser.Scene {
   // ── Card Window ─────────────────────────────────────────
 
   private openCardWindow(W: number, H: number): void {
-    const PW = Math.min(W - P(16), P(480));
+    const PW = Math.min(W - P(16), P(700));
     const PH = Math.min(H - P(20), P(560));
     const D = 500;
 
@@ -3614,19 +3618,36 @@ export class PrepScene extends Phaser.Scene {
     const CARD_H = P(96);
     const SLOT_GAP = P(8);
     const slotsTotW = CARD_SLOT_COUNT * CARD_W + (CARD_SLOT_COUNT - 1) * SLOT_GAP;
-    const slotsX0 = -slotsTotW / 2;
     const slotsY = py + P(58);
     const INV_TOP = slotsY + CARD_H + P(24);
     const INV_H = py + PH - INV_TOP - P(8);
     const INV_COLS = 5;
     const INV_GAP = P(10);
     const invTotW = INV_COLS * CARD_W + (INV_COLS - 1) * INV_GAP;
-    const invX0 = -invTotW / 2;
+    // 左右分割：左側卡片區 / 右側加成面板
+    const LEFT_W  = P(440);
+    const leftCX  = px + LEFT_W / 2;
+    const RIGHT_X = px + LEFT_W;
+    const RIGHT_W = PW - LEFT_W;
+    const rightCX = RIGHT_X + RIGHT_W / 2;
+    const slotsX0 = leftCX - slotsTotW / 2;
+    const invX0   = leftCX - invTotW / 2;
 
     // ── Equipped slots label ──────────────────────────────
-    container.add(this.add.text(0, slotsY - P(14), '裝備中', {
+    container.add(this.add.text(leftCX, slotsY - P(14), '裝備中', {
       fontSize: F(15), fontStyle: 'bold', color: '#b07030', stroke: '#1a0800', strokeThickness: 1,
     }).setOrigin(0.5));
+
+    // ── Right panel: static bg + header ───────────────────
+    const rightBg = this.add.graphics();
+    rightBg.fillStyle(0x000000, 0.18);
+    rightBg.fillRect(RIGHT_X, py + P(36), RIGHT_W, PH - P(36));
+    rightBg.lineStyle(1, WM, 0.5);
+    rightBg.lineBetween(RIGHT_X, py + P(36), RIGHT_X, py + PH - P(4));
+    container.add(rightBg);
+    container.add(this.add.text(rightCX, py + P(44), '卡片加成', {
+      fontSize: F(15), fontStyle: 'bold', color: '#b07030', stroke: '#1a0800', strokeThickness: 1,
+    }).setOrigin(0.5, 0));
 
     // ── Content sub-container (rebuilt on change) ──────────
     let contentCnt = this.add.container(0, 0);
@@ -4317,10 +4338,10 @@ export class PrepScene extends Phaser.Scene {
 
       // Separator
       const sepGfx = this.add.graphics();
-      sepGfx.fillStyle(WB, 1); sepGfx.fillRect(px + P(8), INV_TOP - P(10), PW - P(16), 1);
-      sepGfx.fillStyle(WH, 0.2); sepGfx.fillRect(px + P(8), INV_TOP - P(9), PW - P(16), 1);
+      sepGfx.fillStyle(WB, 1); sepGfx.fillRect(px + P(8), INV_TOP - P(10), LEFT_W - P(16), 1);
+      sepGfx.fillStyle(WH, 0.2); sepGfx.fillRect(px + P(8), INV_TOP - P(9), LEFT_W - P(16), 1);
       contentCnt.add(sepGfx);
-      contentCnt.add(this.add.text(0, INV_TOP - P(5), '持有卡片', {
+      contentCnt.add(this.add.text(leftCX, INV_TOP - P(5), '持有卡片', {
         fontSize: F(15), fontStyle: 'bold', color: '#b07030', stroke: '#1a0800', strokeThickness: 1,
       }).setOrigin(0.5, 1));
 
@@ -4332,7 +4353,10 @@ export class PrepScene extends Phaser.Scene {
         return;
       }
 
-      const ROWS = Math.ceil(invItems.length / INV_COLS);
+      // 過濾掉存檔中已不存在的舊卡片 ID
+      const validInvItems = invItems.filter(({ cardId }) => !!getCardDef(cardId));
+
+      const ROWS = Math.ceil(validInvItems.length / INV_COLS);
       const ROW_H = CARD_H + INV_GAP;
       const contentH = ROWS * ROW_H;
       const maxScroll = Math.max(0, contentH - INV_H);
@@ -4344,7 +4368,7 @@ export class PrepScene extends Phaser.Scene {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const maskShape = (this.make.graphics as any)({ x: 0, y: 0, add: false }) as Phaser.GameObjects.Graphics;
       maskShape.fillStyle(0xffffff);
-      maskShape.fillRect(W / 2 + px + P(4), H / 2 + INV_TOP, PW - P(8), INV_H);
+      maskShape.fillRect(W / 2 + px + P(4), H / 2 + INV_TOP, LEFT_W - P(8), INV_H);
       scrollCnt.setMask(maskShape.createGeometryMask());
 
       const applyScroll = (dy: number) => {
@@ -4353,9 +4377,8 @@ export class PrepScene extends Phaser.Scene {
       };
 
       // Build cards once at fixed positions
-      invItems.forEach(({ cardId, qty }, idx) => {
-        const def = getCardDef(cardId);
-        if (!def) return;
+      validInvItems.forEach(({ cardId, qty }, idx) => {
+        const def = getCardDef(cardId)!;
         const col = idx % INV_COLS;
         const row = Math.floor(idx / INV_COLS);
         const cx = invX0 + col * (CARD_W + INV_GAP) + CARD_W / 2;
@@ -4390,14 +4413,14 @@ export class PrepScene extends Phaser.Scene {
       });
 
       // Single hit zone covering the inventory area — avoids overlapping equipped-slot hits
-      const invZone = this.add.rectangle(0, INV_TOP + INV_H / 2, PW - P(16), INV_H)
+      const invZone = this.add.rectangle(leftCX, INV_TOP + INV_H / 2, LEFT_W - P(16), INV_H)
         .setInteractive({ useHandCursor: true });
       contentCnt.add(invZone);
       invZone.on('pointerdown', (ptr: Phaser.Input.Pointer) => {
         // Convert screen pointer to contentCnt-local coords
         const localX = ptr.x - (W / 2);
         const localY = ptr.y - (H / 2) - scrollCnt.y;
-        invItems.forEach(({ cardId }, idx) => {
+        validInvItems.forEach(({ cardId }, idx) => {
           const col = idx % INV_COLS;
           const row = Math.floor(idx / INV_COLS);
           const cx = invX0 + col * (CARD_W + INV_GAP) + CARD_W / 2;
@@ -4408,6 +4431,119 @@ export class PrepScene extends Phaser.Scene {
           }
         });
       });
+
+      // ── Right panel: card effects + combo bonuses ─────────
+      const statLines = (b: StatBonus): string[] => {
+        const lines: string[] = [];
+        const pct = (v: number) => `${v >= 0 ? '+' : ''}${(v * 100).toFixed(0)}%`;
+        const num = (v: number) => `${v >= 0 ? '+' : ''}${v}`;
+        if (b.atk)                lines.push(`攻擊力 ${num(b.atk)}`);
+        if (b.hp)                 lines.push(`最大HP ${num(b.hp)}`);
+        if (b.def)                lines.push(`防禦力 ${num(b.def)}`);
+        if (b.crit)               lines.push(`爆擊率 ${pct(b.crit)}`);
+        if (b.critDmg)            lines.push(`爆擊傷害 ${pct(b.critDmg)}`);
+        if (b.atkSpeed)           lines.push(`攻擊速度 ${pct(b.atkSpeed)}`);
+        if (b.speed)              lines.push(`移動速度 ${num(b.speed)}`);
+        if (b.evasion)            lines.push(`迴避率 ${pct(b.evasion)}`);
+        if (b.penetration)        lines.push(`穿透力 ${num(b.penetration)}`);
+        if (b.dotBonus)           lines.push(`燃燒傷害 ${pct(b.dotBonus)}`);
+        if (b.hpRegen)            lines.push(`HP回復 +${b.hpRegen.toFixed(1)}/s`);
+        if (b.lifesteal)          lines.push(`吸血 ${pct(b.lifesteal)}`);
+        if (b.hpPct)              lines.push(`最大HP ${pct(b.hpPct)}`);
+        if (b.atkPct)             lines.push(`攻擊力 ${pct(b.atkPct)}`);
+        if (b.allDmgPct)          lines.push(`全傷害 ${pct(b.allDmgPct)}`);
+        if (b.takenDmgPct)        lines.push(`受傷 ${pct(b.takenDmgPct)}`);
+        if (b.dmgVsEliteOrBoss)   lines.push(`對菁英/Boss傷 ${pct(b.dmgVsEliteOrBoss)}`);
+        if (b.dmgVsBoss)          lines.push(`對Boss傷 ${pct(b.dmgVsBoss)}`);
+        if (b.dmgVsSlime)         lines.push(`對史萊姆傷 ${pct(b.dmgVsSlime)}`);
+        if (b.dmgVsPlant)         lines.push(`對花怪傷 ${pct(b.dmgVsPlant)}`);
+        if (b.dmgVsAnyElement)    lines.push(`對火/水/草傷 ${pct(b.dmgVsAnyElement)}`);
+        if (b.burnedEnemyDmgAmp)  lines.push(`對燃燒敵人傷 ${pct(b.burnedEnemyDmgAmp)}`);
+        if (b.condLowHpAtk)       lines.push(`低血量時攻擊+${b.condLowHpAtk}`);
+        if (b.burnMaxStackBonus)  lines.push(`燃燒上限 +${b.burnMaxStackBonus}層`);
+        if (b.summonFlowerDmgPct) lines.push(`召喚物傷 ${pct(b.summonFlowerDmgPct)}`);
+        if (b.skillFlowerHpPct)   lines.push(`召喚物血 ${pct(b.skillFlowerHpPct)}`);
+        if (b.freeRevive)         lines.push(`復活 ${b.freeRevive}次/局`);
+        if (b.divineShieldChance) lines.push(`護盾觸發 ${pct(b.divineShieldChance)}`);
+        if (b.executeBelow15)     lines.push(`斬殺 HP<12%`);
+        if (b.critDmgMult  && b.critDmgMult  !== 1) lines.push(`爆擊傷害 ×${b.critDmgMult.toFixed(2)}`);
+        if (b.atkSpeedMult && b.atkSpeedMult !== 1) lines.push(`攻擊速度 ×${b.atkSpeedMult.toFixed(2)}`);
+        if (b.summonDmgMult && b.summonDmgMult !== 1) lines.push(`召喚傷害 ×${b.summonDmgMult.toFixed(2)}`);
+        if (b.defToEvasion)       lines.push(`每${b.defToEvasion}防禦 迴避+3%`);
+        if (b.condPenAtk)         lines.push(`穿透≥100 攻擊+${b.condPenAtk}`);
+        if (b.condCritDmgBonus)   lines.push(`爆擊≥50% 爆傷${pct(b.condCritDmgBonus)}`);
+        return lines;
+      };
+
+      const RP_PAD  = P(8);
+      const RP_TX   = RIGHT_X + RP_PAD;
+      const RP_W    = RIGHT_W - RP_PAD * 2;
+      const LINE_H  = P(17);
+      let ry = py + P(62);
+
+      // — 卡片效果 —
+      for (let i = 0; i < CARD_SLOT_COUNT; i++) {
+        const cardId = eq[i];
+        const def = cardId ? getCardDef(cardId) : null;
+        if (!def) {
+          contentCnt.add(this.add.text(RP_TX, ry, `${i + 1}. （空）`, {
+            fontSize: F(15), fontStyle: 'bold', color: '#5a3818',
+          }).setOrigin(0, 0));
+          ry += LINE_H + P(3);
+          continue;
+        }
+        const nameColor = def.cardType === 'b' ? '#f0c040' : def.cardType === 'e' ? '#aaccdd' : '#c8a060';
+        contentCnt.add(this.add.text(RP_TX, ry, `${i + 1}. ${def.name}`, {
+          fontSize: F(15), fontStyle: 'bold', color: nameColor,
+          stroke: '#1a0800', strokeThickness: 1,
+          wordWrap: { width: RP_W },
+        }).setOrigin(0, 0));
+        ry += LINE_H + P(1);
+        for (const line of statLines(def.effect)) {
+          contentCnt.add(this.add.text(RP_TX + P(6), ry, line, {
+            fontSize: F(15), fontStyle: 'bold', color: '#a8d0a8',
+          }).setOrigin(0, 0));
+          ry += LINE_H;
+        }
+        ry += P(4);
+      }
+
+      // — 組合效果分隔線 —
+      const combos = CardStore.getComboInfos();
+      const sepGfx2 = this.add.graphics();
+      sepGfx2.fillStyle(WB, 1);
+      sepGfx2.fillRect(RIGHT_X + P(4), ry + P(2), RIGHT_W - P(8), 1);
+      sepGfx2.fillStyle(WH, 0.2);
+      sepGfx2.fillRect(RIGHT_X + P(4), ry + P(3), RIGHT_W - P(8), 1);
+      contentCnt.add(sepGfx2);
+      ry += P(10);
+
+      contentCnt.add(this.add.text(rightCX, ry, '組合效果', {
+        fontSize: F(15), fontStyle: 'bold', color: '#b07030', stroke: '#1a0800', strokeThickness: 1,
+      }).setOrigin(0.5, 0));
+      ry += P(20);
+
+      if (combos.length === 0) {
+        contentCnt.add(this.add.text(RP_TX, ry, '（未觸發）', {
+          fontSize: F(15), fontStyle: 'bold', color: '#5a3818',
+        }).setOrigin(0, 0));
+      } else {
+        for (const combo of combos) {
+          contentCnt.add(this.add.text(RP_TX, ry, combo.name, {
+            fontSize: F(15), fontStyle: 'bold', color: '#e8c070',
+            stroke: '#1a0800', strokeThickness: 1,
+            wordWrap: { width: RP_W },
+          }).setOrigin(0, 0));
+          ry += LINE_H + P(1);
+          for (const line of statLines(combo.bonus)) {
+            contentCnt.add(this.add.text(RP_TX + P(6), ry, line, {
+              fontSize: F(15), fontStyle: 'bold', color: '#a8d0a8',
+            }).setOrigin(0, 0));
+            ry += LINE_H;
+          }
+          ry += P(4);
+        }
+      }
 
       // Drag scroll
       cardScrollHandler = (ptr: Phaser.Input.Pointer) => {
@@ -4669,10 +4805,6 @@ export class PrepScene extends Phaser.Scene {
 
     // ── Tab definitions ────────────────────────────────────
     type ShopItem = { id: string; name: string; price: number; desc: string; color: number };
-    const GACHA_ITEMS: ShopItem[] = [
-      { id: '__gacha__', name: '裝備抽取', price: 1000, desc: '隨機生成 3 件裝備，選一件收入背包', color: 0xddaa00 },
-      { id: '__card_gacha__', name: '卡片抽取', price: 0, desc: '消耗空白卡片×2，抽 1 張卡片', color: 0xaa44ff },
-    ];
     const POTION_ITEMS: ShopItem[] = [
       { id: ITEM_POTION_HEALTH_S, name: '小型回復藥水', price: 150, desc: '回復 50 HP', color: 0x44ff88 },
       { id: ITEM_POTION_HEALTH_M, name: '中型回復藥水', price: 330, desc: '回復 100 HP', color: 0x44ddff },
@@ -4689,7 +4821,6 @@ export class PrepScene extends Phaser.Scene {
       { id: ITEM_QUEST_REROLL, name: '任務重製石', price: 100, desc: '重置當前任務列表', color: 0xffcc44 },
     ];
     const TAB_DEFS: { label: string; items: ShopItem[] | null }[] = [
-      { label: '抽獎', items: GACHA_ITEMS },
       { label: '藥水', items: POTION_ITEMS },
       { label: '強化石', items: STONE_ITEMS },
       { label: '卡片交換', items: null },
@@ -4861,10 +4992,9 @@ export class PrepScene extends Phaser.Scene {
           wordWrap: { width: txtMaxW },
         }).setOrigin(0, 0));
 
-        const isCardGacha = item.id === '__card_gacha__';
-        const priceIconKey = isCardGacha ? 'icon_blank_card' : 'icon_coin';
-        const priceLabel = isCardGacha ? '空白×2' : `${item.price.toLocaleString()}金`;
-        const priceColor = isCardGacha ? '#cc88ff' : '#d4a044';
+        const priceIconKey = 'icon_coin';
+        const priceLabel = `${item.price.toLocaleString()}金`;
+        const priceColor = '#d4a044';
         const priceIconSz = P(12);
         const priceY = cy + CELL_H - P(22);
         const priceIconX = cx + P(7) + priceIconSz / 2;
@@ -4895,21 +5025,6 @@ export class PrepScene extends Phaser.Scene {
         hit.on('pointerover', () => drawBtn(true));
         hit.on('pointerout', () => drawBtn(false));
         hit.on('pointerdown', () => {
-          if (item.id === '__card_gacha__') {
-            if (InventoryStore.getItemQty(ITEM_BLANK_CARD) < 2) { showToast('空白卡片不足'); return; }
-            InventoryStore.spendItem(ITEM_BLANK_CARD, 2);
-            SaveStore.save();
-            container.destroy();
-            this.openCardGachaPanel();
-            return;
-          }
-          if (item.id === '__gacha__') {
-            if (InventoryStore.getGold() < item.price) { showToast('金幣不足'); return; }
-            if (!InventoryStore.spendGold(item.price)) return;
-            SaveStore.save();
-            this.openGachaEquipPanel();
-            return;
-          }
           this.showQtyBuyPopup(item, (qty) => {
             if (!InventoryStore.spendGold(item.price * qty)) { showToast('金幣不足'); return; }
             InventoryStore.addItem(item.id, item.name, qty);
@@ -5084,7 +5199,7 @@ export class PrepScene extends Phaser.Scene {
       maxScroll = Math.max(0, curY - (viewH - FILTER_H));
     };
 
-    buildContent(GACHA_ITEMS);
+    buildContent(POTION_ITEMS);
 
     // ── Scroll input ──────────────────────────────────────
     const onWheel = (_ptr: any, _gos: any, _dx: any, dy: number) => {
@@ -5220,194 +5335,6 @@ export class PrepScene extends Phaser.Scene {
       if (InventoryStore.getGold() < qty * item.price) return;
       onConfirm(qty);
       pop.destroy();
-    });
-  }
-
-  private openGachaEquipPanel(): void {
-    const W = this.scale.width, H = this.scale.height;
-    const D = 5000;
-    const objs: Phaser.GameObjects.GameObject[] = [];
-    const close = () => objs.forEach(o => o.destroy());
-
-    const weights = { normal: 0.58, good: 0.35, fine: 0.055, perfect: 0.015 };
-    const ALL_SLOTS: EquipSlot[] = ['hat', 'outfit', 'shoes', 'ring1', 'ring2', 'sword'];
-    const pickedSlots = [...ALL_SLOTS].sort(() => Math.random() - 0.5).slice(0, 3);
-    const items: EquipmentItem[] = pickedSlots.map(s => generateEquipment(s, randomQuality(weights)));
-
-    objs.push(this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.78)
-      .setDepth(D).setInteractive());
-
-    const CARD_W = P(145), CARD_H = P(240), GAP = P(10);
-    const MW = CARD_W * 3 + GAP * 4, MH = CARD_H + P(52) + GAP * 2;
-    const mx = W / 2 - MW / 2, my = H / 2 - MH / 2;
-
-    const mg = this.add.graphics().setDepth(D + 1);
-    objs.push(mg);
-    mg.fillStyle(0x1a1200, 0.97); mg.fillRoundedRect(mx, my, MW, MH, P(10));
-    mg.lineStyle(P(2), 0xddaa00, 1); mg.strokeRoundedRect(mx, my, MW, MH, P(10));
-    mg.fillStyle(0x2a1e00, 1); mg.fillRoundedRect(mx, my, MW, P(44), { tl: P(10), tr: P(10), bl: 0, br: 0 });
-    mg.lineStyle(P(1), 0xddaa00, 0.35); mg.lineBetween(mx, my + P(44), mx + MW, my + P(44));
-
-    objs.push(this.add.text(W / 2, my + P(22), '選擇裝備', {
-      fontSize: F(16), fontStyle: 'bold', color: '#ffe066', stroke: '#000', strokeThickness: 2,
-    }).setOrigin(0.5).setDepth(D + 2));
-
-    items.forEach((item, idx) => {
-      const cx = mx + GAP + idx * (CARD_W + GAP);
-      const cy = my + P(44) + GAP;
-      const qColor = QUALITY_COLORS[item.quality];
-      const qHex = '#' + qColor.toString(16).padStart(6, '0');
-
-      const rg = this.add.graphics().setDepth(D + 2);
-      objs.push(rg);
-      const drawCard = (hover: boolean) => {
-        rg.clear();
-        rg.fillStyle(hover ? 0x2a2010 : 0x1a1400, 1);
-        rg.fillRoundedRect(cx, cy, CARD_W, CARD_H, P(7));
-        rg.lineStyle(hover ? P(3) : P(2), qColor, hover ? 1 : 0.75);
-        rg.strokeRoundedRect(cx, cy, CARD_W, CARD_H, P(7));
-        rg.fillStyle(qColor, 0.35);
-        rg.fillRoundedRect(cx, cy, CARD_W, P(5), { tl: P(7), tr: P(7), bl: 0, br: 0 });
-      };
-      drawCard(false);
-
-      const imgBg = this.add.graphics().setDepth(D + 3);
-      objs.push(imgBg);
-      imgBg.fillStyle(0x0a0600, 0.7);
-      imgBg.fillRoundedRect(cx + (CARD_W - P(80)) / 2, cy + P(12), P(80), P(80), P(5));
-      imgBg.lineStyle(P(1), qColor, 0.5);
-      imgBg.strokeRoundedRect(cx + (CARD_W - P(80)) / 2, cy + P(12), P(80), P(80), P(5));
-
-      if (this.textures.exists(item.texture))
-        objs.push(this.add.image(cx + CARD_W / 2, cy + P(52), item.texture)
-          .setDisplaySize(P(68), P(68)).setDepth(D + 4));
-
-      objs.push(this.add.text(cx + CARD_W / 2, cy + P(96), SLOT_NAMES[item.slot], {
-        fontSize: F(14), fontStyle: 'bold', color: '#e8c070', stroke: '#0a0600', strokeThickness: 2,
-      }).setOrigin(0.5, 0).setDepth(D + 3));
-
-      objs.push(this.add.text(cx + CARD_W / 2, cy + P(114), QUALITY_NAMES[item.quality], {
-        fontSize: F(14), fontStyle: 'bold', color: qHex, stroke: '#0a0600', strokeThickness: 2,
-      }).setOrigin(0.5, 0).setDepth(D + 3));
-
-      const affixLines = item.affixes.map(a =>
-        `${STAT_NAMES[a.stat]} +${fmtAffixValue(a.stat, a.value)}`,
-      );
-      objs.push(this.add.text(cx + CARD_W / 2, cy + P(132), affixLines.join('\n'), {
-        fontSize: F(13), fontStyle: 'bold', color: '#88cc88',
-        stroke: '#0a0600', strokeThickness: 2,
-        align: 'center', lineSpacing: 3,
-        wordWrap: { width: CARD_W - P(10) },
-      }).setOrigin(0.5, 0).setDepth(D + 3));
-
-      const hit = this.add.rectangle(cx + CARD_W / 2, cy + CARD_H / 2, CARD_W, CARD_H)
-        .setDepth(D + 5).setInteractive({ useHandCursor: true });
-      objs.push(hit);
-      hit.on('pointerover', () => drawCard(true));
-      hit.on('pointerout', () => drawCard(false));
-      hit.on('pointerdown', () => {
-        PlayerStore.addOwned(item);
-        SaveStore.save();
-        close();
-      });
-    });
-  }
-
-  private openCardGachaPanel(): void {
-    const W = this.scale.width, H = this.scale.height;
-    const D = 5000;
-    const objs: Phaser.GameObjects.GameObject[] = [];
-    const close = () => objs.forEach(o => o.destroy());
-
-    // Draw tier
-    const roll = Math.random();
-    const tier = roll < 0.01 ? 'boss' : roll < 0.16 ? 'elite' : 'normal';
-    const pool = CARD_DEFS.filter(c =>
-      tier === 'boss' ? c.monsterId.startsWith('boss_') :
-        tier === 'elite' ? c.monsterId.startsWith('elite_') :
-          !c.monsterId.startsWith('elite_') && !c.monsterId.startsWith('boss_')
-    );
-    const drawn = pool[Math.floor(Math.random() * pool.length)];
-
-    objs.push(this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.82).setDepth(D).setInteractive());
-
-    const PW = P(240), PH = P(340);
-    const mx = W / 2 - PW / 2, my = H / 2 - PH / 2;
-
-    const tierColor = tier === 'boss' ? 0xf0c040 : tier === 'elite' ? 0x9aacb8 : 0xb87333;
-    const tierLabel = tier === 'boss' ? 'Boss 卡' : tier === 'elite' ? '菁英卡' : '一般卡';
-    const tierHex = '#' + tierColor.toString(16).padStart(6, '0');
-
-    const mg = this.add.graphics().setDepth(D + 1);
-    objs.push(mg);
-    mg.fillStyle(0x120c04, 0.97); mg.fillRoundedRect(mx, my, PW, PH, P(10));
-    mg.lineStyle(P(2), tierColor, 1); mg.strokeRoundedRect(mx, my, PW, PH, P(10));
-    mg.fillStyle(0x201408, 1); mg.fillRoundedRect(mx, my, PW, P(44), { tl: P(10), tr: P(10), bl: 0, br: 0 });
-    mg.lineStyle(P(1), tierColor, 0.4); mg.lineBetween(mx, my + P(44), mx + PW, my + P(44));
-
-    objs.push(this.add.text(W / 2, my + P(22), '卡片抽取結果', {
-      fontSize: F(16), fontStyle: 'bold', color: '#ffe066', stroke: '#000', strokeThickness: 2,
-    }).setOrigin(0.5).setDepth(D + 2));
-
-    // Tier badge
-    objs.push(this.add.text(W / 2, my + P(56), tierLabel, {
-      fontSize: F(14), fontStyle: 'bold', color: tierHex, stroke: '#000', strokeThickness: 2,
-    }).setOrigin(0.5, 0).setDepth(D + 2));
-
-    // Card frame
-    const CARD_W = P(120), CARD_H = P(160);
-    const cx = W / 2, cy = my + P(88) + CARD_H / 2;
-    const cg = this.add.graphics().setDepth(D + 2);
-    objs.push(cg);
-    cg.fillStyle(WMI, 1); cg.fillRect(cx - CARD_W / 2, cy - CARD_H / 2, CARD_W, CARD_H);
-    cg.lineStyle(P(3), tierColor, 0.95); cg.strokeRect(cx - CARD_W / 2, cy - CARD_H / 2, CARD_W, CARD_H);
-    cg.lineStyle(P(1), tierColor, 0.4); cg.strokeRect(cx - CARD_W / 2 + P(4), cy - CARD_H / 2 + P(4), CARD_W - P(8), CARD_H - P(8));
-
-    // Monster sprite
-    const monDef = getMonsterDef(drawn.monsterId);
-    if (monDef) {
-      const spriteKey = `${monDef.spriteKey}_idle`;
-      const animKey = `cgacha_idle_${drawn.monsterId}`;
-      const idleEnd = monDef.spriteKey.startsWith('plant') ? 3 : 5;
-      try {
-        if (!this.anims.exists(animKey) && this.textures.exists(spriteKey))
-          this.anims.create({ key: animKey, frames: this.anims.generateFrameNumbers(spriteKey, { start: 0, end: idleEnd }), frameRate: 8, repeat: -1 });
-        const sp = this.add.sprite(cx, cy - P(14), spriteKey, 0).setScale(1.4 * DPR).setDepth(D + 3);
-        if (monDef.tint !== 0xffffff) sp.setTint(monDef.tint);
-        if (this.anims.exists(animKey)) sp.play(animKey);
-        objs.push(sp);
-      } catch { /* skip */ }
-    }
-
-    // Card name
-    objs.push(this.add.text(cx, cy + CARD_H / 2 - P(16), drawn.name, {
-      fontSize: F(13), fontStyle: 'bold', color: '#f0d080', stroke: '#000', strokeThickness: 2,
-      wordWrap: { width: CARD_W - P(8) }, align: 'center',
-    }).setOrigin(0.5, 1).setDepth(D + 3));
-
-    // Confirm button
-    const BY = my + PH - P(22), BW = P(120), BH = P(32);
-    const btnGfx = this.add.graphics().setDepth(D + 2);
-    objs.push(btnGfx);
-    const drawConfirmBtn = (hover: boolean) => {
-      btnGfx.clear();
-      btnGfx.fillStyle(hover ? 0x204820 : 0x0e2a0e, 1);
-      btnGfx.fillRoundedRect(W / 2 - BW / 2, BY - BH / 2, BW, BH, P(6));
-      btnGfx.lineStyle(P(1.5), 0x44cc44, hover ? 1 : 0.7);
-      btnGfx.strokeRoundedRect(W / 2 - BW / 2, BY - BH / 2, BW, BH, P(6));
-    };
-    drawConfirmBtn(false);
-    objs.push(this.add.text(W / 2, BY, '加入背包', {
-      fontSize: F(15), fontStyle: 'bold', color: '#88ff88', stroke: '#000', strokeThickness: 2,
-    }).setOrigin(0.5).setDepth(D + 3));
-    const hit = this.add.rectangle(W / 2, BY, BW, BH).setDepth(D + 4).setInteractive({ useHandCursor: true });
-    objs.push(hit);
-    hit.on('pointerover', () => drawConfirmBtn(true));
-    hit.on('pointerout', () => drawConfirmBtn(false));
-    hit.on('pointerdown', () => {
-      CardStore.addCard(drawn.id, 1);
-      SaveStore.save();
-      close();
     });
   }
 
