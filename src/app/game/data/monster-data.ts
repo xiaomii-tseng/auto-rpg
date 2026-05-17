@@ -264,6 +264,52 @@ export const MONSTER_DEFS: MonsterDef[] = [
     drops: eliteDrops,
   },
 
+  // ── 獸人小怪 Tier 1 (minStar=3) ───────────────────────
+  {
+    id: 'orc1_s', name: '獸人戰士', spriteKey: 'orc1', frameEnd: 7,
+    element: 'none', tint: 0xffffff, tier: 1, minStar: 3,
+    hp: 130, atk: 20, speed: 80, exp: 35, gold: 12,
+    cards: [{ cardId: 'card_orc1_n', rate: CR_S }],
+    drops: smallDrops,
+  },
+  {
+    id: 'orc2_s', name: '獸人暴徒', spriteKey: 'orc2', frameEnd: 7,
+    element: 'none', tint: 0xffffff, tier: 1, minStar: 3,
+    hp: 150, atk: 17, speed: 85, exp: 38, gold: 13,
+    cards: [{ cardId: 'card_orc2_n', rate: CR_S }],
+    drops: smallDrops,
+  },
+  {
+    id: 'orc3_s', name: '獸人刀客', spriteKey: 'orc3', frameEnd: 7,
+    element: 'none', tint: 0xffffff, tier: 1, minStar: 3,
+    hp: 110, atk: 22, speed: 90, exp: 40, gold: 14,
+    cards: [{ cardId: 'card_orc3_n', rate: CR_S }],
+    drops: smallDrops,
+  },
+
+  // ── 獸人菁英 Tier 3 (minStar=3) ────────────────────────
+  {
+    id: 'elite_orc1', name: '獸人鬥士', spriteKey: 'orc1', frameEnd: 7,
+    element: 'none', tint: 0xffffff, tier: 3, minStar: 3,
+    hp: 130, atk: 20, speed: 85, exp: 110, gold: 45,
+    cards: [{ cardId: 'card_orc1_e', rate: CR_E }],
+    drops: eliteDrops,
+  },
+  {
+    id: 'elite_orc2', name: '獸人頭領', spriteKey: 'orc2', frameEnd: 7,
+    element: 'none', tint: 0xffffff, tier: 3, minStar: 3,
+    hp: 150, atk: 17, speed: 90, exp: 115, gold: 48,
+    cards: [{ cardId: 'card_orc2_e', rate: CR_E }],
+    drops: eliteDrops,
+  },
+  {
+    id: 'elite_orc3', name: '獸人劍聖', spriteKey: 'orc3', frameEnd: 7,
+    element: 'none', tint: 0xffffff, tier: 3, minStar: 3,
+    hp: 120, atk: 25, speed: 95, exp: 120, gold: 50,
+    cards: [{ cardId: 'card_orc3_e', rate: CR_E }],
+    drops: eliteDrops,
+  },
+
   // ── 史萊姆王 Tier 5 ────────────────────────────────────
   {
     id: 'boss_slime_green', name: '綠史萊姆王', spriteKey: 'slime', frameEnd: 9,
@@ -498,6 +544,46 @@ export const CARD_DEFS: CardDef[] = [
     element: 'fire', tint: 0xff6600,
     effect: { summonFlowerDmgPct: 0.30, summonFlowerCap: 1 },
     desc: '召喚物傷+30%  友軍花怪上限+1' },
+
+  // ════════════════════════════════════════════════════
+  // 獸人族（3 家族）
+  // ════════════════════════════════════════════════════
+
+  // ── 獸人戰士家族（暴擊主題）──
+  { id: 'card_orc1_n', name: '獸人戰士卡', monsterId: 'orc1_s',
+    family: 'orc1', race: 'orc', cardType: 'n',
+    element: 'none', tint: 0xcc8833,
+    effect: { atk: 10 },
+    desc: '攻擊力+10' },
+  { id: 'card_orc1_e', name: '獸人鬥士卡', monsterId: 'elite_orc1',
+    family: 'orc1', race: 'orc', cardType: 'e',
+    element: 'none', tint: 0xdd9944,
+    effect: { atk: 14, crit: 0.06 },
+    desc: '攻擊力+14  暴擊率+6%' },
+
+  // ── 獸人暴徒家族（生命主題）──
+  { id: 'card_orc2_n', name: '獸人暴徒卡', monsterId: 'orc2_s',
+    family: 'orc2', race: 'orc', cardType: 'n',
+    element: 'none', tint: 0x997744,
+    effect: { hp: 30 },
+    desc: '最大HP+30' },
+  { id: 'card_orc2_e', name: '獸人頭領卡', monsterId: 'elite_orc2',
+    family: 'orc2', race: 'orc', cardType: 'e',
+    element: 'none', tint: 0xaa8855,
+    effect: { hp: 45, def: 5 },
+    desc: '最大HP+45  防禦+5' },
+
+  // ── 獸人刀客家族（攻速主題）──
+  { id: 'card_orc3_n', name: '獸人刀客卡', monsterId: 'orc3_s',
+    family: 'orc3', race: 'orc', cardType: 'n',
+    element: 'none', tint: 0x6688aa,
+    effect: { crit: 0.05 },
+    desc: '暴擊率+5%' },
+  { id: 'card_orc3_e', name: '獸人劍聖卡', monsterId: 'elite_orc3',
+    family: 'orc3', race: 'orc', cardType: 'e',
+    element: 'none', tint: 0x7799bb,
+    effect: { crit: 0.08, atk: 8 },
+    desc: '暴擊率+8%  攻擊力+8' },
 ];
 
 // ── Helpers ────────────────────────────────────────────────────────────────

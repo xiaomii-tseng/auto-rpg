@@ -15,6 +15,12 @@ enum MinionState {
   TRIPLE_WARN  = 'TRIPLE_WARN',
   EXPLODE_WARN = 'EXPLODE_WARN',
   SPIKE_WARN   = 'SPIKE_WARN',
+  ARC_WARN     = 'ARC_WARN',
+  LEAP_WARN    = 'LEAP_WARN',
+  SPIN_WARN    = 'SPIN_WARN',
+  CRACK_WARN   = 'CRACK_WARN',
+  WHIRL_WARN   = 'WHIRL_WARN',
+  WHIRLING     = 'WHIRLING',
   DEAD         = 'DEAD',
 }
 
@@ -55,14 +61,34 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
   static readonly COOLDOWN_SPIKE  = 3300;
   static readonly SPIKE_WARN_MS   = 900;
   static readonly SPIKE_RADIUS    = Math.round(14 * DPR);
+  static readonly ARC_RANGE       = Math.round(40 * DPR);
+  static readonly ARC_WARN_MS     = 500;
+  static readonly COOLDOWN_ARC    = 2500;
+  static readonly LEAP_RANGE      = Math.round(144 * DPR);
+  static readonly LEAP_WARN_MS    = 800;
+  static readonly COOLDOWN_LEAP   = 3500;
+  static readonly COOLDOWN_BLADE  = 2500;
+  static readonly SPIN_RANGE      = Math.round(65 * DPR);
+  static readonly SPIN_WARN_MS    = 600;
+  static readonly COOLDOWN_SPIN   = 4000;
+  static readonly CRACK_RANGE     = Math.round(180 * DPR);
+  static readonly CRACK_WARN_MS   = 700;
+  static readonly COOLDOWN_CRACK  = 3200;
+  static readonly COOLDOWN_TRIPLE_WAVE  = 3000;
+  static readonly TRIPLE_WAVE_WARN_MS   = 900;
+  static readonly WHIRL_RANGE          = Math.round(90 * DPR);
+  static readonly WHIRL_WARN_MS        = 850;
+  static readonly COOLDOWN_WHIRL       = 3500;
+  static readonly WHIRL_SPEED          = Math.round(110 * DPR);
+  static readonly WHIRL_DURATION       = 900;
 
   getTargetPos: () => [number, number] = () => [0, 0];
   onDead?: () => void;
-  onFire?: (type: 'shoot' | 'triple' | 'explode' | 'spike', mx: number, my: number, tx: number, ty: number) => void;
+  onFire?: (type: 'shoot' | 'triple' | 'explode' | 'spike' | 'blade_wave' | 'triple_wave' | 'arc_slash' | 'leap_slam' | 'spin_slash' | 'ground_crack' | 'whirl_slash', mx: number, my: number, tx: number, ty: number) => void;
   slowMult = 1;  // 減速倍率（1 = 正常，0.8 = 緩速 20%）
 
   minionId        = '';
-  attackMode: 'dash' | 'shoot' | 'triple' | 'explode' | 'spike' = 'dash';
+  attackMode: 'dash' | 'shoot' | 'triple' | 'explode' | 'spike' | 'arc_slash' | 'leap_slam' | 'blade_wave' | 'triple_wave' | 'spin_slash' | 'ground_crack' | 'whirl_slash' = 'dash';
   stationary       = false;
   isAlly           = false;
   attackCooldownMs?: number;  // 若設定則覆蓋各攻擊模式的預設冷卻時間
@@ -71,6 +97,10 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
   explodeRadiusMult = 1.0;
   private attackCooldownUntil = 0;
   private explodeWarnStart    = 0;
+  private leapTargetX         = 0;
+  private leapTargetY         = 0;
+  private whirlTargetX        = 0;
+  private whirlTargetY        = 0;
   private warnCircleGfx?: Phaser.GameObjects.Graphics;
   isElite       = false;
   atk           = 10;
@@ -285,12 +315,14 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
     [this.atkX, this.atkY] = this.getTargetPos();
     this.updateDir();
     this.playDir(`${this.animPrefix}_attack`);
-    this.setTint(0xff6600);
+    this.setTint(this.attackMode === 'blade_wave' ? 0x00aaff : 0xff6600);
     this.stateTimer?.destroy();
     this.stateTimer = this.scene.time.delayedCall(400, () => {
       this.applyBaseTint();
-      this.onFire?.('shoot', this.x / DPR, this.y / DPR, this.atkX / DPR, this.atkY / DPR);
-      this.attackCooldownUntil = this.scene.time.now + (this.attackCooldownMs ?? MinionSlime.COOLDOWN_SHOOT + Phaser.Math.Between(0, 800));
+      const type = this.attackMode === 'blade_wave' ? 'blade_wave' : 'shoot';
+      this.onFire?.(type, this.x / DPR, this.y / DPR, this.atkX / DPR, this.atkY / DPR);
+      const cd = this.attackMode === 'blade_wave' ? MinionSlime.COOLDOWN_BLADE : MinionSlime.COOLDOWN_SHOOT;
+      this.attackCooldownUntil = this.scene.time.now + (this.attackCooldownMs ?? cd + Phaser.Math.Between(0, 800));
       this.enterIdle();
     });
   }
@@ -300,15 +332,34 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
     this.pb.setVelocity(0, 0);
     [this.atkX, this.atkY] = this.getTargetPos();
     this.updateDir();
-    this.playDir(`${this.animPrefix}_attack`);
-    this.setTint(0xaa00ff);
-    this.stateTimer?.destroy();
-    this.stateTimer = this.scene.time.delayedCall(600, () => {
-      this.applyBaseTint();
-      this.onFire?.('triple', this.x / DPR, this.y / DPR, this.atkX / DPR, this.atkY / DPR);
-      this.attackCooldownUntil = this.scene.time.now + (this.attackCooldownMs ?? MinionSlime.COOLDOWN_TRIPLE + Phaser.Math.Between(0, 800));
-      this.enterIdle();
-    });
+
+    if (this.attackMode === 'triple_wave') {
+      this.playDir(`${this.animPrefix}_idle`);
+      this.explodeWarnStart = this.scene.time.now;
+      if (!this.warnCircleGfx) this.warnCircleGfx = this.scene.add.graphics().setDepth(5);
+      this.stateTimer?.destroy();
+      // Switch to attack pose ~250ms before firing
+      this.scene.time.delayedCall(MinionSlime.TRIPLE_WAVE_WARN_MS - 250, () => {
+        if (this.mState === MinionState.TRIPLE_WARN) this.playDir(`${this.animPrefix}_attack`);
+      });
+      this.stateTimer = this.scene.time.delayedCall(MinionSlime.TRIPLE_WAVE_WARN_MS, () => {
+        this.warnCircleGfx?.clear();
+        this.applyBaseTint();
+        this.onFire?.('triple_wave', this.x / DPR, this.y / DPR, this.atkX / DPR, this.atkY / DPR);
+        this.attackCooldownUntil = this.scene.time.now + (this.attackCooldownMs ?? MinionSlime.COOLDOWN_TRIPLE_WAVE + Phaser.Math.Between(0, 800));
+        this.enterIdle();
+      });
+    } else {
+      this.playDir(`${this.animPrefix}_attack`);
+      this.setTint(0xaa00ff);
+      this.stateTimer?.destroy();
+      this.stateTimer = this.scene.time.delayedCall(200, () => {
+        this.applyBaseTint();
+        this.onFire?.('triple', this.x / DPR, this.y / DPR, this.atkX / DPR, this.atkY / DPR);
+        this.attackCooldownUntil = this.scene.time.now + (this.attackCooldownMs ?? MinionSlime.COOLDOWN_TRIPLE + Phaser.Math.Between(0, 800));
+        this.enterIdle();
+      });
+    }
   }
 
   private enterExplodeWarn(): void {
@@ -341,6 +392,169 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
     this.stateTimer = this.scene.time.delayedCall(MinionSlime.SPIKE_WARN_MS, () => {
       this.applyBaseTint();
       this.attackCooldownUntil = this.scene.time.now + (this.attackCooldownMs ?? MinionSlime.COOLDOWN_SPIKE + Phaser.Math.Between(0, 800));
+      this.enterIdle();
+    });
+  }
+
+  private enterArcWarn(): void {
+    this.mState = MinionState.ARC_WARN;
+    this.pb.setVelocity(0, 0);
+    [this.atkX, this.atkY] = this.getTargetPos();
+    this.updateDir();
+    this.playDir(`${this.animPrefix}_idle`);
+    this.setTint(0xff3300);
+    this.explodeWarnStart = this.scene.time.now;
+    if (!this.warnCircleGfx) this.warnCircleGfx = this.scene.add.graphics().setDepth(5);
+    this.stateTimer?.destroy();
+    this.scene.time.delayedCall(MinionSlime.ARC_WARN_MS - 250, () => {
+      if (this.mState !== MinionState.ARC_WARN) return;
+      this.playDir(`${this.animPrefix}_attack`);
+    });
+    this.stateTimer = this.scene.time.delayedCall(MinionSlime.ARC_WARN_MS, () => {
+      this.warnCircleGfx?.clear();
+      this.applyBaseTint();
+      this.onFire?.('arc_slash', this.x / DPR, this.y / DPR, this.atkX / DPR, this.atkY / DPR);
+      this.attackCooldownUntil = this.scene.time.now + (this.attackCooldownMs ?? MinionSlime.COOLDOWN_ARC + Phaser.Math.Between(0, 600));
+      const onDone = () => { if (this.mState === MinionState.ARC_WARN) this.enterIdle(); };
+      this.once(Phaser.Animations.Events.ANIMATION_COMPLETE, onDone);
+      this.stateTimer = this.scene.time.delayedCall(750, () => { this.off(Phaser.Animations.Events.ANIMATION_COMPLETE, onDone); if (this.mState === MinionState.ARC_WARN) this.enterIdle(); });
+    });
+  }
+
+  private enterLeapWarn(): void {
+    this.mState = MinionState.LEAP_WARN;
+    this.pb.setVelocity(0, 0);
+    [this.leapTargetX, this.leapTargetY] = this.getTargetPos();
+    this.updateDir();
+    this.playDir(`${this.animPrefix}_idle`);
+    this.explodeWarnStart = this.scene.time.now;
+    if (!this.warnCircleGfx) this.warnCircleGfx = this.scene.add.graphics().setDepth(5);
+    this.stateTimer?.destroy();
+
+    const travelMs = 420;
+    const jumpH    = Math.round(55 * DPR);
+
+    // 蓄力結束後起跳
+    this.stateTimer = this.scene.time.delayedCall(MinionSlime.LEAP_WARN_MS - travelMs, () => {
+      if (this.mState !== MinionState.LEAP_WARN) return;
+      const startX = this.x, startY = this.y;
+      const endX = this.leapTargetX, endY = this.leapTargetY;
+      this.playDir(`${this.animPrefix}_run`);
+      this.setDepth(80);  // 飛在空中顯示在最上層
+      const p = { t: 0 };
+      let attackAnimPlayed = false;
+      this.scene.tweens.add({
+        targets: p,
+        t: 1,
+        duration: travelMs,
+        ease: 'Linear',
+        onUpdate: () => {
+          const t   = p.t;
+          const nx  = startX + (endX - startX) * t;
+          const ny  = startY + (endY - startY) * t - jumpH * Math.sin(t * Math.PI);
+          this.setPosition(nx, ny);
+          this.pb.velocity.set(0, 0);
+          if (t >= 0.55 && !attackAnimPlayed) {
+            attackAnimPlayed = true;
+            this.playDir(`${this.animPrefix}_attack`);
+          }
+        },
+        onComplete: () => {
+          if (this.mState !== MinionState.LEAP_WARN) return;
+          this.setPosition(endX, endY);
+          this.setDepth(0);
+          this.warnCircleGfx?.clear();
+          this.applyBaseTint();
+          this.onFire?.('leap_slam', endX / DPR, endY / DPR, endX / DPR, endY / DPR);
+          this.attackCooldownUntil = this.scene.time.now + (this.attackCooldownMs ?? MinionSlime.COOLDOWN_LEAP + Phaser.Math.Between(0, 600));
+          const onDone = () => { if (this.mState === MinionState.LEAP_WARN) this.enterIdle(); };
+          this.once(Phaser.Animations.Events.ANIMATION_COMPLETE, onDone);
+          this.stateTimer = this.scene.time.delayedCall(750, () => { this.off(Phaser.Animations.Events.ANIMATION_COMPLETE, onDone); if (this.mState === MinionState.LEAP_WARN) this.enterIdle(); });
+        },
+      });
+    });
+  }
+
+  private enterSpinWarn(): void {
+    this.mState = MinionState.SPIN_WARN;
+    this.pb.setVelocity(0, 0);
+    this.updateDir();
+    this.playDir(`${this.animPrefix}_idle`);   // 蓄力
+    this.setTint(0xffaa00);
+    this.explodeWarnStart = this.scene.time.now;
+    if (!this.warnCircleGfx) this.warnCircleGfx = this.scene.add.graphics().setDepth(5);
+    this.stateTimer?.destroy();
+    // 旋轉前切 attack
+    this.scene.time.delayedCall(MinionSlime.SPIN_WARN_MS - 280, () => {
+      if (this.mState !== MinionState.SPIN_WARN) return;
+      this.playDir(`${this.animPrefix}_attack`);
+    });
+    this.stateTimer = this.scene.time.delayedCall(MinionSlime.SPIN_WARN_MS, () => {
+      this.warnCircleGfx?.clear();
+      this.applyBaseTint();
+      this.onFire?.('spin_slash', this.x / DPR, this.y / DPR, this.x / DPR, this.y / DPR);
+      this.attackCooldownUntil = this.scene.time.now + (this.attackCooldownMs ?? MinionSlime.COOLDOWN_SPIN + Phaser.Math.Between(0, 600));
+      const onDone = () => { if (this.mState === MinionState.SPIN_WARN) this.enterIdle(); };
+      this.once(Phaser.Animations.Events.ANIMATION_COMPLETE, onDone);
+      this.stateTimer = this.scene.time.delayedCall(750, () => { this.off(Phaser.Animations.Events.ANIMATION_COMPLETE, onDone); onDone(); });
+    });
+  }
+
+  private enterCrackWarn(): void {
+    this.mState = MinionState.CRACK_WARN;
+    this.pb.setVelocity(0, 0);
+    [this.atkX, this.atkY] = this.getTargetPos();
+    this.updateDir();
+    this.playDir(`${this.animPrefix}_idle`);   // 蓄力
+    // 砸地前切 attack
+    this.scene.time.delayedCall(MinionSlime.CRACK_WARN_MS - 300, () => {
+      if (this.mState !== MinionState.CRACK_WARN) return;
+      this.playDir(`${this.animPrefix}_attack`);
+    });
+    this.setTint(0xaa4400);
+    this.stateTimer?.destroy();
+    this.stateTimer = this.scene.time.delayedCall(MinionSlime.CRACK_WARN_MS, () => {
+      this.applyBaseTint();
+      this.onFire?.('ground_crack', this.x / DPR, this.y / DPR, this.atkX / DPR, this.atkY / DPR);
+      this.attackCooldownUntil = this.scene.time.now + (this.attackCooldownMs ?? MinionSlime.COOLDOWN_CRACK + Phaser.Math.Between(0, 600));
+      const onDone = () => { if (this.mState === MinionState.CRACK_WARN) this.enterIdle(); };
+      this.once(Phaser.Animations.Events.ANIMATION_COMPLETE, onDone);
+      this.stateTimer = this.scene.time.delayedCall(750, () => { this.off(Phaser.Animations.Events.ANIMATION_COMPLETE, onDone); onDone(); });
+    });
+  }
+
+  private enterWhirlWarn(): void {
+    this.mState = MinionState.WHIRL_WARN;
+    this.pb.setVelocity(0, 0);
+    [this.whirlTargetX, this.whirlTargetY] = this.getTargetPos();
+    this.updateDir();
+    this.playDir(`${this.animPrefix}_idle`);
+    this.setTint(0xff2200);
+    this.explodeWarnStart = this.scene.time.now;
+    if (!this.warnCircleGfx) this.warnCircleGfx = this.scene.add.graphics().setDepth(5);
+    this.stateTimer?.destroy();
+    this.stateTimer = this.scene.time.delayedCall(MinionSlime.WHIRL_WARN_MS, () => {
+      this.warnCircleGfx?.clear();
+      this.applyBaseTint();
+      this.enterWhirling();
+    });
+  }
+
+  private enterWhirling(): void {
+    this.mState = MinionState.WHIRLING;
+    [this.whirlTargetX, this.whirlTargetY] = this.getTargetPos();
+    this.onFire?.('whirl_slash', this.x / DPR, this.y / DPR, this.whirlTargetX / DPR, this.whirlTargetY / DPR);
+    const whirlKey = `${this.animPrefix}_whirl`;
+    if (this.scene.anims.exists(whirlKey)) this.anims.play(whirlKey, true);
+    else this.playDir(`${this.animPrefix}_attack`);
+    const angle = Phaser.Math.Angle.Between(this.x, this.y, this.whirlTargetX, this.whirlTargetY);
+    (this.scene.physics as Phaser.Physics.Arcade.ArcadePhysics).velocityFromAngle(
+      Phaser.Math.RadToDeg(angle), MinionSlime.WHIRL_SPEED, this.pb.velocity,
+    );
+    this.stateTimer?.destroy();
+    this.stateTimer = this.scene.time.delayedCall(MinionSlime.WHIRL_DURATION, () => {
+      this.pb.setVelocity(0, 0);
+      this.attackCooldownUntil = this.scene.time.now + (this.attackCooldownMs ?? MinionSlime.COOLDOWN_WHIRL);
       this.enterIdle();
     });
   }
@@ -410,6 +624,22 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
     this.play(`${base}_${this.dir}`, true);
   }
 
+  // 停下時確保切換到 idle（避免停著卻播 walk/run）
+  private ensureIdleAnim(prevDir: typeof this.dir): void {
+    const cur = this.anims.currentAnim?.key ?? '';
+    if (this.dir !== prevDir || cur.includes('_walk_') || cur.includes('_run_')) {
+      this.playDir(`${this.animPrefix}_idle`);
+    }
+  }
+
+  // 移動時確保切換到 walk（避免方向未變時 idle 動畫卡住）
+  private ensureWalkAnim(prevDir: typeof this.dir): void {
+    const cur = this.anims.currentAnim?.key ?? '';
+    if (this.dir !== prevDir || cur.includes('_idle_')) {
+      this.playDir(`${this.animPrefix}_walk`);
+    }
+  }
+
   // ── preUpdate: chase + HP bar ────────────────────────
 
   override preUpdate(time: number, delta: number): void {
@@ -469,37 +699,47 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
       if (this.attackMode === 'dash') {
         if (dist <= MinionSlime.STOP_RANGE) {
           body.setVelocity(0, 0);
-          if (this.dir !== prevDir) this.playDir(`${this.animPrefix}_idle`);
+          this.ensureIdleAnim(prevDir);
         } else {
           const angle = Phaser.Math.Angle.Between(this.x, this.y, tx, ty);
           (this.scene.physics as Phaser.Physics.Arcade.ArcadePhysics).velocityFromAngle(
             Phaser.Math.RadToDeg(angle), MinionSlime.CHASE_SPEED * this.slowMult, body.velocity,
           );
-          if (this.dir !== prevDir) this.playDir(`${this.animPrefix}_walk`);
+          this.ensureWalkAnim(prevDir);
         }
       } else {
-        // Ranged: stop at attack range, attack when cooldown elapsed
-        const attackRange = this.attackMode === 'explode'
-          ? MinionSlime.EXPLODE_RANGE
-          : this.rangedRange;
+        // Ranged / melee-area: stop at attack range, attack when cooldown elapsed
+        const attackRange =
+          this.attackMode === 'explode'     ? MinionSlime.EXPLODE_RANGE :
+          this.attackMode === 'arc_slash'   ? MinionSlime.ARC_RANGE     :
+          this.attackMode === 'spin_slash'  ? MinionSlime.SPIN_RANGE    :
+          this.attackMode === 'leap_slam'   ? MinionSlime.LEAP_RANGE    :
+          this.attackMode === 'ground_crack'? MinionSlime.CRACK_RANGE   :
+          this.attackMode === 'whirl_slash' ? MinionSlime.WHIRL_RANGE   :
+          this.rangedRange;
         if (dist <= attackRange) {
           body.setVelocity(0, 0);
-          if (this.dir !== prevDir) this.playDir(`${this.animPrefix}_idle`);
+          this.ensureIdleAnim(prevDir);
           if (time >= this.attackCooldownUntil) {
-            if      (this.attackMode === 'shoot')   this.enterShootWarn();
-            else if (this.attackMode === 'triple')  this.enterTripleWarn();
-            else if (this.attackMode === 'explode') this.enterExplodeWarn();
-            else if (this.attackMode === 'spike')   this.enterSpikeWarn();
+            if      (this.attackMode === 'shoot'  || this.attackMode === 'blade_wave')   this.enterShootWarn();
+            else if (this.attackMode === 'triple' || this.attackMode === 'triple_wave')  this.enterTripleWarn();
+            else if (this.attackMode === 'explode')      this.enterExplodeWarn();
+            else if (this.attackMode === 'spike')        this.enterSpikeWarn();
+            else if (this.attackMode === 'arc_slash')    this.enterArcWarn();
+            else if (this.attackMode === 'leap_slam')    this.enterLeapWarn();
+            else if (this.attackMode === 'spin_slash')   this.enterSpinWarn();
+            else if (this.attackMode === 'ground_crack') this.enterCrackWarn();
+            else if (this.attackMode === 'whirl_slash')  this.enterWhirlWarn();
           }
         } else if (!this.stationary) {
           const angle = Phaser.Math.Angle.Between(this.x, this.y, tx, ty);
           (this.scene.physics as Phaser.Physics.Arcade.ArcadePhysics).velocityFromAngle(
             Phaser.Math.RadToDeg(angle), MinionSlime.CHASE_SPEED * this.slowMult, body.velocity,
           );
-          if (this.dir !== prevDir) this.playDir(`${this.animPrefix}_walk`);
+          this.ensureWalkAnim(prevDir);
         } else {
           body.setVelocity(0, 0);
-          if (this.dir !== prevDir) this.playDir(`${this.animPrefix}_idle`);
+          this.ensureIdleAnim(prevDir);
         }
       }
     }
@@ -515,6 +755,101 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
       this.warnCircleGfx.fillCircle(this.x, this.y, R);
       this.warnCircleGfx.lineStyle(P(2), 0xff4400, 0.5 + pulse * 0.5);
       this.warnCircleGfx.strokeCircle(this.x, this.y, R);
+    }
+
+    // Leap warn circle at target landing spot
+    if (this.mState === MinionState.LEAP_WARN && this.warnCircleGfx && time < this.explodeWarnStart + MinionSlime.LEAP_WARN_MS) {
+      const elapsed = time - this.explodeWarnStart;
+      const pulse   = Math.sin(elapsed * 0.012) * 0.3 + 0.6;
+      const R       = Math.round(MinionSlime.EXPLODE_RADIUS * 1.8);
+      this.warnCircleGfx.clear();
+      this.warnCircleGfx.fillStyle(0xff6600, pulse * 0.28);
+      this.warnCircleGfx.fillCircle(this.leapTargetX, this.leapTargetY, R);
+      this.warnCircleGfx.lineStyle(P(2), 0xff4400, 0.5 + pulse * 0.5);
+      this.warnCircleGfx.strokeCircle(this.leapTargetX, this.leapTargetY, R);
+    }
+
+    // Spin warn circle around self
+    if (this.mState === MinionState.SPIN_WARN && this.warnCircleGfx) {
+      const elapsed = time - this.explodeWarnStart;
+      const pulse   = Math.sin(elapsed * 0.018) * 0.3 + 0.6;
+      const R       = Math.round(MinionSlime.SPIN_RANGE * 1.1);
+      this.warnCircleGfx.clear();
+      this.warnCircleGfx.fillStyle(0xffaa00, pulse * 0.28);
+      this.warnCircleGfx.fillCircle(this.x, this.y, R);
+      this.warnCircleGfx.lineStyle(P(2), 0xff8800, 0.5 + pulse * 0.5);
+      this.warnCircleGfx.strokeCircle(this.x, this.y, R);
+    }
+
+    // Arc warn cone (90° sector toward target) — 只在蓄力期間繪製
+    if (this.mState === MinionState.ARC_WARN && this.warnCircleGfx && time < this.explodeWarnStart + MinionSlime.ARC_WARN_MS) {
+      const elapsed = time - this.explodeWarnStart;
+      const pulse   = Math.sin(elapsed * 0.016) * 0.3 + 0.6;
+      const R       = Math.round(MinionSlime.ARC_RANGE * 2.2);
+      const ang     = Phaser.Math.Angle.Between(this.x, this.y, this.atkX, this.atkY);
+      const spread  = Math.PI * 75 / 360;  // 37.5° each side = 75° total
+      this.warnCircleGfx.clear();
+      this.warnCircleGfx.fillStyle(0xff2200, pulse * 0.32);
+      this.warnCircleGfx.beginPath();
+      this.warnCircleGfx.moveTo(this.x, this.y);
+      this.warnCircleGfx.arc(this.x, this.y, R, ang - spread, ang + spread, false);
+      this.warnCircleGfx.closePath();
+      this.warnCircleGfx.fillPath();
+      this.warnCircleGfx.lineStyle(P(2), 0xff4400, 0.5 + pulse * 0.5);
+      this.warnCircleGfx.beginPath();
+      this.warnCircleGfx.moveTo(this.x, this.y);
+      this.warnCircleGfx.arc(this.x, this.y, R, ang - spread, ang + spread, false);
+      this.warnCircleGfx.closePath();
+      this.warnCircleGfx.strokePath();
+    }
+
+    // Whirl warn — 長方形路徑範圍提示
+    if (this.mState === MinionState.WHIRL_WARN && this.warnCircleGfx) {
+      const elapsed  = time - this.explodeWarnStart;
+      const pulse    = Math.sin(elapsed * 0.018) * 0.3 + 0.6;
+      const ang      = Phaser.Math.Angle.Between(this.x, this.y, this.whirlTargetX, this.whirlTargetY);
+      const len      = Math.round(MinionSlime.WHIRL_SPEED * MinionSlime.WHIRL_DURATION / 1000);
+      const halfW    = Math.round((this.isElite ? 36 : 28) * DPR);
+      const cos      = Math.cos(ang),      sin      = Math.sin(ang);
+      const pCos     = Math.cos(ang + Math.PI / 2), pSin = Math.sin(ang + Math.PI / 2);
+      const x0 = this.x, y0 = this.y;
+      const pts = [
+        { x: x0 + pCos * halfW,           y: y0 + pSin * halfW },
+        { x: x0 + cos * len + pCos * halfW, y: y0 + sin * len + pSin * halfW },
+        { x: x0 + cos * len - pCos * halfW, y: y0 + sin * len - pSin * halfW },
+        { x: x0 - pCos * halfW,           y: y0 - pSin * halfW },
+      ];
+      this.warnCircleGfx.clear();
+      this.warnCircleGfx.fillStyle(0xff2200, pulse * 0.28);
+      this.warnCircleGfx.fillPoints(pts, true);
+      this.warnCircleGfx.lineStyle(P(2), 0xff4400, 0.5 + pulse * 0.5);
+      this.warnCircleGfx.strokePoints(pts, true);
+    }
+
+    // Triple wave fan warning — 3 red rays at ±35°
+    if (this.mState === MinionState.TRIPLE_WARN && this.attackMode === 'triple_wave' && this.warnCircleGfx) {
+      const elapsed = time - this.explodeWarnStart;
+      const pulse   = Math.sin(elapsed * 0.016) * 0.3 + 0.6;
+      const R       = Math.round(160 * DPR);
+      const baseAng = Phaser.Math.Angle.Between(this.x, this.y, this.atkX, this.atkY);
+      const spread  = Math.PI * 35 / 180;
+      const halfW   = Math.PI * 8  / 180;
+      this.warnCircleGfx.clear();
+      for (const offset of [-spread, 0, spread]) {
+        const ang = baseAng + offset;
+        this.warnCircleGfx.fillStyle(0xff2200, pulse * 0.30);
+        this.warnCircleGfx.beginPath();
+        this.warnCircleGfx.moveTo(this.x, this.y);
+        this.warnCircleGfx.arc(this.x, this.y, R, ang - halfW, ang + halfW, false);
+        this.warnCircleGfx.closePath();
+        this.warnCircleGfx.fillPath();
+        this.warnCircleGfx.lineStyle(P(2), 0xff4400, 0.5 + pulse * 0.5);
+        this.warnCircleGfx.beginPath();
+        this.warnCircleGfx.moveTo(this.x, this.y);
+        this.warnCircleGfx.arc(this.x, this.y, R, ang - halfW, ang + halfW, false);
+        this.warnCircleGfx.closePath();
+        this.warnCircleGfx.strokePath();
+      }
     }
 
     this.drawHpBar();
@@ -542,7 +877,7 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
       // 菁英：紅色血條 + 金色外框
       const bw = P(44), bh = P(6);
       const bx = this.x - bw / 2;
-      const by = this.y - P(35);
+      const by = this.y - P(38);
       this.hpBarGfx.fillStyle(0x1a0000, 0.9);
       this.hpBarGfx.fillRect(bx, by, bw, bh);
       const color = pct > 0.5 ? 0xee2222 : pct > 0.25 ? 0xcc1111 : 0x880000;

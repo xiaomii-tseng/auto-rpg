@@ -251,6 +251,16 @@ export class GameScene extends Phaser.Scene {
       if (!this.textures.exists(`${pk}_hurt`)) this.load.spritesheet(`${pk}_hurt`, `${pb}_Hurt_with_shadow.png`, cfg);
       if (!this.textures.exists(`${pk}_death`)) this.load.spritesheet(`${pk}_death`, `${pb}_Death_with_shadow.png`, cfg);
     }
+    for (const n of [1, 2, 3]) {
+      const ob = `sprite/orc/PNG/Orc${n}/With_shadow/orc${n}`;
+      const ok = `orc${n}`;
+      if (!this.textures.exists(`${ok}_idle`))       this.load.spritesheet(`${ok}_idle`,       `${ob}_idle_with_shadow.png`,       cfg);
+      if (!this.textures.exists(`${ok}_walk`))       this.load.spritesheet(`${ok}_walk`,       `${ob}_walk_with_shadow.png`,       cfg);
+      if (!this.textures.exists(`${ok}_run`))        this.load.spritesheet(`${ok}_run`,        `${ob}_run_with_shadow.png`,        cfg);
+      if (!this.textures.exists(`${ok}_attack`))     this.load.spritesheet(`${ok}_attack`,     `${ob}_attack_with_shadow.png`,     cfg);
+      if (!this.textures.exists(`${ok}_hurt`))       this.load.spritesheet(`${ok}_hurt`,       `${ob}_hurt_with_shadow.png`,       cfg);
+      if (!this.textures.exists(`${ok}_death`))      this.load.spritesheet(`${ok}_death`,      `${ob}_death_with_shadow.png`,      cfg);
+    }
     if (!this.textures.exists('icon_stone_broken')) this.load.image('icon_stone_broken', 'other/ore2.webp');
     if (!this.textures.exists('icon_stone_intact')) this.load.image('icon_stone_intact', 'other/ore1.webp');
     if (!this.textures.exists('icon_stone_guard')) this.load.image('icon_stone_guard', 'other/ore3.webp');
@@ -760,6 +770,14 @@ export class GameScene extends Phaser.Scene {
       d: kb.addKey(Phaser.Input.Keyboard.KeyCodes.D),
       space: kb.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE),
     };
+
+    // ── 測試快捷鍵：按 ` 清除所有小怪並生成一隻測試怪 ──
+    const DEV_TEST_MONSTER = 'elite_orc3';  // ← 改這裡換怪物
+    kb.on('keydown-BACKTICK', () => {
+      this.allMinions.forEach(m => { if (!m.isDead) m.forceKill(); });
+      const isEliteSpawn = DEV_TEST_MONSTER.startsWith('elite_');
+      this.time.delayedCall(200, () => this.spawnMinionAt(DEV_TEST_MONSTER, this.player.x + 150, this.player.y, isEliteSpawn));
+    });
 
     const onResize = () => this.physics.world.setBounds(0, 0, this.worldW, this.worldH);
     this.scale.on('resize', onResize);
@@ -3366,6 +3384,11 @@ export class GameScene extends Phaser.Scene {
       m.stationary = true; m.noKnockback = true;
       m.attackMode = 'triple'; m.rangedRange = Math.round(220 * DPR);
     }
+    if (defId === 'orc1_s')     { m.attackMode = 'arc_slash';   m.rangedRange = Math.round(40 * DPR); }
+    if (defId === 'elite_orc1') { m.attackMode = 'whirl_slash'; }
+    if (['orc2_s', 'elite_orc2'].includes(defId)) { m.attackMode = defId.startsWith('elite') ? 'ground_crack' : 'leap_slam'; m.rangedRange = Math.round(180 * DPR); }
+    if (['orc3_s', 'elite_orc3'].includes(defId)) { m.attackMode = defId.startsWith('elite') ? 'triple_wave' : 'blade_wave'; m.rangedRange = Math.round(200 * DPR); }
+    if (defId.startsWith('orc') || defId.startsWith('elite_orc')) m.race = 'orc';
     m.setPatrolCenter(wx, wy);
     m.getTargetPos = () => this.nearestTargetPos(m.x, m.y);
     m.onDead = () => this.handleMinionDrop(defId, m.x, m.y);
@@ -3418,9 +3441,13 @@ export class GameScene extends Phaser.Scene {
       plant1_s: 'elite_plant1',
       plant2_s: 'elite_plant2',
       plant3_s: 'elite_plant3',
+      orc1_s: 'elite_orc1',
+      orc2_s: 'elite_orc2',
+      orc3_s: 'elite_orc3',
     };
     const GENERAL_POOL = ['slime_green_s', 'slime_red_s', 'slime_blue_s', 'slime_white_s'];
     if (this.questStar >= 2) GENERAL_POOL.push('plant1_s', 'plant2_s', 'plant3_s');
+    if (this.questStar >= 3) GENERAL_POOL.push('orc1_s', 'orc2_s', 'orc3_s');
 
     const mainMinionId = BOSS_TO_MINION[this.bossMonsterId];
     const otherPool = GENERAL_POOL.filter(id => id !== mainMinionId);
@@ -3475,6 +3502,11 @@ export class GameScene extends Phaser.Scene {
         m.rangedRange = Math.round(220 * DPR);
       }
       if (isPlant) m.race = 'plant';
+      if (defId === 'orc1_s')     { m.attackMode = 'arc_slash';   m.rangedRange = Math.round(40 * DPR); }
+      if (defId === 'elite_orc1') { m.attackMode = 'whirl_slash'; }
+      if (['orc2_s', 'elite_orc2'].includes(defId)) { m.attackMode = defId.startsWith('elite') ? 'ground_crack' : 'leap_slam'; m.rangedRange = Math.round(180 * DPR); }
+      if (['orc3_s', 'elite_orc3'].includes(defId)) { m.attackMode = defId.startsWith('elite') ? 'triple_wave' : 'blade_wave'; m.rangedRange = Math.round(200 * DPR); }
+      if (defId.startsWith('orc') || defId.startsWith('elite_orc')) m.race = 'orc';
       m.setPatrolCenter(isPlant ? spawnX : wx, isPlant ? spawnY : wy);
       m.getTargetPos = () => this.nearestTargetPos(m.x, m.y);
       m.onDead = () => this.handleMinionDrop(defId, m.x, m.y);
@@ -6481,6 +6513,43 @@ export class GameScene extends Phaser.Scene {
     buildAnims('slime2', 11);   // attack: 11 cols
     buildAnims('slime3', 9);    // attack: 9 cols
 
+    // Orc variants: idle=4, walk=6, run=8, attack=8, hurt=6, death=8
+    // Row order: down/up/left/right — same as slime sheets
+    const buildOrcAnims = (prefix: string) => {
+      if (this.anims.exists(`${prefix}_idle_down`)) return;
+      const orcDefs = [
+        { action: 'idle',   cols: 4, fps: 6,  repeat: -1 },
+        { action: 'walk',   cols: 6, fps: 10, repeat: -1 },
+        { action: 'run',    cols: 8, fps: 14, repeat: -1 },
+        { action: 'attack', cols: 8, fps: 12, repeat: 0  },
+        { action: 'hurt',   cols: 6, fps: 14, repeat: 0  },
+        { action: 'death',  cols: 8, fps: 8,  repeat: 0  },
+      ];
+      dirs.forEach((dir, row) => {
+        orcDefs.forEach(d => {
+          const start = row * d.cols;
+          this.anims.create({
+            key: `${prefix}_${d.action}_${dir}`,
+            frames: this.anims.generateFrameNumbers(`${prefix}_${d.action}`, { start, end: start + d.cols - 1 }),
+            frameRate: d.fps,
+            repeat: d.repeat,
+          });
+        });
+      });
+    };
+    buildOrcAnims('orc1');
+    buildOrcAnims('orc2');
+    buildOrcAnims('orc3');
+    // orc1 旋風斬專用動畫：從 attack sheet 取特定偵 2/25/11 快速輪播模擬旋轉
+    if (!this.anims.exists('orc1_whirl')) {
+      this.anims.create({
+        key: 'orc1_whirl',
+        frames: this.anims.generateFrameNumbers('orc1_attack', { frames: [2, 25, 11] }),
+        frameRate: 18,
+        repeat: -1,
+      });
+    }
+
     // Plant monsters — different frame counts: idle=4, attack=7, hurt=5, death=10
     const buildPlantAnims = (prefix: string) => {
       if (this.anims.exists(`${prefix}_idle_down`)) return;
@@ -6510,7 +6579,7 @@ export class GameScene extends Phaser.Scene {
 
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private spawnMinionAttack(type: 'shoot' | 'triple' | 'explode' | 'spike', mx: number, my: number, tx: number, ty: number, atk: number, isElite = false): void {
+  private spawnMinionAttack(type: import('../../../../shared/types').MsgMinionAttack['type'], mx: number, my: number, tx: number, ty: number, atk: number, isElite = false): void {
     const wx = mx * DPR, wy = my * DPR, wtx = tx * DPR, wty = ty * DPR;
     if (type === 'shoot') {
       this.fireProjectile(wx, wy, wtx, wty, isElite ? 'proj_fast_elite' : 'proj_fast', Math.round(atk * 4.0), Math.round(150 * DPR));
@@ -6528,9 +6597,403 @@ export class GameScene extends Phaser.Scene {
       this.hitBatches.forEach((ts, id) => { if (ts < cutoff) this.hitBatches.delete(id); });
     } else if (type === 'spike') {
       this.spikeAt(tx * DPR, ty * DPR, atk, isElite);
+    } else if (type === 'blade_wave') {
+      this.bladeWaveAt(wx, wy, wtx, wty, atk, isElite);
+    } else if (type === 'triple_wave') {
+      const baseAngle = Phaser.Math.Angle.Between(wx, wy, wtx, wty);
+      const spread = Math.PI * 35 / 180;
+      for (const offset of [-spread, 0, spread]) {
+        const a = baseAngle + offset;
+        const etx = wx + Math.cos(a) * P(600);
+        const ety = wy + Math.sin(a) * P(600);
+        this.bladeWaveAt(wx, wy, etx, ety, atk, isElite);
+      }
+    } else if (type === 'whirl_slash') {
+      this.whirlSlashAt(wx, wy, wtx, wty, atk, isElite);
+    } else if (type === 'arc_slash') {
+      this.arcSlashAt(wx, wy, wtx, wty, atk, isElite);
+    } else if (type === 'leap_slam') {
+      this.explodeAt(wx, wy, atk, isElite ? 1.8 : 1.4);
+      this.leapLandVfx(wx, wy);
+    } else if (type === 'spin_slash') {
+      this.spinSlashAt(wx, wy, atk, isElite);
+    } else if (type === 'ground_crack') {
+      this.groundCrackAt(wx, wy, wtx, wty, atk, isElite);
     } else {
       this.explodeAt(wx, wy, atk, isElite ? 1.4 : 1.0);
     }
+  }
+
+  private whirlSlashAt(wx: number, wy: number, wtx: number, wty: number, atk: number, isElite: boolean): void {
+    const dmg   = Math.round(atk * 4.5);
+    const hitR  = Math.round((isElite ? 36 : 28) * DPR);
+    const angle = Phaser.Math.Angle.Between(wx, wy, wtx, wty);
+    const dist  = Phaser.Math.Distance.Between(wx, wy, wtx, wty);
+
+    // 沿實際衝刺路徑（900ms × 110px/s）每 75ms 生成一個旋轉月牙刀光
+    const travelDist = Math.round(110 * DPR * 0.9);  // 對應 WHIRL_SPEED × WHIRL_DURATION
+    const totalMs    = 900;
+    const interval   = 75;
+    const count      = Math.floor(totalMs / interval);  // ≈ 12 個
+    for (let i = 0; i <= count; i++) {
+      const t   = i / count;
+      const cx  = wx + Math.cos(angle) * travelDist * t;
+      const cy  = wy + Math.sin(angle) * travelDist * t;
+      const del = i * interval;
+      this.time.delayedCall(del, () => {
+        const gfx = this.add.graphics({ x: cx, y: cy }).setDepth(50);
+        const rot = angle + (i * Math.PI * 0.55);  // 每個月牙角度旋轉
+        const R   = Math.round(hitR * 1.25);
+        const Ri  = Math.round(R * 0.42);
+        // 外光暈
+        gfx.lineStyle(P(10), 0xffee44, 0.2);
+        gfx.beginPath(); gfx.arc(0, 0, R + P(4), rot - Math.PI * 0.38, rot + Math.PI * 0.38, false); gfx.strokePath();
+        // 月牙填色
+        gfx.fillStyle(0xffdd00, 0.75);
+        gfx.beginPath();
+        gfx.arc(0, 0, R,  rot - Math.PI * 0.38, rot + Math.PI * 0.38, false);
+        gfx.arc(0, 0, Ri, rot + Math.PI * 0.38, rot - Math.PI * 0.38, true);
+        gfx.closePath();
+        gfx.fillPath();
+        // 白色外緣
+        gfx.lineStyle(P(2), 0xffffff, 0.85);
+        gfx.beginPath(); gfx.arc(0, 0, R, rot - Math.PI * 0.38, rot + Math.PI * 0.38, false); gfx.strokePath();
+        this.tweens.add({ targets: gfx, alpha: 0, scaleX: 1.25, scaleY: 1.25, duration: 260, ease: 'Quad.Out', onComplete: () => gfx.destroy() });
+      });
+    }
+
+    // 傷害判定：膠囊形（沿路徑線段距離 hitR 以內）
+    const capsuleCheck = (px: number, py: number): boolean => {
+      const dx = wtx - wx, dy = wty - wy;
+      const len2 = dx * dx + dy * dy;
+      if (len2 === 0) return Phaser.Math.Distance.Between(px, py, wx, wy) <= hitR;
+      const t = Math.max(0, Math.min(1, ((px - wx) * dx + (py - wy) * dy) / len2));
+      return Phaser.Math.Distance.Between(px, py, wx + t * dx, wy + t * dy) <= hitR;
+    };
+    if (capsuleCheck(this.player.x, this.player.y)) this.player.takeDamage(dmg);
+    for (const ally of this._allyMinions) { if (!ally.isDead && capsuleCheck(ally.x, ally.y)) ally.takeDamage(dmg); }
+  }
+
+  private bladeWaveAt(wx: number, wy: number, wtx: number, wty: number, atk: number, isElite: boolean): void {
+    const dmg  = Math.round(atk * 5.0);
+    const ang  = Phaser.Math.Angle.Between(wx, wy, wtx, wty);
+    // 眉月形狀：兩個等半徑圓錯開，裁切出薄月牙。
+    // Circle 1: center (0,0) radius R  — 外弧（月背）
+    // Circle 2: center (d,0)  radius R — 內弧（月面）, d 沿飛行方向偏移
+    // 兩圓交點 = 兩個尖端 → 自然收尖
+    const R    = Math.round((isElite ? 13 : 10) * DPR);
+    const d    = R * 0.72;
+    const tipX = d / 2;
+    const tipY = Math.sqrt(R * R - tipX * tipX);
+
+    // 尖端角度（相對各自圓心）
+    const t1  = Math.atan2( tipY,  tipX);          // 圓1，上尖，~69°
+    const t2  = Math.atan2(-tipY,  tipX);          // 圓1，下尖，~-69°
+    const i1  = Math.atan2( tipY,  tipX - d);      // 圓2，上尖，~111°
+    const i2  = Math.atan2(-tipY,  tipX - d);      // 圓2，下尖，~-111°
+
+    const travelDist = Math.round(160 * DPR);
+    const hitR = Math.round(R * 1.2);
+    const dur  = 700;
+    const ex = wx + Math.cos(ang) * travelDist;
+    const ey = wy + Math.sin(ang) * travelDist;
+
+    // 只畫內側弓弧帶（圓2的內弧，從下尖繞過月面到上尖），不畫外圈大弧
+    // 用兩條不同縮放的內弧圍成薄條
+    const buildArcStrip = (outerS: number, innerS: number): {x:number; y:number}[] => {
+      const N   = 30;
+      const ca  = Math.cos(ang), sa_ = Math.sin(ang);
+      const rot = (lx: number, ly: number) => ({ x: lx * ca - ly * sa_, y: lx * sa_ + ly * ca });
+      const pts: {x:number; y:number}[] = [];
+      // 外緣（較大半徑內弧，走圓2前弧 through 0°）
+      for (let j = 0; j <= N; j++) {
+        const a = i2 + (i1 - i2) * j / N;
+        pts.push(rot(d * outerS + Math.cos(a) * R * outerS, Math.sin(a) * R * outerS));
+      }
+      // 內緣（較小半徑內弧，反向）
+      for (let j = N; j >= 0; j--) {
+        const a = i2 + (i1 - i2) * j / N;
+        pts.push(rot(d * innerS + Math.cos(a) * R * innerS, Math.sin(a) * R * innerS));
+      }
+      return pts;
+    };
+
+    const drawCrescent = (g: Phaser.GameObjects.Graphics, alpha: number): void => {
+      g.clear();
+      // 外圍柔光帶
+      g.fillStyle(0x0022ff, 0.12 * alpha); g.fillPoints(buildArcStrip(0.98, 0.80), true);
+      g.fillStyle(0x0044cc, 0.18 * alpha); g.fillPoints(buildArcStrip(0.96, 0.82), true);
+      // 主深藍填色
+      g.fillStyle(0x0044cc, 0.93 * alpha); g.fillPoints(buildArcStrip(0.94, 0.86), true);
+      // 亮藍中層
+      g.fillStyle(0x0088ff, 0.55 * alpha); g.fillPoints(buildArcStrip(0.93, 0.87), true);
+      // 青色高光
+      g.fillStyle(0x44ddff, 0.30 * alpha); g.fillPoints(buildArcStrip(0.92, 0.88), true);
+      // 外緣亮線
+      const N2 = 30, ca2 = Math.cos(ang), sa2 = Math.sin(ang);
+      const rot2 = (lx: number, ly: number) => ({ x: lx * ca2 - ly * sa2, y: lx * sa2 + ly * ca2 });
+      const rimPts: {x:number; y:number}[] = [];
+      for (let j = 0; j <= N2; j++) {
+        const a = i2 + (i1 - i2) * j / N2;
+        rimPts.push(rot2(d + Math.cos(a) * R, Math.sin(a) * R));
+      }
+      g.lineStyle(P(2), 0x55eeff, alpha);
+      g.beginPath(); rimPts.forEach((p, idx) => idx === 0 ? g.moveTo(p.x, p.y) : g.lineTo(p.x, p.y)); g.strokePath();
+      g.lineStyle(P(1), 0xffffff, 0.80 * alpha);
+      g.beginPath(); rimPts.forEach((p, idx) => idx === 0 ? g.moveTo(p.x, p.y) : g.lineTo(p.x, p.y)); g.strokePath();
+      // 兩端尖點閃光
+      for (const sy of [1, -1]) {
+        const tx = tipX * ca2 - tipY * sy * sa2, ty = tipX * sa2 + tipY * sy * ca2;
+        g.fillStyle(0xffffff, 0.95 * alpha); g.fillCircle(tx, ty, P(1.8));
+        g.fillStyle(0x88eeff, 0.55 * alpha); g.fillCircle(tx, ty, P(3.5));
+      }
+      // 尾跡能量線
+      const bk = ang + Math.PI, sRi = R * 0.85;
+      for (let i = 0; i < 3; i++) {
+        const sA = bk + (i - 1) * 0.25, sL = R * (0.40 + i * 0.07);
+        g.lineStyle(P(1.4 - i * 0.3), 0x66aaff, (0.42 - i * 0.10) * alpha);
+        g.beginPath(); g.moveTo(Math.cos(sA) * sRi, Math.sin(sA) * sRi);
+        g.lineTo(Math.cos(sA) * (sRi + sL), Math.sin(sA) * (sRi + sL)); g.strokePath();
+      }
+    };
+
+    const gfx = this.add.graphics({ x: wx, y: wy }).setDepth(52);
+    drawCrescent(gfx, 1);
+
+    [70, 145, 220].forEach((delay, i) => {
+      this.time.delayedCall(delay, () => {
+        const ghost = this.add.graphics({ x: gfx.x, y: gfx.y }).setDepth(51);
+        drawCrescent(ghost, 0.40 - i * 0.10);
+        this.tweens.add({ targets: ghost, alpha: 0, scaleX: 0.78, scaleY: 0.78, duration: 180, ease: 'Quad.In', onComplete: () => ghost.destroy() });
+      });
+    });
+
+    let hitPlayer = false;
+    const hitAllies = new Set<MinionSlime>();
+
+    this.tweens.add({
+      targets: gfx,
+      x: ex, y: ey,
+      duration: dur,
+      ease: 'Linear',
+      onUpdate: () => {
+        if (!hitPlayer && Phaser.Math.Distance.Between(gfx.x, gfx.y, this.player.x, this.player.y) < hitR) {
+          hitPlayer = true; this.player.takeDamage(dmg);
+        }
+        for (const ally of this._allyMinions) {
+          if (!ally.isDead && !hitAllies.has(ally) &&
+              Phaser.Math.Distance.Between(gfx.x, gfx.y, ally.x, ally.y) < hitR) {
+            hitAllies.add(ally); ally.takeDamage(dmg);
+          }
+        }
+      },
+      onComplete: () => this.tweens.add({ targets: gfx, alpha: 0, duration: 100, onComplete: () => gfx.destroy() }),
+    });
+
+    const flash = this.add.graphics({ x: wx, y: wy }).setDepth(53);
+    flash.fillStyle(0x88ddff, 0.55); flash.fillPoints(buildArcStrip(0.94, 0.86), true);
+    flash.fillStyle(0xffffff, 0.65); flash.fillCircle(0, 0, P(4));
+    this.tweens.add({ targets: flash, scaleX: 1.9, scaleY: 1.9, alpha: 0, duration: 220, ease: 'Quad.Out', onComplete: () => flash.destroy() });
+  }
+
+  private arcSlashAt(wx: number, wy: number, wtx: number, wty: number, atk: number, isElite: boolean): void {
+    const angle = Phaser.Math.Angle.Between(wx, wy, wtx, wty);
+    const R  = Math.round((isElite ? 72 : 56) * DPR);
+    const Ri = Math.round(R * 0.42);  // inner radius of crescent
+    const dmg = Math.round(atk * 5.5);
+    const spread = Math.PI * 75 / 360;  // 37.5° each side = 75° total
+    const sa = angle - spread, ea = angle + spread;
+
+    const gfx = this.add.graphics({ x: wx, y: wy }).setDepth(50);
+
+    // Outer glow halo
+    gfx.lineStyle(P(14), 0xffee55, 0.22);
+    gfx.beginPath(); gfx.arc(0, 0, R + P(6), sa, ea, false); gfx.strokePath();
+
+    // Solid crescent fill (outer arc → inner arc reversed = crescent moon)
+    gfx.fillStyle(0xffe030, 0.82);
+    gfx.beginPath();
+    gfx.arc(0, 0, R,  sa, ea, false);
+    gfx.arc(0, 0, Ri, ea, sa, true);
+    gfx.closePath();
+    gfx.fillPath();
+
+    // Bright edge stroke on outer arc
+    gfx.lineStyle(P(2.5), 0xffffff, 0.9);
+    gfx.beginPath(); gfx.arc(0, 0, R, sa, ea, false); gfx.strokePath();
+
+    // Tip sparkle lines at each end of the outer arc
+    for (const tipA of [sa, ea]) {
+      const tx0 = Math.cos(tipA) * R, ty0 = Math.sin(tipA) * R;
+      const norm = tipA + (tipA === sa ? -Math.PI * 0.18 : Math.PI * 0.18);
+      gfx.lineStyle(P(2), 0xffffff, 0.75);
+      gfx.beginPath();
+      gfx.moveTo(tx0, ty0);
+      gfx.lineTo(tx0 + Math.cos(norm) * P(10), ty0 + Math.sin(norm) * P(10));
+      gfx.strokePath();
+    }
+
+    // Expand + fade in place
+    this.tweens.add({
+      targets: gfx,
+      scaleX: 1.4, scaleY: 1.4,
+      alpha: 0,
+      duration: 280,
+      ease: 'Cubic.Out',
+      onComplete: () => gfx.destroy(),
+    });
+
+    // Damage: cone check (hits while travelling)
+    const check = (px: number, py: number): boolean => {
+      if (Phaser.Math.Distance.Between(wx, wy, px, py) > R * 2) return false;
+      const a = Phaser.Math.Angle.Between(wx, wy, px, py);
+      return Math.abs(Phaser.Math.Angle.Wrap(a - angle)) <= spread;
+    };
+    if (check(this.player.x, this.player.y)) this.player.takeDamage(dmg);
+    for (const ally of this._allyMinions) { if (!ally.isDead && check(ally.x, ally.y)) ally.takeDamage(dmg); }
+  }
+
+  private leapLandVfx(wx: number, wy: number): void {
+    const ring = this.add.graphics({ x: wx, y: wy }).setDepth(50);
+    ring.lineStyle(P(5), 0xff8800, 1);
+    ring.strokeCircle(0, 0, P(20));
+    this.tweens.add({ targets: ring, scaleX: 4, scaleY: 4, alpha: 0, duration: 420, ease: 'Cubic.Out', onComplete: () => ring.destroy() });
+    const flash = this.add.graphics({ x: wx, y: wy }).setDepth(51);
+    flash.fillStyle(0xffffff, 1); flash.fillCircle(0, 0, P(25));
+    this.tweens.add({ targets: flash, scaleX: 0.1, scaleY: 0.1, alpha: 0, duration: 200, ease: 'Quad.In', onComplete: () => flash.destroy() });
+  }
+
+  private spinSlashAt(wx: number, wy: number, atk: number, isElite: boolean): void {
+    const R = Math.round((isElite ? 80 : 65) * DPR);
+    const dmg = Math.round(atk * 4.5);
+    const gfx = this.add.graphics({ x: wx, y: wy }).setDepth(50);
+    // Spinning rings expanding outward
+    let rings = 0;
+    const spinTimer = this.time.addEvent({ delay: 120, loop: true, callback: () => {
+      rings++;
+      const r = this.add.graphics({ x: wx, y: wy }).setDepth(49);
+      r.lineStyle(P(3), 0xffcc00, 0.85);
+      r.strokeCircle(0, 0, R * 0.4);
+      this.tweens.add({ targets: r, scaleX: 2.5, scaleY: 2.5, alpha: 0, duration: 380, ease: 'Cubic.Out', onComplete: () => r.destroy() });
+      if (rings >= 4) spinTimer.destroy();
+    }});
+    gfx.lineStyle(P(4), 0xffaa00, 0.9);
+    gfx.strokeCircle(0, 0, R);
+    this.tweens.add({ targets: gfx, scaleX: 1.15, scaleY: 1.15, alpha: 0, duration: 500, ease: 'Quad.Out', onComplete: () => gfx.destroy() });
+    this.hitInRadius(wx, wy, R, dmg);
+  }
+
+  private groundCrackAt(wx: number, wy: number, wtx: number, wty: number, atk: number, isElite: boolean): void {
+    const baseAngle = Phaser.Math.Angle.Between(wx, wy, wtx, wty);
+    const dmg    = Math.round(atk * (isElite ? 4.0 : 3.5));
+    const len    = Math.round((isElite ? 240 : 200) * DPR);
+    const spread = Math.PI * 28 / 180;
+    for (let i = 0; i < 3; i++) {
+      this.fireGroundCrack(wx, wy, baseAngle + (i - 1) * spread, len, dmg);
+    }
+    // 落地衝擊：外擴光環 + 中心閃白
+    const ring = this.add.graphics({ x: wx, y: wy }).setDepth(55);
+    ring.lineStyle(P(3), 0xff6600, 1);
+    ring.strokeCircle(0, 0, P(10));
+    this.tweens.add({ targets: ring, scaleX: 5, scaleY: 5, alpha: 0, duration: 380, ease: 'Cubic.Out', onComplete: () => ring.destroy() });
+    const core = this.add.graphics({ x: wx, y: wy }).setDepth(56);
+    core.fillStyle(0xffffff, 1); core.fillCircle(0, 0, P(12));
+    this.tweens.add({ targets: core, scaleX: 0.05, scaleY: 0.05, alpha: 0, duration: 200, ease: 'Quad.In', onComplete: () => core.destroy() });
+  }
+
+  private fireGroundCrack(fx: number, fy: number, angle: number, len: number, dmg: number): void {
+    const SEG = 14;
+    const perp = angle + Math.PI / 2;
+
+    // 產生鋸齒中心線
+    const ctr: { x: number; y: number }[] = [{ x: fx, y: fy }];
+    for (let i = 1; i <= SEG; i++) {
+      const t   = i / SEG;
+      const bx  = fx + Math.cos(angle) * len * t;
+      const by  = fy + Math.sin(angle) * len * t;
+      const off = ((i % 2 === 0) ? 1 : -1) * P(9) * (1 - t * 0.45) * (0.5 + Math.random() * 0.5);
+      ctr.push({ x: bx + Math.cos(perp) * off, y: by + Math.sin(perp) * off });
+    }
+
+    // 依中心線建左右邊緣（起點寬、尖端窄）→ 形成一條有厚度的裂縫多邊形
+    const wMax = P(7), wMin = P(1.8);
+    const left: { x: number; y: number }[]  = [];
+    const right: { x: number; y: number }[] = [];
+    for (let i = 0; i <= SEG; i++) {
+      const t  = i / SEG;
+      const w  = wMax + (wMin - wMax) * t;
+      const pa = i < SEG
+        ? Math.atan2(ctr[i + 1].y - ctr[i].y, ctr[i + 1].x - ctr[i].x) + Math.PI / 2
+        : Math.atan2(ctr[i].y - ctr[i - 1].y, ctr[i].x - ctr[i - 1].x) + Math.PI / 2;
+      left.push({ x: ctr[i].x + Math.cos(pa) * w, y: ctr[i].y + Math.sin(pa) * w });
+      right.push({ x: ctr[i].x - Math.cos(pa) * w, y: ctr[i].y - Math.sin(pa) * w });
+    }
+
+    const gfx = this.add.graphics().setDepth(19);
+    let hitPlayer = false;
+    const hitAllies = new Set<MinionSlime>();
+    const allies    = [...this._allyMinions];
+    const hitR      = P(17);
+
+    const segHit = (ax: number, ay: number, bx: number, by: number, px: number, py: number): boolean => {
+      const dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy;
+      const t  = l2 === 0 ? 0 : Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / l2));
+      return Phaser.Math.Distance.Between(ax + t * dx, ay + t * dy, px, py) < hitR;
+    };
+
+    const prog = { v: 0 };
+    this.tweens.add({
+      targets: prog, v: 1, duration: 420, ease: 'Quad.Out',
+      onUpdate: () => {
+        const vi = Math.min(Math.floor(prog.v * SEG) + 1, SEG);
+        gfx.clear();
+
+        // 外層柔光暈
+        gfx.lineStyle(P(16), 0xff4400, 0.08);
+        gfx.beginPath(); gfx.moveTo(ctr[0].x, ctr[0].y);
+        for (let i = 1; i <= vi; i++) gfx.lineTo(ctr[i].x, ctr[i].y);
+        gfx.strokePath();
+
+        // 填充裂縫本體（實體黑縫）
+        const poly = [...left.slice(0, vi + 1), ...[...right.slice(0, vi + 1)].reverse()];
+        gfx.fillStyle(0x050000, 1);
+        gfx.fillPoints(poly, true);
+
+        // 裂縫邊緣橘色發光
+        gfx.lineStyle(P(2), 0xff5500, 0.9);
+        gfx.beginPath(); gfx.moveTo(left[0].x, left[0].y);
+        for (let i = 1; i <= vi; i++) gfx.lineTo(left[i].x, left[i].y);
+        gfx.strokePath();
+        gfx.beginPath(); gfx.moveTo(right[0].x, right[0].y);
+        for (let i = 1; i <= vi; i++) gfx.lineTo(right[i].x, right[i].y);
+        gfx.strokePath();
+
+        // 中心細亮線（熔岩感）
+        gfx.lineStyle(P(1), 0xffcc44, 0.75);
+        gfx.beginPath(); gfx.moveTo(ctr[0].x, ctr[0].y);
+        for (let i = 1; i <= vi; i++) gfx.lineTo(ctr[i].x, ctr[i].y);
+        gfx.strokePath();
+
+        // 前端擴散粒子
+        const tip = ctr[vi];
+        gfx.fillStyle(0xff8800, 0.8); gfx.fillCircle(tip.x, tip.y, P(5));
+        gfx.fillStyle(0xffee88, 1);   gfx.fillCircle(tip.x, tip.y, P(2));
+
+        // 傷害：每段膠囊判定
+        for (let i = 0; i < vi; i++) {
+          if (!hitPlayer && segHit(ctr[i].x, ctr[i].y, ctr[i + 1].x, ctr[i + 1].y, this.player.x, this.player.y)) {
+            hitPlayer = true; this.player.takeDamage(dmg);
+          }
+          for (const ally of allies) {
+            if (!ally.isDead && !hitAllies.has(ally) &&
+                segHit(ctr[i].x, ctr[i].y, ctr[i + 1].x, ctr[i + 1].y, ally.x, ally.y)) {
+              hitAllies.add(ally); ally.takeDamage(dmg);
+            }
+          }
+        }
+      },
+      onComplete: () => this.tweens.add({ targets: gfx, alpha: 0, duration: 450, delay: 250, onComplete: () => gfx.destroy() }),
+    });
   }
 
   private fireBossPetal(fromX: number, fromY: number, angle: number, speed: number, dmg: number, blindDist: number, large = false): void {
@@ -7633,6 +8096,16 @@ export class GameScene extends Phaser.Scene {
       g.fillTriangle(16, 4, 8, 20, 24, 20);
       g.fillStyle(0xaaffee, 0.6); g.fillCircle(13, 14, 4);
       g.generateTexture('icon_slime_essence', 32, 32);
+      g.destroy();
+    }
+    if (!this.textures.exists('proj_blade_wave')) {
+      const g = (this.make.graphics as any)({ x: 0, y: 0, add: false }) as Phaser.GameObjects.Graphics;
+      const W = P(14), H = P(6);
+      // Elongated horizontal slash — cyan-white gradient feel
+      g.fillStyle(0x0077cc, 0.85); g.fillRect(0, 0, W, H);
+      g.fillStyle(0x44eeff, 1);    g.fillRect(P(2), P(1), W - P(4), H - P(2));
+      g.fillStyle(0xffffff, 0.9);  g.fillRect(P(4), P(2), W - P(8), H - P(4));
+      g.generateTexture('proj_blade_wave', W, H);
       g.destroy();
     }
     if (!this.textures.exists('proj_fast')) {
