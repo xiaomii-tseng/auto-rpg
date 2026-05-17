@@ -256,6 +256,11 @@ export class GameScene extends Phaser.Scene {
     if (!this.textures.exists('icon_stone_guard')) this.load.image('icon_stone_guard', 'other/ore3.webp');
     if (!this.textures.exists('icon_quest_reroll')) this.load.image('icon_quest_reroll', 'other/ore4.webp');
     if (!this.textures.exists('icon_equip_drop'))   this.load.image('icon_equip_drop',   'other/fight.webp');
+    for (let i = 1; i <= 70; i++) {
+      const key = `equip_sword${i}`;
+      if (!this.textures.exists(key))
+        this.load.image(key, `equip/weapons/Icons/Iicon_32_${String(i).padStart(2, '0')}.png`);
+    }
     if (!this.textures.exists('icon_gold')) this.load.image('icon_gold', 'other/coin.webp');
     if (!this.textures.exists('icon_potion_health_s')) this.load.image('icon_potion_health_s', 'other/coin.webp');
     if (!this.textures.exists('icon_potion_health_m')) this.load.image('icon_potion_health_m', 'other/coin.webp');

@@ -705,10 +705,13 @@ export class PrepScene extends Phaser.Scene {
       hit.on('pointerout', () => { if (!isSelected) drawCard(false); });
       hit.on('pointerdown', () => {
         wardObjs.forEach(o => o.destroy());
-        if (i !== currentSkin) {
-          SkinStore.set(i);
-          this._applySkin(i);
+        if (i === currentSkin) return;
+        if (this._partyState !== 'none') {
+          this._showToast('組隊中無法換造型');
+          return;
         }
+        SkinStore.set(i);
+        this.scene.restart();
       });
     });
     const closeBg = this.add.rectangle(W / 2, H / 2, W, H)
@@ -6283,7 +6286,10 @@ export class PrepScene extends Phaser.Scene {
         const bImg = this.add.image(wx, wy, obj.buildingKey)
           .setScale(DPR * (obj.buildingScale ?? 1.4)).setOrigin(0.5, 1).setDepth(bDepth)
           .setInteractive({ useHandCursor: true })
-          .on('pointerup', (_p: any, _lx: any, _ly: any, ev: any) => { ev?.stopPropagation?.(); obj.onActivate(); });
+          .on('pointerup', (p: Phaser.Input.Pointer, _lx: any, _ly: any, ev: any) => {
+            ev?.stopPropagation?.();
+            if (!this._townJoystick?.ownsPointer(p.id)) obj.onActivate();
+          });
 
         // Collision rect (red debug box — adjust collW/collH to fit)
         const cW = obj.collW ?? (obj.tapW ?? PAD_W + P(20));
@@ -6341,7 +6347,7 @@ export class PrepScene extends Phaser.Scene {
 
           const tentImg = this.add.image(tx, ty, 'deco_tent')
             .setScale(DPR * 1.1).setOrigin(0.5, 1)
-            .setDepth(bDepth - 0.000000000000001);
+            .setDepth(bDepth - 0.000001);
           this._townContainer?.add(tentImg);
 
           // Collision rect
@@ -6365,7 +6371,10 @@ export class PrepScene extends Phaser.Scene {
         const animSprite = this.add.sprite(wx, wy, obj.animKey)
           .setScale(DPR * 2).setOrigin(0.5, 1).setDepth(aDepth)
           .setInteractive({ useHandCursor: true })
-          .on('pointerup', (_p: any, _lx: any, _ly: any, ev: any) => { ev?.stopPropagation?.(); obj.onActivate(); });
+          .on('pointerup', (p: Phaser.Input.Pointer, _lx: any, _ly: any, ev: any) => {
+            ev?.stopPropagation?.();
+            if (!this._townJoystick?.ownsPointer(p.id)) obj.onActivate();
+          });
         const animKey = obj.animKey + '_anim';
         if (!this.anims.exists(animKey))
           this.anims.create({ key: animKey, frames: this.anims.generateFrameNumbers(obj.animKey, { start: 0, end: 3 }), frameRate: 8, repeat: -1 });
@@ -6780,8 +6789,9 @@ export class PrepScene extends Phaser.Scene {
     if (this._partyState !== 'none') return;
 
     const BW = P(84), BH = P(32);
-    const bx = W - P(8) - BW / 2;
-    const by = H / 2;
+    const SET_S = P(36);
+    const bx = W - SET_S - P(4) - P(6) - BW / 2;
+    const by = P(4) + SET_S / 2;
     const D  = 56;
 
     const bg = this.add.graphics().setDepth(D);
@@ -7094,8 +7104,9 @@ export class PrepScene extends Phaser.Scene {
         r.sprite.setPosition(nx, ny);
         r.nameLabel.setPosition(nx, ny - P(28));
       }
-      r.sprite.setDepth(4 + r.sprite.y / tileSize);
-      r.nameLabel.setDepth(4 + r.sprite.y / tileSize + 0.1);
+      const remoteDepth = 4 + r.sprite.y / tileSize + 0.5;
+      r.sprite.setDepth(remoteDepth);
+      r.nameLabel.setDepth(remoteDepth + 0.1);
     });
   }
 }
