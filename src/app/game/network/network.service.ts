@@ -231,8 +231,8 @@ class NetworkServiceClass {
     this.room?.send('minionSync', { minions } satisfies MsgMinionSync);
   }
 
-  sendMinionHit(minionId: string, damage: number): void {
-    this.room?.send('minionHit', { minionId, damage } satisfies MsgMinionHit);
+  sendMinionHit(minionId: string, damage: number, forceKill = false): void {
+    this.room?.send('minionHit', { minionId, damage, forceKill } satisfies MsgMinionHit);
   }
 
   sendBossInit(hp: number): void {

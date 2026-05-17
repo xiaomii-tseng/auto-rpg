@@ -193,6 +193,7 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
   get isDead():    boolean { return this.mState === MinionState.DEAD; }
   get isDashing(): boolean { return this.mState === MinionState.DASHING || this.guestDashing; }
   get currentHp(): number  { return this.hp; }
+  get maxHpValue(): number { return this.maxHp; }
 
   applyGuestState(isDashing: boolean, dir: 'down' | 'left' | 'right' | 'up', moving: boolean): void {
     if (this.mState === MinionState.DEAD) return;

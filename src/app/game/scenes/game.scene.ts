@@ -583,7 +583,7 @@ export class GameScene extends Phaser.Scene {
             if (alive.length === 0) return;
             NetworkService.sendMinionSync(alive.map(m => ({
               id: m.minionId, x: m.x / DPR, y: m.y / DPR,
-              hp: m.currentHp, maxHp: m.currentHp, isDead: false, isDashing: m.isDashing,
+              hp: m.currentHp, maxHp: m.maxHpValue, isDead: false, isDashing: m.isDashing,
             })));
           },
         });
@@ -2102,7 +2102,10 @@ export class GameScene extends Phaser.Scene {
     }
     if (NetworkService.connected) {
       if (isBoss) NetworkService.sendBossHit(bossHpBefore - this.boss.currentHp);
-      else NetworkService.sendMinionHit((target as MinionSlime).minionId, dmg);
+      else {
+        const minion = target as MinionSlime;
+        NetworkService.sendMinionHit(minion.minionId, dmg, minion.isDead);
+      }
     }
 
     // 溢出傷害 AOE

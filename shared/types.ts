@@ -38,7 +38,7 @@ export interface MsgReady        { nickname: string; level?: number; questId?: s
 export interface MsgMove         { x: number; y: number; lastDir: string; hp: number; maxHp: number }
 export interface MsgHpUpdate     { hp: number; maxHp: number }
 export interface MsgMinionSync   { minions: MinionState[] }  // host only
-export interface MsgMinionHit    { minionId: string; damage: number }
+export interface MsgMinionHit    { minionId: string; damage: number; forceKill?: boolean }
 export interface MsgBossHit      { damage: number }
 export interface MsgBossSync     {
   state:  string;           // 'POS' | BossState value | 'PHASE2' | 'LAVA_PHASE2_PILLARS'

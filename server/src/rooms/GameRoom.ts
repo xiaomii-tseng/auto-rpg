@@ -132,7 +132,7 @@ export class GameRoom extends Room<GameRoomState> {
       const m = this.minionState[msg.minionId];
       if (!m || m.isDead) return;
       m.hp -= msg.damage;
-      if (m.hp <= 0) { m.hp = 0; m.isDead = true; }
+      if (m.hp <= 0 || msg.forceKill) { m.hp = 0; m.isDead = true; }
       this.broadcast('minionHit', { minionId: msg.minionId, hp: m.hp, isDead: m.isDead });
     });
 
