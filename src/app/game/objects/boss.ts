@@ -43,6 +43,12 @@ export enum BossState {
   SLOW_ZONE_WARN = 'SLOW_ZONE_WARN',
   ROOT_WARN      = 'ROOT_WARN',
   CROWN_WARN     = 'CROWN_WARN',
+  ORC_WHIRL_WARN  = 'ORC_WHIRL_WARN',
+  ORC_WHIRLING    = 'ORC_WHIRLING',
+  ORC_SUMMON_WARN = 'ORC_SUMMON_WARN',
+  ORC_FAN_WARN    = 'ORC_FAN_WARN',
+  ORC_BOULDER_WARN = 'ORC_BOULDER_WARN',
+  ORC_ROAR_WARN   = 'ORC_ROAR_WARN',
   DEAD             = 'DEAD',
 }
 
@@ -294,7 +300,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
 
   protected setBossState(state: BossState): void { this.bossState = state; }
 
-  private updateDirToTarget(): void {
+  protected updateDirToTarget(): void {
     const [tx, ty] = this.getTargetPos();
     const dx = tx - this.x, dy = ty - this.y;
     this.bossDir = Math.abs(dx) >= Math.abs(dy)

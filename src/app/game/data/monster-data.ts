@@ -266,7 +266,7 @@ export const MONSTER_DEFS: MonsterDef[] = [
 
   // ── 獸人小怪 Tier 1 (minStar=3) ───────────────────────
   {
-    id: 'orc1_s', name: '獸人戰士', spriteKey: 'orc1', frameEnd: 7,
+    id: 'orc1_s', name: '獸人', spriteKey: 'orc1', frameEnd: 7,
     element: 'none', tint: 0xffffff, tier: 1, minStar: 3,
     hp: 130, atk: 20, speed: 80, exp: 35, gold: 12,
     cards: [{ cardId: 'card_orc1_n', rate: CR_S }],
@@ -289,7 +289,7 @@ export const MONSTER_DEFS: MonsterDef[] = [
 
   // ── 獸人菁英 Tier 3 (minStar=3) ────────────────────────
   {
-    id: 'elite_orc1', name: '獸人鬥士', spriteKey: 'orc1', frameEnd: 7,
+    id: 'elite_orc1', name: '菁英獸人', spriteKey: 'orc1', frameEnd: 7,
     element: 'none', tint: 0xffffff, tier: 3, minStar: 3,
     hp: 130, atk: 20, speed: 85, exp: 110, gold: 45,
     cards: [{ cardId: 'card_orc1_e', rate: CR_E }],
@@ -354,25 +354,34 @@ export const MONSTER_DEFS: MonsterDef[] = [
     drops: bossDrops,
   },
 
+  // ── 獸人Boss系列 ────────────────────────────────────────
+  {
+    id: 'boss_orc1', name: '獸人王', spriteKey: 'orc1', frameEnd: 7,
+    element: 'none', tint: 0xffffff, tier: 5,
+    hp: 900, atk: 27, def: 18, speed: 95, exp: 280, gold: 160,
+    cards: [{ cardId: 'card_orc1_b', rate: CR_B }],
+    drops: bossDrops,
+  },
+
   // ── 花Boss系列 ──────────────────────────────────────────
   {
     id: 'boss_flower_one', name: '食人花王', spriteKey: 'plant1', frameEnd: 9,
     element: 'grass', tint: 0xffffff, tier: 5,
-    hp: 800, atk: 25, def: 15, speed: 0, exp: 200, gold: 110,
+    hp: 800, atk: 28, def: 14, speed: 0, exp: 200, gold: 110,
     cards: [{ cardId: 'card_plant1_b', rate: CR_B }],
     drops: bossDrops,
   },
   {
     id: 'boss_flower_two', name: '藤蔓花王', spriteKey: 'plant2', frameEnd: 9,
     element: 'grass', tint: 0xffffff, tier: 5,
-    hp: 850, atk: 28, def: 15, speed: 0, exp: 210, gold: 115,
+    hp: 850, atk: 31, def: 14, speed: 0, exp: 210, gold: 115,
     cards: [{ cardId: 'card_plant2_b', rate: CR_B }],
     drops: bossDrops,
   },
   {
     id: 'boss_flower_three', name: '不死花王', spriteKey: 'plant3', frameEnd: 9,
     element: 'fire', tint: 0xffffff, tier: 5,
-    hp: 900, atk: 22, def: 8, speed: 0, exp: 220, gold: 120,
+    hp: 900, atk: 24, def: 7, speed: 0, exp: 220, gold: 120,
     cards: [{ cardId: 'card_plant3_b', rate: CR_B }],
     drops: bossDrops,
   },
@@ -549,17 +558,22 @@ export const CARD_DEFS: CardDef[] = [
   // 獸人族（3 家族）
   // ════════════════════════════════════════════════════
 
-  // ── 獸人戰士家族（暴擊主題）──
-  { id: 'card_orc1_n', name: '獸人戰士卡', monsterId: 'orc1_s',
+  // ── 獸人 菁英獸人 獸人王（暴擊主題）──
+  { id: 'card_orc1_n', name: '獸人卡', monsterId: 'orc1_s',
     family: 'orc1', race: 'orc', cardType: 'n',
     element: 'none', tint: 0xcc8833,
     effect: { atk: 10 },
     desc: '攻擊力+10' },
-  { id: 'card_orc1_e', name: '獸人鬥士卡', monsterId: 'elite_orc1',
+  { id: 'card_orc1_e', name: '菁英獸人卡', monsterId: 'elite_orc1',
     family: 'orc1', race: 'orc', cardType: 'e',
     element: 'none', tint: 0xdd9944,
     effect: { atk: 14, crit: 0.06 },
     desc: '攻擊力+14  暴擊率+6%' },
+  { id: 'card_orc1_b', name: '獸人王卡', monsterId: 'boss_orc1',
+    family: 'orc1', race: 'orc', cardType: 'b',
+    element: 'none', tint: 0xffaa22,
+    effect: { atk: 20, crit: 0.08, critDmg: 0.15 },
+    desc: '攻擊力+20  暴擊率+8%  爆擊傷害+15%' },
 
   // ── 獸人暴徒家族（生命主題）──
   { id: 'card_orc2_n', name: '獸人暴徒卡', monsterId: 'orc2_s',

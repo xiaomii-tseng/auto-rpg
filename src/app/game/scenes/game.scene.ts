@@ -11,6 +11,7 @@ import { BossLavaSlime } from '../objects/boss-lava-slime';
 import { BossFlowerOne } from '../objects/boss-flower-one';
 import { BossFlowerTwo } from '../objects/boss-flower-two';
 import { BossFlowerThree } from '../objects/boss-flower-three';
+import { BossOrc1 } from '../objects/boss-orc1';
 import { MinionSlime } from '../objects/minion-slime';
 import { VirtualJoystick } from '../ui/joystick';
 import { drawItemCell } from '../ui/item-cell';
@@ -149,7 +150,7 @@ export class GameScene extends Phaser.Scene {
   private readonly BOSS_ARENA_RADIUS = P(400);
   private bossArenaCenter = new Phaser.Math.Vector2(0, 0);
   private bossArenaShape = 0;   // 0=圓, 1=八角, 2=菱形, 3=圓角矩形
-  private bossMonsterId = 'boss_slime_white';
+  private bossMonsterId = 'boss_orc1';
   private questStar = 1;
   private _mapSeed = 0;
   private _mapTheme: 'grassland' | 'desert' | 'snow' | 'lava' | 'forest' | 'dungeon' = 'grassland';
@@ -771,12 +772,15 @@ export class GameScene extends Phaser.Scene {
       space: kb.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE),
     };
 
-    // ── 測試快捷鍵：按 ` 清除所有小怪並生成一隻測試怪 ──
-    const DEV_TEST_MONSTER = 'elite_orc3';  // ← 改這裡換怪物
+    // ── 測試快捷鍵：按 ` 清除所有小怪並傳送到BOSS場地 ──
     kb.on('keydown-BACKTICK', () => {
+      if (this.bossActive || this.teleporting) return;
       this.allMinions.forEach(m => { if (!m.isDead) m.forceKill(); });
-      const isEliteSpawn = DEV_TEST_MONSTER.startsWith('elite_');
-      this.time.delayedCall(200, () => this.spawnMinionAt(DEV_TEST_MONSTER, this.player.x + 150, this.player.y, isEliteSpawn));
+      this.bossActive = true;
+      this.teleporting = true;
+      this.player.move(0, 0);
+      (this.player.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
+      this.teleportToBossArena();
     });
 
     const onResize = () => this.physics.world.setBounds(0, 0, this.worldW, this.worldH);
@@ -3349,6 +3353,55 @@ export class GameScene extends Phaser.Scene {
       b.onFirePetal = (fromX, fromY, angle, speed, dmg, blindDist) => {
         if (!this.bossActive) return;
         this.fireBossPetal(fromX, fromY, angle, speed, dmg, blindDist);
+      };
+      return b;
+    }
+    if (bossDef.id === 'boss_orc1') {
+      const b = new BossOrc1(this, cx, cy, totalHp, bossDef.element, bossDef.spriteKey, bossDef.tint);
+      b.onWhirlTick = (x, y, r, dmg) => {
+        if (!this.bossActive) return;
+        this.hitInRadius(x, y, r, dmg);
+      };
+      b.onWhirlSlash = (wx, wy, tx, ty) => {
+        if (!this.bossActive) return;
+        this.whirlSlashAt(wx, wy, tx, ty, b.scaleDmg(40), true, Math.round(52 * DPR));
+      };
+      b.onSummonOrc = (x, y) => {
+        if (!this.bossActive) return;
+        this.spawnMinionAt('orc1_s', x, y, false);
+      };
+      b.onFanSlash = (bx, by, angle, half, range, dmg) => {
+        if (!this.bossActive) return;
+        const checkFan = (tx: number, ty: number) => {
+          const dx = tx - bx, dy = ty - by;
+          if (Math.sqrt(dx * dx + dy * dy) > range) return false;
+          return Math.abs(Phaser.Math.Angle.Wrap(Math.atan2(dy, dx) - angle)) <= half;
+        };
+        if (checkFan(this.player.x, this.player.y)) this.player.takeDamage(dmg);
+        for (const ally of this._allyMinions) {
+          if (!ally.isDead && checkFan(ally.x, ally.y)) ally.takeDamage(dmg);
+        }
+      };
+      b.onBoulderLand = (x, y, r, dmg) => {
+        if (!this.bossActive) return;
+        this.hitInRadius(x, y, r, dmg);
+      };
+      b.onSlowZoneTick = (x, y, r) => {
+        if (!this.bossActive) return;
+        const d = Phaser.Math.Distance.Between(x, y, this.player.x, this.player.y);
+        if (d <= r) {
+          this.player.speedMult = Math.min(this.player.speedMult, 0.45);
+          this.time.delayedCall(200, () => { if (this.player.speedMult < 1) this.player.speedMult = 1; });
+        }
+      };
+      b.onRoar = () => {
+        if (!this.bossActive) return;
+        this.player.speedMult = 0.5;
+        this.player.setTint(0xff8800);
+        this.time.delayedCall(3500, () => {
+          this.player.speedMult = 1;
+          this.player.clearTint();
+        });
       };
       return b;
     }
@@ -6624,9 +6677,9 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  private whirlSlashAt(wx: number, wy: number, wtx: number, wty: number, atk: number, isElite: boolean): void {
+  private whirlSlashAt(wx: number, wy: number, wtx: number, wty: number, atk: number, isElite: boolean, hitROverride?: number): void {
     const dmg   = Math.round(atk * 4.5);
-    const hitR  = Math.round((isElite ? 36 : 28) * DPR);
+    const hitR  = hitROverride ?? Math.round((isElite ? 36 : 28) * DPR);
     const angle = Phaser.Math.Angle.Between(wx, wy, wtx, wty);
     const dist  = Phaser.Math.Distance.Between(wx, wy, wtx, wty);
 

@@ -128,6 +128,7 @@ const COMBO1_BONUSES: Record<string, { name: string; bonus: StatBonus }> = {
   plant1:      { name: '食人花家族：強攻陣容', bonus: { atk: 15, dmgVsEliteOrBoss: 0.08 } },
   plant2:      { name: '藤蔓花家族：危機本能', bonus: { evasion: 0.06 } },
   plant3:      { name: '不死花家族：召喚強化', bonus: { summonDmgMult: 1.20 } },
+  orc1:        { name: '獸人 菁英獸人 獸人王：暴擊強化', bonus: { crit: 0.08, critDmg: 0.20 } },
 };
 
 // ── 組合二加成表（同種族 N+E+B 不同家族）──
