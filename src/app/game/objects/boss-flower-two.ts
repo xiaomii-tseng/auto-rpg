@@ -76,7 +76,6 @@ export class BossFlowerTwo extends Boss {
     if (this.currentState === BossState.DEAD) return;
     this.stateTimer?.destroy();
     this.pulseTween?.stop();
-    this.setBossState(BossState.BLOSSOM_WARN);
     this.playDir(`${this.animPrefix}_attack`);
 
     const PRE_MS   = 800;
@@ -103,9 +102,7 @@ export class BossFlowerTwo extends Boss {
           return pts;
         })();
 
-    if (!this.guestMode)
-      this.onSyncState?.({ state: BossState.BLOSSOM_WARN, x: this.x / DPR, y: this.y / DPR,
-        pts: positions.map(p => ({ x: p.x / DPR, y: p.y / DPR })) });
+    this.setBossState(BossState.BLOSSOM_WARN, { pts: positions.map(p => ({ x: p.x / DPR, y: p.y / DPR })) });
 
     // 前搖：所有目標出現綠色脈衝警示圈
     const g = this.warningGfx;
@@ -142,14 +139,12 @@ export class BossFlowerTwo extends Boss {
     if (this.currentState === BossState.DEAD) return;
     this.stateTimer?.destroy();
     this.pulseTween?.stop();
-    this.setBossState(BossState.MIST_WARN);
     this.playDir(`${this.animPrefix}_attack`);
 
     const angle = this.guestMode
       ? this.guestAngle
       : (() => { const [tx, ty] = this.getTargetPos(); return Phaser.Math.Angle.Between(this.x, this.y, tx, ty); })();
-    if (!this.guestMode)
-      this.onSyncState?.({ state: BossState.MIST_WARN, x: this.x / DPR, y: this.y / DPR, angle });
+    this.setBossState(BossState.MIST_WARN, { angle });
 
     const PRE_MS = 900;
     const g = this.warningGfx;
@@ -197,7 +192,6 @@ export class BossFlowerTwo extends Boss {
     if (this.currentState === BossState.DEAD) return;
     this.stateTimer?.destroy();
     this.pulseTween?.stop();
-    this.setBossState(BossState.VINE_WARN);
     this.playDir(`${this.animPrefix}_attack`);
 
     const PRE_MS    = 800;
@@ -205,8 +199,7 @@ export class BossFlowerTwo extends Boss {
     const baseAngle = this.guestMode
       ? this.guestAngle
       : Math.random() * (Math.PI * 2 / vineCount);
-    if (!this.guestMode)
-      this.onSyncState?.({ state: BossState.VINE_WARN, x: this.x / DPR, y: this.y / DPR, angle: baseAngle });
+    this.setBossState(BossState.VINE_WARN, { angle: baseAngle });
     const dirs      = Array.from({ length: vineCount }, (_, i) => baseAngle + i * (Math.PI * 2 / vineCount));
     const g         = this.warningGfx;
     g.clear();
@@ -253,10 +246,8 @@ export class BossFlowerTwo extends Boss {
     if (this.currentState === BossState.DEAD) return;
     this.stateTimer?.destroy();
     this.pulseTween?.stop();
-    this.setBossState(BossState.BURST_WARN);
+    this.setBossState(BossState.BURST_WARN, {});
     this.playDir(`${this.animPrefix}_attack`);
-    if (!this.guestMode)
-      this.onSyncState?.({ state: BossState.BURST_WARN, x: this.x / DPR, y: this.y / DPR });
 
     const PRE_MS    = 900;
     const burstCount = this.isPhase2 ? 12 : 8;
@@ -340,11 +331,9 @@ export class BossFlowerTwo extends Boss {
     if (this.currentState === BossState.DEAD) return;
     this.stateTimer?.destroy();
     this.pulseTween?.stop();
-    this.setBossState(BossState.BURROW);
+    this.setBossState(BossState.BURROW, {});
     this.warningGfx.clear();
     (this.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
-    if (!this.guestMode)
-      this.onSyncState?.({ state: BossState.BURROW, x: this.x / DPR, y: this.y / DPR });
 
     const deathKey = `${this.animPrefix}_death_down`;
 

@@ -67,10 +67,8 @@ export class BossFlowerOne extends Boss {
     if (this.currentState === BossState.DEAD) return;
     this.stateTimer?.destroy();
     this.pulseTween?.stop();
-    this.setBossState(BossState.PETAL_STORM_WARN);
+    this.setBossState(BossState.PETAL_STORM_WARN, {});
     this.playDir(`${this.animPrefix}_attack`);
-    if (!this.guestMode)
-      this.onSyncState?.({ state: BossState.PETAL_STORM_WARN, x: this.x / DPR, y: this.y / DPR });
 
     const WARN_MS = 800;
     const warnG   = this.scene.add.graphics({ x: this.x, y: this.y }).setDepth(this.depth + 1);
@@ -151,13 +149,10 @@ export class BossFlowerOne extends Boss {
     if (this.currentState === BossState.DEAD) return;
     this.stateTimer?.destroy();
     this.pulseTween?.stop();
-    this.setBossState(BossState.TRACKING_WARN);
     this.playDir(`${this.animPrefix}_attack`);
 
     const [tx, ty] = this.guestMode ? [this.guestAtkX, this.guestAtkY] : this.getTargetPos();
-    if (!this.guestMode)
-      this.onSyncState?.({ state: BossState.TRACKING_WARN, x: this.x / DPR, y: this.y / DPR,
-        atkX: tx / DPR, atkY: ty / DPR });
+    this.setBossState(BossState.TRACKING_WARN, { atkX: tx / DPR, atkY: ty / DPR });
 
     const WARN_MS = 800;
     const bossG   = this.scene.add.graphics({ x: this.x, y: this.y }).setDepth(this.depth + 1);
@@ -252,13 +247,10 @@ export class BossFlowerOne extends Boss {
     if (this.currentState === BossState.DEAD) return;
     this.stateTimer?.destroy();
     this.pulseTween?.stop();
-    this.setBossState(BossState.FAN_WARN);
     this.playDir(`${this.animPrefix}_attack`);
 
     const [tx, ty] = this.guestMode ? [this.guestAtkX, this.guestAtkY] : this.getTargetPos();
-    if (!this.guestMode)
-      this.onSyncState?.({ state: BossState.FAN_WARN, x: this.x / DPR, y: this.y / DPR,
-        atkX: tx / DPR, atkY: ty / DPR });
+    this.setBossState(BossState.FAN_WARN, { atkX: tx / DPR, atkY: ty / DPR });
 
     const baseAngle = Phaser.Math.Angle.Between(this.x, this.y, tx, ty);
     const fanHalf   = 0.28;
@@ -369,16 +361,13 @@ export class BossFlowerOne extends Boss {
     if (this.currentState === BossState.DEAD) return;
     this.stateTimer?.destroy();
     this.pulseTween?.stop();
-    this.setBossState(BossState.SPIRAL_WARN);
     this.playDir(`${this.animPrefix}_attack`);
 
     const [tx, ty] = this.guestMode ? [this.guestAtkX, this.guestAtkY] : this.getTargetPos();
     const startAngle = this.guestMode
       ? this.guestAngle
       : Phaser.Math.Angle.Between(this.x, this.y, tx, ty);
-    if (!this.guestMode)
-      this.onSyncState?.({ state: BossState.SPIRAL_WARN, x: this.x / DPR, y: this.y / DPR,
-        angle: startAngle });
+    this.setBossState(BossState.SPIRAL_WARN, { angle: startAngle });
 
     const PRE_MS = 600;
     const spinG  = this.scene.add.graphics({ x: this.x, y: this.y }).setDepth(this.depth + 1);

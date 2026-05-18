@@ -213,10 +213,9 @@ export class BossLavaSlime extends Boss {
 
   private enterLavaBarrageWarn(): void {
     if (this.currentState === BossState.DEAD) return;
-    this.setBossState(BossState.LAVA_BARRAGE_WARN);
+    this.setBossState(BossState.LAVA_BARRAGE_WARN, {});
     (this.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
     this.playDir(`${this.animPrefix}_attack`);
-    if (!this.guestMode) this.onSyncState?.({ state: BossState.LAVA_BARRAGE_WARN, x: this.x / DPR, y: this.y / DPR });
 
     const dirs    = this.phase2 ? BARRAGE_DIRS_P2 : BARRAGE_DIRS_P1;
     const halfRad = Phaser.Math.DegToRad(BARRAGE_FAN_HALF);
@@ -375,7 +374,6 @@ export class BossLavaSlime extends Boss {
 
   private enterLavaPillarWarn(): void {
     if (this.currentState === BossState.DEAD) return;
-    this.setBossState(BossState.LAVA_PILLAR_WARN);
     (this.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
     this.playDir(`${this.animPrefix}_attack`);
     this.pulseTween?.stop();
@@ -395,9 +393,8 @@ export class BossLavaSlime extends Boss {
           y: Phaser.Math.Clamp(py + Math.sin(angle) * dist, bounds.top  + 30, bounds.bottom - 30),
         };
       });
-      this.onSyncState?.({ state: BossState.LAVA_PILLAR_WARN, x: this.x / DPR, y: this.y / DPR,
-        pts: positions.map(p => ({ x: p.x / DPR, y: p.y / DPR })) });
     }
+    this.setBossState(BossState.LAVA_PILLAR_WARN, { pts: positions.map(p => ({ x: p.x / DPR, y: p.y / DPR })) });
 
     const APPEAR_INTERVAL = 120;  // 每個紅圈出現間隔
     const WARN_AFTER_LAST = 200;  // 最後一個圈出現後的額外警示時間

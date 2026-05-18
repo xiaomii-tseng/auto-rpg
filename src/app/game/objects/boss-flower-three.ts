@@ -183,7 +183,6 @@ export class BossFlowerThree extends Boss {
     if (this.currentState === BossState.DEAD) return;
     this.stateTimer?.destroy();
     this.pulseTween?.stop();
-    this.setBossState(BossState.SEED_WARN);
     this.playDir(`${this.animPrefix}_attack`);
 
     const SEED_DIST  = P(200);
@@ -210,9 +209,7 @@ export class BossFlowerThree extends Boss {
           return pts;
         })();
 
-    if (!this.guestMode)
-      this.onSyncState?.({ state: BossState.SEED_WARN, x: this.x / DPR, y: this.y / DPR,
-        pts: positions.map(p => ({ x: p.x / DPR, y: p.y / DPR })) });
+    this.setBossState(BossState.SEED_WARN, { pts: positions.map(p => ({ x: p.x / DPR, y: p.y / DPR })) });
 
     // Boss charging visual — golden orb growing on boss
     const chargeG = this.scene.add.graphics().setDepth(this.depth + 1);
@@ -301,7 +298,6 @@ export class BossFlowerThree extends Boss {
     if (this.currentState === BossState.DEAD) return;
     this.stateTimer?.destroy();
     this.pulseTween?.stop();
-    this.setBossState(BossState.SLOW_ZONE_WARN);
     this.playDir(`${this.animPrefix}_attack`);
 
     const ZONE_COUNT = 5;
@@ -327,9 +323,7 @@ export class BossFlowerThree extends Boss {
           return pts;
         })();
 
-    if (!this.guestMode)
-      this.onSyncState?.({ state: BossState.SLOW_ZONE_WARN, x: this.x / DPR, y: this.y / DPR,
-        pts: positions.map(p => ({ x: p.x / DPR, y: p.y / DPR })) });
+    this.setBossState(BossState.SLOW_ZONE_WARN, { pts: positions.map(p => ({ x: p.x / DPR, y: p.y / DPR })) });
 
     // Boss pulse visual
     const bossG = this.scene.add.graphics().setDepth(this.depth + 1);
@@ -366,13 +360,10 @@ export class BossFlowerThree extends Boss {
     if (this.currentState === BossState.DEAD) return;
     this.stateTimer?.destroy();
     this.pulseTween?.stop();
-    this.setBossState(BossState.ROOT_WARN);
     this.playDir(`${this.animPrefix}_attack`);
 
     const [tx, ty] = this.guestMode ? [this.guestAtkX, this.guestAtkY] : this.getTargetPos();
-    if (!this.guestMode)
-      this.onSyncState?.({ state: BossState.ROOT_WARN, x: this.x / DPR, y: this.y / DPR,
-        atkX: tx / DPR, atkY: ty / DPR });
+    this.setBossState(BossState.ROOT_WARN, { atkX: tx / DPR, atkY: ty / DPR });
 
     const WARN_MS = 900;
 
@@ -413,10 +404,8 @@ export class BossFlowerThree extends Boss {
     if (this.currentState === BossState.DEAD) return;
     this.stateTimer?.destroy();
     this.pulseTween?.stop();
-    this.setBossState(BossState.CROWN_WARN);
+    this.setBossState(BossState.CROWN_WARN, {});
     this.playDir(`${this.animPrefix}_attack`);
-    if (!this.guestMode)
-      this.onSyncState?.({ state: BossState.CROWN_WARN, x: this.x / DPR, y: this.y / DPR });
 
     const PRE_MS   = 1000;
     const PHASE1   = 550;

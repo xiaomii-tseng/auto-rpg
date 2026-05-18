@@ -53,7 +53,8 @@ export enum BossState {
   ORC2_JUMPING      = 'ORC2_JUMPING',
   ORC2_FISSURE_WARN = 'ORC2_FISSURE_WARN',
   ORC2_FRACTURE_WARN = 'ORC2_FRACTURE_WARN',
-  ORC2_ROLL_WARN     = 'ORC2_ROLL_WARN',
+  ORC2_ROLL_WARN      = 'ORC2_ROLL_WARN',
+  ORC2_FRACTURE_ACTIVE = 'ORC2_FRACTURE_ACTIVE',
   DEAD             = 'DEAD',
 }
 
@@ -303,7 +304,15 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
   get maxHpValue(): number { return this.maxHp; }
   get dmgDisplayMult(): number { return 1; }
 
-  protected setBossState(state: BossState): void { this.bossState = state; }
+  protected setBossState(
+    state: BossState | string,
+    sync?: Partial<Omit<MsgBossSync, 'state' | 'x' | 'y'>>,
+  ): void {
+    this.bossState = state as BossState;
+    if (sync !== undefined && !this.guestMode) {
+      this.onSyncState?.({ state, x: this.x / DPR, y: this.y / DPR, ...sync });
+    }
+  }
 
   protected updateDirToTarget(): void {
     const [tx, ty] = this.getTargetPos();
@@ -385,12 +394,11 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
   }
 
   protected enterAoeWarn(): void {
-    this.bossState = BossState.AOE_WARN;
+    this.setBossState(BossState.AOE_WARN, {});
     this.stateTimer?.destroy();
     (this.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
     this.atkX = this.x;
     this.atkY = this.y;
-    if (!this.guestMode) this.onSyncState?.({ state: BossState.AOE_WARN, x: this.x / DPR, y: this.y / DPR });
     this.updateDirToTarget();
     this.playDir(`${this.animPrefix}_attack`);
     this.drawAoeWarning();
@@ -440,7 +448,6 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
   }
 
   protected enterDashWarn(): void {
-    this.bossState = BossState.DASH_WARN;
     this.stateTimer?.destroy();
     (this.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
     if (this.guestMode) {
@@ -448,8 +455,8 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
       this.atkY = this.guestAtkY;
     } else {
       [this.atkX, this.atkY] = this.getTargetPos();
-      this.onSyncState?.({ state: BossState.DASH_WARN, x: this.x / DPR, y: this.y / DPR, atkX: this.atkX / DPR, atkY: this.atkY / DPR });
     }
+    this.setBossState(BossState.DASH_WARN, { atkX: this.atkX / DPR, atkY: this.atkY / DPR });
     this.updateDirToTarget();
     this.playDir(`${this.animPrefix}_walk`);
     this.drawDashWarning();
@@ -474,7 +481,6 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
 
   // 短預警衝刺，供子類（獸人王等）使用：warnMs 預設 260ms 幾乎沒有反應時間
   protected enterQuickDashWarn(warnMs = 260): void {
-    this.bossState = BossState.DASH_WARN;
     this.stateTimer?.destroy();
     (this.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
     if (this.guestMode) {
@@ -482,8 +488,8 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
       this.atkY = this.guestAtkY;
     } else {
       [this.atkX, this.atkY] = this.getTargetPos();
-      this.onSyncState?.({ state: BossState.DASH_WARN, x: this.x / DPR, y: this.y / DPR, atkX: this.atkX / DPR, atkY: this.atkY / DPR });
     }
+    this.setBossState(BossState.DASH_WARN, { atkX: this.atkX / DPR, atkY: this.atkY / DPR });
     this.updateDirToTarget();
     this.playDir(`${this.animPrefix}_walk`);
 
@@ -674,7 +680,6 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
 
   protected enterBarrageWarn(): void {
     if (this.bossState === BossState.DEAD) return;
-    this.setBossState(BossState.BARRAGE_WARN);
     this.stateTimer?.destroy();
     (this.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
     this.updateDirToTarget();
@@ -685,6 +690,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
 
     if (this.guestMode) {
       endpoints = this.guestPts.slice(0, Boss.BARRAGE_COUNT).map(p => ({ x: p.x, y: p.y }));
+      this.setBossState(BossState.BARRAGE_WARN);
     } else {
       const [px, py] = this.getTargetPos();
       const baseAngle = Phaser.Math.Angle.Between(bossX, bossY, px, py);
@@ -693,10 +699,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
         const [ex, ey] = this.angleToArenaEdge(baseAngle + off);
         return { x: ex, y: ey };
       });
-      this.onSyncState?.({
-        state: BossState.BARRAGE_WARN, x: bossX / DPR, y: bossY / DPR,
-        pts: endpoints.map(t => ({ x: t.x / DPR, y: t.y / DPR })),
-      });
+      this.setBossState(BossState.BARRAGE_WARN, { pts: endpoints.map(t => ({ x: t.x / DPR, y: t.y / DPR })) });
     }
 
     // 蓄力特效：綠色脈衝光環

@@ -48,8 +48,7 @@ export class BossBlueSlime extends Boss {
 
   private enterIceSpikeWarn(): void {
     if (this.currentState === BossState.DEAD) return;
-    this.setBossState(BossState.ICE_SPIKE_WARN);
-    if (!this.guestMode) this.onSyncState?.({ state: BossState.ICE_SPIKE_WARN, x: this.x / DPR, y: this.y / DPR });
+    this.setBossState(BossState.ICE_SPIKE_WARN, {});
     (this.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
     this.playDir(`${this.animPrefix}_attack`);
 
@@ -195,7 +194,6 @@ export class BossBlueSlime extends Boss {
 
   private enterIceMineWarn(): void {
     if (this.currentState === BossState.DEAD) return;
-    this.setBossState(BossState.ICE_MINE_WARN);
     (this.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
     this.playDir(`${this.animPrefix}_attack`);
 
@@ -211,9 +209,8 @@ export class BossBlueSlime extends Boss {
         const d = Phaser.Math.FloatBetween(20, MINE_SCATTER);
         return { x: px + Math.cos(a) * d, y: py + Math.sin(a) * d };
       });
-      this.onSyncState?.({ state: BossState.ICE_MINE_WARN, x: this.x / DPR, y: this.y / DPR,
-        pts: minePts.map(p => ({ x: p.x / DPR, y: p.y / DPR })) });
     }
+    this.setBossState(BossState.ICE_MINE_WARN, { pts: minePts.map(p => ({ x: p.x / DPR, y: p.y / DPR })) });
 
     const glowG = this.scene.add.graphics().setDepth(this.depth - 1).setPosition(this.x, this.y);
     const gs = { r: P(10), a: 0.3 };

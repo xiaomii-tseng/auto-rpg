@@ -85,8 +85,7 @@ export class BossOrc1 extends BossOrcBase {
 
   private enterOrcWhirlWarn(): void {
     if (this.currentState === BossState.DEAD) return;
-    this.setBossState(BossState.ORC_WHIRL_WARN);
-    if (!this.guestMode) this.onSyncState?.({ state: BossState.ORC_WHIRL_WARN, x: this.x / DPR, y: this.y / DPR });
+    this.setBossState(BossState.ORC_WHIRL_WARN, {});
     (this.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
     this.playDir(`${this.animPrefix}_idle`);
 
@@ -125,8 +124,7 @@ export class BossOrc1 extends BossOrcBase {
 
   private enterOrcWhirling(): void {
     if (this.currentState === BossState.DEAD) return;
-    this.setBossState(BossState.ORC_WHIRLING);
-    if (!this.guestMode) this.onSyncState?.({ state: BossState.ORC_WHIRLING, x: this.x / DPR, y: this.y / DPR });
+    this.setBossState(BossState.ORC_WHIRLING, {});
 
     const whirlKey = `${this.animPrefix}_whirl`;
     if (this.scene.anims.exists(whirlKey)) this.anims.play(whirlKey, true);
@@ -173,8 +171,7 @@ export class BossOrc1 extends BossOrcBase {
 
   private enterOrcSummonWarn(): void {
     if (this.currentState === BossState.DEAD) return;
-    this.setBossState(BossState.ORC_SUMMON_WARN);
-    if (!this.guestMode) this.onSyncState?.({ state: BossState.ORC_SUMMON_WARN, x: this.x / DPR, y: this.y / DPR });
+    this.setBossState(BossState.ORC_SUMMON_WARN, {});
     (this.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
     this.playDir(`${this.animPrefix}_idle`);
 
@@ -211,15 +208,16 @@ export class BossOrc1 extends BossOrcBase {
 
   private enterOrcFanWarn(): void {
     if (this.currentState === BossState.DEAD) return;
-    this.setBossState(BossState.ORC_FAN_WARN);
-    if (!this.guestMode) this.onSyncState?.({ state: BossState.ORC_FAN_WARN, x: this.x / DPR, y: this.y / DPR });
     (this.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
     this.updateDirToTarget();
     this.playDir(`${this.animPrefix}_idle`);
 
     // 預覽三道扇形
     const [px, py] = this.getTargetPos();
-    const baseAng = Phaser.Math.Angle.Between(this.x, this.y, px, py);
+    const baseAng = this.guestMode
+      ? this.guestAngle
+      : Phaser.Math.Angle.Between(this.x, this.y, px, py);
+    this.setBossState(BossState.ORC_FAN_WARN, { angle: baseAng });
     const warnG = this.scene.add.graphics().setDepth(8);
     const fw2 = { v: 0.3 };
     this.pulseTween?.stop();
@@ -299,17 +297,23 @@ export class BossOrc1 extends BossOrcBase {
 
   private enterOrcBoulderWarn(): void {
     if (this.currentState === BossState.DEAD) return;
-    this.setBossState(BossState.ORC_BOULDER_WARN);
-    if (!this.guestMode) this.onSyncState?.({ state: BossState.ORC_BOULDER_WARN, x: this.x / DPR, y: this.y / DPR });
     (this.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
     this.playDir(`${this.animPrefix}_idle`);
 
-    const [px, py] = this.getTargetPos();
-    const boulderTargets: { lx: number; ly: number }[] = [];
-    for (let i = 0; i < BOULDER_COUNT; i++) {
-      const scatter = Phaser.Math.FloatBetween(-P(35), P(35));
-      boulderTargets.push({ lx: px + scatter, ly: py + scatter * 0.5 });
+    let boulderTargets: { lx: number; ly: number }[];
+    if (this.guestMode) {
+      boulderTargets = (this.guestPts ?? []).map(p => ({ lx: p.x, ly: p.y }));
+    } else {
+      const [px, py] = this.getTargetPos();
+      boulderTargets = [];
+      for (let i = 0; i < BOULDER_COUNT; i++) {
+        const scatter = Phaser.Math.FloatBetween(-P(35), P(35));
+        boulderTargets.push({ lx: px + scatter, ly: py + scatter * 0.5 });
+      }
     }
+    this.setBossState(BossState.ORC_BOULDER_WARN, {
+      pts: boulderTargets.map(t => ({ x: t.lx / DPR, y: t.ly / DPR })),
+    });
 
     const warnG = this.scene.add.graphics().setDepth(8);
     const fw3 = { v: 0.3 };
@@ -440,8 +444,7 @@ export class BossOrc1 extends BossOrcBase {
 
   private enterOrcRoarWarn(): void {
     if (this.currentState === BossState.DEAD) return;
-    this.setBossState(BossState.ORC_ROAR_WARN);
-    if (!this.guestMode) this.onSyncState?.({ state: BossState.ORC_ROAR_WARN, x: this.x / DPR, y: this.y / DPR });
+    this.setBossState(BossState.ORC_ROAR_WARN, {});
     (this.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
     this.playDir(`${this.animPrefix}_attack`);
     this.setTint(0xff8800);

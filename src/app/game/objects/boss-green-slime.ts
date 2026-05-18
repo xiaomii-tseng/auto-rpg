@@ -45,7 +45,6 @@ export class BossGreenSlime extends Boss {
     if (this.currentState === BossState.DEAD) return;
     this.stateTimer?.destroy();
     this.pulseTween?.stop();
-    this.setBossState(BossState.SUMMON_WARN);
     (this.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
     this.playDir(`${this.animPrefix}_attack`);
 
@@ -59,9 +58,8 @@ export class BossGreenSlime extends Boss {
       sy1 = this.y + Math.sin(a1) * SUMMON_DIST;
       sx2 = this.x + Math.cos(a2) * SUMMON_DIST;
       sy2 = this.y + Math.sin(a2) * SUMMON_DIST;
-      this.onSyncState?.({ state: BossState.SUMMON_WARN, x: this.x / DPR, y: this.y / DPR,
-        pts: [{ x: sx1 / DPR, y: sy1 / DPR }, { x: sx2 / DPR, y: sy2 / DPR }] });
     }
+    this.setBossState(BossState.SUMMON_WARN, { pts: [{ x: sx1! / DPR, y: sy1! / DPR }, { x: sx2! / DPR, y: sy2! / DPR }] });
 
     // ── 旋轉能量球 ─────────────────────────────────────
     const orbs = Array.from({ length: ORB_COUNT }, () => {
@@ -156,7 +154,6 @@ export class BossGreenSlime extends Boss {
     if (this.currentState === BossState.DEAD) return;
     this.stateTimer?.destroy();
     this.pulseTween?.stop();
-    this.setBossState(BossState.POISON_WARN);
     (this.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
     this.playDir(`${this.animPrefix}_attack`);
 
@@ -165,8 +162,8 @@ export class BossGreenSlime extends Boss {
       tx = this.guestAtkX; ty = this.guestAtkY;
     } else {
       [tx, ty] = this.getTargetPos();
-      this.onSyncState?.({ state: BossState.POISON_WARN, x: this.x / DPR, y: this.y / DPR, atkX: tx / DPR, atkY: ty / DPR });
     }
+    this.setBossState(BossState.POISON_WARN, { atkX: tx / DPR, atkY: ty / DPR });
 
     const warnG = this.scene.add.graphics().setDepth(8);
     this.drawPoisonWarning(warnG, tx, ty);

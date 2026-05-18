@@ -49,8 +49,7 @@ export class BossWhiteSlime extends Boss {
 
   private enterHolyCrossWarn(): void {
     if (this.currentState === BossState.DEAD) return;
-    this.setBossState(BossState.HOLY_CROSS_WARN);
-    if (!this.guestMode) this.onSyncState?.({ state: BossState.HOLY_CROSS_WARN, x: this.x / DPR, y: this.y / DPR });
+    this.setBossState(BossState.HOLY_CROSS_WARN, {});
     (this.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
     this.playDir(`${this.animPrefix}_attack`);
 
@@ -213,14 +212,13 @@ export class BossWhiteSlime extends Boss {
 
   private enterHolyOrbsWarn(): void {
     if (this.currentState === BossState.DEAD) return;
-    this.setBossState(BossState.HOLY_ORBS_WARN);
     (this.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
     this.playDir(`${this.animPrefix}_attack`);
     if (!this.guestMode) {
       const [px, py] = this.getTargetPos();
       this.guestAngle = Phaser.Math.Angle.Between(this.x, this.y, px, py);
-      this.onSyncState?.({ state: BossState.HOLY_ORBS_WARN, x: this.x / DPR, y: this.y / DPR, angle: this.guestAngle });
     }
+    this.setBossState(BossState.HOLY_ORBS_WARN, { angle: this.guestAngle });
 
     const chargeEmitter = this.scene.add.particles(this.x, this.y, 'pxl2', {
       speed: { min: 15, max: 55 },

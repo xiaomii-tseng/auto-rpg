@@ -154,7 +154,6 @@ export class BossRedSlime extends Boss {
 
   private enterJumpWarn(): void {
     if (this.currentState === BossState.DEAD) return;
-    this.setBossState(BossState.JUMP_WARN);
     (this.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
     this.playDir(`${this.animPrefix}_attack`);
 
@@ -163,8 +162,8 @@ export class BossRedSlime extends Boss {
       tx = this.guestAtkX; ty = this.guestAtkY;
     } else {
       [tx, ty] = this.getTargetPos();
-      this.onSyncState?.({ state: BossState.JUMP_WARN, x: this.x / DPR, y: this.y / DPR, atkX: tx / DPR, atkY: ty / DPR });
     }
+    this.setBossState(BossState.JUMP_WARN, { atkX: tx / DPR, atkY: ty / DPR });
 
     const warnG = this.scene.add.graphics().setDepth(8);
     this.drawJumpWarning(warnG, tx, ty);
@@ -229,19 +228,18 @@ export class BossRedSlime extends Boss {
 
   private enterFireFanWarn(): void {
     if (this.currentState === BossState.DEAD) return;
-    this.setBossState(BossState.FIRE_WARN);
     (this.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
     this.playDir(`${this.animPrefix}_attack`);
 
     // 鎖定方向（警示開始時鎖定）
-    const fireAngle = this.guestMode
-      ? this.guestAngle
-      : (() => {
-          const [px, py] = this.getTargetPos();
-          const a = Phaser.Math.Angle.Between(this.x, this.y, px, py);
-          this.onSyncState?.({ state: BossState.FIRE_WARN, x: this.x / DPR, y: this.y / DPR, angle: a });
-          return a;
-        })();
+    let fireAngle: number;
+    if (this.guestMode) {
+      fireAngle = this.guestAngle;
+    } else {
+      const [px, py] = this.getTargetPos();
+      fireAngle = Phaser.Math.Angle.Between(this.x, this.y, px, py);
+    }
+    this.setBossState(BossState.FIRE_WARN, { angle: fireAngle });
 
     // 扇形紅色警示
     const fanWarnG = this.scene.add.graphics().setDepth(8);

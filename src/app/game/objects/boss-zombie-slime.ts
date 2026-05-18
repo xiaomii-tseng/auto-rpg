@@ -65,7 +65,6 @@ export class BossZombieSlime extends Boss {
 
   private enterZombieSummonWarn(): void {
     if (this.currentState === BossState.DEAD) return;
-    this.setBossState(BossState.ZOMBIE_SUMMON_WARN);
     (this.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
     this.playDir(`${this.animPrefix}_attack`);
 
@@ -78,9 +77,8 @@ export class BossZombieSlime extends Boss {
         const a = baseAngle + (Math.PI * 2 / SUMMON_COUNT) * i;
         return { x: this.x + Math.cos(a) * SUMMON_DIST, y: this.y + Math.sin(a) * SUMMON_DIST };
       });
-      this.onSyncState?.({ state: BossState.ZOMBIE_SUMMON_WARN, x: this.x / DPR, y: this.y / DPR,
-        pts: positions.map(p => ({ x: p.x / DPR, y: p.y / DPR })) });
     }
+    this.setBossState(BossState.ZOMBIE_SUMMON_WARN, { pts: positions.map(p => ({ x: p.x / DPR, y: p.y / DPR })) });
 
     // 旋轉能量球
     this.zombieOrbs = Array.from({ length: SUMMON_COUNT }, () => {
@@ -176,7 +174,6 @@ export class BossZombieSlime extends Boss {
 
   private enterPoisonFanWarn(): void {
     if (this.currentState === BossState.DEAD) return;
-    this.setBossState(BossState.POISON_FAN_WARN);
     (this.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
     this.playDir(`${this.animPrefix}_attack`);
 
@@ -186,8 +183,8 @@ export class BossZombieSlime extends Boss {
     } else {
       const [tx, ty] = this.getTargetPos();
       centerAngle = Phaser.Math.Angle.Between(this.x, this.y, tx, ty);
-      this.onSyncState?.({ state: BossState.POISON_FAN_WARN, x: this.x / DPR, y: this.y / DPR, angle: centerAngle });
     }
+    this.setBossState(BossState.POISON_FAN_WARN, { angle: centerAngle });
     const sideRad   = Phaser.Math.DegToRad(FAN_SIDE_DEG);
     const fanAngles = [centerAngle - sideRad, centerAngle, centerAngle + sideRad];
 

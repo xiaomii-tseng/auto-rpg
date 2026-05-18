@@ -67,10 +67,16 @@ export class BossOrc2 extends BossOrcBase {
   protected override applyUniqueState(state: string): void {
     switch (state) {
       case BossState.ORC2_JUMP_WARN:     this.enterOrc2JumpWarn();     break;
-      case BossState.ORC2_JUMPING:       this.enterOrc2Jumping(0, 0);  break;
+      case BossState.ORC2_JUMPING:       this.enterOrc2Jumping(this.guestAtkX, this.guestAtkY); break;
       case BossState.ORC2_FISSURE_WARN:  this.enterOrc2FissureWarn();  break;
       case BossState.ORC2_FRACTURE_WARN: this.enterOrc2FractureWarn(); break;
-      case BossState.ORC2_ROLL_WARN:     this.enterOrc2RollWarn();     break;
+      case BossState.ORC2_FRACTURE_ACTIVE: {
+        const FRACTURE_SAFE_R_LOCAL = Math.round(45 * DPR);
+        const zones = (this.guestPts ?? []).map(p => ({ x: p.x, y: p.y, r: FRACTURE_SAFE_R_LOCAL }));
+        this.onFieldFracture?.(zones, this.scaleDmg(FRACTURE_DMG), FRACTURE_DURATION, FRACTURE_TICK_MS);
+        break;
+      }
+      case BossState.ORC2_ROLL_WARN:     this.enterOrc2RollWarn(this.guestAngle); break;
     }
   }
 
@@ -78,8 +84,7 @@ export class BossOrc2 extends BossOrcBase {
 
   private enterOrc2JumpWarn(): void {
     if (this.currentState === BossState.DEAD) return;
-    this.setBossState(BossState.ORC2_JUMP_WARN);
-    if (!this.guestMode) this.onSyncState?.({ state: BossState.ORC2_JUMP_WARN, x: this.x / DPR, y: this.y / DPR });
+    this.setBossState(BossState.ORC2_JUMP_WARN, {});
     (this.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
     this.playDir(`${this.animPrefix}_attack`);
     this.setTint(0xff4400);
@@ -96,14 +101,13 @@ export class BossOrc2 extends BossOrcBase {
       leapEmitter.destroy();
       if (this.baseTint === 0xffffff) this.clearTint(); else this.setTint(this.baseTint);
       const [lx, ly] = this.getTargetPos();
-      if (!this.guestMode) this.onSyncState?.({ state: BossState.ORC2_JUMPING, x: this.x / DPR, y: this.y / DPR, atkX: lx / DPR, atkY: ly / DPR });
       this.enterOrc2Jumping(lx, ly);
     });
   }
 
   private enterOrc2Jumping(startLx: number, startLy: number): void {
     if (this.currentState === BossState.DEAD) return;
-    this.setBossState(BossState.ORC2_JUMPING);
+    this.setBossState(BossState.ORC2_JUMPING, this.guestMode ? undefined : { atkX: startLx / DPR, atkY: startLy / DPR });
     (this.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
     (this.body as Phaser.Physics.Arcade.Body).setEnable(false);
 
@@ -219,15 +223,14 @@ export class BossOrc2 extends BossOrcBase {
 
   private enterOrc2FissureWarn(): void {
     if (this.currentState === BossState.DEAD) return;
-    this.setBossState(BossState.ORC2_FISSURE_WARN);
     (this.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
     this.updateDirToTarget();
     this.playDir(`${this.animPrefix}_idle`);
 
-    const [px, py] = this.getTargetPos();
+    const [px, py] = this.guestMode ? [this.guestAtkX, this.guestAtkY] : this.getTargetPos();
     const baseAng = Phaser.Math.Angle.Between(this.x, this.y, px, py);
 
-    if (!this.guestMode) this.onSyncState?.({ state: BossState.ORC2_FISSURE_WARN, x: this.x / DPR, y: this.y / DPR, atkX: px / DPR, atkY: py / DPR });
+    this.setBossState(BossState.ORC2_FISSURE_WARN, { atkX: px / DPR, atkY: py / DPR });
 
     // 三道預警線
     const warnG = this.scene.add.graphics().setDepth(8);
@@ -282,7 +285,7 @@ export class BossOrc2 extends BossOrcBase {
 
   private enterOrc2FractureWarn(): void {
     if (this.currentState === BossState.DEAD) return;
-    this.setBossState(BossState.ORC2_FRACTURE_WARN);
+    this.setBossState(BossState.ORC2_FRACTURE_WARN, {});
     (this.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
     this.playDir(`${this.animPrefix}_attack`);
     this.setTint(0xaa3300);
@@ -326,6 +329,13 @@ export class BossOrc2 extends BossOrcBase {
           safeZones.push({ x: sx, y: sy, r: FRACTURE_SAFE_R });
         }
         this.onFieldFracture?.(safeZones, this.scaleDmg(FRACTURE_DMG), FRACTURE_DURATION, FRACTURE_TICK_MS);
+        if (!this.guestMode) {
+          this.onSyncState?.({
+            state: BossState.ORC2_FRACTURE_ACTIVE,
+            x: this.x / DPR, y: this.y / DPR,
+            pts: safeZones.map(z => ({ x: z.x / DPR, y: z.y / DPR })),
+          });
+        }
       }
 
       // 持續揮刀動作
@@ -348,15 +358,15 @@ export class BossOrc2 extends BossOrcBase {
 
   // ── 滾石 ─────────────────────────────────────────────────
 
-  private enterOrc2RollWarn(): void {
+  private enterOrc2RollWarn(angle?: number): void {
     if (this.currentState === BossState.DEAD) return;
-    this.setBossState(BossState.ORC2_ROLL_WARN);
     (this.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
     this.updateDirToTarget();
     this.playDir(`${this.animPrefix}_attack`);
 
     const [px, py] = this.getTargetPos();
-    const ang = Phaser.Math.Angle.Between(this.x, this.y, px, py);
+    const ang = angle ?? Phaser.Math.Angle.Between(this.x, this.y, px, py);
+    this.setBossState(BossState.ORC2_ROLL_WARN, { angle: ang });
 
     const warnG = this.scene.add.graphics().setDepth(8);
     const fw = { v: 0.4 };
