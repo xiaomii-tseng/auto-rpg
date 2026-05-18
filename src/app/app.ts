@@ -4,6 +4,7 @@ import { filter, interval } from 'rxjs';
 import Phaser from 'phaser';
 import { PrepScene } from './game/scenes/prep-scene';
 import { BattleLoadScene } from './game/scenes/battle-load-scene';
+import { TownLoadingScene } from './game/scenes/town-loading-scene';
 import { GameScene } from './game/scenes/game.scene';
 import { InventoryStore } from './game/data/inventory-store';
 
@@ -76,7 +77,7 @@ export class App implements AfterViewInit {
       backgroundColor: '#0d0d1a',
       width:  Math.round(gameW * dpr),
       height: Math.round(gameH * dpr),
-      scene: [PrepScene, BattleLoadScene, GameScene],
+      scene: [TownLoadingScene, PrepScene, BattleLoadScene, GameScene],
       scale: { mode: Phaser.Scale.NONE },
       render: {
         roundPixels: true,
