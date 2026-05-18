@@ -6409,6 +6409,14 @@ export class PrepScene extends Phaser.Scene {
       console.log('[Town] joined, sessionId=', payload.sessionId, 'existing=', payload.existing?.length);
       if (!this.scene.isActive()) return;
       NetworkService.sendTownInfo(getPlayerName(), PlayerStore.getLevel(), SkinStore.get());
+      NetworkService.onTownDisconnected(() => {
+        console.warn('[Town] disconnected unexpectedly, retrying in 15s...');
+        this._townRemotePlayers.forEach(r => { r.sprite.destroy(); r.nameLabel.destroy(); });
+        this._townRemotePlayers.clear();
+        this.time.delayedCall(15000, () => {
+          if (this.scene.isActive()) this._joinTownRoom();
+        });
+      });
 
       NetworkService.onTownPos(data => {
         const r = this._townRemotePlayers.get(data.sessionId);
@@ -6523,7 +6531,12 @@ export class PrepScene extends Phaser.Scene {
           this._buildPartyCreateBtn(this._sceneW, this._sceneH);
         }
       });
-    }).catch((err: any) => { console.warn('[Town] joinTown failed:', err); });
+    }).catch((err: any) => {
+      console.warn('[Town] joinTown failed, retrying in 15s...', err);
+      this.time.delayedCall(15000, () => {
+        if (this.scene.isActive()) this._joinTownRoom();
+      });
+    });
   }
 
   // ── Party system ─────────────────────────────────────────────────────────

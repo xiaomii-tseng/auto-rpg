@@ -114,6 +114,7 @@ export class GameScene extends Phaser.Scene {
   private bossDebuffTexts: Map<string, Phaser.GameObjects.Text> = new Map();
   private gameOver = false;
   private teleporting = false;
+  private _hostReconnecting = false;
 
   // 瞬步斬瞄準模式
   private dashAimAngle = 0;
@@ -498,6 +499,29 @@ export class GameScene extends Phaser.Scene {
 
       NetworkService.onReconnected(() => this._onReconnected());
       NetworkService.onReconnectFailed(() => this._onReconnectFailed());
+
+      NetworkService.onHostDisconnected(() => {
+        this._hostReconnecting = true;
+        this._showHostReconnectOverlay();
+      });
+
+      NetworkService.onHostReconnected(() => {
+        this._hostReconnecting = false;
+        this._hideHostReconnectOverlay();
+      });
+
+      NetworkService.onRunEnd(() => {
+        // Host failed to reconnect within timeout
+        this._hostReconnecting = false;
+        this._hideHostReconnectOverlay();
+        this.time.delayedCall(2000, () => this.exitToLobby());
+        const W = this.scale.width, H = this.scale.height;
+        this.add.text(W / 2, H / 2, '隊長斷線，戰鬥結束', {
+          fontSize: `${Math.round(18 * DPR)}px`, color: '#ffddaa',
+          stroke: '#1a0800', strokeThickness: 3,
+          backgroundColor: '#00000099', padding: { x: Math.round(12 * DPR), y: Math.round(6 * DPR) },
+        }).setOrigin(0.5).setDepth(200);
+      });
 
       NetworkService.onPartnerDead((data) => {
         const sid = data?.sessionId ?? '';
@@ -1656,7 +1680,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   override update(): void {
-    if (this.gameOver || this.teleporting) return;
+    if (this.gameOver || this.teleporting || this._hostReconnecting) return;
 
     // Drain leech pool at 6% maxHp/s (POE-style life leech)
     if (this._leechPool > 0 && this.player?.active) {
@@ -4713,6 +4737,26 @@ export class GameScene extends Phaser.Scene {
   }
 
   private _reconnectOverlay?: Phaser.GameObjects.Container;
+  private _hostReconnectOverlay?: Phaser.GameObjects.Container;
+
+  private _showHostReconnectOverlay(): void {
+    if (this._hostReconnectOverlay) return;
+    const W = this.scale.width, H = this.scale.height;
+    const c = this.add.container(0, 0).setScrollFactor(0).setDepth(19999);
+    c.add(this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.72));
+    c.add(this.add.text(W / 2, H / 2 - P(16), '隊長重新連線中…', {
+      fontSize: F(18), fontStyle: 'bold', color: '#f0d090', stroke: '#1a0800', strokeThickness: 3,
+    }).setOrigin(0.5));
+    c.add(this.add.text(W / 2, H / 2 + P(14), '請稍候，戰鬥暫停', {
+      fontSize: F(13), color: '#aaaaaa',
+    }).setOrigin(0.5));
+    this._hostReconnectOverlay = c;
+  }
+
+  private _hideHostReconnectOverlay(): void {
+    this._hostReconnectOverlay?.destroy();
+    this._hostReconnectOverlay = undefined;
+  }
 
   private _showReconnectOverlay(): void {
     if (this._reconnectOverlay) return;

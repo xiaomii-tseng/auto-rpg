@@ -43,6 +43,7 @@ interface TownCallbacks {
   partyDeclined?:  (data: { reason: string; targetSessionId?: string }) => void;
   partyRoomCode?:  (data: { roomCode: string }) => void;
   partyCancelled?: () => void;
+  townDisconnected?: () => void;
 }
 
 // ── Replaceable callback slots ─────────────────────────────────────────────
@@ -66,6 +67,8 @@ interface Callbacks {
   potionEffect?:     (data: { type: string; amount: number }) => void;
   reconnected?:      () => void;
   reconnectFailed?:  () => void;
+  hostDisconnected?: () => void;
+  hostReconnected?:  () => void;
 }
 
 class NetworkServiceClass {
@@ -137,6 +140,8 @@ class NetworkServiceClass {
     r.onMessage<MsgRewardSync>('rewardSync',      d  => this._cbs.rewardSync?.(d));
     r.onMessage('runEnd',         (d: any)        => this._cbs.runEnd?.(d));
     r.onMessage('potionEffect',   (d: any)        => this._cbs.potionEffect?.(d));
+    r.onMessage('hostDisconnected', ()            => this._cbs.hostDisconnected?.());
+    r.onMessage('hostReconnected',  ()            => this._cbs.hostReconnected?.());
 
     // Single onStateChange forwarder for both partnerInfoReady and partnerMove
     r.onStateChange(state => {
@@ -356,8 +361,10 @@ class NetworkServiceClass {
     this._cbs.runEnd = cb;
   }
 
-  onReconnected(cb: () => void): void       { this._cbs.reconnected     = cb; }
-  onReconnectFailed(cb: () => void): void   { this._cbs.reconnectFailed = cb; }
+  onReconnected(cb: () => void): void        { this._cbs.reconnected      = cb; }
+  onReconnectFailed(cb: () => void): void    { this._cbs.reconnectFailed  = cb; }
+  onHostDisconnected(cb: () => void): void   { this._cbs.hostDisconnected = cb; }
+  onHostReconnected(cb: () => void): void    { this._cbs.hostReconnected  = cb; }
 
   // ── State ─────────────────────────────────────────────────
 
@@ -423,8 +430,10 @@ class NetworkServiceClass {
     this._cbs.bossHit       = undefined;
     this._cbs.bossSync      = undefined;
     this._cbs.rewardSync    = undefined;
-    this._cbs.runEnd        = undefined;
-    this._cbs.potionEffect  = undefined;
+    this._cbs.runEnd           = undefined;
+    this._cbs.potionEffect     = undefined;
+    this._cbs.hostDisconnected = undefined;
+    this._cbs.hostReconnected  = undefined;
   }
 
   // ── Town room ─────────────────────────────────────────────
@@ -454,6 +463,12 @@ class NetworkServiceClass {
     r.onMessage('partyDeclined',    (d: any) => this._townCbs.partyDeclined?.(d));
     r.onMessage('partyRoomCode',    (d: any) => this._townCbs.partyRoomCode?.(d));
     r.onMessage('partyCancelled',   ()       => this._townCbs.partyCancelled?.());
+    r.onLeave((code) => {
+      if (code !== 1000) {
+        this.townRoom = undefined;
+        this._townCbs.townDisconnected?.();
+      }
+    });
   }
 
   sendTownMove(x: number, y: number, lastDir: string): void {
@@ -514,6 +529,10 @@ class NetworkServiceClass {
 
   onPartyCancelled(cb: () => void): void {
     this._townCbs.partyCancelled = cb;
+  }
+
+  onTownDisconnected(cb: () => void): void {
+    this._townCbs.townDisconnected = cb;
   }
 
   leaveTown(): void {

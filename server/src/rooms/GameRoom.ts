@@ -203,19 +203,30 @@ export class GameRoom extends Room<GameRoomState> {
   }
 
   async onLeave(client: Client, consented: boolean): Promise<void> {
+    const isHost = client.sessionId === this.state.hostId;
     if (!consented) {
-      // 非主動離開（場景切換間隙斷線）→ 給 30 秒重連，保留 player state
+      if (this.state.phase === 'playing' && isHost) {
+        this.broadcast('hostDisconnected', {}, { except: client });
+      }
       try {
         await this.allowReconnection(client, 90);
-        return;  // 重連成功，player state 已保留
+        if (this.state.phase === 'playing' && isHost) {
+          this.broadcast('hostReconnected', {});
+        }
+        return;
       } catch {
-        // 30 秒內未重連 → 正常離開流程
+        // 逾時 → 正常離開流程
       }
     }
-    const isHost = client.sessionId === this.state.hostId;
     this.state.players.delete(client.sessionId);
     if (this.state.phase === 'playing') {
-      this.broadcast('partnerLeft', {});
+      if (isHost) {
+        this.state.phase = 'ended';
+        this.broadcast('runEnd', { won: false });
+        this.disconnect();
+      } else {
+        this.broadcast('partnerLeft', {});
+      }
     } else if (isHost) {
       this.broadcast('roomClosed', {});
       this.disconnect();
