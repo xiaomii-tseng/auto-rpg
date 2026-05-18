@@ -5,7 +5,7 @@ const DPR = (window as any).__gameDpr as number;
 const P = (n: number) => Math.round(n * DPR);
 const F = (n: number) => `${Math.round(n * DPR)}px`;
 
-const LOAD_DURATION = 3000;
+const LOAD_DURATION = 2000;
 
 export class BattleLoadScene extends Phaser.Scene {
   private _gameData: any;

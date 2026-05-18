@@ -281,13 +281,7 @@ export class GameScene extends Phaser.Scene {
         this.load.image(key, `equip/weapons/Icons/icon_32_2_${String(i).padStart(2, '0')}.png`);
     }
     if (!this.textures.exists('icon_gold')) this.load.image('icon_gold', 'other/coin.webp');
-    if (!this.textures.exists('icon_potion_health_s')) this.load.image('icon_potion_health_s', 'other/coin.webp');
-    if (!this.textures.exists('icon_potion_health_m')) this.load.image('icon_potion_health_m', 'other/coin.webp');
-    if (!this.textures.exists('icon_potion_health_l')) this.load.image('icon_potion_health_l', 'other/coin.webp');
-    if (!this.textures.exists('icon_potion_revive'))   this.load.image('icon_potion_revive',   'other/coin.webp');
-    if (!this.textures.exists('icon_potion_atk'))      this.load.image('icon_potion_atk',      'other/coin.webp');
-    if (!this.textures.exists('icon_potion_def'))      this.load.image('icon_potion_def',      'other/coin.webp');
-    if (!this.textures.exists('icon_potion_speed'))    this.load.image('icon_potion_speed',    'other/coin.webp');
+    if (!this.textures.exists('potions_sheet')) this.load.spritesheet('potions_sheet', 'items/potions.png', { frameWidth: 16, frameHeight: 16 });
     this.generateTextures();
   }
 
@@ -323,6 +317,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   create(): void {
+    this._initPotionTextures();
     const W = this.scale.width;
     // 遊戲一開始就清掉大廳 callbacks，避免 Guest 先退出時觸發 stale rebuild
     if (NetworkService.connected) NetworkService.clearLobbyCallbacks();
@@ -8605,6 +8600,30 @@ export class GameScene extends Phaser.Scene {
 
       this.hitInRadius(tx, ty, R, dmg);
     });
+  }
+
+  private _initPotionTextures(): void {
+    if (this.textures.exists('icon_potion_health_s')) return;
+    const POTION_FRAMES: Record<string, number> = {
+      icon_potion_health_s: 89,
+      icon_potion_health_m: 90,
+      icon_potion_health_l: 101,
+      icon_potion_revive:   93,
+      icon_potion_atk:      91,
+      icon_potion_def:      99,
+      icon_potion_speed:    95,
+    };
+    const sheet = this.textures.get('potions_sheet');
+    for (const [key, fi] of Object.entries(POTION_FRAMES)) {
+      const frame = sheet.get(fi);
+      const ct = this.textures.createCanvas(key, 16, 16);
+      if (!ct) continue;
+      (ct.getContext() as CanvasRenderingContext2D).drawImage(
+        frame.source.image as HTMLImageElement,
+        frame.cutX, frame.cutY, 16, 16, 0, 0, 16, 16,
+      );
+      ct.refresh();
+    }
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
