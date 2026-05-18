@@ -251,10 +251,12 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     this.onHpChanged?.(this.hp, this.maxHp);
 
     this.flashWhite();
-    this.playDir(`${this.animPrefix}_hurt`);
-    this.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => {
-      if (this.bossState !== BossState.DEAD) this.resumeStateAnim();
-    });
+    if (this.bossState !== BossState.ORC_WHIRLING) {
+      this.playDir(`${this.animPrefix}_hurt`);
+      this.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => {
+        if (this.bossState !== BossState.DEAD) this.resumeStateAnim();
+      });
+    }
 
     if (this.hp <= 0) {
       this.die();
@@ -269,7 +271,8 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
       case BossState.IDLE:      this.playDir(`${this.animPrefix}_walk`);   break;
       case BossState.AOE_WARN:  this.playDir(`${this.animPrefix}_attack`); break;
       case BossState.DASH_WARN: this.playDir(`${this.animPrefix}_walk`);   break;
-      case BossState.DASHING:   this.playDir(`${this.animPrefix}_run`);    break;
+      case BossState.DASHING:      this.playDir(`${this.animPrefix}_run`);   break;
+      case BossState.ORC_WHIRLING: this.anims.play(`${this.animPrefix}_whirl`, true); break;
       default: break;
     }
   }
