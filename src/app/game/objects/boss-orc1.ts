@@ -37,6 +37,10 @@ const BOULDER_SLOW_R   = Math.round(52 * DPR);
 const ROAR_WARN_MS  = 800;
 const ROAR_SLOW_DUR = 3500;
 
+// 強衝（遠程觸發）
+const CHARGE_DIST_THRESHOLD = Math.round(145 * DPR); // 超過此距離必定衝刺
+const CHARGE_WARN_MS         = 250;
+
 export class BossOrc1 extends Boss {
   onWhirlTick?:    (x: number, y: number, r: number, dmg: number) => void;
   onWhirlSlash?:   (wx: number, wy: number, tx: number, ty: number) => void;
@@ -55,6 +59,15 @@ export class BossOrc1 extends Boss {
 
   protected override pickNextAttack(): void {
     if (this.guestMode) return;
+
+    // 玩家距離過遠 → 立刻強衝，不走正常隨機
+    const [px, py] = this.getTargetPos();
+    const dist = Phaser.Math.Distance.Between(this.x, this.y, px, py);
+    if (dist > CHARGE_DIST_THRESHOLD) {
+      this.stateTimer = this.scene.time.delayedCall(this.getNextAttackDelay(), () => this.enterQuickDashWarn(CHARGE_WARN_MS));
+      return;
+    }
+
     const roll = Math.random();
     let fn: () => void;
     // 旋風33%  扇形22%  巨石22%  召喚8%  怒吼15%
@@ -250,16 +263,19 @@ export class BossOrc1 extends Boss {
 
     this.stateTimer = this.scene.time.delayedCall(FAN_WARN_MS, () => {
       this.pulseTween?.stop(); warnG.destroy();
-      this.fireOrcFanSequence(0);
+      this.fireOrcFanSequence(0, baseAng);
     });
   }
 
-  private fireOrcFanSequence(slashIdx: number): void {
+  private fireOrcFanSequence(slashIdx: number, baseAng: number): void {
     if (this.currentState === BossState.DEAD) return;
-    this.updateDirToTarget();
-    if (slashIdx === 0) this.playDir(`${this.animPrefix}_attack`);
-    const [px, py] = this.getTargetPos();
-    const ang = Phaser.Math.Angle.Between(this.x, this.y, px, py);
+    // 每刀角度對應警告扇形的錯開角度
+    const ang = baseAng + (slashIdx - 1) * (FAN_HALF * 0.5);
+    // 第二刀倒放，製造來回揮的感覺；每次都強制重播
+    this.anims.stop();
+    const attackKey = `${this.animPrefix}_attack_${this.bossDir}`;
+    if (slashIdx === 1) this.playReverse(attackKey);
+    else this.playDir(`${this.animPrefix}_attack`);
 
     // 刀光 VFX
     const flashG = this.scene.add.graphics().setDepth(15);
@@ -282,7 +298,7 @@ export class BossOrc1 extends Boss {
     if (!this.guestMode) this.onFanSlash?.(this.x, this.y, ang, FAN_HALF, FAN_RANGE, this.scaleDmg(FAN_DMG));
 
     if (slashIdx < 2) {
-      this.stateTimer = this.scene.time.delayedCall(FAN_INTERVAL, () => this.fireOrcFanSequence(slashIdx + 1));
+      this.stateTimer = this.scene.time.delayedCall(FAN_INTERVAL, () => this.fireOrcFanSequence(slashIdx + 1, baseAng));
     } else {
       this.stateTimer = this.scene.time.delayedCall(300, () => this.enterIdle());
     }

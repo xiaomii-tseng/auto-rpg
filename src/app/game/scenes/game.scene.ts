@@ -3364,7 +3364,7 @@ export class GameScene extends Phaser.Scene {
       };
       b.onWhirlSlash = (wx, wy, tx, ty) => {
         if (!this.bossActive) return;
-        this.whirlSlashAt(wx, wy, tx, ty, b.scaleDmg(40), true, Math.round(52 * DPR));
+        this.whirlSlashAt(wx, wy, tx, ty, 0, true, Math.round(52 * DPR), b.scaleDmg(40), 320);
       };
       b.onSummonOrc = (x, y) => {
         if (!this.bossActive) return;
@@ -6677,17 +6677,16 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  private whirlSlashAt(wx: number, wy: number, wtx: number, wty: number, atk: number, isElite: boolean, hitROverride?: number): void {
-    const dmg   = Math.round(atk * 4.5);
+  private whirlSlashAt(wx: number, wy: number, wtx: number, wty: number, atk: number, isElite: boolean, hitROverride?: number, dmgOverride?: number, vfxDurationMs = 900): void {
+    const dmg   = dmgOverride ?? Math.round(atk * 4.5);
     const hitR  = hitROverride ?? Math.round((isElite ? 36 : 28) * DPR);
-    const angle = Phaser.Math.Angle.Between(wx, wy, wtx, wty);
-    const dist  = Phaser.Math.Distance.Between(wx, wy, wtx, wty);
+    const angle      = Phaser.Math.Angle.Between(wx, wy, wtx, wty);
+    const travelDist = Phaser.Math.Distance.Between(wx, wy, wtx, wty);
 
-    // 沿實際衝刺路徑（900ms × 110px/s）每 75ms 生成一個旋轉月牙刀光
-    const travelDist = Math.round(110 * DPR * 0.9);  // 對應 WHIRL_SPEED × WHIRL_DURATION
-    const totalMs    = 900;
+    // 沿實際衝刺路徑每 75ms 生成一個旋轉月牙刀光
+    const totalMs    = vfxDurationMs;
     const interval   = 75;
-    const count      = Math.floor(totalMs / interval);  // ≈ 12 個
+    const count      = Math.floor(totalMs / interval);
     for (let i = 0; i <= count; i++) {
       const t   = i / count;
       const cx  = wx + Math.cos(angle) * travelDist * t;

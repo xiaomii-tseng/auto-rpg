@@ -160,6 +160,7 @@ export class PrepScene extends Phaser.Scene {
   private _partyPendingInvites: { sid: string; nick: string }[] = [];
   private _partyRoomCode = '';
   private _pendingInviteRoomCode = '';  // guest stores roomCode from incoming invite
+  private _questPanelCloseAll: (() => void) | null = null;
   private _toastStack: Phaser.GameObjects.Text[] = [];
   private _partyCreateBtnObjs: Phaser.GameObjects.GameObject[] = [];
   private _partyPanelObjs: Phaser.GameObjects.GameObject[] = [];
@@ -339,6 +340,10 @@ export class PrepScene extends Phaser.Scene {
     const H = this.scale.height;
     this._sceneW = W;
     this._sceneH = H;
+
+    // 防止前一個 scene 的 pointerdown 穿透到本場景的按鈕
+    this.input.enabled = false;
+    this.time.delayedCall(300, () => { this.input.enabled = true; });
 
     // 瀏覽器執行時嘗試觸控觸發全螢幕；PWA 已由 manifest 處理，失敗時靜默忽略
     if (!this.scale.isFullscreen) {
@@ -752,8 +757,15 @@ export class PrepScene extends Phaser.Scene {
     const panelX = (W - PW) / 2;
     const panelY = (H - PH) / 2;
 
+    this._questPanelCloseAll?.();
+    this._questPanelCloseAll = null;
+
     const objs: Phaser.GameObjects.GameObject[] = [];
-    const closeAll = () => objs.forEach(o => o.destroy());
+    const closeAll = () => {
+      this._questPanelCloseAll = null;
+      objs.forEach(o => o.destroy());
+    };
+    this._questPanelCloseAll = closeAll;
 
     // ── Backdrop ──────────────────────────────────────────
     const backdrop = this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.88)

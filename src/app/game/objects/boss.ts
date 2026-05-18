@@ -58,7 +58,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
   // Renamed from 'state' — Phaser.GameObject already has a public 'state' property
   private bossState = BossState.IDLE;
   private started   = false;
-  private bossDir: 'down' | 'left' | 'right' | 'up' = 'down';
+  protected bossDir: 'down' | 'left' | 'right' | 'up' = 'down';
   protected stateTimer?: Phaser.Time.TimerEvent;
   private aoeTrackTimer?: Phaser.Time.TimerEvent;
   protected pulseTween?: Phaser.Tweens.Tween;
@@ -74,8 +74,8 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
   protected warnParticles?: Phaser.GameObjects.Particles.ParticleEmitter;
   protected readonly warningGfx: Phaser.GameObjects.Graphics;
 
-  private atkX = 0;
-  private atkY = 0;
+  protected atkX = 0;
+  protected atkY = 0;
   private dashAngle = 0;
 
   static readonly AOE_RADIUS = Math.round(120 * DPR);
@@ -467,7 +467,70 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     this.stateTimer = this.scene.time.delayedCall(600, () => this.enterDashing());
   }
 
-  private enterDashing(): void {
+  // 短預警衝刺，供子類（獸人王等）使用：warnMs 預設 260ms 幾乎沒有反應時間
+  protected enterQuickDashWarn(warnMs = 260): void {
+    this.bossState = BossState.DASH_WARN;
+    this.stateTimer?.destroy();
+    (this.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
+    if (this.guestMode) {
+      this.atkX = this.guestAtkX;
+      this.atkY = this.guestAtkY;
+    } else {
+      [this.atkX, this.atkY] = this.getTargetPos();
+      this.onSyncState?.({ state: BossState.DASH_WARN, x: this.x / DPR, y: this.y / DPR, atkX: this.atkX / DPR, atkY: this.atkY / DPR });
+    }
+    this.updateDirToTarget();
+    this.playDir(`${this.animPrefix}_walk`);
+
+    const warnDeg = Phaser.Math.RadToDeg(Phaser.Math.Angle.Between(this.x, this.y, this.atkX, this.atkY));
+    this.warnParticles = this.scene.add.particles(this.x, this.y, 'pxl2', {
+      speed: { min: 120, max: 300 },
+      angle: { min: warnDeg - 20, max: warnDeg + 20 },
+      scale: { start: 2.2, end: 0 },
+      alpha: { start: 1, end: 0 },
+      tint: [0xff1100, 0xff5500, 0xffaa00],
+      lifespan: { min: 80, max: 220 },
+      frequency: mf(18),
+      quantity: mq(5),
+    }).setDepth(9);
+
+    // 長條警告：從 Boss 向目標方向延伸，寬度從窄到寬，表示衝刺路徑
+    const dashLen = Math.round(Boss.DASH_SPEED * (Boss.DASH_MS / 1000));
+    const dashAng = Phaser.Math.Angle.Between(this.x, this.y, this.atkX, this.atkY);
+    const barG = this.scene.add.graphics().setDepth(8);
+    this.pulseTween?.stop();
+    this.pulseTween = this.scene.tweens.add({
+      targets: { prog: 0, a: 0.85 }, prog: 1, a: 0.2, duration: warnMs, ease: 'Quad.In',
+      onUpdate: (tw: Phaser.Tweens.Tween) => {
+        const { prog, a } = tw.targets[0] as { prog: number; a: number };
+        const len  = dashLen * prog;
+        const half = P(10) + P(16) * prog; // 寬度漸寬
+        const cos  = Math.cos(dashAng), sin = Math.sin(dashAng);
+        const perp = dashAng + Math.PI / 2;
+        const pc   = Math.cos(perp), ps = Math.sin(perp);
+        // 以 Boss 為起點，往目標方向畫填充四邊形
+        const x0 = this.x + pc * half,  y0 = this.y + ps * half;
+        const x1 = this.x - pc * half,  y1 = this.y - ps * half;
+        const x2 = x1 + cos * len,       y2 = y1 + sin * len;
+        const x3 = x0 + cos * len,       y3 = y0 + sin * len;
+        barG.clear();
+        barG.fillStyle(0xff2200, a * 0.22);
+        barG.fillPoints([{ x: x0, y: y0 }, { x: x1, y: y1 }, { x: x2, y: y2 }, { x: x3, y: y3 }], true);
+        barG.lineStyle(P(2), 0xff4400, a);
+        barG.strokePoints([{ x: x0, y: y0 }, { x: x1, y: y1 }, { x: x2, y: y2 }, { x: x3, y: y3 }], true);
+      },
+      onComplete: () => barG.destroy(),
+    });
+
+    this.stateTimer = this.scene.time.delayedCall(warnMs, () => {
+      this.pulseTween?.stop();
+      barG.destroy();
+      this.clearWarning();
+      this.enterDashing();
+    });
+  }
+
+  protected enterDashing(): void {
     this.bossState = BossState.DASHING;
     this.clearWarning();
     this.stateTimer?.destroy();
