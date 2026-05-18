@@ -91,12 +91,14 @@ const BOSS_POOL = [
   'boss_flower_one',
   'boss_flower_three',
   'boss_orc1',
+  'boss_orc2',
 ];
 
 const BOSS_MIN_STAR: Record<string, number> = {
   boss_flower_one:   2,
   boss_flower_two:   2,
   boss_orc1:         3,
+  boss_orc2:         3,
   boss_flower_three: 2,
 };
 

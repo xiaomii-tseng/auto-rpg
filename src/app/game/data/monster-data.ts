@@ -273,7 +273,7 @@ export const MONSTER_DEFS: MonsterDef[] = [
     drops: smallDrops,
   },
   {
-    id: 'orc2_s', name: '獸人暴徒', spriteKey: 'orc2', frameEnd: 7,
+    id: 'orc2_s', name: '獸人戰士', spriteKey: 'orc2', frameEnd: 7,
     element: 'none', tint: 0xffffff, tier: 1, minStar: 3,
     hp: 150, atk: 17, speed: 85, exp: 38, gold: 13,
     cards: [{ cardId: 'card_orc2_n', rate: CR_S }],
@@ -296,7 +296,7 @@ export const MONSTER_DEFS: MonsterDef[] = [
     drops: eliteDrops,
   },
   {
-    id: 'elite_orc2', name: '獸人頭領', spriteKey: 'orc2', frameEnd: 7,
+    id: 'elite_orc2', name: '菁英獸人戰士', spriteKey: 'orc2', frameEnd: 7,
     element: 'none', tint: 0xffffff, tier: 3, minStar: 3,
     hp: 150, atk: 17, speed: 90, exp: 115, gold: 48,
     cards: [{ cardId: 'card_orc2_e', rate: CR_E }],
@@ -360,6 +360,14 @@ export const MONSTER_DEFS: MonsterDef[] = [
     element: 'none', tint: 0xffffff, tier: 5,
     hp: 900, atk: 27, def: 18, speed: 95, exp: 280, gold: 160,
     cards: [{ cardId: 'card_orc1_b', rate: CR_B }],
+    drops: bossDrops,
+  },
+
+  {
+    id: 'boss_orc2', name: '獸人戰士長', spriteKey: 'orc2', frameEnd: 7,
+    element: 'none', tint: 0xffffff, tier: 5,
+    hp: 990, atk: 25, def: 19, speed: 85, exp: 295, gold: 175,
+    cards: [{ cardId: 'card_orc2_b', rate: CR_B }],
     drops: bossDrops,
   },
 
@@ -575,17 +583,22 @@ export const CARD_DEFS: CardDef[] = [
     effect: { atk: 20, crit: 0.08, critDmg: 0.15 },
     desc: '攻擊力+20  暴擊率+8%  爆擊傷害+15%' },
 
-  // ── 獸人暴徒家族（生命主題）──
-  { id: 'card_orc2_n', name: '獸人暴徒卡', monsterId: 'orc2_s',
+  // ── 獸人戰士家族（生命主題）──
+  { id: 'card_orc2_n', name: '獸人戰士卡', monsterId: 'orc2_s',
     family: 'orc2', race: 'orc', cardType: 'n',
     element: 'none', tint: 0x997744,
     effect: { hp: 30 },
     desc: '最大HP+30' },
-  { id: 'card_orc2_e', name: '獸人頭領卡', monsterId: 'elite_orc2',
+  { id: 'card_orc2_e', name: '菁英獸人戰士卡', monsterId: 'elite_orc2',
     family: 'orc2', race: 'orc', cardType: 'e',
     element: 'none', tint: 0xaa8855,
     effect: { hp: 45, def: 5 },
     desc: '最大HP+45  防禦+5' },
+  { id: 'card_orc2_b', name: '獸人戰士長卡', monsterId: 'boss_orc2',
+    family: 'orc2', race: 'orc', cardType: 'b',
+    element: 'none', tint: 0xcc9933,
+    effect: { hp: 60, def: 8, atk: 8 },
+    desc: '最大HP+60  防禦+8  攻擊力+8' },
 
   // ── 獸人刀客家族（攻速主題）──
   { id: 'card_orc3_n', name: '獸人刀客卡', monsterId: 'orc3_s',

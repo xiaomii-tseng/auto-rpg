@@ -12,6 +12,7 @@ import { BossFlowerOne } from '../objects/boss-flower-one';
 import { BossFlowerTwo } from '../objects/boss-flower-two';
 import { BossFlowerThree } from '../objects/boss-flower-three';
 import { BossOrc1 } from '../objects/boss-orc1';
+import { BossOrc2 } from '../objects/boss-orc2';
 import { MinionSlime } from '../objects/minion-slime';
 import { VirtualJoystick } from '../ui/joystick';
 import { drawItemCell } from '../ui/item-cell';
@@ -3402,6 +3403,26 @@ export class GameScene extends Phaser.Scene {
           this.player.speedMult = 1;
           this.player.clearTint();
         });
+      };
+      return b;
+    }
+    if (bossDef.id === 'boss_orc2') {
+      const b = new BossOrc2(this, cx, cy, totalHp, bossDef.element, bossDef.spriteKey, bossDef.tint);
+      b.onJumpLand = (x, y, r, dmg) => {
+        if (!this.bossActive) return;
+        this.fireBossJumpLand(x, y, r, dmg);
+      };
+      b.onFissure = (bx, by, angle, len, dmg) => {
+        if (!this.bossActive) return;
+        this.fireBossFissureWithBranches(bx, by, angle, len, dmg);
+      };
+      b.onFieldFracture = (safeZones, dmg, duration, tickMs) => {
+        if (!this.bossActive) return;
+        this.fireBossFieldFracture(safeZones, dmg, duration, tickMs);
+      };
+      b.onBoulderRoll = (bx, by, angle, speed, r, dmg) => {
+        if (!this.bossActive) return;
+        this.fireBossRollingBoulder(bx, by, angle, speed, r, dmg);
       };
       return b;
     }
@@ -7045,6 +7066,417 @@ export class GameScene extends Phaser.Scene {
         }
       },
       onComplete: () => this.tweens.add({ targets: gfx, alpha: 0, duration: 450, delay: 250, onComplete: () => gfx.destroy() }),
+    });
+  }
+
+  // ── 獸人戰士長 VFX ───────────────────────────────────────
+
+  private fireBossFieldFracture(
+    safeZones: { x: number; y: number; r: number }[],
+    dmg: number, duration: number, tickMs: number,
+  ): void {
+    const GRACE_MS = 1200;
+    const boss = this.boss;
+    const cx = boss.arenaCenter.x, cy = boss.arenaCenter.y;
+    const AR = boss.arenaRadius;
+
+    // ── 底層危險覆蓋 ─────────────────────────────────────────
+    const overlayG = this.add.graphics().setDepth(7).setAlpha(0);
+    overlayG.fillStyle(0x220000, 1);
+    overlayG.fillCircle(cx, cy, AR + P(20));
+    this.tweens.add({ targets: overlayG, alpha: 0.65, duration: GRACE_MS, ease: 'Quad.In' });
+
+    // 次層橙紅微光（active 後搏動）
+    const glowG = this.add.graphics().setDepth(7).setAlpha(0);
+    glowG.fillStyle(0x551100, 1);
+    glowG.fillCircle(cx, cy, AR + P(20));
+    let glowTween: Phaser.Tweens.Tween | null = null;
+
+    // ── 地裂線條（預生成路徑，動態延伸）────────────────────────
+    type CrackPt = { x: number; y: number };
+    const crackG = this.add.graphics().setDepth(8);
+    const crackPaths: CrackPt[][] = [];
+    const crackCount = 8;
+    for (let i = 0; i < crackCount; i++) {
+      const ang = (i / crackCount) * Math.PI * 2 + Phaser.Math.FloatBetween(-0.25, 0.25);
+      const pts: CrackPt[] = [{ x: boss.x, y: boss.y }];
+      let px = boss.x, py = boss.y;
+      const segLen = P(24);
+      const segs = Math.ceil(AR * 1.1 / segLen);
+      for (let s = 0; s < segs; s++) {
+        const jitter = Phaser.Math.FloatBetween(-P(12), P(12));
+        px += Math.cos(ang) * segLen + Math.cos(ang + Math.PI / 2) * jitter;
+        py += Math.sin(ang) * segLen + Math.sin(ang + Math.PI / 2) * jitter;
+        pts.push({ x: px, y: py });
+      }
+      crackPaths.push(pts);
+    }
+
+    const crackState = { prog: 0, alpha: 1.0 };
+    const drawCracks = () => {
+      crackG.clear();
+      crackPaths.forEach(pts => {
+        const end = Math.max(2, Math.floor(pts.length * crackState.prog));
+        crackG.lineStyle(P(2), 0xff3300, crackState.alpha * 0.75);
+        crackG.beginPath(); crackG.moveTo(pts[0].x, pts[0].y);
+        for (let j = 1; j < end; j++) crackG.lineTo(pts[j].x, pts[j].y);
+        crackG.strokePath();
+        crackG.lineStyle(P(1), 0xff8800, crackState.alpha * 0.45);
+        crackG.beginPath(); crackG.moveTo(pts[0].x, pts[0].y);
+        for (let j = 1; j < end; j++) crackG.lineTo(pts[j].x, pts[j].y);
+        crackG.strokePath();
+      });
+    };
+    const crackGrowTween = this.tweens.add({
+      targets: crackState, prog: 1, duration: 950, ease: 'Quad.Out',
+      onUpdate: drawCracks,
+    });
+
+    // ── 安全圈 ────────────────────────────────────────────────
+    const safeG     = this.add.graphics().setDepth(9);
+    const safeAuraG = this.add.graphics().setDepth(9);
+
+    const redrawSafe = (bright = false) => {
+      safeG.clear();
+      safeZones.forEach(z => {
+        safeG.fillStyle(0x003300, 0.5);
+        safeG.fillCircle(z.x, z.y, z.r);
+        safeG.fillStyle(bright ? 0x00dd44 : 0x009933, bright ? 0.35 : 0.18);
+        safeG.fillCircle(z.x, z.y, z.r * 0.65);
+        safeG.lineStyle(P(3), bright ? 0xbbffcc : 0x44ff66, bright ? 1.0 : 0.85);
+        safeG.strokeCircle(z.x, z.y, z.r);
+        safeG.lineStyle(P(1), 0x66ff88, 0.5);
+        safeG.strokeCircle(z.x, z.y, z.r * 0.72);
+      });
+    };
+    redrawSafe();
+
+    // 脈衝光環（從安全圈邊緣向外擴散消失）
+    const auraState = { t: 0 };
+    const auraTween = this.tweens.add({
+      targets: auraState, t: 1, duration: 700, ease: 'Quad.Out',
+      repeat: -1, repeatDelay: 150,
+      onRepeat: () => { auraState.t = 0; },
+      onUpdate: () => {
+        safeAuraG.clear();
+        const a = (1 - auraState.t) * 0.65;
+        safeZones.forEach(z => {
+          safeAuraG.lineStyle(P(2), 0x44ff88, a);
+          safeAuraG.strokeCircle(z.x, z.y, z.r + auraState.t * P(22));
+          if (auraState.t < 0.5) {
+            safeAuraG.lineStyle(P(1), 0xaaffcc, a * 0.5);
+            safeAuraG.strokeCircle(z.x, z.y, z.r + auraState.t * P(40));
+          }
+        });
+      },
+    });
+
+    // Grace 期間：快速閃爍提示
+    let graceBlink = 0;
+    const graceBlinkT = this.time.addEvent({
+      delay: 120, repeat: Math.ceil(GRACE_MS / 120),
+      callback: () => { graceBlink++; redrawSafe(graceBlink % 2 === 0); },
+    });
+
+    // ── Grace 結束 → Active ──────────────────────────────────
+    let tickTimer: Phaser.Time.TimerEvent;
+    let explTimer: Phaser.Time.TimerEvent;
+    let crackFlickTween: Phaser.Tweens.Tween | null = null;
+
+    this.time.delayedCall(GRACE_MS, () => {
+      if (!this.bossActive) return;
+      graceBlinkT.destroy();
+      redrawSafe(false);
+
+      // 搏動橙紅地面光
+      glowTween = this.tweens.add({ targets: glowG, alpha: 0.28, duration: 500, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
+
+      // 裂縫保持全長 + 微閃
+      crackGrowTween.stop();
+      crackState.prog = 1;
+      crackFlickTween = this.tweens.add({
+        targets: crackState, alpha: 0.35, duration: 350, yoyo: true, repeat: -1,
+        onUpdate: drawCracks,
+      });
+
+      tickTimer = this.time.addEvent({
+        delay: tickMs, repeat: Math.ceil((duration - GRACE_MS) / tickMs),
+        callback: () => {
+          if (!this.bossActive) { tickTimer.destroy(); return; }
+          const inSafe = (tx: number, ty: number) =>
+            safeZones.some(z => Phaser.Math.Distance.Between(tx, ty, z.x, z.y) <= z.r);
+          if (!inSafe(this.player.x, this.player.y)) this.player.takeDamage(dmg);
+          for (const ally of this._allyMinions) {
+            if (!ally.isDead && !inSafe(ally.x, ally.y)) ally.takeDamage(dmg);
+          }
+        },
+      });
+
+      const spawnExplosion = (ex: number, ey: number, sz: number) => {
+        const bR  = P(sz === 1 ? 7 : sz === 2 ? 12 : 18);
+        const dur = sz === 1 ? 360 : sz === 2 ? 480 : 620;
+
+        // 焦痕（最底層，緩慢消散）
+        const scorchG = this.add.graphics({ x: ex, y: ey }).setDepth(8);
+        scorchG.fillStyle(0x110000, 0.7); scorchG.fillCircle(0, 0, bR * 1.6);
+        this.tweens.add({ targets: scorchG, alpha: 0, duration: dur * 2.2, delay: 80, ease: 'Quad.In', onComplete: () => scorchG.destroy() });
+
+        // 火球主體（擴散消失）
+        const fireG = this.add.graphics({ x: ex, y: ey }).setDepth(10);
+        fireG.fillStyle(0xff2200, 1);    fireG.fillCircle(0, 0, bR);
+        fireG.fillStyle(0xff8800, 0.75); fireG.fillCircle(0, 0, bR * 0.62);
+        fireG.fillStyle(0xffdd44, 0.55); fireG.fillCircle(0, 0, bR * 0.32);
+        this.tweens.add({ targets: fireG, scaleX: 3.4, scaleY: 3.4, alpha: 0, duration: dur, ease: 'Quad.Out', onComplete: () => fireG.destroy() });
+
+        // 外緣火環（比火球稍慢）
+        const ringG = this.add.graphics({ x: ex, y: ey }).setDepth(10);
+        ringG.lineStyle(P(sz + 2), 0xff5500, 0.9); ringG.strokeCircle(0, 0, bR * 1.1);
+        this.tweens.add({ targets: ringG, scaleX: 3.8, scaleY: 3.8, alpha: 0, duration: dur * 1.15, ease: 'Quad.Out', onComplete: () => ringG.destroy() });
+
+        // 衝擊波（細亮環，快速擴散）
+        const waveG = this.add.graphics({ x: ex, y: ey }).setDepth(11);
+        waveG.lineStyle(P(sz === 3 ? 3 : 2), 0xffeeaa, 1.0); waveG.strokeCircle(0, 0, bR * 0.6);
+        this.tweens.add({ targets: waveG, scaleX: 6.5, scaleY: 6.5, alpha: 0, duration: dur * 0.45, ease: 'Cubic.Out', onComplete: () => waveG.destroy() });
+
+        // 核心白光（瞬閃，縮小消失）
+        const flashG = this.add.graphics({ x: ex, y: ey }).setDepth(12);
+        flashG.fillStyle(0xffffee, 1); flashG.fillCircle(0, 0, bR * 0.85);
+        this.tweens.add({ targets: flashG, scaleX: 0.05, scaleY: 0.05, alpha: 0, duration: 140, ease: 'Quad.In', onComplete: () => flashG.destroy() });
+
+        // 火花粒子（快速四散）
+        this.add.particles(ex, ey, 'pxl2', {
+          speed: { min: 80 + sz * 30, max: 200 + sz * 55 }, angle: { min: 0, max: 360 },
+          scale: { start: 1.5 + sz * 0.25, end: 0 }, alpha: { start: 1, end: 0 },
+          tint: [0xff1100, 0xff5500, 0xffaa00, 0xffdd44],
+          lifespan: { min: 180 + sz * 55, max: 350 + sz * 75 },
+          quantity: 8 + sz * 3, emitting: false, maxParticles: 8 + sz * 3,
+        }).setDepth(11).emitParticleAt(0, 0, 8 + sz * 3);
+
+        // 餘燼粒子（慢速上漂，僅中大型爆炸）
+        if (sz >= 2) {
+          this.add.particles(ex, ey, 'pxl2', {
+            speed: { min: 18, max: 60 }, angle: { min: 215, max: 325 },
+            scale: { start: 1.0, end: 0 }, alpha: { start: 0.75, end: 0 },
+            tint: [0xcc2200, 0xff6600, 0xaa1100],
+            lifespan: { min: 550, max: 900 },
+            quantity: 4 + sz, emitting: false, maxParticles: 4 + sz,
+          }).setDepth(10).emitParticleAt(0, 0, 4 + sz);
+        }
+      };
+
+      explTimer = this.time.addEvent({
+        delay: 400, repeat: Math.ceil((duration - GRACE_MS) / 400) - 1,
+        callback: () => {
+          if (!this.bossActive) { explTimer.destroy(); return; }
+          const count = Phaser.Math.Between(2, 3);
+          for (let i = 0; i < count; i++) {
+            let ex = 0, ey = 0, tries = 0;
+            do {
+              const a2 = Math.random() * Math.PI * 2;
+              const dr = Math.random() * AR * 0.95;
+              ex = cx + Math.cos(a2) * dr; ey = cy + Math.sin(a2) * dr;
+              tries++;
+            } while (tries < 10 && safeZones.some(z => Phaser.Math.Distance.Between(ex, ey, z.x, z.y) <= z.r + P(10)));
+            spawnExplosion(ex, ey, Phaser.Math.Between(1, 3));
+          }
+        },
+      });
+    });
+
+    // 結束前 1 秒綠圈閃爍「即將解除」
+    this.time.delayedCall(duration - 1000, () => {
+      let blink = 0;
+      const blinkT = this.time.addEvent({
+        delay: 110, repeat: 9,
+        callback: () => { blink++; redrawSafe(blink % 2 === 0); },
+      });
+      this.time.delayedCall(1000, () => blinkT.destroy());
+    });
+
+    this.time.delayedCall(duration, () => {
+      graceBlinkT.destroy();
+      auraTween.stop(); safeAuraG.clear();
+      crackGrowTween.stop(); crackFlickTween?.stop(); glowTween?.stop();
+      tickTimer?.destroy(); explTimer?.destroy();
+      this.tweens.add({
+        targets: [overlayG, glowG, safeG, safeAuraG, crackG], alpha: 0, duration: 500,
+        onComplete: () => { overlayG.destroy(); glowG.destroy(); safeG.destroy(); safeAuraG.destroy(); crackG.destroy(); },
+      });
+    });
+  }
+
+  private fireBossRollingBoulder(
+    bx: number, by: number, angle: number, speed: number, r: number, dmg: number,
+  ): void {
+    const BOUNCE_MAX = 3;
+    const STEP_MS    = 16;
+    const RAND_DEV   = Math.PI * 55 / 180; // 反彈隨機偏移 ±55°
+
+    let x = bx, y = by;
+    let vx = Math.cos(angle) * speed;
+    let vy = Math.sin(angle) * speed;
+    let bounces = 0;
+    let rot = 0;
+    let hitPlayer = false;
+
+    const boulderG = this.add.graphics().setDepth(25);
+    const drawBoulder = () => {
+      boulderG.clear();
+      boulderG.fillStyle(0x664422, 1);   boulderG.fillCircle(x, y, r);
+      boulderG.fillStyle(0x886633, 0.6); boulderG.fillCircle(x - r * 0.3, y - r * 0.3, r * 0.42);
+      boulderG.lineStyle(P(2), 0x442200, 0.8); boulderG.strokeCircle(x, y, r);
+      // 滾動紋路（旋轉線）
+      boulderG.lineStyle(P(1), 0xaa7744, 0.5);
+      for (let i = 0; i < 3; i++) {
+        const a = rot + i * (Math.PI * 2 / 3);
+        boulderG.beginPath();
+        boulderG.moveTo(x + Math.cos(a) * r * 0.3, y + Math.sin(a) * r * 0.3);
+        boulderG.lineTo(x + Math.cos(a) * r * 0.9, y + Math.sin(a) * r * 0.9);
+        boulderG.strokePath();
+      }
+    };
+
+    const cx  = this.boss.arenaCenter.x, cy = this.boss.arenaCenter.y;
+    const AR  = this.boss.arenaRadius,   AS = this.boss.arenaShape;
+
+    const isInside = (px: number, py: number): boolean => {
+      const dx = px - cx, dy = py - cy;
+      switch (AS) {
+        case 1: { const hs = AR * 0.875; return Math.abs(dx)<=hs && Math.abs(dy)<=hs && Math.abs(dx)+Math.abs(dy)<=hs*1.5; }
+        case 2: return Math.abs(dx)+Math.abs(dy) <= AR;
+        case 3: { const hw=P(380),hh=P(300),cr=P(100); const ex=Math.max(Math.abs(dx)-(hw-cr),0),ey=Math.max(Math.abs(dy)-(hh-cr),0); return ex*ex+ey*ey<=cr*cr; }
+        default: return dx*dx+dy*dy <= AR*AR;
+      }
+    };
+
+    // 計算邊界法線（各場地形狀）並反彈（加隨機偏移）
+    const bounceAtWall = (): boolean => {
+      if (isInside(x, y)) return false;
+      const dx = x - cx, dy = y - cy;
+      let nx = 0, ny = 0;
+      switch (AS) {
+        case 0: { const l=Math.sqrt(dx*dx+dy*dy); nx=dx/l; ny=dy/l; x=cx+nx*(AR-r); y=cy+ny*(AR-r); break; }
+        case 2: { nx=Math.sign(dx)/Math.SQRT2; ny=Math.sign(dy)/Math.SQRT2; const e=Math.abs(dx)+Math.abs(dy)-AR; x-=nx*e; y-=ny*e; break; }
+        case 1: { const hs=AR*0.875;
+          if (Math.abs(dx)>hs)      { nx=Math.sign(dx); ny=0; x=cx+Math.sign(dx)*hs; }
+          else if (Math.abs(dy)>hs) { nx=0; ny=Math.sign(dy); y=cy+Math.sign(dy)*hs; }
+          else { nx=Math.sign(dx)/Math.SQRT2; ny=Math.sign(dy)/Math.SQRT2; const e=(Math.abs(dx)+Math.abs(dy))-hs*1.5; x-=nx*e; y-=ny*e; }
+          break;
+        }
+        case 3: { const hw=P(380),hh=P(300),cr=P(100);
+          const ex=Math.max(Math.abs(dx)-(hw-cr),0),ey=Math.max(Math.abs(dy)-(hh-cr),0);
+          if (ex===0&&ey===0) { if(Math.abs(dx)>hw){nx=Math.sign(dx);ny=0;x=cx+Math.sign(dx)*hw;}else{nx=0;ny=Math.sign(dy);y=cy+Math.sign(dy)*hh;} }
+          else { const cl=Math.sqrt(ex*ex+ey*ey); nx=Math.sign(dx)*ex/cl; ny=Math.sign(dy)*ey/cl; x-=nx*(cl-cr); y-=ny*(cl-cr); }
+          break;
+        }
+      }
+      // 反射速度 + 隨機偏移
+      const dot = vx*nx + vy*ny;
+      vx -= 2*dot*nx; vy -= 2*dot*ny;
+      const dev = Phaser.Math.FloatBetween(-RAND_DEV, RAND_DEV);
+      const spd = Math.sqrt(vx*vx+vy*vy);
+      const ang2 = Math.atan2(vy, vx) + dev;
+      vx = Math.cos(ang2)*spd; vy = Math.sin(ang2)*spd;
+      return true;
+    };
+
+    let prevInside = true; // 上一幀是否在場地內，用於偵測第一次穿越邊界
+    const stepTimer = this.time.addEvent({
+      delay: STEP_MS, loop: true,
+      callback: () => {
+        if (!this.bossActive || !boulderG.active) { stepTimer.destroy(); boulderG.destroy(); return; }
+        const dt = STEP_MS / 1000;
+        x += vx * dt; y += vy * dt;
+        rot += (speed / r) * dt;
+
+        const nowInside = isInside(x, y);
+        // 只在第一次穿越邊界（inside→outside）時計一次反彈
+        if (!nowInside && prevInside) {
+          bounceAtWall();
+          bounces++;
+          prevInside = true; // 反彈後視為在場地內，防止下一幀重複計算
+          this.cameras.main.shake(30, 0.003);
+          this.add.particles(x, y, 'pxl2', {
+            speed:{min:60,max:140}, angle:{min:0,max:360},
+            scale:{start:1.4,end:0}, alpha:{start:0.9,end:0},
+            tint:[0xaa7733,0xddbb77], lifespan:{min:150,max:300}, emitting:false,
+          }).setDepth(24).emitParticleAt(0,0,10);
+
+          if (bounces > BOUNCE_MAX) {
+            stepTimer.destroy();
+            this.tweens.add({ targets: boulderG, alpha: 0, scaleX: 2, scaleY: 2, duration: 300, onComplete: () => boulderG.destroy() });
+            return;
+          }
+        } else {
+          prevInside = nowInside;
+        }
+
+        // 傷害判定
+        if (!hitPlayer && Phaser.Math.Distance.Between(x, y, this.player.x, this.player.y) <= r + P(12)) {
+          hitPlayer = true; this.player.takeDamage(dmg);
+          this.time.delayedCall(800, () => { hitPlayer = false; });
+        }
+        for (const ally of this._allyMinions) {
+          if (!ally.isDead && Phaser.Math.Distance.Between(x, y, ally.x, ally.y) <= r + P(12)) {
+            ally.takeDamage(dmg);
+          }
+        }
+        drawBoulder();
+      },
+    });
+
+    drawBoulder();
+  }
+
+  private fireBossJumpLand(x: number, y: number, r: number, dmg: number): void {
+    // 衝擊波
+    const ring = this.add.graphics({ x, y }).setDepth(55);
+    ring.lineStyle(P(6), 0xff6600, 1);
+    ring.strokeCircle(0, 0, P(20));
+    this.tweens.add({ targets: ring, scaleX: r / P(20), scaleY: r / P(20), alpha: 0, duration: 450, ease: 'Cubic.Out', onComplete: () => ring.destroy() });
+
+    // 外擴第二環
+    const ring2 = this.add.graphics({ x, y }).setDepth(54);
+    ring2.lineStyle(P(14), 0xff4400, 0.35);
+    ring2.strokeCircle(0, 0, P(20));
+    this.tweens.add({ targets: ring2, scaleX: r * 1.6 / P(20), scaleY: r * 1.6 / P(20), alpha: 0, duration: 600, ease: 'Cubic.Out', onComplete: () => ring2.destroy() });
+
+    // 落點閃白
+    const flash = this.add.graphics({ x, y }).setDepth(56);
+    flash.fillStyle(0xffffff, 1); flash.fillCircle(0, 0, P(30));
+    this.tweens.add({ targets: flash, scaleX: 0.05, scaleY: 0.05, alpha: 0, duration: 220, ease: 'Quad.In', onComplete: () => flash.destroy() });
+
+    // 塵土
+    this.add.particles(x, y, 'pxl2', {
+      speed: { min: 100, max: 260 }, angle: { min: 200, max: 340 },
+      scale: { start: 2.4, end: 0 }, alpha: { start: 0.9, end: 0 },
+      tint: [0xaa7733, 0xccaa55, 0x886622],
+      lifespan: { min: 280, max: 600 }, emitting: false,
+    }).setDepth(53).emitParticleAt(0, 0, 28);
+
+    this.hitInRadius(x, y, r, dmg);
+  }
+
+  private fireBossFissureWithBranches(fx: number, fy: number, angle: number, len: number, dmg: number): void {
+    // 主幹地裂（重用 fireGroundCrack 邏輯）
+    this.fireGroundCrack(fx, fy, angle, len, dmg);
+
+    // 延遲等主幹快走到尾端再觸發分支（約 350ms，動畫 420ms）
+    const branchDelay = 150;
+    const branchCount = 4;          // 分支數量
+    const branchFan   = Math.PI * 100 / 180; // 扇形範圍
+    const branchLen   = Math.round(150 * DPR);
+    const tipX        = fx + Math.cos(angle) * len;
+    const tipY        = fy + Math.sin(angle) * len;
+
+    this.time.delayedCall(branchDelay, () => {
+      for (let i = 0; i < branchCount; i++) {
+        const ba = angle + (i / (branchCount - 1) - 0.5) * branchFan;
+        this.time.delayedCall(i * 30, () => {
+          this.fireGroundCrack(tipX, tipY, ba, branchLen, Math.round(dmg * 0.6));
+        });
+      }
+      this.cameras.main.shake(60, 0.005);
     });
   }
 

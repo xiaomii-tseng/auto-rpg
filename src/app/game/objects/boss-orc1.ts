@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
-import { Boss, BossState } from './boss';
+import { BossState } from './boss';
+import { BossOrcBase } from './boss-orc-base';
 
 const DPR = (window as any).__gameDpr as number;
 const P   = (n: number): number => Math.round(n * DPR);
@@ -37,11 +38,7 @@ const BOULDER_SLOW_R   = Math.round(52 * DPR);
 const ROAR_WARN_MS  = 800;
 const ROAR_SLOW_DUR = 3500;
 
-// 強衝（遠程觸發）
-const CHARGE_DIST_THRESHOLD = Math.round(145 * DPR); // 超過此距離必定衝刺
-const CHARGE_WARN_MS         = 250;
-
-export class BossOrc1 extends Boss {
+export class BossOrc1 extends BossOrcBase {
   onWhirlTick?:    (x: number, y: number, r: number, dmg: number) => void;
   onWhirlSlash?:   (wx: number, wy: number, tx: number, ty: number) => void;
   onSummonOrc?:    (x: number, y: number) => void;
@@ -60,13 +57,7 @@ export class BossOrc1 extends Boss {
   protected override pickNextAttack(): void {
     if (this.guestMode) return;
 
-    // 玩家距離過遠 → 立刻強衝，不走正常隨機
-    const [px, py] = this.getTargetPos();
-    const dist = Phaser.Math.Distance.Between(this.x, this.y, px, py);
-    if (dist > CHARGE_DIST_THRESHOLD) {
-      this.stateTimer = this.scene.time.delayedCall(this.getNextAttackDelay(), () => this.enterQuickDashWarn(CHARGE_WARN_MS));
-      return;
-    }
+    if (this.tryChargeIfFar()) return;
 
     const roll = Math.random();
     let fn: () => void;

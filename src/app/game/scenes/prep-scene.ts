@@ -316,6 +316,7 @@ export class PrepScene extends Phaser.Scene {
       ['plant2_idle', 'sprite/flower/PNG/Plant2/With_shadow/Plant2_Idle_with_shadow.png'],
       ['plant3_idle', 'sprite/flower/PNG/Plant3/With_shadow/Plant3_Idle_with_shadow.png'],
       ['orc1_idle', 'sprite/orc/PNG/Orc1/With_shadow/orc1_idle_with_shadow.png'],
+      ['orc2_idle', 'sprite/orc/PNG/Orc2/With_shadow/orc2_idle_with_shadow.png'],
     ];
     bossSprites.forEach(([key, path]) => {
       if (!this.textures.exists(key)) this.load.spritesheet(key, path, cfg);
