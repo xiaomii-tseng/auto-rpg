@@ -206,6 +206,18 @@ export class PrepScene extends Phaser.Scene {
   private _townWASD?: { up: Phaser.Input.Keyboard.Key; down: Phaser.Input.Keyboard.Key; left: Phaser.Input.Keyboard.Key; right: Phaser.Input.Keyboard.Key };
   private _townLocalNameLabel?: Phaser.GameObjects.Text;
   private _townPlayerDebug?: Phaser.GameObjects.Graphics;
+  private _townAnimals: Array<{
+    sprite: Phaser.GameObjects.Sprite;
+    state: 'idle' | 'walk';
+    wx: number; wy: number;
+    targetX: number; targetY: number;
+    speed: number;
+    dir: 'down' | 'up' | 'left' | 'right';
+    idleTimer: number;
+    kind: string;
+  }> = [];
+  private _isAnimalHost  = true;
+  private _animalSyncTimer = 2000;
 
   static fmtGold(n: number): string {
     if (n >= 100_000_000) return `${(n / 100_000_000).toFixed(1)}億`;
@@ -329,6 +341,22 @@ export class PrepScene extends Phaser.Scene {
     if (!this.textures.exists('potions_sheet')) this.load.spritesheet('potions_sheet', 'items/potions.png', { frameWidth: 16, frameHeight: 16 });
     if (!this.textures.exists('icon_gold')) this.load.image('icon_gold', 'other/coin.webp');
     if (!this.textures.exists('icon_blank_card')) this.load.image('icon_blank_card', 'other/card.webp');
+    // Town decorative animals
+    const animalCfg = { frameWidth: 32, frameHeight: 32 };
+    const animalDefs: [string, string, string][] = [
+      ['Fox',          'Fox_Idle_with_shadow.png',          'Fox_walk_with_shadow.png'],
+      ['Deer',         'Deer_Idle_with_shadow.png',         'Deer_Walk_with_shadow.png'],
+      ['Hare',         'Hare_Idle_with_shadow.png',         'Hare_Walk_with_shadow.png'],
+      ['Boar',         'Boar_Idle_with_shadow.png',         'Boar_Walk_with_shadow.png'],
+      ['Black_grouse', 'Black_grouse_Idle_with_shadow.png', 'Black_grouse_Walk_with_shadow.png'],
+    ];
+    for (const [name, idleFile, walkFile] of animalDefs) {
+      const base = `animal/PNG/With_Shadow/${name}`;
+      if (!this.textures.exists(`animal_${name}_idle`))
+        this.load.spritesheet(`animal_${name}_idle`, `${base}/${idleFile}`, animalCfg);
+      if (!this.textures.exists(`animal_${name}_walk`))
+        this.load.spritesheet(`animal_${name}_walk`, `${base}/${walkFile}`, animalCfg);
+    }
   }
 
   create(): void {
@@ -5849,11 +5877,17 @@ export class PrepScene extends Phaser.Scene {
     // Join TownRoom (non-blocking)
     this._joinTownRoom();
 
+    // Decorative animals
+    this._createAnimalAnims();
+    this._spawnTownAnimals(WW, WH);
+
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       NetworkService.leaveTown();
       this._townRemotePlayers.forEach(r => { r.sprite.destroy(); r.nameLabel.destroy(); });
       this._townRemotePlayers.clear();
       this._townZones = [];
+      this._townAnimals.forEach(a => a.sprite.destroy());
+      this._townAnimals = [];
     });
   }
 
@@ -6137,6 +6171,9 @@ export class PrepScene extends Phaser.Scene {
       this._townBuildingRects.push({ cx: leftW / 2, cy: wallY, hw: leftW / 2, hh: wallH / 2 });
     if (rightW > 0)
       this._townBuildingRects.push({ cx: gateX + gateHW + rightW / 2, cy: wallY, hw: rightW / 2, hh: wallH / 2 });
+
+    // Bottom wall collision — full-width block behind bottom tree row
+    this._townBuildingRects.push({ cx: WW / 2, cy: BOTTOM_Y, hw: WW / 2, hh: TS * 0.8 });
 
     // Path trees — flank the entrance corridor from gate down to 出戰 building
     const PATH_END_Y = WH * 0.30;         // ↓ 調這裡：停在建築前多高
@@ -6459,6 +6496,9 @@ export class PrepScene extends Phaser.Scene {
         if (!r) return;
         r.sprite.destroy(); r.nameLabel.destroy();
         this._townRemotePlayers.delete(data.sessionId);
+        // If all others left, reclaim host role
+        if (!this._isAnimalHost && this._townRemotePlayers.size === 0)
+          this._isAnimalHost = true;
       });
 
       NetworkService.onTownPlayerInfo(data => {
@@ -6469,6 +6509,13 @@ export class PrepScene extends Phaser.Scene {
       payload.existing?.forEach((p: any) =>
         this._spawnTownRemotePlayer(p.sessionId, p.x, p.y, p.lastDir, p.nickname, p.level, p.skinId),
       );
+
+      // Animal host: first player in room; others receive sync from host
+      this._isAnimalHost = !payload.existing?.length;
+      NetworkService.onTownAnimal(data => {
+        if (this._isAnimalHost) return;
+        this._applyAnimalSync(data);
+      });
 
       // ── Party invite callbacks ──────────────────────────────
       NetworkService.onPartyInvite(data => {
@@ -7075,5 +7122,184 @@ export class PrepScene extends Phaser.Scene {
       r.sprite.setDepth(remoteDepth);
       r.nameLabel.setDepth(remoteDepth + 0.1);
     });
+
+    // Update animals (host only runs simulation; non-host only renders)
+    const ts = Math.round(32 * DPR);
+    if (this._isAnimalHost) {
+      for (const a of this._townAnimals) {
+        if (a.state === 'walk') {
+          const dx = a.targetX - a.wx;
+          const dy = a.targetY - a.wy;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < a.speed * delta / 1000 + 1) {
+            a.wx = a.targetX; a.wy = a.targetY;
+            a.sprite.setPosition(a.wx, a.wy);
+            this._animalStartIdle(a);
+          } else {
+            const step = a.speed * delta / 1000;
+            a.wx += (dx / dist) * step;
+            a.wy += (dy / dist) * step;
+            a.sprite.setPosition(a.wx, a.wy);
+            a.sprite.setDepth(4 + a.wy / ts + 0.3);
+          }
+        } else {
+          a.idleTimer -= delta;
+          if (a.idleTimer <= 0) this._animalStartWalk(a);
+        }
+      }
+      // Broadcast state to other clients periodically
+      this._animalSyncTimer -= delta;
+      if (this._animalSyncTimer <= 0) {
+        this._animalSyncTimer = 2000;
+        NetworkService.sendTownAnimal(this._townAnimals.map(a => ({
+          kind: a.kind, state: a.state, wx: a.wx / this._townWorldW, wy: a.wy / this._townWorldH,
+          dir: a.dir,
+        })));
+      }
+    }
+
+  }
+
+  private _createAnimalAnims(): void {
+    const dirs: Array<['down' | 'up' | 'left' | 'right', number]> = [
+      ['down', 0], ['up', 1], ['left', 2], ['right', 3],
+    ];
+    const animals = ['Fox', 'Deer', 'Hare', 'Boar', 'Black_grouse'];
+    const walkFrames: Record<string, number> = { Hare: 5 };
+
+    for (const name of animals) {
+      const idleKey = `animal_${name}_idle`;
+      const walkKey = `animal_${name}_walk`;
+      if (!this.textures.exists(idleKey) || !this.textures.exists(walkKey)) continue;
+      const wf = walkFrames[name] ?? 6;
+
+      for (const [dir, row] of dirs) {
+        const idleAnimKey = `animal_${name}_idle_${dir}`;
+        const walkAnimKey = `animal_${name}_walk_${dir}`;
+        if (!this.anims.exists(idleAnimKey)) {
+          this.anims.create({
+            key: idleAnimKey,
+            frames: this.anims.generateFrameNumbers(idleKey, { start: row * 4, end: row * 4 + 3 }),
+            frameRate: 6,
+            repeat: -1,
+          });
+        }
+        if (!this.anims.exists(walkAnimKey)) {
+          this.anims.create({
+            key: walkAnimKey,
+            frames: this.anims.generateFrameNumbers(walkKey, { start: row * wf, end: row * wf + wf - 1 }),
+            frameRate: 8,
+            repeat: -1,
+          });
+        }
+      }
+    }
+  }
+
+  private _spawnTownAnimals(WW: number, WH: number): void {
+    if (!this._townContainer) return;
+    const allKinds = ['Fox', 'Deer', 'Hare', 'Boar', 'Black_grouse'];
+    const dirs: Array<'down' | 'up' | 'left' | 'right'> = ['down', 'up', 'left', 'right'];
+    const MARGIN = P(80);
+
+    for (let i = 0; i < 3; i++) {
+      const name = allKinds[Math.floor(Math.random() * allKinds.length)];
+      const idleKey = `animal_${name}_idle`;
+      if (!this.textures.exists(idleKey)) continue;
+
+      let wx: number, wy: number;
+      let attempts = 0;
+      do {
+        wx = MARGIN + Math.random() * (WW - MARGIN * 2);
+        wy = MARGIN + Math.random() * (WH - MARGIN * 2);
+        attempts++;
+      } while (this._animalPosBlocked(wx, wy) && attempts < 20);
+
+      const dir = dirs[Math.floor(Math.random() * 4)];
+      const sprite = this.add.sprite(wx, wy, idleKey, 0);
+      sprite.setScale(DPR);
+      sprite.setDepth(4 + wy / P(32) + 0.3);
+      sprite.play(`animal_${name}_idle_${dir}`, true);
+      this._townContainer.add(sprite);
+
+      this._townAnimals.push({
+        sprite, state: 'idle', wx, wy,
+        targetX: wx, targetY: wy,
+        speed: P(28 + Math.random() * 16),
+        dir, idleTimer: 1500 + Math.random() * 3000,
+        kind: name,
+      });
+    }
+  }
+
+  private _animalStartIdle(a: (typeof this._townAnimals)[0]): void {
+    a.state = 'idle';
+    a.idleTimer = 2000 + Math.random() * 4000;
+    a.sprite.play(`animal_${a.kind}_idle_${a.dir}`, true);
+  }
+
+  private _applyAnimalSync(data: Array<{ kind: string; state: string; wx: number; wy: number; dir: string }>): void {
+    if (!Array.isArray(data)) return;
+    const ts = Math.round(32 * DPR);
+    data.forEach((d, i) => {
+      const a = this._townAnimals[i];
+      if (!a) return;
+      const wx = d.wx * this._townWorldW;
+      const wy = d.wy * this._townWorldH;
+      a.wx = wx; a.wy = wy;
+      a.sprite.setPosition(wx, wy);
+      a.sprite.setDepth(4 + wy / ts + 0.3);
+      const dir = d.dir as 'down' | 'up' | 'left' | 'right';
+      if (d.state === 'walk') {
+        const key = `animal_${a.kind}_walk_${dir}`;
+        if (a.sprite.anims.currentAnim?.key !== key && this.anims.exists(key))
+          a.sprite.play(key, true);
+      } else {
+        const key = `animal_${a.kind}_idle_${dir}`;
+        if (a.sprite.anims.currentAnim?.key !== key && this.anims.exists(key))
+          a.sprite.play(key, true);
+      }
+      a.dir = dir;
+    });
+  }
+
+  private _animalPosBlocked(x: number, y: number): boolean {
+    const AR = P(10); // animal half-width for collision
+    return (
+      this._townStoneRects.some(s => Math.hypot(x - s.x, y - s.y) < AR + s.r) ||
+      this._townBuildingRects.some(b =>
+        Math.abs(x - b.cx) < b.hw + AR && Math.abs(y - b.cy) < b.hh + AR)
+    );
+  }
+
+  private _animalStartWalk(a: (typeof this._townAnimals)[0]): void {
+    const WW = this._townWorldW;
+    const WH = this._townWorldH;
+    const MARGIN = P(60);
+    const STEP = P(50 + Math.random() * 80);
+
+    let tx = a.wx, ty = a.wy;
+    let found = false;
+    for (let attempt = 0; attempt < 12; attempt++) {
+      const cx = a.wx + (Math.random() - 0.5) * STEP * 2;
+      const cy = a.wy + (Math.random() - 0.5) * STEP * 2;
+      const cxt = Math.max(MARGIN, Math.min(WW - MARGIN, cx));
+      const cyt = Math.max(MARGIN, Math.min(WH - MARGIN, cy));
+      if (!this._animalPosBlocked(cxt, cyt)) { tx = cxt; ty = cyt; found = true; break; }
+    }
+    if (!found) { this._animalStartIdle(a); return; }
+
+    const dx = tx - a.wx;
+    const dy = ty - a.wy;
+    if (Math.abs(dx) >= Math.abs(dy)) {
+      a.dir = dx < 0 ? 'left' : 'right';
+    } else {
+      a.dir = dy < 0 ? 'up' : 'down';
+    }
+
+    a.state = 'walk';
+    a.targetX = tx;
+    a.targetY = ty;
+    a.sprite.play(`animal_${a.kind}_walk_${a.dir}`, true);
   }
 }

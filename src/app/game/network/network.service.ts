@@ -44,6 +44,7 @@ interface TownCallbacks {
   partyRoomCode?:  (data: { roomCode: string }) => void;
   partyCancelled?: () => void;
   townDisconnected?: () => void;
+  townAnimal?: (data: any) => void;
 }
 
 // ── Replaceable callback slots ─────────────────────────────────────────────
@@ -463,6 +464,7 @@ class NetworkServiceClass {
     r.onMessage('partyDeclined',    (d: any) => this._townCbs.partyDeclined?.(d));
     r.onMessage('partyRoomCode',    (d: any) => this._townCbs.partyRoomCode?.(d));
     r.onMessage('partyCancelled',   ()       => this._townCbs.partyCancelled?.());
+    r.onMessage('townAnimal',       (d: any) => this._townCbs.townAnimal?.(d));
     r.onLeave((code) => {
       if (code !== 1000) {
         this.townRoom = undefined;
@@ -533,6 +535,14 @@ class NetworkServiceClass {
 
   onTownDisconnected(cb: () => void): void {
     this._townCbs.townDisconnected = cb;
+  }
+
+  sendTownAnimal(data: any): void {
+    this.townRoom?.send('townAnimal', data);
+  }
+
+  onTownAnimal(cb: (data: any) => void): void {
+    this._townCbs.townAnimal = cb;
   }
 
   leaveTown(): void {

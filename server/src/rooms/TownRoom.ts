@@ -92,6 +92,11 @@ export class TownRoom extends Room {
       const target = this.clients.find(c => c.sessionId === msg.targetSessionId);
       target?.send('partyCancelled', {});
     });
+
+    // Animal host broadcasts state to all other clients
+    this.onMessage<any>('townAnimal', (client, msg) => {
+      this.broadcast('townAnimal', msg, { except: client });
+    });
   }
 
   onJoin(client: Client): void {
