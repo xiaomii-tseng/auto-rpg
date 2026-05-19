@@ -93,6 +93,9 @@ const BOSS_POOL = [
   'boss_orc1',
   'boss_orc2',
   'boss_orc3',
+  'boss_vampire1',
+  'boss_vampire2',
+  'boss_vampire3',
 ];
 
 const BOSS_MIN_STAR: Record<string, number> = {
@@ -102,6 +105,9 @@ const BOSS_MIN_STAR: Record<string, number> = {
   boss_orc2:         3,
   boss_orc3:         3,
   boss_flower_three: 2,
+  boss_vampire1:     4,
+  boss_vampire2:     4,
+  boss_vampire3:     4,
 };
 
 const FLAVOR_TEMPLATES: Array<(name: string, star: number) => string> = [

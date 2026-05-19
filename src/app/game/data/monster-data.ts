@@ -379,6 +379,75 @@ export const MONSTER_DEFS: MonsterDef[] = [
     drops: bossDrops,
   },
 
+  // ── 吸血鬼小怪 Tier 1 (minStar=4) ──────────────────────
+  {
+    id: 'vampire1_s', name: '吸血鬼', spriteKey: 'vampire1', frameEnd: 3,
+    element: 'none', tint: 0xffffff, tier: 1, minStar: 4,
+    hp: 110, atk: 18, def: 5, speed: 85, exp: 40, gold: 15,
+    cards: [{ cardId: 'card_vampire1_n', rate: CR_S }],
+    drops: smallDrops,
+  },
+  {
+    id: 'vampire2_s', name: '吸血鬼法師', spriteKey: 'vampire2', frameEnd: 3,
+    element: 'none', tint: 0xffffff, tier: 1, minStar: 4,
+    hp: 127, atk: 15, def: 6, speed: 90, exp: 42, gold: 16,
+    cards: [{ cardId: 'card_vampire2_n', rate: CR_S }],
+    drops: smallDrops,
+  },
+  {
+    id: 'vampire3_s', name: '吸血鬼術士', spriteKey: 'vampire3', frameEnd: 3,
+    element: 'none', tint: 0xffffff, tier: 1, minStar: 4,
+    hp: 93, atk: 20, def: 5, speed: 95, exp: 45, gold: 17,
+    cards: [{ cardId: 'card_vampire3_n', rate: CR_S }],
+    drops: smallDrops,
+  },
+
+  // ── 吸血鬼菁英 Tier 3 (minStar=4) ───────────────────────
+  {
+    id: 'elite_vampire1', name: '菁英吸血鬼', spriteKey: 'vampire1', frameEnd: 3,
+    element: 'none', tint: 0xffffff, tier: 3, minStar: 4,
+    hp: 110, atk: 18, def: 8, speed: 88, exp: 125, gold: 55,
+    cards: [{ cardId: 'card_vampire1_e', rate: CR_E }],
+    drops: eliteDrops,
+  },
+  {
+    id: 'elite_vampire2', name: '菁英吸血鬼法師', spriteKey: 'vampire2', frameEnd: 3,
+    element: 'none', tint: 0xffffff, tier: 3, minStar: 4,
+    hp: 127, atk: 15, def: 9, speed: 93, exp: 130, gold: 58,
+    cards: [{ cardId: 'card_vampire2_e', rate: CR_E }],
+    drops: eliteDrops,
+  },
+  {
+    id: 'elite_vampire3', name: '菁英吸血鬼術士', spriteKey: 'vampire3', frameEnd: 3,
+    element: 'none', tint: 0xffffff, tier: 3, minStar: 4,
+    hp: 102, atk: 22, def: 8, speed: 98, exp: 135, gold: 60,
+    cards: [{ cardId: 'card_vampire3_e', rate: CR_E }],
+    drops: eliteDrops,
+  },
+
+  // ── 吸血鬼Boss系列 (minStar=4) ──────────────────────────
+  {
+    id: 'boss_vampire1', name: '吸血鬼伯爵', spriteKey: 'vampire1', frameEnd: 3,
+    element: 'none', tint: 0xffffff, tier: 5,
+    hp: 765, atk: 25, def: 25, speed: 100, exp: 320, gold: 200,
+    cards: [{ cardId: 'card_vampire1_b', rate: CR_B }],
+    drops: bossDrops,
+  },
+  {
+    id: 'boss_vampire2', name: '血族法王', spriteKey: 'vampire2', frameEnd: 3,
+    element: 'none', tint: 0xffffff, tier: 5,
+    hp: 841, atk: 22, def: 27, speed: 92, exp: 335, gold: 210,
+    cards: [{ cardId: 'card_vampire2_b', rate: CR_B }],
+    drops: bossDrops,
+  },
+  {
+    id: 'boss_vampire3', name: '血族魔王', spriteKey: 'vampire3', frameEnd: 3,
+    element: 'none', tint: 0xffffff, tier: 5,
+    hp: 748, atk: 28, def: 21, speed: 108, exp: 350, gold: 220,
+    cards: [{ cardId: 'card_vampire3_b', rate: CR_B }],
+    drops: bossDrops,
+  },
+
   // ── 花Boss系列 ──────────────────────────────────────────
   {
     id: 'boss_flower_one', name: '食人花王', spriteKey: 'plant1', frameEnd: 9,
@@ -624,6 +693,61 @@ export const CARD_DEFS: CardDef[] = [
     element: 'none', tint: 0x99bbdd,
     effect: { impaleCharge: 3, impaleDmgPct: 1.00 },
     desc: '每3次攻擊蓄勁，第4刀+100%傷害' },
+
+  // ════════════════════════════════════════════════════
+  // 吸血鬼族（3 家族）
+  // ════════════════════════════════════════════════════
+
+  // ── 吸血鬼家族（生命汲取）──
+  { id: 'card_vampire1_n', name: '吸血鬼卡', monsterId: 'vampire1_s',
+    family: 'vampire1', race: 'vampire', cardType: 'n',
+    element: 'none', tint: 0xcc44ff,
+    effect: { lifesteal: 0.015 },
+    desc: '生命竊取+1.5%' },
+  { id: 'card_vampire1_e', name: '菁英吸血鬼卡', monsterId: 'elite_vampire1',
+    family: 'vampire1', race: 'vampire', cardType: 'e',
+    element: 'none', tint: 0xdd66ff,
+    effect: { lifesteal: 0.025, hp: 30 },
+    desc: '生命竊取+2.5%  最大HP+30' },
+  { id: 'card_vampire1_b', name: '吸血鬼伯爵卡', monsterId: 'boss_vampire1',
+    family: 'vampire1', race: 'vampire', cardType: 'b',
+    element: 'none', tint: 0xee88ff,
+    effect: { lifesteal: 0.04, hp: 60 },
+    desc: '生命竊取+4%  最大HP+60' },
+
+  // ── 血族武士家族（韌性防禦）──
+  { id: 'card_vampire2_n', name: '血族武士卡', monsterId: 'vampire2_s',
+    family: 'vampire2', race: 'vampire', cardType: 'n',
+    element: 'none', tint: 0xff4466,
+    effect: { def: 8 },
+    desc: '防禦力+8' },
+  { id: 'card_vampire2_e', name: '菁英血族武士卡', monsterId: 'elite_vampire2',
+    family: 'vampire2', race: 'vampire', cardType: 'e',
+    element: 'none', tint: 0xff6688,
+    effect: { def: 14, hp: 25 },
+    desc: '防禦力+14  最大HP+25' },
+  { id: 'card_vampire2_b', name: '血族戰王卡', monsterId: 'boss_vampire2',
+    family: 'vampire2', race: 'vampire', cardType: 'b',
+    element: 'none', tint: 0xff88aa,
+    effect: { def: 20, evasion: 0.06 },
+    desc: '防禦力+20  閃避+6%' },
+
+  // ── 血族法師家族（暴擊爆發）──
+  { id: 'card_vampire3_n', name: '血族法師卡', monsterId: 'vampire3_s',
+    family: 'vampire3', race: 'vampire', cardType: 'n',
+    element: 'none', tint: 0x8866dd,
+    effect: { crit: 0.06 },
+    desc: '暴擊率+6%' },
+  { id: 'card_vampire3_e', name: '菁英血族法師卡', monsterId: 'elite_vampire3',
+    family: 'vampire3', race: 'vampire', cardType: 'e',
+    element: 'none', tint: 0xaa88ff,
+    effect: { crit: 0.10, critDmg: 0.15 },
+    desc: '暴擊率+10%  暴擊傷害+15%' },
+  { id: 'card_vampire3_b', name: '血族魔王卡', monsterId: 'boss_vampire3',
+    family: 'vampire3', race: 'vampire', cardType: 'b',
+    element: 'none', tint: 0xccaaff,
+    effect: { crit: 0.14, critDmg: 0.25, atk: 10 },
+    desc: '暴擊率+14%  暴擊傷害+25%  攻擊力+10' },
 ];
 
 // ── Helpers ────────────────────────────────────────────────────────────────

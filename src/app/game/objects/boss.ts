@@ -344,7 +344,8 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
   }
 
   protected playDir(base: string): void {
-    this.play(`${base}_${this.bossDir}`, true);
+    const key = `${base}_${this.bossDir}`;
+    this.play(this.scene.anims.exists(key) ? key : `${base}_down`, true);
   }
 
   // ── 狀態機 ───────────────────────────────────────────────

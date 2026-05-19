@@ -330,6 +330,9 @@ export class PrepScene extends Phaser.Scene {
       ['orc1_idle', 'sprite/orc/PNG/Orc1/With_shadow/orc1_idle_with_shadow.png'],
       ['orc2_idle', 'sprite/orc/PNG/Orc2/With_shadow/orc2_idle_with_shadow.png'],
       ['orc3_idle', 'sprite/orc/PNG/Orc3/With_shadow/orc3_idle_with_shadow.png'],
+      ['vampire1_idle', 'sprite/vampire/PNG/Vampires1/With_shadow/Vampires1_Idle_with_shadow.png'],
+      ['vampire2_idle', 'sprite/vampire/PNG/Vampires2/With_shadow/Vampires2_Idle_with_shadow.png'],
+      ['vampire3_idle', 'sprite/vampire/PNG/Vampires3/With_shadow/Vampires3_Idle_with_shadow.png'],
     ];
     bossSprites.forEach(([key, path]) => {
       if (!this.textures.exists(key)) this.load.spritesheet(key, path, cfg);
@@ -998,9 +1001,10 @@ export class PrepScene extends Phaser.Scene {
 
       // Boss sprite
       const spriteKey = def ? `${def.spriteKey}_idle` : 'slime_idle';
-      const isPlantBoss = def?.spriteKey?.startsWith('plant');
-      const isOrcBoss   = def?.spriteKey?.startsWith('orc');
-      const idleFrames = isPlantBoss ? 3 : isOrcBoss ? 3 : 5;
+      const isPlantBoss   = def?.spriteKey?.startsWith('plant');
+      const isOrcBoss     = def?.spriteKey?.startsWith('orc');
+      const isVampireBoss = def?.spriteKey?.startsWith('vampire');
+      const idleFrames = (isPlantBoss || isOrcBoss || isVampireBoss) ? 3 : 5;
       const bossScale = isPlantBoss ? 3.0 * DPR * 0.8 : isOrcBoss ? 3.0 * DPR * 0.85 : 3.0 * DPR;
       const animKey = `q_${quest.bossId}`;
       if (!this.anims.exists(animKey) && this.textures.exists(spriteKey)) {

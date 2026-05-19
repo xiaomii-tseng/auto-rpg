@@ -14,6 +14,9 @@ import { BossFlowerThree } from '../objects/boss-flower-three';
 import { BossOrc1 } from '../objects/boss-orc1';
 import { BossOrc2 } from '../objects/boss-orc2';
 import { BossOrc3 } from '../objects/boss-orc3';
+import { BossVampire1 } from '../objects/boss-vampire1';
+import { BossVampire2 } from '../objects/boss-vampire2';
+import { BossVampire3 } from '../objects/boss-vampire3';
 import { MinionSlime } from '../objects/minion-slime';
 import { VirtualJoystick } from '../ui/joystick';
 import { drawItemCell } from '../ui/item-cell';
@@ -270,6 +273,15 @@ export class GameScene extends Phaser.Scene {
       if (!this.textures.exists(`${ok}_attack`))     this.load.spritesheet(`${ok}_attack`,     `${ob}_attack_with_shadow.png`,     cfg);
       if (!this.textures.exists(`${ok}_hurt`))       this.load.spritesheet(`${ok}_hurt`,       `${ob}_hurt_with_shadow.png`,       cfg);
       if (!this.textures.exists(`${ok}_death`))      this.load.spritesheet(`${ok}_death`,      `${ob}_death_with_shadow.png`,      cfg);
+    }
+    for (const n of [1, 2, 3]) {
+      const vb = `sprite/vampire/PNG/Vampires${n}/With_shadow/Vampires${n}`;
+      const vk = `vampire${n}`;
+      if (!this.textures.exists(`${vk}_idle`))   this.load.spritesheet(`${vk}_idle`,   `${vb}_Idle_with_shadow.png`,   cfg);
+      if (!this.textures.exists(`${vk}_run`))    this.load.spritesheet(`${vk}_run`,    `${vb}_Run_with_shadow.png`,    cfg);
+      if (!this.textures.exists(`${vk}_attack`)) this.load.spritesheet(`${vk}_attack`, `${vb}_Attack_with_shadow.png`, cfg);
+      if (!this.textures.exists(`${vk}_hurt`))   this.load.spritesheet(`${vk}_hurt`,   `${vb}_Hurt_with_shadow.png`,   cfg);
+      if (!this.textures.exists(`${vk}_death`))  this.load.spritesheet(`${vk}_death`,  `${vb}_Death_with_shadow.png`,  cfg);
     }
     if (!this.textures.exists('icon_stone_broken')) this.load.image('icon_stone_broken', 'other/ore2.webp');
     if (!this.textures.exists('icon_stone_intact')) this.load.image('icon_stone_intact', 'other/ore1.webp');
@@ -805,15 +817,16 @@ export class GameScene extends Phaser.Scene {
       space: kb.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE),
     };
 
-    // ── 測試快捷鍵：按 ` 清除所有小怪並傳送到BOSS場地 ──
+    // ── 測試快捷鍵：按 ` 在玩家旁邊各召喚一隻吸血鬼小怪 ──
     kb.on('keydown-BACKTICK', () => {
-      if (this.bossActive || this.teleporting) return;
-      this.allMinions.forEach(m => { if (!m.isDead) m.forceKill(); });
-      this.bossActive = true;
-      this.teleporting = true;
-      this.player.move(0, 0);
-      (this.player.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
-      this.teleportToBossArena();
+      const offsets: [string, number, number][] = [
+        ['elite_vampire1', -P(80), 0],
+        ['elite_vampire2',  0,     -P(80)],
+        ['elite_vampire3',  P(80), 0],
+      ];
+      for (const [defId, dx, dy] of offsets) {
+        this.spawnMinionAt(defId, this.player.x + dx, this.player.y + dy, false);
+      }
     });
 
     const onResize = () => this.physics.world.setBounds(0, 0, this.worldW, this.worldH);
@@ -3725,6 +3738,15 @@ export class GameScene extends Phaser.Scene {
 
       return b;
     }
+    if (bossDef.id === 'boss_vampire1') {
+      return new BossVampire1(this, cx, cy, totalHp, bossDef.element, bossDef.spriteKey, bossDef.tint);
+    }
+    if (bossDef.id === 'boss_vampire2') {
+      return new BossVampire2(this, cx, cy, totalHp, bossDef.element, bossDef.spriteKey, bossDef.tint);
+    }
+    if (bossDef.id === 'boss_vampire3') {
+      return new BossVampire3(this, cx, cy, totalHp, bossDef.element, bossDef.spriteKey, bossDef.tint);
+    }
     return new Boss(this, cx, cy, totalHp, bossDef.element, bossDef.spriteKey, bossDef.tint);
   }
 
@@ -3762,6 +3784,13 @@ export class GameScene extends Phaser.Scene {
     if (['orc2_s', 'elite_orc2'].includes(defId)) { m.attackMode = defId.startsWith('elite') ? 'ground_crack' : 'leap_slam'; m.rangedRange = Math.round(180 * DPR); }
     if (['orc3_s', 'elite_orc3'].includes(defId)) { m.attackMode = defId.startsWith('elite') ? 'triple_wave' : 'blade_wave'; m.rangedRange = Math.round(200 * DPR); }
     if (defId.startsWith('orc') || defId.startsWith('elite_orc')) m.race = 'orc';
+    if (defId === 'vampire1_s')     { m.attackMode = 'blood_needle';  m.rangedRange = Math.round(190 * DPR); }
+    if (defId === 'elite_vampire1') { m.attackMode = 'triple_needle'; m.rangedRange = Math.round(190 * DPR); }
+    if (defId === 'vampire2_s')     { m.attackMode = 'meteor';         m.rangedRange = Math.round(220 * DPR); }
+    if (defId === 'elite_vampire2') { m.attackMode = 'lightning_ring'; m.rangedRange = Math.round(220 * DPR); }
+    if (defId === 'vampire3_s')     { m.attackMode = 'blood_burst';   m.rangedRange = Math.round(90  * DPR); }
+    if (defId === 'elite_vampire3') { m.attackMode = 'orbit_burst';   m.rangedRange = Math.round(110 * DPR); }
+    if (defId.startsWith('vampire') || defId.startsWith('elite_vampire')) m.race = 'vampire';
     m.setPatrolCenter(wx, wy);
     m.getTargetPos = () => this.nearestTargetPos(m.x, m.y);
     m.onDead = () => this.handleMinionDrop(defId, m.x, m.y);
@@ -3803,6 +3832,9 @@ export class GameScene extends Phaser.Scene {
       boss_flower_one: 'plant1_s',
       boss_flower_two: 'plant2_s',
       boss_flower_three: 'plant3_s',
+      boss_vampire1: 'vampire1_s',
+      boss_vampire2: 'vampire2_s',
+      boss_vampire3: 'vampire3_s',
     };
     const MINION_TO_ELITE: Record<string, string> = {
       slime_green_s: 'elite_slime_green',
@@ -3817,10 +3849,14 @@ export class GameScene extends Phaser.Scene {
       orc1_s: 'elite_orc1',
       orc2_s: 'elite_orc2',
       orc3_s: 'elite_orc3',
+      vampire1_s: 'elite_vampire1',
+      vampire2_s: 'elite_vampire2',
+      vampire3_s: 'elite_vampire3',
     };
     const GENERAL_POOL = ['slime_green_s', 'slime_red_s', 'slime_blue_s', 'slime_white_s'];
     if (this.questStar >= 2) GENERAL_POOL.push('plant1_s', 'plant2_s', 'plant3_s');
     if (this.questStar >= 3) GENERAL_POOL.push('orc1_s', 'orc2_s', 'orc3_s');
+    if (this.questStar >= 4) GENERAL_POOL.push('vampire1_s', 'vampire2_s', 'vampire3_s');
 
     const mainMinionId = BOSS_TO_MINION[this.bossMonsterId];
     const otherPool = GENERAL_POOL.filter(id => id !== mainMinionId);
@@ -3880,6 +3916,10 @@ export class GameScene extends Phaser.Scene {
       if (['orc2_s', 'elite_orc2'].includes(defId)) { m.attackMode = defId.startsWith('elite') ? 'ground_crack' : 'leap_slam'; m.rangedRange = Math.round(180 * DPR); }
       if (['orc3_s', 'elite_orc3'].includes(defId)) { m.attackMode = defId.startsWith('elite') ? 'triple_wave' : 'blade_wave'; m.rangedRange = Math.round(200 * DPR); }
       if (defId.startsWith('orc') || defId.startsWith('elite_orc')) m.race = 'orc';
+      if (['vampire1_s', 'elite_vampire1'].includes(defId)) { m.attackMode = 'blood_needle'; m.rangedRange = Math.round(190 * DPR); }
+      if (['vampire2_s', 'elite_vampire2'].includes(defId)) { m.attackMode = 'meteor';       m.rangedRange = Math.round(220 * DPR); }
+      if (['vampire3_s', 'elite_vampire3'].includes(defId)) { m.attackMode = 'blood_burst';  m.rangedRange = Math.round(90  * DPR); }
+      if (defId.startsWith('vampire') || defId.startsWith('elite_vampire')) m.race = 'vampire';
       m.setPatrolCenter(isPlant ? spawnX : wx, isPlant ? spawnY : wy);
       m.getTargetPos = () => this.nearestTargetPos(m.x, m.y);
       m.onDead = () => this.handleMinionDrop(defId, m.x, m.y);
@@ -6989,6 +7029,33 @@ export class GameScene extends Phaser.Scene {
     buildPlantAnims('plant1');
     buildPlantAnims('plant2');
     buildPlantAnims('plant3');
+
+    // Vampire monsters — 3 directions only: down/left/right; idle=4, run=8, attack=12, hurt=4, death=10
+    const buildVampireAnims = (prefix: string) => {
+      if (this.anims.exists(`${prefix}_idle_down`)) return;
+      const vDirs: Array<'down' | 'left' | 'right'> = ['down', 'left', 'right'];
+      const vampDefs = [
+        { action: 'idle',   cols: 4,  fps: 6,  repeat: -1 },
+        { action: 'run',    cols: 8,  fps: 14, repeat: -1 },
+        { action: 'attack', cols: 12, fps: 12, repeat: 0  },
+        { action: 'hurt',   cols: 4,  fps: 14, repeat: 0  },
+        { action: 'death',  cols: 10, fps: 8,  repeat: 0  },
+      ];
+      vDirs.forEach((dir, row) => {
+        vampDefs.forEach(d => {
+          const start = row * d.cols;
+          this.anims.create({
+            key: `${prefix}_${d.action}_${dir}`,
+            frames: this.anims.generateFrameNumbers(`${prefix}_${d.action}`, { start, end: start + d.cols - 1 }),
+            frameRate: d.fps,
+            repeat: d.repeat,
+          });
+        });
+      });
+    };
+    buildVampireAnims('vampire1');
+    buildVampireAnims('vampire2');
+    buildVampireAnims('vampire3');
   }
 
 
@@ -7034,6 +7101,18 @@ export class GameScene extends Phaser.Scene {
       this.spinSlashAt(wx, wy, atk, isElite);
     } else if (type === 'ground_crack') {
       this.groundCrackAt(wx, wy, wtx, wty, atk, isElite);
+    } else if (type === 'blood_needle') {
+      this.bloodNeedleAt(wx, wy, wtx, wty, atk, isElite);
+    } else if (type === 'triple_needle') {
+      this.tripleNeedleAt(wx, wy, wtx, wty, atk);
+    } else if (type === 'meteor') {
+      this.meteorAt(wtx, wty, atk, isElite);
+    } else if (type === 'lightning_ring') {
+      this.lightningRingAt(wx, wy, wtx, wty, atk, isElite);
+    } else if (type === 'blood_burst') {
+      this.bloodBurstAt(wx, wy, wtx, wty, atk, isElite);
+    } else if (type === 'orbit_burst') {
+      this.orbitBurstAt(wx, wy, atk, isElite);
     } else {
       this.explodeAt(wx, wy, atk, isElite ? 1.4 : 1.0);
     }
@@ -7408,6 +7487,513 @@ export class GameScene extends Phaser.Scene {
       },
       onComplete: () => this.tweens.add({ targets: gfx, alpha: 0, duration: 450, delay: 250, onComplete: () => gfx.destroy() }),
     });
+  }
+
+  // ── 吸血鬼小怪 VFX ───────────────────────────────────────
+
+  private bloodNeedleAt(wx: number, wy: number, wtx: number, wty: number, atk: number, isElite: boolean): void {
+    this._fireBloodNeedle(wx, wy, wtx, wty, Math.round(atk * (isElite ? 5.5 : 4.5)), isElite);
+  }
+
+  private tripleNeedleAt(wx: number, wy: number, wtx: number, wty: number, atk: number): void {
+    const baseAngle  = Phaser.Math.Angle.Between(wx, wy, wtx, wty);
+    const travelDist = (Phaser.Math.Distance.Between(wx, wy, wtx, wty) || P(190)) + P(70);
+    const dmg        = Math.round(atk * 4.2);
+    for (let i = 0; i < 3; i++) {
+      const offset = (i - 1) * (Math.PI / 6); // -30°, 0°, +30°
+      const ang    = baseAngle + offset;
+      const etx    = wx + Math.cos(ang) * travelDist;
+      const ety    = wy + Math.sin(ang) * travelDist;
+      this.time.delayedCall(i * 75, () => this._fireBloodNeedle(wx, wy, etx, ety, dmg, true));
+    }
+  }
+
+  private _fireBloodNeedle(wx: number, wy: number, wtx: number, wty: number, dmg: number, isElite: boolean): void {
+    const angle    = Phaser.Math.Angle.Between(wx, wy, wtx, wty);
+    const dist     = Phaser.Math.Distance.Between(wx, wy, wtx, wty) || P(200);
+    const totalMs  = 750;
+    const amp      = P(22);
+    const freq     = 2.2;
+    const fwdX     = Math.cos(angle), fwdY = Math.sin(angle);
+    const perpX    = Math.cos(angle + Math.PI / 2), perpY = Math.sin(angle + Math.PI / 2);
+    const len      = P(isElite ? 22 : 16);
+    const hw       = P(isElite ? 4.5 : 3.5);
+    const hitR     = P(isElite ? 14 : 11);
+
+    const gfx = this.add.graphics().setDepth(52);
+    gfx.fillStyle(0x990011, 0.95);
+    gfx.fillTriangle(-len / 2, 0, 0, hw, len / 2, 0);
+    gfx.fillTriangle(-len / 2, 0, 0, -hw, len / 2, 0);
+    gfx.fillStyle(0xff3355, 0.55);
+    gfx.fillTriangle(-len * 0.28, 0, 0, hw * 0.44, len * 0.35, 0);
+    gfx.fillTriangle(-len * 0.28, 0, 0, -hw * 0.44, len * 0.35, 0);
+    gfx.fillStyle(0xff9aaa, 0.85);
+    gfx.fillCircle(len / 2, 0, P(1.8));
+    gfx.x = wx; gfx.y = wy; gfx.rotation = angle;
+
+    const trailEvt = this.time.addEvent({
+      delay: 58, repeat: Math.ceil(totalMs / 58) + 1,
+      callback: () => {
+        if (!gfx.active) return;
+        const t = this.add.graphics({ x: gfx.x, y: gfx.y }).setDepth(51);
+        t.rotation = gfx.rotation;
+        t.fillStyle(0x880011, 0.22);
+        t.fillTriangle(-len / 2, 0, 0, hw, len / 2, 0);
+        t.fillTriangle(-len / 2, 0, 0, -hw, len / 2, 0);
+        this.tweens.add({ targets: t, alpha: 0, duration: 180, onComplete: () => t.destroy() });
+      },
+    });
+
+    let hitPlayer = false;
+    const hitAllies = new Set<MinionSlime>();
+    const p = { t: 0 };
+    this.tweens.add({
+      targets: p, t: 1, duration: totalMs, ease: 'Linear',
+      onUpdate: () => {
+        const t = p.t;
+        const sineVal   = Math.sin(t * freq * Math.PI * 2);
+        const coseDeriv = Math.cos(t * freq * Math.PI * 2) * freq * Math.PI * 2;
+        gfx.x = wx + fwdX * dist * t + perpX * sineVal * amp;
+        gfx.y = wy + fwdY * dist * t + perpY * sineVal * amp;
+        gfx.rotation = Math.atan2(
+          fwdY * dist + perpY * coseDeriv * amp,
+          fwdX * dist + perpX * coseDeriv * amp,
+        );
+        if (!hitPlayer && Phaser.Math.Distance.Between(gfx.x, gfx.y, this.player.x, this.player.y) < hitR) {
+          hitPlayer = true; this.player.takeDamage(dmg);
+        }
+        for (const ally of this._allyMinions) {
+          if (!ally.isDead && !hitAllies.has(ally) &&
+              Phaser.Math.Distance.Between(gfx.x, gfx.y, ally.x, ally.y) < hitR) {
+            hitAllies.add(ally); ally.takeDamage(dmg);
+          }
+        }
+      },
+      onComplete: () => {
+        trailEvt.destroy();
+        const splat = this.add.graphics({ x: gfx.x, y: gfx.y }).setDepth(50);
+        for (let i = 0; i < 5; i++) {
+          const a = Math.random() * Math.PI * 2;
+          const r = P(Phaser.Math.Between(7, 22));
+          splat.fillStyle(0x880011, 0.50);
+          splat.fillCircle(Math.cos(a) * r, Math.sin(a) * r, P(Phaser.Math.Between(3, 6)));
+        }
+        splat.fillStyle(0xcc0022, 0.75);
+        splat.fillCircle(0, 0, P(5));
+        this.tweens.add({ targets: splat, alpha: 0, duration: 380, ease: 'Quad.Out', onComplete: () => splat.destroy() });
+        gfx.destroy();
+      },
+    });
+  }
+
+  private meteorAt(wtx: number, wty: number, atk: number, isElite: boolean): void {
+    const dmg    = Math.round(atk * (isElite ? 7.0 : 5.5));
+    const R      = Math.round((isElite ? 30 : 22) * DPR);
+    const fallMs = 520;
+    const startY = wty - P(130);
+
+    // Ground shadow (grows during fall)
+    const shadow = this.add.graphics({ x: wtx, y: wty }).setDepth(48);
+
+    // Meteor rock drawn at origin, scaled up during fall
+    const meteor = this.add.graphics({ x: wtx, y: startY }).setDepth(61);
+    meteor.fillStyle(isElite ? 0xff4400 : 0xcc3300, 0.95);
+    meteor.fillCircle(0, 0, R);
+    meteor.fillStyle(0x110000, 0.50);
+    meteor.fillCircle(R * 0.22, R * 0.18, R * 0.52);
+    meteor.lineStyle(P(3.5), 0xff8800, 0.90);
+    meteor.strokeCircle(0, 0, R);
+    meteor.lineStyle(P(1.5), 0xffcc44, 0.50);
+    meteor.strokeCircle(0, 0, R * 0.55);
+    meteor.setScale(0.3);
+
+    // Fire streaks spawned during fall
+    const fireEvt = this.time.addEvent({
+      delay: 80, repeat: Math.floor(fallMs / 80),
+      callback: () => {
+        if (!meteor.active) return;
+        const s = meteor.scaleX;
+        const streak = this.add.graphics({ x: meteor.x, y: meteor.y }).setDepth(60);
+        const sLen = P(30) * s;
+        for (let j = 0; j < 3; j++) {
+          const a = -Math.PI / 2 + (j - 1) * 0.22 + (Math.random() - 0.5) * 0.12;
+          streak.lineStyle(P(2.5 - j * 0.5), j === 0 ? 0xff6600 : 0xff3300, 0.65 - j * 0.12);
+          streak.beginPath(); streak.moveTo(0, 0);
+          streak.lineTo(Math.cos(a) * sLen, Math.sin(a) * sLen); streak.strokePath();
+        }
+        this.tweens.add({ targets: streak, alpha: 0, duration: 200, ease: 'Quad.Out', onComplete: () => streak.destroy() });
+      },
+    });
+
+    this.tweens.add({
+      targets: meteor, y: wty, scaleX: 1, scaleY: 1,
+      duration: fallMs, ease: 'Quad.In',
+      onUpdate: () => {
+        const t = Math.max(0, (meteor.y - startY) / (wty - startY));
+        shadow.clear();
+        shadow.fillStyle(0x330000, 0.38 * t);
+        shadow.fillEllipse(0, 0, R * 2.4 * t, R * 0.75 * t);
+      },
+      onComplete: () => {
+        fireEvt.destroy();
+        meteor.destroy();
+        shadow.destroy();
+
+        // ① 焦痕坑洞（留存最久，在最底層）
+        const crater = this.add.graphics({ x: wtx, y: wty }).setDepth(15);
+        crater.fillStyle(0x1a0700, 0.80); crater.fillCircle(0, 0, R * 1.05);
+        crater.fillStyle(0x2e1000, 0.45); crater.fillCircle(0, 0, R * 1.25);
+        crater.lineStyle(P(1.5), 0x662200, 0.55); crater.strokeCircle(0, 0, R * 1.05);
+        this.tweens.add({ targets: crater, alpha: 0, duration: 1600, delay: 300, ease: 'Quad.In', onComplete: () => crater.destroy() });
+
+        // ② 中心爆閃（亮白 → 橘，縮入消失）
+        const core = this.add.graphics({ x: wtx, y: wty }).setDepth(65);
+        core.fillStyle(0xffffff, 1);   core.fillCircle(0, 0, R * 0.6);
+        core.fillStyle(0xff8800, 0.9); core.fillCircle(0, 0, R * 0.35);
+        this.tweens.add({ targets: core, alpha: 0, scaleX: 0.08, scaleY: 0.08, duration: 160, ease: 'Quad.In', onComplete: () => core.destroy() });
+
+        // ③ 衝擊波薄環（快速擴散消失）
+        const shock = this.add.graphics({ x: wtx, y: wty }).setDepth(64);
+        shock.lineStyle(P(3), 0xffaa44, 1); shock.strokeCircle(0, 0, R * 0.75);
+        this.tweens.add({ targets: shock, scaleX: 2.6, scaleY: 2.6, alpha: 0, duration: 320, ease: 'Cubic.Out', onComplete: () => shock.destroy() });
+
+        // ④ 橘紅光圈（稍慢，有厚度）
+        const halo = this.add.graphics({ x: wtx, y: wty }).setDepth(63);
+        halo.lineStyle(P(7), 0xff5500, 0.70); halo.strokeCircle(0, 0, R * 0.55);
+        this.tweens.add({ targets: halo, scaleX: 2.1, scaleY: 2.1, alpha: 0, duration: 480, ease: 'Quad.Out', onComplete: () => halo.destroy() });
+
+        // ⑤ 岩屑碎片（8 塊，各自飛出旋轉）
+        for (let i = 0; i < 8; i++) {
+          const a = (i / 8) * Math.PI * 2 + (Math.random() - 0.5) * 0.45;
+          const tDist = P(Phaser.Math.Between(18, 40));
+          const piece = this.add.graphics({ x: wtx, y: wty }).setDepth(62);
+          const pr = P(Phaser.Math.Between(3, 6));
+          const col = [0x882200, 0xaa3300, 0x661100, 0x993300][i % 4];
+          piece.fillStyle(col, 0.92);
+          piece.fillEllipse(0, 0, pr * 2.2, pr);        // 扁橢圓模擬碎石
+          piece.lineStyle(P(0.8), 0xffaa44, 0.55);
+          piece.strokeEllipse(0, 0, pr * 2.2, pr);
+          this.tweens.add({
+            targets: piece,
+            x: wtx + Math.cos(a) * tDist,
+            y: wty + Math.sin(a) * tDist,
+            rotation: Phaser.Math.FloatBetween(Math.PI, Math.PI * 3),
+            alpha: 0,
+            duration: Phaser.Math.Between(300, 480),
+            ease: 'Quad.Out',
+            onComplete: () => piece.destroy(),
+          });
+        }
+
+        // ⑥ 塵埃粒子（12 顆，更小更輕）
+        for (let i = 0; i < 12; i++) {
+          const a  = (i / 12) * Math.PI * 2 + Math.random() * 0.3;
+          const r0 = R * 0.45;
+          const r1 = P(Phaser.Math.Between(20, 48));
+          const dust = this.add.graphics({ x: wtx + Math.cos(a) * r0, y: wty + Math.sin(a) * r0 }).setDepth(62);
+          dust.fillStyle(0xcc5500, Phaser.Math.FloatBetween(0.45, 0.70));
+          dust.fillCircle(0, 0, P(Phaser.Math.Between(2, 4)));
+          this.tweens.add({
+            targets: dust,
+            x: wtx + Math.cos(a) * r1,
+            y: wty + Math.sin(a) * r1,
+            alpha: 0,
+            duration: Phaser.Math.Between(380, 620),
+            ease: 'Quad.Out',
+            onComplete: () => dust.destroy(),
+          });
+        }
+
+        // Damage（命中範圍縮至 R*1.1，配合視覺）
+        const hitR = R * 1.1;
+        if (Phaser.Math.Distance.Between(this.player.x, this.player.y, wtx, wty) < hitR) this.player.takeDamage(dmg);
+        for (const ally of this._allyMinions) {
+          if (!ally.isDead && Phaser.Math.Distance.Between(ally.x, ally.y, wtx, wty) < hitR) ally.takeDamage(dmg);
+        }
+      },
+    });
+  }
+
+  private bloodBurstAt(wx: number, wy: number, wtx: number, wty: number, atk: number, isElite: boolean): void {
+    const dmg       = Math.round(atk * (isElite ? 3.0 : 2.5));
+    const count     = 6;
+    const tDist     = P(isElite ? 175 : 140);
+    const duration  = 580;
+    const orbR      = P(isElite ? 7 : 5);
+    const hitR      = P(isElite ? 13 : 10);
+    const baseAngle = Phaser.Math.Angle.Between(wx, wy, wtx, wty);
+
+    // Central burst
+    const burst = this.add.graphics({ x: wx, y: wy }).setDepth(53);
+    burst.fillStyle(0xcc0022, 0.82); burst.fillCircle(0, 0, P(13));
+    burst.lineStyle(P(3), 0xff5577, 0.95); burst.strokeCircle(0, 0, P(13));
+    burst.lineStyle(P(7), 0xaa0011, 0.28); burst.strokeCircle(0, 0, P(18));
+    this.tweens.add({ targets: burst, scaleX: 2.8, scaleY: 2.8, alpha: 0, duration: 350, ease: 'Quad.Out', onComplete: () => burst.destroy() });
+
+    for (let i = 0; i < count; i++) {
+      const ang  = baseAngle + (i / count) * Math.PI * 2;
+      const endX = wx + Math.cos(ang) * tDist;
+      const endY = wy + Math.sin(ang) * tDist;
+
+      const orb = this.add.graphics({ x: wx, y: wy }).setDepth(52);
+      orb.fillStyle(0x880011, 0.95); orb.fillCircle(0, 0, orbR);
+      orb.fillStyle(0xff3355, 0.70); orb.fillCircle(-orbR * 0.28, -orbR * 0.28, orbR * 0.48);
+      orb.lineStyle(P(1.5), 0xff7799, 0.90); orb.strokeCircle(0, 0, orbR);
+
+      let hitPlayer = false;
+      const hitAllies = new Set<MinionSlime>();
+
+      this.tweens.add({
+        targets: orb, x: endX, y: endY,
+        duration, ease: 'Linear',
+        onUpdate: () => {
+          if (!hitPlayer && Phaser.Math.Distance.Between(orb.x, orb.y, this.player.x, this.player.y) < hitR) {
+            hitPlayer = true; this.player.takeDamage(dmg);
+          }
+          for (const ally of this._allyMinions) {
+            if (!ally.isDead && !hitAllies.has(ally) &&
+                Phaser.Math.Distance.Between(orb.x, orb.y, ally.x, ally.y) < hitR) {
+              hitAllies.add(ally); ally.takeDamage(dmg);
+            }
+          }
+        },
+        onComplete: () => {
+          const splat = this.add.graphics({ x: orb.x, y: orb.y }).setDepth(50);
+          splat.fillStyle(0x660011, 0.55); splat.fillCircle(0, 0, orbR * 1.6);
+          this.tweens.add({ targets: splat, alpha: 0, scaleX: 2.2, scaleY: 2.2, duration: 250, onComplete: () => splat.destroy() });
+          orb.destroy();
+        },
+      });
+
+      // Blood trail (3 ghosts staggered)
+      for (let j = 1; j <= 3; j++) {
+        this.time.delayedCall(j * 65, () => {
+          if (!orb.active) return;
+          const trail = this.add.graphics({ x: orb.x, y: orb.y }).setDepth(51);
+          trail.fillStyle(0x770011, 0.28); trail.fillCircle(0, 0, orbR * 0.8);
+          this.tweens.add({ targets: trail, alpha: 0, duration: 165, onComplete: () => trail.destroy() });
+        });
+      }
+    }
+  }
+
+  private lightningRingAt(wx: number, wy: number, _wtx: number, _wty: number, atk: number, isElite: boolean): void {
+    const dmg      = Math.round(atk * (isElite ? 2.8 : 2.2));
+    const minR     = P(18);
+    const maxR     = P(isElite ? 47 : 37); // 縮小40%，同時發射兩個
+    const totMs    = 2600;
+    const tickMs   = 380;
+    const preMs    = 700;
+    const strikeMs = preMs - 200;
+
+    // ── 前搖：自身向天空射出閃電 ──
+    const skyY = wy - P(150);
+
+    const bolt1a = this.add.graphics().setDepth(62);
+    this._drawLightningBolt(bolt1a, wx, wy, wx, skyY, 0.95);
+    bolt1a.fillStyle(0xeeddff, 0.90); bolt1a.fillCircle(wx, skyY, P(6));
+    bolt1a.fillStyle(0xcc88ff, 0.70); bolt1a.fillCircle(wx, wy, P(4));
+    this.tweens.add({ targets: bolt1a, alpha: 0, duration: 260, onComplete: () => bolt1a.destroy() });
+
+    const skyOrb = this.add.graphics({ x: wx, y: skyY }).setDepth(62);
+    skyOrb.fillStyle(0x6611cc, 0.60); skyOrb.fillCircle(0, 0, P(8));
+    skyOrb.lineStyle(P(2), 0xffeeff, 0.90); skyOrb.strokeCircle(0, 0, P(8));
+    this.tweens.add({ targets: skyOrb, scaleX: 2.8, scaleY: 2.8, duration: strikeMs, ease: 'Sine.In', onComplete: () => skyOrb.destroy() });
+
+    this.time.delayedCall(160, () => {
+      const bolt1b = this.add.graphics().setDepth(62);
+      this._drawLightningBolt(bolt1b, wx, wy, wx, skyY, 0.88);
+      bolt1b.fillStyle(0xffeeff, 0.80); bolt1b.fillCircle(wx, skyY, P(4));
+      this.tweens.add({ targets: bolt1b, alpha: 0, duration: 220, onComplete: () => bolt1b.destroy() });
+    });
+
+    this.time.delayedCall(360, () => {
+      const bolt1c = this.add.graphics().setDepth(62);
+      this._drawLightningBolt(bolt1c, wx, wy, wx, skyY, 1.0);
+      bolt1c.fillStyle(0xffeeff, 1.0); bolt1c.fillCircle(wx, skyY, P(7));
+      bolt1c.lineStyle(P(2), 0xcc88ff, 0.85); bolt1c.strokeCircle(wx, skyY, P(10));
+      this.tweens.add({ targets: bolt1c, alpha: 0, duration: 300, onComplete: () => bolt1c.destroy() });
+    });
+
+    // 落雷瞬間決定兩個圈的位置（各自獨立偏移）
+    const ringPositions: { x: number; y: number }[] = [];
+    this.time.delayedCall(strikeMs, () => {
+      for (let i = 0; i < 2; i++) {
+        const offAng  = Math.random() * Math.PI * 2;
+        const offDist = P(Phaser.Math.Between(55, 95));
+        ringPositions.push({
+          x: this.player.x + Math.cos(offAng) * offDist,
+          y: this.player.y + Math.sin(offAng) * offDist,
+        });
+      }
+      for (const pos of ringPositions) {
+        const bolt2 = this.add.graphics().setDepth(62);
+        this._drawLightningBolt(bolt2, wx, skyY, pos.x, pos.y, 1.0);
+        bolt2.fillStyle(0xffeeff, 0.95); bolt2.fillCircle(pos.x, pos.y, P(8));
+        this.tweens.add({ targets: bolt2, alpha: 0, duration: 260, onComplete: () => bolt2.destroy() });
+        const impact = this.add.graphics({ x: pos.x, y: pos.y }).setDepth(63);
+        impact.fillStyle(0xcc88ff, 0.75); impact.fillCircle(0, 0, P(20));
+        impact.lineStyle(P(2.5), 0xffeeff, 0.95); impact.strokeCircle(0, 0, P(20));
+        this.tweens.add({ targets: impact, alpha: 0, scaleX: 3.4, scaleY: 3.4, duration: 340, ease: 'Quad.Out', onComplete: () => impact.destroy() });
+      }
+    });
+
+    // 前搖結束後同時展開兩個圈
+    this.time.delayedCall(preMs, () => {
+      for (const pos of ringPositions) {
+        this._spawnLightningRingExpansion(pos.x, pos.y, dmg, minR, maxR, totMs, tickMs);
+      }
+    });
+  }
+
+  private _spawnLightningRingExpansion(cx: number, cy: number, dmg: number, minR: number, maxR: number, totMs: number, tickMs: number): void {
+    const ringGfx = this.add.graphics().setDepth(54);
+    const proxy   = { r: minR };
+    const startTime = this.time.now;
+
+    this.tweens.add({
+      targets: proxy, r: maxR, duration: totMs, ease: 'Sine.Out',
+      onUpdate: () => {
+        const elapsed = this.time.now - startTime;
+        const pulse   = Math.sin(elapsed * 0.022) * 0.22 + 0.78;
+        ringGfx.clear();
+        ringGfx.lineStyle(P(7), 0x5511bb, 0.14 * pulse);
+        ringGfx.strokeCircle(cx, cy, proxy.r);
+        ringGfx.lineStyle(P(3), 0x9944ff, 0.88 * pulse);
+        ringGfx.strokeCircle(cx, cy, proxy.r);
+        ringGfx.lineStyle(P(1.5), 0xcc88ff, 0.60 * pulse);
+        ringGfx.strokeCircle(cx, cy, proxy.r - P(4));
+        for (let i = 0; i < 8; i++) {
+          const sa = (i / 8) * Math.PI * 2 + elapsed * 0.0038;
+          ringGfx.fillStyle(0xeeddff, pulse * (i % 2 === 0 ? 0.95 : 0.55));
+          ringGfx.fillCircle(cx + Math.cos(sa) * proxy.r, cy + Math.sin(sa) * proxy.r, P(i % 2 === 0 ? 3 : 1.8));
+        }
+      },
+      onComplete: () => {
+        this.tweens.add({ targets: ringGfx, alpha: 0, duration: 500, onComplete: () => ringGfx.destroy() });
+      },
+    });
+
+    const tickCount = Math.floor(totMs / tickMs);
+    for (let tick = 0; tick < tickCount; tick++) {
+      this.time.delayedCall((tick + 0.55) * tickMs, () => {
+        if (!ringGfx.active) return;
+        const r = proxy.r;
+        if (Phaser.Math.Distance.Between(this.player.x, this.player.y, cx, cy) < r)
+          this.player.takeDamage(dmg);
+        for (const ally of this._allyMinions) {
+          if (!ally.isDead && Phaser.Math.Distance.Between(ally.x, ally.y, cx, cy) < r)
+            ally.takeDamage(dmg);
+        }
+        for (let b = 0; b < 3; b++) {
+          const rimAng  = Math.random() * Math.PI * 2;
+          const rimX    = cx + Math.cos(rimAng) * r;
+          const rimY    = cy + Math.sin(rimAng) * r;
+          const innerX  = cx + Math.cos(rimAng + Math.PI) * r * (Math.random() * 0.55);
+          const innerY  = cy + Math.sin(rimAng + Math.PI) * r * (Math.random() * 0.55);
+          const boltGfx = this.add.graphics().setDepth(60);
+          this._drawLightningBolt(boltGfx, rimX, rimY, innerX, innerY, 0.92);
+          boltGfx.fillStyle(0xffeeff, 0.95);
+          boltGfx.fillCircle(rimX, rimY, P(3));
+          this.tweens.add({ targets: boltGfx, alpha: 0, duration: 200, onComplete: () => boltGfx.destroy() });
+        }
+        if (Phaser.Math.Distance.Between(this.player.x, this.player.y, cx, cy) < r) {
+          const flash = this.add.graphics({ x: this.player.x, y: this.player.y }).setDepth(62);
+          flash.fillStyle(0xcc88ff, 0.58); flash.fillCircle(0, 0, P(13));
+          flash.lineStyle(P(2), 0xffeeff, 0.80); flash.strokeCircle(0, 0, P(13));
+          this.tweens.add({ targets: flash, alpha: 0, scaleX: 2.2, scaleY: 2.2, duration: 190, onComplete: () => flash.destroy() });
+        }
+      });
+    }
+  }
+
+  private _drawLightningBolt(gfx: Phaser.GameObjects.Graphics, x0: number, y0: number, x1: number, y1: number, alpha: number): void {
+    const segs   = 5;
+    const jitter = P(12);
+    const pts: { x: number; y: number }[] = [{ x: x0, y: y0 }];
+    for (let i = 1; i < segs; i++) {
+      const t  = i / segs;
+      pts.push({
+        x: x0 + (x1 - x0) * t + (Math.random() - 0.5) * jitter * 2,
+        y: y0 + (y1 - y0) * t + (Math.random() - 0.5) * jitter * 2,
+      });
+    }
+    pts.push({ x: x1, y: y1 });
+    gfx.lineStyle(P(2.5), 0x9944ff, alpha * 0.7);
+    gfx.beginPath(); gfx.moveTo(pts[0].x, pts[0].y);
+    for (let i = 1; i < pts.length; i++) gfx.lineTo(pts[i].x, pts[i].y);
+    gfx.strokePath();
+    gfx.lineStyle(P(1.2), 0xffeeff, alpha);
+    gfx.beginPath(); gfx.moveTo(pts[0].x, pts[0].y);
+    for (let i = 1; i < pts.length; i++) gfx.lineTo(pts[i].x, pts[i].y);
+    gfx.strokePath();
+  }
+
+  private orbitBurstAt(wx: number, wy: number, atk: number, isElite: boolean): void {
+    const dmg       = Math.round(atk * (isElite ? 3.5 : 2.8));
+    const startR    = P(26);
+    const endR      = P(isElite ? 168 : 132);
+    const duration  = 2600;
+    const orbR      = P(isElite ? 8 : 6);
+    const hitR      = P(isElite ? 16 : 13);
+    const rotations = 1.65; // full rotations during spiral
+
+    for (let i = 0; i < 2; i++) {
+      const phase = (i / 2) * Math.PI * 2; // 180° apart
+      const orb   = this.add.graphics().setDepth(52);
+      // Core orb layers
+      orb.fillStyle(0x440009, 0.98); orb.fillCircle(0, 0, orbR);
+      orb.fillStyle(0x990022, 0.90); orb.fillCircle(0, 0, orbR * 0.72);
+      orb.fillStyle(0xff3355, 0.65); orb.fillCircle(-orbR * 0.28, -orbR * 0.30, orbR * 0.42);
+      orb.lineStyle(P(1.8), 0xff8899, 0.92); orb.strokeCircle(0, 0, orbR);
+      // Outer glow ring
+      orb.lineStyle(P(3.5), 0x880022, 0.28); orb.strokeCircle(0, 0, orbR * 1.5);
+
+      let hitPlayer = false;
+      const hitAllies = new Set<MinionSlime>();
+      const p = { t: 0 };
+      this.tweens.add({
+        targets: p, t: 1, duration, ease: 'Sine.InOut',
+        onUpdate: () => {
+          const t     = p.t;
+          const r     = startR + (endR - startR) * t;
+          const angle = phase + t * rotations * Math.PI * 2;
+          orb.x = wx + Math.cos(angle) * r;
+          orb.y = wy + Math.sin(angle) * r;
+          if (!hitPlayer && Phaser.Math.Distance.Between(orb.x, orb.y, this.player.x, this.player.y) < hitR) {
+            hitPlayer = true; this.player.takeDamage(dmg);
+          }
+          for (const ally of this._allyMinions) {
+            if (!ally.isDead && !hitAllies.has(ally) &&
+                Phaser.Math.Distance.Between(orb.x, orb.y, ally.x, ally.y) < hitR) {
+              hitAllies.add(ally); ally.takeDamage(dmg);
+            }
+          }
+        },
+        onComplete: () => {
+          const splat = this.add.graphics({ x: orb.x, y: orb.y }).setDepth(51);
+          splat.fillStyle(0x880011, 0.55); splat.fillCircle(0, 0, orbR * 1.9);
+          for (let j = 0; j < 5; j++) {
+            const sa = Math.random() * Math.PI * 2;
+            const sr = P(Phaser.Math.Between(8, 22));
+            splat.fillStyle(0x660011, 0.38);
+            splat.fillCircle(Math.cos(sa) * sr, Math.sin(sa) * sr, P(Phaser.Math.Between(3, 6)));
+          }
+          this.tweens.add({ targets: splat, alpha: 0, scaleX: 2.4, scaleY: 2.4, duration: 300, onComplete: () => splat.destroy() });
+          orb.destroy();
+        },
+      });
+      // Blood trail
+      this.time.addEvent({
+        delay: 52, repeat: Math.ceil(duration / 52) + 1,
+        callback: () => {
+          if (!orb.active) return;
+          const trail = this.add.graphics({ x: orb.x, y: orb.y }).setDepth(51);
+          trail.fillStyle(0x770011, 0.24); trail.fillCircle(0, 0, orbR * 0.72);
+          this.tweens.add({ targets: trail, alpha: 0, duration: 160, onComplete: () => trail.destroy() });
+        },
+      });
+    }
   }
 
   // ── 獸人戰士長 VFX ───────────────────────────────────────
