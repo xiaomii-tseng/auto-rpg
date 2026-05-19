@@ -127,6 +127,7 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
   element:      import('../data/equipment-data').Element = 'none';
   tier          = 1;
   race          = 'slime';
+  walkAnim      = 'walk';
 
   applyBurn(gameTime: number, maxStacks = 15, duration = 4000): void {
     if (this.burnStacks < maxStacks) this.burnStacks++;
@@ -249,7 +250,7 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
       this.play(`${this.animPrefix}_run_${dir}`, true);
     } else {
       this.applyBaseTint();
-      const anim = moving ? `${this.animPrefix}_walk_${dir}` : `${this.animPrefix}_idle_${dir}`;
+      const anim = moving ? `${this.animPrefix}_${this.walkAnim}_${dir}` : `${this.animPrefix}_idle_${dir}`;
       if (this.anims.currentAnim?.key !== anim) this.play(anim, true);
     }
   }
@@ -273,7 +274,7 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
     this.patrolTargetX = this.patrolCenter.x;
     this.patrolTargetY = this.patrolCenter.y;
     this.updateDirTo(this.patrolTargetX, this.patrolTargetY);
-    this.playDir(`${this.animPrefix}_walk`);
+    this.playDir(`${this.animPrefix}_${this.walkAnim}`);
   }
 
   private pickPatrolTarget(): void {
@@ -282,7 +283,7 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
     this.patrolTargetX = this.patrolCenter.x + Math.cos(angle) * dist;
     this.patrolTargetY = this.patrolCenter.y + Math.sin(angle) * dist;
     this.updateDirTo(this.patrolTargetX, this.patrolTargetY);
-    this.playDir(`${this.animPrefix}_walk`);
+    this.playDir(`${this.animPrefix}_${this.walkAnim}`);
     this.stateTimer?.destroy();
     this.stateTimer = undefined;
     const travelMs = Phaser.Math.Between(2000, 3500);
@@ -304,8 +305,8 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
     this.stateTimer?.destroy();
     this.stateTimer = undefined;
     this.updateDir();
-    const walkKey = `${this.animPrefix}_walk_${this.dir}`;
-    this.playDir(this.scene.anims.exists(walkKey) ? `${this.animPrefix}_walk` : `${this.animPrefix}_idle`);
+    const walkKey = `${this.animPrefix}_${this.walkAnim}_${this.dir}`;
+    this.playDir(this.scene.anims.exists(walkKey) ? `${this.animPrefix}_${this.walkAnim}` : `${this.animPrefix}_idle`);
     if (this.attackMode === 'dash') {
       const delay = Phaser.Math.Between(1500, 2500);
       this.stateTimer = this.scene.time.delayedCall(delay, () => this.enterDashWarn());
@@ -739,7 +740,7 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
   private ensureWalkAnim(prevDir: typeof this.dir): void {
     const cur = this.anims.currentAnim?.key ?? '';
     if (this.dir !== prevDir || cur.includes('_idle_')) {
-      this.playDir(`${this.animPrefix}_walk`);
+      this.playDir(`${this.animPrefix}_${this.walkAnim}`);
     }
   }
 
@@ -775,7 +776,7 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
         );
         const prevDir = this.dir;
         this.updateDirTo(dtx, dty);
-        if (this.dir !== prevDir) this.playDir(`${this.animPrefix}_walk`);
+        if (this.dir !== prevDir) this.playDir(`${this.animPrefix}_${this.walkAnim}`);
       } else {
         this.pb.setVelocity(0, 0);
         this.isReturning = false; // 已回到家，可以重新 aggro

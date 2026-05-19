@@ -65,6 +65,12 @@ export enum BossState {
   ORC3_BURIAL_WARN   = 'ORC3_BURIAL_WARN',
   ORC3_IRON_WARN     = 'ORC3_IRON_WARN',
   ORC3_VANISH        = 'ORC3_VANISH',
+  V1_BAT_STORM_WARN      = 'V1_BAT_STORM_WARN',
+  V1_CRIMSON_RAIN_WARN   = 'V1_CRIMSON_RAIN_WARN',
+  V1_GAZE_WARN           = 'V1_GAZE_WARN',
+  V1_DARK_NIGHT_WARN     = 'V1_DARK_NIGHT_WARN',
+  V1_DARK_NIGHT_ACTIVE   = 'V1_DARK_NIGHT_ACTIVE',
+  V1_NEEDLE_BARRAGE_WARN = 'V1_NEEDLE_BARRAGE_WARN',
   DEAD             = 'DEAD',
 }
 
@@ -111,6 +117,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
   private static readonly MAX_TRAILS         = 99;
 
   protected idleChaseSpeed = Math.round(80 * DPR);
+  protected walkAnimSuffix = 'walk';
   protected readonly animPrefix: string;
   protected baseTint = 0xffffff;
   private _flashUntil = 0;
@@ -230,7 +237,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
       (this.scene.physics as Phaser.Physics.Arcade.ArcadePhysics).velocityFromAngle(
         Phaser.Math.RadToDeg(angle), this.idleChaseSpeed, body.velocity,
       );
-      if (this.bossDir !== prevDir) this.playDir(`${this.animPrefix}_walk`);
+      if (this.bossDir !== prevDir) this.playDir(`${this.animPrefix}_${this.walkAnimSuffix}`);
     }
   }
 
@@ -268,9 +275,9 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
 
   private resumeStateAnim(): void {
     switch (this.bossState) {
-      case BossState.IDLE:      this.playDir(`${this.animPrefix}_walk`);   break;
+      case BossState.IDLE:      this.playDir(`${this.animPrefix}_${this.walkAnimSuffix}`);   break;
       case BossState.AOE_WARN:  this.playDir(`${this.animPrefix}_attack`); break;
-      case BossState.DASH_WARN: this.playDir(`${this.animPrefix}_walk`);   break;
+      case BossState.DASH_WARN: this.playDir(`${this.animPrefix}_${this.walkAnimSuffix}`);   break;
       case BossState.DASHING:      this.playDir(`${this.animPrefix}_run`);   break;
       case BossState.ORC_WHIRLING: this.anims.play(`${this.animPrefix}_whirl`, true); break;
       default: break;
@@ -359,7 +366,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     this.setScale(MONSTER_SCALE_BOSS);
     this.stateTimer?.destroy();
     this.updateDirToTarget();
-    this.playDir(`${this.animPrefix}_walk`);
+    this.playDir(`${this.animPrefix}_${this.walkAnimSuffix}`);
     if (!this._entryDelayDone) {
       this._entryDelayDone = true;
       this.stateTimer = this.scene.time.delayedCall(2000, () => {
@@ -480,7 +487,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     }
     this.setBossState(BossState.DASH_WARN, { atkX: this.atkX / DPR, atkY: this.atkY / DPR });
     this.updateDirToTarget();
-    this.playDir(`${this.animPrefix}_walk`);
+    this.playDir(`${this.animPrefix}_${this.walkAnimSuffix}`);
     this.drawDashWarning();
 
     // Directional sparks pointing at dash target
@@ -513,7 +520,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     }
     this.setBossState(BossState.DASH_WARN, { atkX: this.atkX / DPR, atkY: this.atkY / DPR });
     this.updateDirToTarget();
-    this.playDir(`${this.animPrefix}_walk`);
+    this.playDir(`${this.animPrefix}_${this.walkAnimSuffix}`);
 
     const warnDeg = Phaser.Math.RadToDeg(Phaser.Math.Angle.Between(this.x, this.y, this.atkX, this.atkY));
     this.warnParticles = this.scene.add.particles(this.x, this.y, 'pxl2', {
@@ -568,7 +575,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     this.clearWarning();
     this.stateTimer?.destroy();
     this.setScale(MONSTER_SCALE_BOSS);
-    this.play(`${this.animPrefix}_walk_down`, true);
+    this.play(`${this.animPrefix}_${this.walkAnimSuffix}_down`, true);
     this.anims.timeScale = 2.2;
     this.setTint(0xff8800);
 

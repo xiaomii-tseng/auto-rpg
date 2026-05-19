@@ -155,6 +155,15 @@ export class GameScene extends Phaser.Scene {
   private _allyMinions: MinionSlime[] = [];          // 有序陣列，上限 3，最舊的先移除
   private _allyGroup!: Phaser.Physics.Arcade.Group;  // 用於 projectile overlap 偵測
   private _slowZones: { x: number; y: number; r: number; expires: number; gfx: Phaser.GameObjects.Graphics }[] = [];
+  private _rainPuddles: { x: number; y: number; r: number; dmg: number; expires: number }[] = [];
+  private _rainPuddleHitCd = 0;
+  // 黑夜降靈
+  private _darkNightActive    = false;
+  private _darkNightZones:    { x: number; y: number; r: number }[] = [];
+  private _darkNightRT?:      Phaser.GameObjects.RenderTexture;
+  private _darkNightBlackGfx?: Phaser.GameObjects.Graphics;  // 離場用，供 RT draw
+  private _darkNightEdgeGfx?:  Phaser.GameObjects.Graphics;  // 視野邊緣光環（screen space）
+  private _darkNightSafeGfx?:  Phaser.GameObjects.Graphics;
   private wallLayer!: Phaser.Tilemaps.TilemapLayer;
   private waypoints: Phaser.Math.Vector2[] = [];
   private corridorSegs: { x1: number; y1: number; x2: number; y2: number }[] = [];
@@ -347,6 +356,8 @@ export class GameScene extends Phaser.Scene {
     this._flowerThreeMinions.clear();
     this._pendingFlowerSeeds = 0;
     this._slowZones = [];
+    this._rainPuddles = [];
+    this._rainPuddleHitCd = 0;
     this._orbitBalls.forEach(b => b.gfx.destroy());
     this._orbitBalls = [];
     this._orbitAngle = 0;
@@ -817,16 +828,14 @@ export class GameScene extends Phaser.Scene {
       space: kb.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE),
     };
 
-    // ── 測試快捷鍵：按 ` 在玩家旁邊各召喚一隻吸血鬼小怪 ──
+    // ── 測試快捷鍵：按 ` 直接傳送至 BOSS 戰（請在準備場選吸血鬼伯爵）──
     kb.on('keydown-BACKTICK', () => {
-      const offsets: [string, number, number][] = [
-        ['elite_vampire1', -P(80), 0],
-        ['elite_vampire2',  0,     -P(80)],
-        ['elite_vampire3',  P(80), 0],
-      ];
-      for (const [defId, dx, dy] of offsets) {
-        this.spawnMinionAt(defId, this.player.x + dx, this.player.y + dy, false);
-      }
+      if (this.bossActive || this.teleporting) return;
+      this.bossActive = true;
+      this.teleporting = true;
+      this.player.move(0, 0);
+      (this.player.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
+      this.teleportToBossArena();
     });
 
     const onResize = () => this.physics.world.setBounds(0, 0, this.worldW, this.worldH);
@@ -1751,6 +1760,8 @@ export class GameScene extends Phaser.Scene {
   override update(): void {
     if (this.gameOver || this.teleporting || this._hostReconnecting) return;
 
+    this._updateDarkNight();
+
     // Drain leech pool at 6% maxHp/s (POE-style life leech)
     if (this._leechPool > 0 && this.player?.active) {
       const delta = this.game.loop.delta;
@@ -1971,6 +1982,25 @@ export class GameScene extends Phaser.Scene {
       Phaser.Math.Distance.Between(this.player.x, this.player.y, z.x, z.y) <= z.r,
     );
     this.player.slowMult = inSlow ? 0.35 : 1;
+
+    // Rain puddle step-damage check
+    if (this._rainPuddles.length > 0) {
+      this._rainPuddles = this._rainPuddles.filter(p => p.expires > now);
+      if (this._rainPuddleHitCd < now) {
+        const hitPuddle = this._rainPuddles.find(p =>
+          Phaser.Math.Distance.Between(this.player.x, this.player.y, p.x, p.y) <= p.r,
+        );
+        if (hitPuddle) {
+          this.player.takeDamage(hitPuddle.dmg);
+          this._rainPuddleHitCd = now + 250;
+        }
+        for (const ally of this._allyMinions) {
+          if (!ally.isDead && this._rainPuddles.some(p =>
+            Phaser.Math.Distance.Between(ally.x, ally.y, p.x, p.y) <= p.r,
+          )) { ally.takeDamage(hitPuddle?.dmg ?? this._rainPuddles[0].dmg); }
+        }
+      }
+    }
 
     // Y-sort: use foot position so objects sort at ground level
     this.player.setDepth(this.player.y + 30);
@@ -3317,6 +3347,91 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  private farthestTargetPos(fromX: number, fromY: number): [number, number] {
+    let best: [number, number] = [this.player.x, this.player.y];
+    let bestDist = Phaser.Math.Distance.Between(fromX, fromY, this.player.x, this.player.y);
+    if (NetworkService.connected && NetworkService.isHost) {
+      this._partners.forEach(pd => {
+        if (!pd.sprite.active || pd.isDead) return;
+        const d = Phaser.Math.Distance.Between(fromX, fromY, pd.sprite.x, pd.sprite.y);
+        if (d > bestDist) { bestDist = d; best = [pd.sprite.x, pd.sprite.y]; }
+      });
+    }
+    return best;
+  }
+
+  private _startDarkNight(zones: { x: number; y: number; r: number }[]): void {
+    const W   = this.scale.width, H = this.scale.height;
+    const DPR = (window as any).__gameDpr as number;
+    const vR  = Math.round(35 * DPR);
+
+    this._darkNightActive = true;
+    this._darkNightZones  = zones;
+
+    // 視野貼圖：中心清晰、邊緣暈染（只建一次）
+    if (!this.textures.exists('__v1_vision')) {
+      const cg = this.make.graphics({ x: 0, y: 0 }, false);
+      cg.fillStyle(0xffffff, 0.18); cg.fillCircle(vR, vR, vR);
+      cg.fillStyle(0xffffff, 0.55); cg.fillCircle(vR, vR, Math.round(vR * 0.72));
+      cg.fillStyle(0xffffff, 0.85); cg.fillCircle(vR, vR, Math.round(vR * 0.50));
+      cg.fillStyle(0xffffff, 1.00); cg.fillCircle(vR, vR, Math.round(vR * 0.32));
+      cg.generateTexture('__v1_vision', vR * 2, vR * 2);
+      cg.destroy();
+    }
+
+    // 深紫黑底圖（不加入場景，每幀 draw 到 RT 上）
+    const bg = this.make.graphics({ x: 0, y: 0 }, false);
+    bg.fillStyle(0x05000a, 0.97);
+    bg.fillRect(0, 0, W, H);
+    this._darkNightBlackGfx = bg;
+
+    // 動態 RT（每幀重繪孔洞跟著玩家走）
+    this._darkNightRT = this.add.renderTexture(0, 0, W, H)
+      .setScrollFactor(0).setDepth(5000).setOrigin(0, 0);
+
+    // 視野邊緣脈衝光環（screen space，depth 5001）
+    this._darkNightEdgeGfx = this.add.graphics().setScrollFactor(0).setDepth(5001);
+
+    // 安全區（world space，depth 4999，透過視野孔才看得到）
+    const dp = Math.round(3 * DPR);
+    const safeGfx = this.add.graphics().setDepth(4999);
+    for (const z of zones) {
+      safeGfx.fillStyle(0x00ff88, 0.30); safeGfx.fillCircle(z.x, z.y, z.r);
+      safeGfx.lineStyle(dp, 0x00ff88, 0.95); safeGfx.strokeCircle(z.x, z.y, z.r);
+    }
+    this._darkNightSafeGfx = safeGfx;
+  }
+
+  private _updateDarkNight(): void {
+    if (!this._darkNightActive || !this._darkNightRT || !this._darkNightBlackGfx || !this.player?.active) return;
+    const DPR = (window as any).__gameDpr as number;
+    const vR  = Math.round(35 * DPR);
+    const sx  = this.player.x - this.cameras.main.scrollX;
+    const sy  = this.player.y - this.cameras.main.scrollY;
+
+    // 重繪黑幕 + 挖孔（每幀跟著玩家螢幕座標）
+    this._darkNightRT.clear();
+    this._darkNightRT.draw(this._darkNightBlackGfx, 0, 0);
+    this._darkNightRT.erase('__v1_vision', sx - vR, sy - vR);
+
+    // 脈衝視野邊緣光環
+    const pulse = 0.5 + 0.5 * Math.sin(this.time.now * 0.0032);
+    const eg = this._darkNightEdgeGfx!;
+    eg.clear();
+    eg.lineStyle(Math.round(5 * DPR), 0x8800dd, 0.28 + pulse * 0.22);
+    eg.strokeCircle(sx, sy, vR + Math.round(3 * DPR));
+    eg.lineStyle(Math.round(11 * DPR), 0x440066, 0.10 + pulse * 0.08);
+    eg.strokeCircle(sx, sy, vR + Math.round(9 * DPR));
+  }
+
+  private _endDarkNight(): void {
+    this._darkNightActive = false;
+    this._darkNightRT?.destroy();        this._darkNightRT       = undefined;
+    this._darkNightBlackGfx?.destroy();  this._darkNightBlackGfx = undefined;
+    this._darkNightEdgeGfx?.destroy();   this._darkNightEdgeGfx  = undefined;
+    this._darkNightSafeGfx?.destroy();   this._darkNightSafeGfx  = undefined;
+  }
+
   private randomTargetPos(): [number, number] {
     const targets: [number, number][] = [[this.player.x, this.player.y]];
     if (NetworkService.connected && NetworkService.isHost) {
@@ -3739,7 +3854,140 @@ export class GameScene extends Phaser.Scene {
       return b;
     }
     if (bossDef.id === 'boss_vampire1') {
-      return new BossVampire1(this, cx, cy, totalHp, bossDef.element, bossDef.spriteKey, bossDef.tint);
+      const b = new BossVampire1(this, cx, cy, totalHp, bossDef.element, bossDef.spriteKey, bossDef.tint);
+
+      b.getAllTargetPositions = () => {
+        const targets: [number, number][] = [[this.player.x, this.player.y]];
+        if (NetworkService.connected && NetworkService.isHost) {
+          this._partners.forEach(pd => {
+            if (pd.sprite.active && !pd.isDead) targets.push([pd.sprite.x, pd.sprite.y]);
+          });
+        }
+        return targets;
+      };
+
+      b.onBatHit = (x, y, r, dmg) => {
+        if (!this.bossActive) return;
+        this.hitInRadius(x, y, r, dmg);
+      };
+
+      b.onCrimsonNeedle = (x, y, r, dmg) => {
+        if (!this.bossActive) return;
+        this.hitInRadius(x, y, r, dmg);
+      };
+
+      b.onGazeHit = (bx, by, tx, ty, beamR, dmg) => {
+        if (!this.bossActive) return;
+        // Line-segment distance check for beam
+        const abx = tx - bx, aby = ty - by;
+        const len2 = abx * abx + aby * aby || 1;
+        const checkTarget = (cx: number, cy: number, takeDmg: () => void) => {
+          const apx = cx - bx, apy = cy - by;
+          const t   = Math.max(0, Math.min(1, (apx * abx + apy * aby) / len2));
+          const nx  = bx + t * abx - cx, ny = by + t * aby - cy;
+          if (nx * nx + ny * ny <= beamR * beamR) takeDmg();
+        };
+        checkTarget(this.player.x, this.player.y, () => this.player.takeDamage(dmg));
+        for (const ally of this._allyMinions) {
+          if (!ally.isDead) checkTarget(ally.x, ally.y, () => ally.takeDamage(dmg));
+        }
+      };
+
+      b.onDarkNightActivate = (zones) => {
+        if (!this.bossActive) return;
+        this._startDarkNight(zones);
+      };
+
+      b.onDarkNightLift = () => {
+        this._endDarkNight();
+      };
+
+      b.onDarkNightPunish = () => {
+        if (!this.bossActive) return;
+        const inSafe = (cx: number, cy: number) =>
+          this._darkNightZones.some(z => Phaser.Math.Distance.Between(cx, cy, z.x, z.y) <= z.r);
+
+        // 傷害判定
+        const playerSafe = inSafe(this.player.x, this.player.y);
+        if (!playerSafe) this.player.punishNearDeath();
+        for (const ally of this._allyMinions) {
+          if (!ally.isDead && !inSafe(ally.x, ally.y)) ally.takeDamage(999999);
+        }
+
+        // 鏡頭震動 / 閃光（以本地玩家為基準）
+        this.cameras.main.shake(700, playerSafe ? 0.007 : 0.022);
+        this.cameras.main.flash(playerSafe ? 200 : 450, 180, 0, 0);
+
+        // 每個未逃掉的角色位置各炸一次
+        const blastTargets: { x: number; y: number; safe: boolean }[] = [
+          { x: this.player.x, y: this.player.y, safe: playerSafe },
+          ...this._allyMinions
+            .filter(a => !a.isDead)
+            .map(a => ({ x: a.x, y: a.y, safe: inSafe(a.x, a.y) })),
+        ];
+
+        for (const { x: px, y: py, safe } of blastTargets) {
+          // 最外層暗紅底
+          const bg = this.add.graphics({ x: px, y: py }).setDepth(9993);
+          bg.fillStyle(0x440000, safe ? 0.50 : 0.85); bg.fillCircle(0, 0, P(90));
+          this.tweens.add({ targets: bg, scaleX: 4.5, scaleY: 4.5, alpha: 0, duration: 1100, ease: 'Quad.Out', onComplete: () => bg.destroy() });
+
+          // 衝擊環 1
+          const ring1 = this.add.graphics({ x: px, y: py }).setDepth(9994);
+          ring1.lineStyle(P(8), 0xdd0022, 0.85); ring1.strokeCircle(0, 0, P(25));
+          this.tweens.add({ targets: ring1, scaleX: 7, scaleY: 7, alpha: 0, duration: 900, ease: 'Quad.Out', onComplete: () => ring1.destroy() });
+
+          // 衝擊環 2（延遲 80ms）
+          this.time.delayedCall(80, () => {
+            const ring2 = this.add.graphics({ x: px, y: py }).setDepth(9995);
+            ring2.lineStyle(P(5), 0xff3355, 0.90); ring2.strokeCircle(0, 0, P(20));
+            this.tweens.add({ targets: ring2, scaleX: 5, scaleY: 5, alpha: 0, duration: 700, ease: 'Expo.Out', onComplete: () => ring2.destroy() });
+          });
+
+          // 衝擊環 3（延遲 160ms）
+          this.time.delayedCall(160, () => {
+            const ring3 = this.add.graphics({ x: px, y: py }).setDepth(9996);
+            ring3.lineStyle(P(3), 0xff6688, 0.80); ring3.strokeCircle(0, 0, P(15));
+            this.tweens.add({ targets: ring3, scaleX: 4, scaleY: 4, alpha: 0, duration: 500, ease: 'Expo.Out', onComplete: () => ring3.destroy() });
+          });
+
+          // 核心爆炸
+          const core = this.add.graphics({ x: px, y: py }).setDepth(9997);
+          core.fillStyle(0xff0033, 1.0); core.fillCircle(0, 0, P(30));
+          core.fillStyle(0xff8899, 0.75); core.fillCircle(0, 0, P(16));
+          this.tweens.add({ targets: core, scaleX: 5.5, scaleY: 5.5, alpha: 0, duration: 600, ease: 'Expo.Out', onComplete: () => core.destroy() });
+
+          // 白色高光（延遲 30ms）
+          this.time.delayedCall(30, () => {
+            const white = this.add.graphics({ x: px, y: py }).setDepth(9999);
+            white.fillStyle(0xffffff, 0.92); white.fillCircle(0, 0, P(22));
+            this.tweens.add({ targets: white, scaleX: 3, scaleY: 3, alpha: 0, duration: 350, ease: 'Quad.Out', onComplete: () => white.destroy() });
+          });
+
+          // 殘留焦痕（未逃掉時）
+          if (!safe) {
+            this.time.delayedCall(300, () => {
+              const scorch = this.add.graphics({ x: px, y: py }).setDepth(55);
+              scorch.fillStyle(0x220000, 0.70); scorch.fillCircle(0, 0, P(50));
+              scorch.lineStyle(P(2), 0x880011, 0.60); scorch.strokeCircle(0, 0, P(50));
+              this.tweens.add({ targets: scorch, alpha: 0, duration: 2000, delay: 800, onComplete: () => scorch.destroy() });
+            });
+          }
+        }
+      };
+
+      b.onNeedleHit = (x, y, r, dmg) => {
+        if (!this.bossActive) return;
+        this.hitInRadius(x, y, r, dmg);
+      };
+
+      b.onNeedleLand = (x, y, r, dmg) => {
+        if (!this.bossActive) return;
+        const expires = this.time.now + 600;
+        this._rainPuddles.push({ x, y, r, dmg, expires });
+      };
+
+      return b;
     }
     if (bossDef.id === 'boss_vampire2') {
       return new BossVampire2(this, cx, cy, totalHp, bossDef.element, bossDef.spriteKey, bossDef.tint);
@@ -3790,7 +4038,7 @@ export class GameScene extends Phaser.Scene {
     if (defId === 'elite_vampire2') { m.attackMode = 'lightning_ring'; m.rangedRange = Math.round(220 * DPR); }
     if (defId === 'vampire3_s')     { m.attackMode = 'blood_burst';   m.rangedRange = Math.round(90  * DPR); }
     if (defId === 'elite_vampire3') { m.attackMode = 'orbit_burst';   m.rangedRange = Math.round(110 * DPR); }
-    if (defId.startsWith('vampire') || defId.startsWith('elite_vampire')) m.race = 'vampire';
+    if (defId.startsWith('vampire') || defId.startsWith('elite_vampire')) { m.race = 'vampire'; m.walkAnim = 'run'; }
     m.setPatrolCenter(wx, wy);
     m.getTargetPos = () => this.nearestTargetPos(m.x, m.y);
     m.onDead = () => this.handleMinionDrop(defId, m.x, m.y);
@@ -3919,7 +4167,7 @@ export class GameScene extends Phaser.Scene {
       if (['vampire1_s', 'elite_vampire1'].includes(defId)) { m.attackMode = 'blood_needle'; m.rangedRange = Math.round(190 * DPR); }
       if (['vampire2_s', 'elite_vampire2'].includes(defId)) { m.attackMode = 'meteor';       m.rangedRange = Math.round(220 * DPR); }
       if (['vampire3_s', 'elite_vampire3'].includes(defId)) { m.attackMode = 'blood_burst';  m.rangedRange = Math.round(90  * DPR); }
-      if (defId.startsWith('vampire') || defId.startsWith('elite_vampire')) m.race = 'vampire';
+      if (defId.startsWith('vampire') || defId.startsWith('elite_vampire')) { m.race = 'vampire'; m.walkAnim = 'run'; }
       m.setPatrolCenter(isPlant ? spawnX : wx, isPlant ? spawnY : wy);
       m.getTargetPos = () => this.nearestTargetPos(m.x, m.y);
       m.onDead = () => this.handleMinionDrop(defId, m.x, m.y);
@@ -4466,6 +4714,7 @@ export class GameScene extends Phaser.Scene {
 
   private handleBossDefeated(): void {
     this.bossActive = false;
+    this._endDarkNight();
     // Fade out boss HP bar UI
     const barTargets = [
       this.bossHpGfx, this.bossHpLabel, this.bossDebuffGfx,
@@ -4542,6 +4791,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private handlePlayerDead(): void {
+    this._endDarkNight();
     if (this._reviveDialogActive) return;  // 視窗已開啟，忽略重複呼叫
     const stats = CardStore.getTotalStats();
     if (this._freeRevivesUsed < (stats.freeRevive ?? 0)) {
@@ -7030,10 +7280,10 @@ export class GameScene extends Phaser.Scene {
     buildPlantAnims('plant2');
     buildPlantAnims('plant3');
 
-    // Vampire monsters — 3 directions only: down/left/right; idle=4, run=8, attack=12, hurt=4, death=10
+    // Vampire monsters — 4 directions: down/up/left/right; idle=4, run=8, attack=12, hurt=4, death=10
     const buildVampireAnims = (prefix: string) => {
       if (this.anims.exists(`${prefix}_idle_down`)) return;
-      const vDirs: Array<'down' | 'left' | 'right'> = ['down', 'left', 'right'];
+      const vDirs: Array<'down' | 'up' | 'left' | 'right'> = ['down', 'up', 'left', 'right'];
       const vampDefs = [
         { action: 'idle',   cols: 4,  fps: 6,  repeat: -1 },
         { action: 'run',    cols: 8,  fps: 14, repeat: -1 },

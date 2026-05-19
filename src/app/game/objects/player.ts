@@ -195,6 +195,15 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.onHpChanged?.(this.hp, this.maxHp);
   }
 
+  // 黑夜降靈懲罰：強制把 HP 壓到 1%（不觸發死亡，只播受傷動畫）
+  punishNearDeath(): void {
+    const floor = Math.max(1, Math.ceil(this.maxHp * 0.01));
+    if (this.hp <= floor) return;
+    this.hp = floor;
+    this.onHpChanged?.(this.hp, this.maxHp);
+    this.startInvincibility();
+  }
+
   private startInvincibility(): void {
     this.invincible = true;
     this.flashTween?.stop();
