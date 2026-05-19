@@ -359,7 +359,14 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     this.stateTimer?.destroy();
     this.updateDirToTarget();
     this.playDir(`${this.animPrefix}_walk`);
-    this.pickNextAttack();
+    if (!this._entryDelayDone) {
+      this._entryDelayDone = true;
+      this.stateTimer = this.scene.time.delayedCall(2000, () => {
+        if (this.active && this.bossState !== BossState.DEAD) this.pickNextAttack();
+      });
+    } else {
+      this.pickNextAttack();
+    }
   }
 
   // 依距離回傳彈幕機率（子類別在 pickNextAttack 開頭呼叫）
@@ -376,6 +383,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
   }
 
   private comboCount = 0;
+  private _entryDelayDone = false;
 
   private static readonly ATTACK_DELAY_CFG: Record<number, { min: number; max: number; cMin: number; cMax: number; cChance: number }> = {
     1: { min: 1200, max: 2800, cMin: 200, cMax: 450, cChance: 0.12 },
