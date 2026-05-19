@@ -25,7 +25,7 @@ const BURST_DMG      = 72;
 // ── 血刺地獄 ────────────────────────────────────────────────
 const SPIKE_WARN_MS  = 380;
 const SPIKE_WAVES    = 3;
-const SPIKE_PER_WAVE = 10;
+const SPIKE_PER_WAVE = 25;
 const SPIKE_WAVE_GAP = 550;
 const SPIKE_HIT_R    = 18;
 const SPIKE_DMG      = 88;
@@ -41,7 +41,7 @@ const RIVER_WARN_MS  = 850;
 const RIVER_HALF_W   = 52;
 const RIVER_DMG      = 65;
 const RIVER_TICK_MS  = 200;
-const RIVER_DUR      = 3500;
+const RIVER_DUR      = 2250;
 
 // ── Clone proxy (for getHittableTargets hit detection) ───
 export class VK3CloneProxy {
@@ -430,7 +430,7 @@ export class BossVampire3 extends Boss {
     });
   }
 
-  private _fireBurstOrbs(bx: number, by: number): void {
+  private _fireBurstOrbs(bx: number, by: number, onDone?: () => void): void {
     if (this.currentState === BossState.DEAD) return;
     this.playDir(`${this.animPrefix}_attack`);
     this.scene.cameras.main.shake(180, 0.018);
@@ -498,7 +498,9 @@ export class BossVampire3 extends Boss {
       });
     }
 
-    this.stateTimer = this.scene.time.delayedCall(BURST_COUNT * 18 + 800, () => this.enterIdle());
+    const burstTotalMs = BURST_COUNT * 18 + 800;
+    if (onDone) this.scene.time.delayedCall(burstTotalMs, onDone);
+    else this.stateTimer = this.scene.time.delayedCall(burstTotalMs, () => this.enterIdle());
   }
 
   private _burstOrbExplode(x: number, y: number, hitR: number, dmg: number): void {
@@ -808,22 +810,19 @@ export class BossVampire3 extends Boss {
       this._splitCloneGfx.push({ aura, img, em, alive: true });
     }
 
-    // Appear FX at boss position
+    // Randomly pick skill for this split
+    const SPLIT_SKILLS = ['scythe', 'burst', 'spike', 'river'] as const;
+    const splitType = SPLIT_SKILLS[Math.floor(Math.random() * SPLIT_SKILLS.length)];
+
     const ap = this.scene.time.delayedCall(80, () => {
       if (this.currentState === BossState.DEAD) return;
-      // All 3 cast scythe in sync toward player
-      const [px, py] = this.getTargetPos();
-      const bossAng  = Math.atan2(py - chosen[0].y, px - chosen[0].x);
-
-      this._doScytheSweep(chosen[0].x, chosen[0].y, bossAng, false, () => {
-        // Boss done, wait for clones
+      // Boss fires chosen skill
+      this._fireSplitBossAttack(splitType, chosen[0].x, chosen[0].y, () => {
         if (this._splitClonesAliveCount <= 0) this._endSplit();
       });
-
+      // Clones fire same skill
       for (let i = 0; i < 2; i++) {
-        const cp   = chosen[1 + i];
-        const cAng = Math.atan2(py - cp.y, px - cp.x);
-        this._doCloneScytheAttack(i, cp.x, cp.y, cAng);
+        this._doCloneAttack(i, chosen[1 + i].x, chosen[1 + i].y, splitType);
       }
     });
     void ap;
@@ -998,7 +997,7 @@ export class BossVampire3 extends Boss {
     });
   }
 
-  private _fireBloodRiver(bx: number, by: number, ex: number, ey: number, ang: number, halfW: number): void {
+  private _fireBloodRiver(bx: number, by: number, ex: number, ey: number, ang: number, halfW: number, onDone?: () => void): void {
     if (this.currentState === BossState.DEAD) return;
     this.scene.cameras.main.shake(250, 0.020);
 
@@ -1099,6 +1098,222 @@ export class BossVampire3 extends Boss {
       },
     });
 
-    this.stateTimer = this.scene.time.delayedCall(RIVER_DUR + 200, () => this.enterIdle());
+    if (onDone) this.scene.time.delayedCall(RIVER_DUR + 200, onDone);
+    else this.stateTimer = this.scene.time.delayedCall(RIVER_DUR + 200, () => this.enterIdle());
+  }
+
+  // ── 血液分裂：技能分派 ─────────────────────────────────────
+
+  private _fireSplitBossAttack(type: string, bx: number, by: number, onDone: () => void): void {
+    const [px, py] = this.getTargetPos();
+    if (type === 'scythe') {
+      const aimAng = Math.atan2(py - by, px - bx);
+      this._doScytheSweep(bx, by, aimAng, false, onDone);
+    } else if (type === 'burst') {
+      this._fireBurstOrbs(bx, by, onDone);
+    } else if (type === 'spike') {
+      const aR = this.arenaRadius * 0.85;
+      const acx = this.arenaCenter.x, acy = this.arenaCenter.y;
+      for (let w = 0; w < SPIKE_WAVES; w++) {
+        const pos: { x: number; y: number }[] = [];
+        for (let s = 0; s < SPIKE_PER_WAVE; s++) {
+          const a = Math.random() * Math.PI * 2;
+          const d = Math.sqrt(Math.random()) * aR;
+          pos.push({ x: acx + Math.cos(a) * d, y: acy + Math.sin(a) * d });
+        }
+        this.scene.time.delayedCall(w * SPIKE_WAVE_GAP, () => this._spawnSpikeWave(pos));
+      }
+      this.scene.time.delayedCall(SPIKE_WAVES * SPIKE_WAVE_GAP + SPIKE_WARN_MS + 1600, onDone);
+    } else {
+      const ang  = Math.atan2(py - by, px - bx);
+      const dist = this.arenaRadius * 1.5;
+      const ex   = bx + Math.cos(ang) * P(dist);
+      const ey   = by + Math.sin(ang) * P(dist);
+      this._fireBloodRiver(bx, by, ex, ey, ang, P(RIVER_HALF_W), onDone);
+    }
+  }
+
+  private _doCloneAttack(idx: number, cx: number, cy: number, type: string): void {
+    if (!this._splitActive || this.currentState === BossState.DEAD) return;
+    const proxy = this._splitCloneProxies[idx];
+    if (!proxy || proxy.isDead) return;
+    const [px, py] = this.getTargetPos();
+    if (type === 'scythe') {
+      this._doCloneScytheAttack(idx, cx, cy, Math.atan2(py - cy, px - cx));
+    } else if (type === 'burst') {
+      this._doCloneBurstAttack(idx, cx, cy);
+    } else if (type === 'spike') {
+      this._doCloneSpikeAttack(idx, cx, cy);
+    } else {
+      this._doCloneRiverAttack(idx, cx, cy);
+    }
+  }
+
+  private _cloneSelfDestruct(idx: number, cx: number, cy: number): void {
+    const proxy = this._splitCloneProxies[idx];
+    if (!proxy || !proxy.alive) return;
+    proxy.isDead = true; proxy.alive = false; proxy.active = false;
+    this._destroyCloneGfx(idx, cx, cy);
+    this._splitClonesAliveCount--;
+    if (this._splitClonesAliveCount <= 0) this._endSplit();
+  }
+
+  private _doCloneBurstAttack(idx: number, cx: number, cy: number): void {
+    const proxy = this._splitCloneProxies[idx];
+    if (!proxy || proxy.isDead) return;
+    const CLONE_N = 12;
+    const HIT_R   = P(BURST_HIT_R);
+    const dmg     = this.scaleDmg(Math.round(BURST_DMG * 0.75));
+
+    const chargeG = this.scene.add.graphics({ x: cx, y: cy }).setDepth(17);
+    const cs = { r: 0 };
+    this.scene.tweens.add({
+      targets: cs, r: P(22), duration: 520, ease: 'Quad.In',
+      onUpdate: () => {
+        chargeG.clear();
+        const eg = cs.r / P(22);
+        chargeG.fillStyle(0xcc0044, 0.55 * eg); chargeG.fillCircle(0, 0, cs.r);
+        chargeG.fillStyle(0xff3355, 0.45 * eg); chargeG.fillCircle(0, 0, cs.r * 0.5);
+      },
+      onComplete: () => {
+        chargeG.destroy();
+        if (!proxy.alive || this.currentState === BossState.DEAD) return;
+        const fl = this.scene.add.graphics({ x: cx, y: cy }).setDepth(22);
+        fl.fillStyle(0xff2244, 0.80); fl.fillCircle(0, 0, P(26));
+        this.scene.tweens.add({ targets: fl, alpha: 0, scaleX: 2.2, scaleY: 2.2, duration: 250, onComplete: () => fl.destroy() });
+        for (let i = 0; i < CLONE_N; i++) {
+          const ang  = (i / CLONE_N) * Math.PI * 2;
+          const dist = P(Phaser.Math.Between(190, 290));
+          const tx = cx + Math.cos(ang) * dist, ty = cy + Math.sin(ang) * dist;
+          this.scene.time.delayedCall(i * 22, () => {
+            if (!proxy.alive || this.currentState === BossState.DEAD) return;
+            const oG = this.scene.add.graphics({ x: cx, y: cy }).setDepth(20);
+            const prog = { t: 0 };
+            this.scene.tweens.add({
+              targets: prog, t: 1, duration: Math.round((dist / P(340)) * 1000), ease: 'Linear',
+              onUpdate: () => {
+                const ox = cx + Math.cos(ang) * dist * prog.t, oy = cy + Math.sin(ang) * dist * prog.t;
+                oG.setPosition(ox, oy).clear();
+                oG.fillStyle(0x550022, 0.20); oG.fillCircle(0, 0, P(16));
+                oG.fillStyle(0xcc0044, 0.88); oG.fillCircle(0, 0, P(8));
+                oG.fillStyle(0xff3355, 0.72); oG.fillCircle(0, 0, P(4));
+              },
+              onComplete: () => { oG.destroy(); this._burstOrbExplode(tx, ty, HIT_R, dmg); },
+            });
+          });
+        }
+        this.scene.time.delayedCall(CLONE_N * 22 + 700, () => this._cloneSelfDestruct(idx, cx, cy));
+      },
+    });
+  }
+
+  private _doCloneSpikeAttack(idx: number, cx: number, cy: number): void {
+    const proxy = this._splitCloneProxies[idx];
+    if (!proxy || proxy.isDead) return;
+    const HIT_R      = P(SPIKE_HIT_R);
+    const dmg        = this.scaleDmg(Math.round(SPIKE_DMG * 0.75));
+    const CLONE_WAVES = 2;
+    const CLONE_N     = 10;
+    const SPREAD_R    = P(130);
+
+    for (let w = 0; w < CLONE_WAVES; w++) {
+      this.scene.time.delayedCall(w * SPIKE_WAVE_GAP, () => {
+        if (!proxy.alive || this.currentState === BossState.DEAD) return;
+        for (let s = 0; s < CLONE_N; s++) {
+          const a  = Math.random() * Math.PI * 2;
+          const d  = Math.random() * SPREAD_R;
+          const sx = cx + Math.cos(a) * d, sy = cy + Math.sin(a) * d;
+          const warnG = this.scene.add.graphics({ x: sx, y: sy }).setDepth(7);
+          const wt = { v: 0.4 };
+          this.scene.tweens.add({
+            targets: wt, v: 1.0, duration: 120, yoyo: true, repeat: -1,
+            onUpdate: () => {
+              warnG.clear();
+              warnG.lineStyle(P(2), 0xff2244, wt.v * 0.80); warnG.strokeCircle(0, 0, HIT_R);
+              warnG.fillStyle(0xaa0022, wt.v * 0.60);
+              warnG.fillTriangle(-P(4), P(4), P(4), P(4), 0, -P(9));
+            },
+          });
+          this.scene.time.delayedCall(SPIKE_WARN_MS, () => {
+            warnG.destroy();
+            if (!proxy.alive || this.currentState === BossState.DEAD) return;
+            this._eruptSpike(sx, sy, HIT_R, dmg);
+          });
+        }
+      });
+    }
+    this.scene.time.delayedCall(CLONE_WAVES * SPIKE_WAVE_GAP + SPIKE_WARN_MS + 1600, () => this._cloneSelfDestruct(idx, cx, cy));
+  }
+
+  private _doCloneRiverAttack(idx: number, cx: number, cy: number): void {
+    const proxy = this._splitCloneProxies[idx];
+    if (!proxy || proxy.isDead) return;
+    const [px, py] = this.getTargetPos();
+    const ang   = Math.atan2(py - cy, px - cx);
+    const dist  = this.arenaRadius * 1.5;
+    const ex    = cx + Math.cos(ang) * P(dist), ey = cy + Math.sin(ang) * P(dist);
+    const HW    = P(RIVER_HALF_W);
+    const perp  = ang + Math.PI / 2;
+    const pc = Math.cos(perp), ps = Math.sin(perp);
+    const cos = Math.cos(ang), sin = Math.sin(ang);
+    const totalDist = Phaser.Math.Distance.Between(cx, cy, ex, ey);
+    const dmg = this.scaleDmg(Math.round(RIVER_DMG * 0.75));
+
+    // Brief warn
+    const warnG = this.scene.add.graphics().setDepth(7);
+    const ww = { v: 0 };
+    const wt = this.scene.tweens.add({
+      targets: ww, v: 1, duration: 450, ease: 'Quad.In',
+      onUpdate: () => {
+        warnG.clear();
+        warnG.fillStyle(0x880022, 0.14 * ww.v);
+        warnG.fillPoints([{ x: cx + pc * HW, y: cy + ps * HW }, { x: cx - pc * HW, y: cy - ps * HW }, { x: ex - pc * HW, y: ey - ps * HW }, { x: ex + pc * HW, y: ey + ps * HW }], true);
+        warnG.lineStyle(P(2), 0xff2244, 0.60 * ww.v);
+        warnG.lineBetween(cx + pc * HW, cy + ps * HW, ex + pc * HW, ey + ps * HW);
+        warnG.lineBetween(cx - pc * HW, cy - ps * HW, ex - pc * HW, ey - ps * HW);
+      },
+    });
+    void wt;
+
+    this.scene.time.delayedCall(500, () => {
+      warnG.destroy();
+      if (!proxy.alive || this.currentState === BossState.DEAD) return;
+
+      const riverG = this.scene.add.graphics().setDepth(8);
+      let   flowT  = 0;
+      const riverA = { v: 1 };
+
+      const drawR = (alpha: number) => {
+        riverG.clear();
+        riverG.fillStyle(0x330011, 0.75 * alpha);
+        riverG.fillPoints([{ x: cx + pc * HW, y: cy + ps * HW }, { x: cx - pc * HW, y: cy - ps * HW }, { x: ex - pc * HW, y: ey - ps * HW }, { x: ex + pc * HW, y: ey + ps * HW }], true);
+        riverG.fillStyle(0xaa0022, 0.62 * alpha);
+        riverG.fillPoints([{ x: cx + pc * HW * 0.8, y: cy + ps * HW * 0.8 }, { x: cx - pc * HW * 0.8, y: cy - ps * HW * 0.8 }, { x: ex - pc * HW * 0.8, y: ey - ps * HW * 0.8 }, { x: ex + pc * HW * 0.8, y: ey + ps * HW * 0.8 }], true);
+        riverG.lineStyle(P(2), 0xff3355, 0.68 * alpha);
+        riverG.lineBetween(cx + pc * HW, cy + ps * HW, ex + pc * HW, ey + ps * HW);
+        riverG.lineBetween(cx - pc * HW, cy - ps * HW, ex - pc * HW, ey - ps * HW);
+        for (let r = 0; r < 4; r++) {
+          const t = ((r / 4 + flowT) % 1.0);
+          const rx = cx + cos * totalDist * t, ry = cy + sin * totalDist * t;
+          riverG.lineStyle(P(1.5), 0xff6677, 0.32 * alpha);
+          riverG.lineBetween(rx + pc * HW * 0.65, ry + ps * HW * 0.65, rx - pc * HW * 0.65, ry - ps * HW * 0.65);
+        }
+      };
+      drawR(1);
+
+      const flowTimer = this.scene.time.addEvent({ delay: 33, loop: true, callback: () => { flowT = (flowT + 0.022) % 1.0; drawR(riverA.v); } });
+      const tickTimer = this.scene.time.addEvent({
+        delay: RIVER_TICK_MS, repeat: Math.floor(RIVER_DUR / RIVER_TICK_MS) - 1,
+        callback: () => { if (!this.guestMode) this.onRiverTick?.(cx, cy, ex, ey, HW, dmg); },
+      });
+
+      this.scene.tweens.add({
+        targets: riverA, v: 0, delay: RIVER_DUR * 0.7, duration: RIVER_DUR * 0.3, ease: 'Quad.In',
+        onComplete: () => {
+          riverG.destroy(); flowTimer.destroy(); tickTimer.destroy();
+          this._cloneSelfDestruct(idx, cx, cy);
+        },
+      });
+    });
   }
 }
