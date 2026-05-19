@@ -574,56 +574,56 @@ export const CARD_DEFS: CardDef[] = [
   // 獸人族（3 家族）
   // ════════════════════════════════════════════════════
 
-  // ── 獸人 菁英獸人 獸人族長（暴擊主題）──
+  // ── 獸人 菁英獸人 獸人族長（蠻力法則：暴擊→攻擊轉換）──
   { id: 'card_orc1_n', name: '獸人卡', monsterId: 'orc1_s',
     family: 'orc1', race: 'orc', cardType: 'n',
     element: 'none', tint: 0xcc8833,
-    effect: { atk: 10 },
-    desc: '攻擊力+10' },
+    effect: { atk: 12, critToAtk: 0.6 },
+    desc: '攻擊力+12  每1%暴擊率→+0.6攻擊（暴擊判定關閉）' },
   { id: 'card_orc1_e', name: '菁英獸人卡', monsterId: 'elite_orc1',
     family: 'orc1', race: 'orc', cardType: 'e',
     element: 'none', tint: 0xdd9944,
-    effect: { atk: 14, crit: 0.06 },
-    desc: '攻擊力+14  暴擊率+6%' },
+    effect: { atk: 16, critToAtk: 1.0 },
+    desc: '攻擊力+16  每1%暴擊率→+1.0攻擊（暴擊判定關閉）' },
   { id: 'card_orc1_b', name: '獸人族長卡', monsterId: 'boss_orc1',
     family: 'orc1', race: 'orc', cardType: 'b',
     element: 'none', tint: 0xffaa22,
-    effect: { atk: 20, crit: 0.08, critDmg: 0.15 },
-    desc: '攻擊力+20  暴擊率+8%  爆擊傷害+15%' },
+    effect: { atk: 20, critToAtk: 1.4, allDmgPct: 0.08 },
+    desc: '攻擊力+20  每1%暴擊率→+1.4攻擊  全傷害+8%（暴擊判定關閉）' },
 
-  // ── 獸人戰士家族（生命主題）──
+  // ── 獸人戰士家族（業火盾：受擊觸發ATK爆衝）──
   { id: 'card_orc2_n', name: '獸人戰士卡', monsterId: 'orc2_s',
     family: 'orc2', race: 'orc', cardType: 'n',
     element: 'none', tint: 0x997744,
-    effect: { hp: 30 },
-    desc: '最大HP+30' },
+    effect: { blazingShieldChance: 0.15, blazingShieldAtkPct: 0.40, blazingShieldMs: 1500 },
+    desc: '受擊15%觸發業火盾：ATK+40%持續1.5秒' },
   { id: 'card_orc2_e', name: '菁英獸人戰士卡', monsterId: 'elite_orc2',
     family: 'orc2', race: 'orc', cardType: 'e',
     element: 'none', tint: 0xaa8855,
-    effect: { hp: 45, def: 5 },
-    desc: '最大HP+45  防禦+5' },
+    effect: { blazingShieldChance: 0.20, blazingShieldAtkPct: 0.55, blazingShieldMs: 1500, hp: 40 },
+    desc: '受擊20%觸發業火盾：ATK+55%持續1.5秒  最大HP+40' },
   { id: 'card_orc2_b', name: '獸人戰士長卡', monsterId: 'boss_orc2',
     family: 'orc2', race: 'orc', cardType: 'b',
     element: 'none', tint: 0xcc9933,
-    effect: { hp: 60, def: 8, atk: 8 },
-    desc: '最大HP+60  防禦+8  攻擊力+8' },
+    effect: { blazingShieldChance: 0.25, blazingShieldAtkPct: 0.70, blazingShieldMs: 2000, blazingShieldHealPct: 0.05 },
+    desc: '受擊25%觸發業火盾：ATK+70%持續2秒  觸發時回復5%HP' },
 
-  // ── 獸人刀客家族（攻速主題）──
+  // ── 獸人武士家族（蓄勁一閃：每N刀蓄力爆發）──
   { id: 'card_orc3_n', name: '獸人武士卡', monsterId: 'orc3_s',
     family: 'orc3', race: 'orc', cardType: 'n',
     element: 'none', tint: 0x6688aa,
-    effect: { crit: 0.05 },
-    desc: '暴擊率+5%' },
+    effect: { impaleCharge: 5, impaleDmgPct: 0.70 },
+    desc: '每5次攻擊蓄勁，第6刀+70%傷害' },
   { id: 'card_orc3_e', name: '菁英獸人武士卡', monsterId: 'elite_orc3',
     family: 'orc3', race: 'orc', cardType: 'e',
     element: 'none', tint: 0x7799bb,
-    effect: { crit: 0.08, atk: 8 },
-    desc: '暴擊率+8%  攻擊力+8' },
+    effect: { impaleCharge: 4, impaleDmgPct: 0.90, atkSpeed: 0.08 },
+    desc: '每4次攻擊蓄勁，第5刀+90%傷害  攻擊速度+8%' },
   { id: 'card_orc3_b', name: '獸人武士長卡', monsterId: 'boss_orc3',
     family: 'orc3', race: 'orc', cardType: 'b',
     element: 'none', tint: 0x99bbdd,
-    effect: { crit: 0.12, atk: 12, speed: 8 },
-    desc: '暴擊率+12%  攻擊力+12  速度+8' },
+    effect: { impaleCharge: 3, impaleDmgPct: 1.00 },
+    desc: '每3次攻擊蓄勁，第4刀+100%傷害' },
 ];
 
 // ── Helpers ────────────────────────────────────────────────────────────────

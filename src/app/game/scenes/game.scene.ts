@@ -134,6 +134,12 @@ export class GameScene extends Phaser.Scene {
   private _divineShieldRollUntil = 0;  // 每次攻擊動作只判定一次（300ms 鎖）
   private _onHitLightningCooldown = 0;  // 攻擊觸發落雷冷卻
   private _freeRevivesUsed = 0;
+  // 業火盾
+  private _blazingActive = false;
+  private _blazingTimer?: Phaser.Time.TimerEvent;
+  private _blazingGfx?: Phaser.GameObjects.Graphics;
+  // 蓄勁一閃
+  private _impaleHitCount = 0;
   private _reviveDialogActive = false;
   private _atkDragPointerId = -1;
   private _atkDragStartX = 0;
@@ -337,6 +343,12 @@ export class GameScene extends Phaser.Scene {
     this._divineShieldTimer?.destroy();
     this._divineShieldTimer = undefined;
     this._freeRevivesUsed = 0;
+    this._blazingTimer?.destroy();
+    this._blazingTimer = undefined;
+    this._blazingActive = false;
+    this._blazingGfx?.destroy();
+    this._blazingGfx = undefined;
+    this._impaleHitCount = 0;
     this._allyMinions = [];
     this.bossDebuffTexts.clear();
     this.hitBatches.clear();
@@ -853,6 +865,11 @@ export class GameScene extends Phaser.Scene {
   private initSpecialCardEffects(): void {
     const stats = CardStore.getTotalStats();
     this._freeRevivesUsed = 0;
+    this._impaleHitCount  = 0;
+    this._blazingActive   = false;
+
+    // 業火盾觸發回調
+    this.player.onBlazing = (x, y) => this._triggerBlazing(x, y);
 
     // 旋轉球：火冰交錯排列
     const nFire = stats.orbitFireBalls ?? 0;
@@ -1446,6 +1463,49 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
+  // ── 業火盾觸發 ────────────────────────────────────────────────
+  private _triggerBlazing(px: number, py: number): void {
+    const stats = CardStore.getTotalStats();
+    const ms    = Math.max(500, stats.blazingShieldMs ?? 1500);
+
+    // 回復HP
+    const healPct = stats.blazingShieldHealPct ?? 0;
+    if (healPct > 0) this.player.heal(Math.round(this.player.maxHpValue * healPct));
+
+    // 業火盾 ATK 加成
+    this._blazingActive = true;
+    this._blazingTimer?.destroy();
+    this._blazingTimer = this.time.delayedCall(ms, () => {
+      this._blazingActive = false;
+      this._blazingGfx?.destroy();
+      this._blazingGfx = undefined;
+    });
+
+    // 視覺效果：紅橙光圈爆衝
+    const burst = this.add.graphics({ x: px, y: py }).setDepth(30);
+    burst.lineStyle(P(3), 0xff4400, 1);
+    burst.strokeCircle(0, 0, P(12));
+    this.tweens.add({ targets: burst, scaleX: 3, scaleY: 3, alpha: 0, duration: 350, ease: 'Cubic.Out', onComplete: () => burst.destroy() });
+
+    // 持續橙色光暈（跟隨玩家）
+    this._blazingGfx?.destroy();
+    this._blazingGfx = this.add.graphics().setDepth(27);
+    this.refreshBuffHud();
+  }
+
+  // ── 蓄勁一閃爆發特效 ──────────────────────────────────────────
+  private _showImpaleEffect(tx: number, ty: number): void {
+    const flash = this.add.graphics({ x: tx, y: ty }).setDepth(32);
+    flash.fillStyle(0xffffff, 0.85);
+    flash.fillCircle(0, 0, P(10));
+    this.tweens.add({ targets: flash, scaleX: 2.5, scaleY: 2.5, alpha: 0, duration: 280, ease: 'Cubic.Out', onComplete: () => flash.destroy() });
+    // 金色收縮環
+    const ring = this.add.graphics({ x: tx, y: ty }).setDepth(31);
+    ring.lineStyle(P(2), 0xffcc00, 1);
+    ring.strokeCircle(0, 0, P(18));
+    this.tweens.add({ targets: ring, scaleX: 0.2, scaleY: 0.2, alpha: 0, duration: 220, ease: 'Cubic.In', onComplete: () => ring.destroy() });
+  }
+
   private spawnAllyFlower(defId: string, lifetimeMs: number, spawnAngle?: number): void {
     const _capStats = CardStore.getTotalStats();
     const _skillCap = _capStats.skillFlowerCap ?? 0;
@@ -1941,6 +2001,18 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
+    // 業火盾光暈（跟隨玩家）
+    if (this._blazingGfx && this._blazingActive && this.player.active) {
+      const g = this._blazingGfx;
+      g.setPosition(this.player.x, this.player.y).clear();
+      const t = this.time.now / 1000;
+      const r = P(20) + Math.sin(t * 8) * P(2);
+      g.fillStyle(0xff4400, 0.08 + Math.sin(t * 8) * 0.04);
+      g.fillCircle(0, 0, r);
+      g.lineStyle(P(2), 0xff6600, 0.80 + Math.sin(t * 8) * 0.15);
+      g.strokeCircle(0, 0, r);
+    }
+
     // 攻擊方向指示（固定在螢幕中心，玩家永遠在此）
     if (this._atkDirGfx && this._atkDragAngle !== null && this.player.active) {
       const g      = this._atkDirGfx;
@@ -2116,10 +2188,22 @@ export class GameScene extends Phaser.Scene {
       ? (1 + this._bloodlustStacks * (stats.bloodlustDmgPerStack ?? 0))
       : 1;
 
-    const allMult = 1 + (stats.allDmgPct ?? 0);
-    const atkBuffMult = this._atkBuffActive ? 1.2 : 1;
-    const lowHpAtk = (stats.condLowHpAtk && this.player.currentHp / this.player.maxHpValue < 0.4) ? (stats.condLowHpAtk ?? 0) : 0;
-    const dmg = Math.round((stats.atk + lowHpAtk) * Phaser.Math.FloatBetween(0.85, 1.15) * dmgMult * (isCrit ? (1 + stats.critDmg) : 1) * elemMult * targetMult * allMult * atkBuffMult * bloodlustDmgMult);
+    const allMult      = 1 + (stats.allDmgPct ?? 0);
+    const atkBuffMult  = this._atkBuffActive ? 1.2 : 1;
+    const blazingMult  = this._blazingActive ? (1 + (stats.blazingShieldAtkPct ?? 0)) : 1;
+    const lowHpAtk     = (stats.condLowHpAtk && this.player.currentHp / this.player.maxHpValue < 0.4) ? (stats.condLowHpAtk ?? 0) : 0;
+    // 蓄勁一閃：計數器達到 impaleCharge 時爆發
+    const impaleCharge = stats.impaleCharge ?? 0;
+    let impaleMult = 1;
+    if (impaleCharge > 0 && (stats.impaleDmgPct ?? 0) > 0) {
+      this._impaleHitCount++;
+      if (this._impaleHitCount >= impaleCharge) {
+        impaleMult = 1 + (stats.impaleDmgPct ?? 0);
+        this._impaleHitCount = 0;
+        this._showImpaleEffect(target.x, target.y);
+      }
+    }
+    const dmg = Math.round((stats.atk + lowHpAtk) * Phaser.Math.FloatBetween(0.85, 1.15) * dmgMult * (isCrit ? (1 + stats.critDmg) : 1) * elemMult * targetMult * allMult * atkBuffMult * blazingMult * bloodlustDmgMult * impaleMult);
     const pen = isBoss ? stats.penetration : 0;
 
     if (isBoss && (this.boss as any).isGuarding) {

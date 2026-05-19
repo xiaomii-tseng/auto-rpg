@@ -112,6 +112,13 @@ export interface EffectiveStats {
   freeRevive?:           number;
   maxHpPct?:             number;
   weaponRefineAtk?:      number;
+  critToAtk?:             number;
+  blazingShieldChance?:   number;
+  blazingShieldAtkPct?:   number;
+  blazingShieldMs?:       number;
+  blazingShieldHealPct?:  number;
+  impaleCharge?:          number;
+  impaleDmgPct?:          number;
   weaponRefineHp?:       number;
 }
 

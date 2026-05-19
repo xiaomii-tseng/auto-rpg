@@ -147,6 +147,14 @@ export interface StatBonus {
   atkSpeedMult?:        number;  // 攻速乘算
   summonDmgMult?:       number;  // 召喚物傷害乘算
   defToEvasion?:        number;  // 每N防禦轉換迴避率（值為除數，30 = 每30防禦+3%迴避）
+  // ── 獸人族專屬機制 ──
+  critToAtk?:             number;  // 每1%暴擊率→+N攻擊力（暴擊判定同時關閉）
+  blazingShieldChance?:   number;  // 受擊時觸發業火盾機率
+  blazingShieldAtkPct?:   number;  // 業火盾期間ATK加成比例
+  blazingShieldMs?:       number;  // 業火盾持續時間（ms）
+  blazingShieldHealPct?:  number;  // 業火盾觸發時回復HP%
+  impaleCharge?:          number;  // 蓄勁一閃：每N次攻擊觸發爆發
+  impaleDmgPct?:          number;  // 蓄勁一閃：爆發傷害加成比例
 }
 
 // ── Affix system ───────────────────────────────────────────────────────────────

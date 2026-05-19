@@ -28,6 +28,9 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   onDead?: () => void;
   onEvade?: (x: number, y: number) => void;
   onAttackAnim?: (key: string, targetAngle?: number) => void;
+  onBlazing?: (x: number, y: number) => void;
+
+  private _blazingCooldown = 0;
 
   constructor(scene: Phaser.Scene, x: number, y: number) {
     super(scene, x, y, 'player_idle_shadow', 0);
@@ -175,6 +178,13 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       (this.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
       this.onDead?.();
       return;
+    }
+    // 業火盾：受擊觸發（2.5s 觸發鎖定）
+    const blazeChance = stats.blazingShieldChance ?? 0;
+    const now = this.scene.time.now;
+    if (blazeChance > 0 && now > this._blazingCooldown && Math.random() < blazeChance) {
+      this._blazingCooldown = now + 2500;
+      this.onBlazing?.(this.x, this.y);
     }
     this.startInvincibility();
   }

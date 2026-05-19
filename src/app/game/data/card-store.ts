@@ -128,13 +128,16 @@ const COMBO1_BONUSES: Record<string, { name: string; bonus: StatBonus }> = {
   plant1:      { name: '食人花家族：強攻陣容', bonus: { atk: 15, dmgVsEliteOrBoss: 0.08 } },
   plant2:      { name: '藤蔓花家族：危機本能', bonus: { evasion: 0.06 } },
   plant3:      { name: '不死花家族：召喚強化', bonus: { summonDmgMult: 1.20 } },
-  orc1:        { name: '獸人 菁英獸人 獸人王：暴擊強化', bonus: { crit: 0.08, critDmg: 0.20 } },
+  orc1:        { name: '獸人 菁英獸人 獸人族長：蠻力法則', bonus: { critToAtk: 1.0, allDmgPct: 0.10 } },
+  orc2:        { name: '獸人戰士 菁英獸人戰士 獸人戰士長：業火狂潮', bonus: { blazingShieldChance: 0.15, blazingShieldAtkPct: 0.15 } },
+  orc3:        { name: '獸人武士 菁英獸人武士 獸人武士長：一閃共鳴', bonus: { impaleDmgPct: 0.60, atkSpeedMult: 1.15 } },
 };
 
 // ── 組合二加成表（同種族 N+E+B 不同家族）──
 const COMBO2_BONUSES: Record<string, { name: string; bonus: StatBonus }> = {
   slime:  { name: '史萊姆跨族陣容', bonus: { dmgVsAnyElement: 0.10, condCritDmgBonus: 0.10 } },
   flower: { name: '花怪跨族陣容',   bonus: { hpRegen: 2.0, takenDmgPct: -0.08 } },
+  orc:    { name: '獸人跨族狂戰陣容', bonus: { allDmgPct: 0.10, takenDmgPct: 0.05 } },
 };
 
 // ── 組合四加成表（同階級×3）──
@@ -148,6 +151,7 @@ const COMBO4_BONUSES: Record<string, { name: string; bonus: StatBonus }> = {
 const COMBO3_BONUSES: Record<string, { name: string; bonus: StatBonus }> = {
   slime:  { name: '史萊姆族共鳴', bonus: { dmgVsAnyElement: 0.08 } },
   flower: { name: '花怪族共鳴',   bonus: { hpRegen: 1.5 } },
+  orc:    { name: '獸人族共鳴',   bonus: { atk: 10, penetration: 10 } },
 };
 
 export const CardStore = {
@@ -335,6 +339,17 @@ export const CardStore = {
       b.maxHpPct             = (b.maxHpPct             ?? 0) + (e.maxHpPct             ?? 0);
       b.weaponRefineAtk      = (b.weaponRefineAtk      ?? 0) + (e.weaponRefineAtk      ?? 0);
       b.weaponRefineHp       = (b.weaponRefineHp       ?? 0) + (e.weaponRefineHp       ?? 0);
+      b.critToAtk            = (b.critToAtk            ?? 0) + (e.critToAtk            ?? 0);
+      b.blazingShieldChance  = (b.blazingShieldChance  ?? 0) + (e.blazingShieldChance  ?? 0);
+      b.blazingShieldAtkPct  = (b.blazingShieldAtkPct  ?? 0) + (e.blazingShieldAtkPct  ?? 0);
+      b.blazingShieldMs      = (b.blazingShieldMs      ?? 0) + (e.blazingShieldMs      ?? 0);
+      b.blazingShieldHealPct = (b.blazingShieldHealPct ?? 0) + (e.blazingShieldHealPct ?? 0);
+      b.impaleDmgPct         = (b.impaleDmgPct         ?? 0) + (e.impaleDmgPct         ?? 0);
+      if ((e.impaleCharge ?? 0) > 0) {
+        b.impaleCharge = b.impaleCharge
+          ? Math.min(b.impaleCharge, e.impaleCharge!)
+          : e.impaleCharge;
+      }
     }
     return b;
   },
@@ -373,10 +388,14 @@ export const CardStore = {
     const refineHp    = refineSteps * (bonus.weaponRefineHp  ?? 0);
 
     // 先算出中間值，用於條件判斷
-    const flatAtk  = base.atk   + (bonus.atk ?? 0) + (enh8 ? (bonus.weaponEnhance8Atk ?? 0) : 0) + refineAtk;
+    const rawCrit  = Math.min(base.crit + (bonus.crit ?? 0), 1);
+    const critConv = bonus.critToAtk ?? 0;
+    // critToAtk：暴擊率每1%轉為+N攻擊，同時暴擊判定歸零
+    const critConvAtk = critConv > 0 ? Math.round(rawCrit * 100 * critConv) : 0;
+    const flatCrit    = critConv > 0 ? 0 : rawCrit;
+    const flatAtk  = base.atk   + (bonus.atk ?? 0) + (enh8 ? (bonus.weaponEnhance8Atk ?? 0) : 0) + refineAtk + critConvAtk;
     const flatHp   = base.maxHp + (bonus.hp  ?? 0) + (enh8 ? (bonus.weaponEnhance8Hp  ?? 0) : 0) + refineHp;
     const flatPen  = base.penetration + (bonus.penetration ?? 0);
-    const flatCrit = Math.min(base.crit + (bonus.crit ?? 0), 1);
     const flatCritDmg = base.critDmg + (bonus.critDmg ?? 0);
 
     // 條件加成 resolve
@@ -490,6 +509,13 @@ export const CardStore = {
       maxHpPct:             bonus.maxHpPct,
       weaponRefineAtk:      bonus.weaponRefineAtk,
       weaponRefineHp:       bonus.weaponRefineHp,
+      critToAtk:            bonus.critToAtk,
+      blazingShieldChance:  bonus.blazingShieldChance,
+      blazingShieldAtkPct:  bonus.blazingShieldAtkPct,
+      blazingShieldMs:      bonus.blazingShieldMs,
+      blazingShieldHealPct: bonus.blazingShieldHealPct,
+      impaleCharge:         bonus.impaleCharge,
+      impaleDmgPct:         bonus.impaleDmgPct,
     };
   },
 
