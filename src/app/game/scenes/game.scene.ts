@@ -2395,7 +2395,8 @@ export class GameScene extends Phaser.Scene {
           if (hitTargets.has(t)) continue;
           const dx = t.x - px, dy = t.y - py;
           const dist = Math.sqrt(dx * dx + dy * dy);
-          if (dist > R) continue;
+          const hitR = t instanceof Boss ? P(20) : (t as MinionSlime).isElite ? P(10) : P(5);
+          if (dist > R + hitR) continue;
           let tAngle = Math.atan2(dy, dx);
           while (tAngle < sa - 0.01) tAngle += Math.PI * 2;
           if (tAngle > curEa + 0.01) continue;
