@@ -342,7 +342,8 @@ export const CardStore = {
       b.critToAtk            = (b.critToAtk            ?? 0) + (e.critToAtk            ?? 0);
       b.blazingShieldChance  = (b.blazingShieldChance  ?? 0) + (e.blazingShieldChance  ?? 0);
       b.blazingShieldAtkPct  = (b.blazingShieldAtkPct  ?? 0) + (e.blazingShieldAtkPct  ?? 0);
-      b.blazingShieldMs      = (b.blazingShieldMs      ?? 0) + (e.blazingShieldMs      ?? 0);
+      if ((e.blazingShieldMs ?? 0) > 0)
+        b.blazingShieldMs = Math.max(b.blazingShieldMs ?? 0, e.blazingShieldMs!);
       b.blazingShieldHealPct = (b.blazingShieldHealPct ?? 0) + (e.blazingShieldHealPct ?? 0);
       b.impaleDmgPct         = (b.impaleDmgPct         ?? 0) + (e.impaleDmgPct         ?? 0);
       if ((e.impaleCharge ?? 0) > 0) {
