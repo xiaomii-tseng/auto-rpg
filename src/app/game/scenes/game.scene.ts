@@ -156,6 +156,9 @@ export class GameScene extends Phaser.Scene {
   private _allyGroup!: Phaser.Physics.Arcade.Group;  // 用於 projectile overlap 偵測
   private _slowZones: { x: number; y: number; r: number; expires: number; gfx: Phaser.GameObjects.Graphics }[] = [];
   private _rainPuddles: { x: number; y: number; r: number; dmg: number; expires: number }[] = [];
+  private _v3IceDomainActive = false;
+  private _v3IceDomainCX = 0;
+  private _v3IceDomainCY = 0;
   private _rainPuddleHitCd = 0;
   // 黑夜降靈
   private _darkNightActive    = false;
@@ -1981,7 +1984,12 @@ export class GameScene extends Phaser.Scene {
       z.expires > now &&
       Phaser.Math.Distance.Between(this.player.x, this.player.y, z.x, z.y) <= z.r,
     );
-    this.player.slowMult = inSlow ? 0.35 : 1;
+    let slowMult = inSlow ? 0.35 : 1;
+    if (this._v3IceDomainActive && this.bossActive) {
+      const iceDist = Phaser.Math.Distance.Between(this.player.x, this.player.y, this._v3IceDomainCX, this._v3IceDomainCY);
+      if (iceDist >= P(170) && iceDist <= P(250)) slowMult = Math.min(slowMult, 0.60);
+    }
+    this.player.slowMult = slowMult;
 
     // Rain puddle step-damage check
     if (this._rainPuddles.length > 0) {
@@ -4028,6 +4036,19 @@ export class GameScene extends Phaser.Scene {
       b.onElVoidHit = (cx, cy, r, dmg) => {
         if (!this.bossActive) return;
         this.hitInRadius(cx, cy, r, dmg);
+      };
+      b.onLightningArcHit = (dmg) => {
+        if (!this.bossActive) return;
+        this.player.takeDamage(dmg);
+      };
+      b.onIceDomainStart = (cx, cy) => { this._v3IceDomainActive = true; this._v3IceDomainCX = cx; this._v3IceDomainCY = cy; };
+      b.onIceDomainEnd   = () => {
+        this._v3IceDomainActive = false;
+        if (this.player.slowMult > 0.35) this.player.slowMult = 1;
+      };
+      b.onTornadoHit = (dmg) => {
+        if (!this.bossActive) return;
+        this.player.takeDamage(dmg);
       };
 
       return b;
