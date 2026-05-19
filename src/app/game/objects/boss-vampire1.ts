@@ -16,7 +16,7 @@ const BAT_SCATTER_R  = P(100);
 const BAT_TRAVEL     = 4000;  // 追蹤持續時間
 const BAT_SPEED      = P(110);
 const BAT_HIT_R      = P(22);
-const BAT_DMG        = 35;
+const BAT_DMG        = 65;
 
 // 猩紅雨（全場，高密度，2x 時間）
 const RAIN_WARN_MS  = 500;
@@ -25,13 +25,13 @@ const RAIN_WAVES    = 12;     // 6 × 2
 const RAIN_WAVE_MS  = 300;
 const RAIN_FALL_MS  = 320;
 const RAIN_HIT_R    = P(18);
-const RAIN_DMG      = 42;
+const RAIN_DMG      = 65;
 
 // 魅惑凝視（追蹤線→鎖定→300ms後超寬光束）
 const GAZE_TRACK_MS  = 1000;  // 追蹤持續
 const GAZE_LOCK_DELAY = 300;  // 鎖定後延遲
 const GAZE_BEAM_R    = P(15); // 對齊主光束視覺寬度
-const GAZE_DMG       = 180;
+const GAZE_DMG       = 100;
 
 // 黑夜降靈
 const DARK_SHOW_MS   = 1200; // 安全區顯示時間
@@ -46,7 +46,7 @@ const NEEDLE_INTERVAL  = 180;
 const NEEDLE_PER_ROUND = 3;
 const NEEDLE_ORIGIN_R  = P(130);
 const NEEDLE_HIT_R     = P(16);
-const NEEDLE_DMG       = 38;
+const NEEDLE_DMG       = 65;
 
 export class BossVampire1 extends Boss {
   onBatHit?:            (x: number, y: number, r: number, dmg: number) => void;

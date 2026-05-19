@@ -13,7 +13,7 @@ const MRAIN_COUNT    = 24;    // total meteors
 const MRAIN_STAGGER  = 140;   // ms between each meteor launch
 const MRAIN_R        = P(55); // radius (2.5× original P(22))
 const MRAIN_FALL_MS  = 580;
-const MRAIN_BASE_DMG = 90;
+const MRAIN_BASE_DMG = 75;
 
 // ── 彗星術 ────────────────────────────────────────────────
 const COMET_CHARGE_MS = 3000;
@@ -21,8 +21,8 @@ const COMET_FALL_MS   = 420;
 const COMET_R1        = P(130); // inner ring   0–130px
 const COMET_R2        = P(260); // mid  ring  131–260px
 const COMET_R3        = P(390); // outer ring 261–390px
-const COMET_DMG_INNER = 220;
-const COMET_DMG_MID   = 130;
+const COMET_DMG_INNER = 100;
+const COMET_DMG_MID   = 80;
 const COMET_DMG_OUTER = 65;
 
 // ── 禁咒：元素崩解 ────────────────────────────────────────
@@ -35,10 +35,10 @@ const EL_ICE_R       = P(40);
 const EL_THUNDER_CNT = 8;     // 閃電打擊數量
 const EL_THUNDER_R   = P(30);
 const EL_VOID_R      = P(280);// 虛空環半徑
-const EL_DMG_FIRE    = 110;
-const EL_DMG_ICE     = 95;
-const EL_DMG_THUNDER = 130;
-const EL_DMG_VOID    = 80;
+const EL_DMG_FIRE    = 75;
+const EL_DMG_ICE     = 75;
+const EL_DMG_THUNDER = 75;
+const EL_DMG_VOID    = 75;
 
 export class BossVampire2 extends Boss {
   onMeteorRainHit?:    (x: number, y: number, r: number, dmg: number) => void;
