@@ -2193,7 +2193,15 @@ export class GameScene extends Phaser.Scene {
 
   private getHittableTargets(): Array<MinionSlime | Boss> {
     const out: Array<MinionSlime | Boss> = this.allMinions.filter(m => !m.isDead && !this._allyMinions.includes(m)) as Array<MinionSlime | Boss>;
-    if (this.bossActive && this.boss.active) out.push(this.boss);
+    if (this.bossActive && this.boss.active) {
+      out.push(this.boss);
+      const vk3 = this.boss as BossVampire3;
+      if (vk3._splitActive) {
+        for (const c of vk3._splitCloneProxies) {
+          if (!c.isDead) out.push(c as unknown as MinionSlime);
+        }
+      }
+    }
     return out;
   }
 
@@ -4054,7 +4062,44 @@ export class GameScene extends Phaser.Scene {
       return b;
     }
     if (bossDef.id === 'boss_vampire3') {
-      return new BossVampire3(this, cx, cy, totalHp, bossDef.element, bossDef.spriteKey, bossDef.tint);
+      const b = new BossVampire3(this, cx, cy, totalHp, bossDef.element, bossDef.spriteKey, bossDef.tint);
+
+      const checkArc = (cx2: number, cy2: number, r: number, aimAng: number, arcDeg: number, dmg: number) => {
+        if (!this.bossActive) return;
+        const half = (arcDeg / 2) * Math.PI / 180;
+        const px = this.player.x, py = this.player.y;
+        const dist = Phaser.Math.Distance.Between(cx2, cy2, px, py);
+        if (dist < P(15) || dist > r + P(20)) return;
+        const angToPlayer = Math.atan2(py - cy2, px - cx2);
+        const diff = Math.abs(Phaser.Math.Angle.Wrap(angToPlayer - aimAng));
+        if (diff <= half + 0.08) this.player.takeDamage(dmg);
+      };
+
+      b.onScytheHit = checkArc;
+      b.onScytheTrailTick = checkArc;
+      b.onCloneScytheHit  = checkArc;
+
+      b.onBurstOrbLand = (x, y, r, dmg) => {
+        if (!this.bossActive) return;
+        if (Phaser.Math.Distance.Between(this.player.x, this.player.y, x, y) <= r) this.player.takeDamage(dmg);
+      };
+
+      b.onSpikeHit = (x, y, r, dmg) => {
+        if (!this.bossActive) return;
+        if (Phaser.Math.Distance.Between(this.player.x, this.player.y, x, y) <= r) this.player.takeDamage(dmg);
+      };
+
+      b.onRiverTick = (x1, y1, x2, y2, hw, dmg) => {
+        if (!this.bossActive) return;
+        const px = this.player.x, py = this.player.y;
+        const abx = x2 - x1, aby = y2 - y1;
+        const lenSq = abx * abx + aby * aby || 1;
+        const t  = Math.max(0, Math.min(1, ((px - x1) * abx + (py - y1) * aby) / lenSq));
+        const nx = x1 + t * abx - px, ny = y1 + t * aby - py;
+        if (nx * nx + ny * ny <= hw * hw) this.player.takeDamage(dmg);
+      };
+
+      return b;
     }
     return new Boss(this, cx, cy, totalHp, bossDef.element, bossDef.spriteKey, bossDef.tint);
   }
