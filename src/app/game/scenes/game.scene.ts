@@ -2379,14 +2379,15 @@ export class GameScene extends Phaser.Scene {
     const stats = CardStore.getTotalStats();
     const cd = Math.round(650 / (1 + this.getEffectiveAtkSpeed()));
     if (!this.player.lockCooldown(cd)) return;
-    const { dir, deg, tx, ty } = this.resolveAttackDir(MELEE_RANGE * 3);
+    const { dir, rad, tx, ty } = this.resolveAttackDir(MELEE_RANGE * 3);
     const arc = stats.attackArc;
     this.player.playAttack(tx, ty, () => {
       const px = this.player.x, py = this.player.y;
       const D = this.player.depth;
-      const sa = Phaser.Math.DegToRad(deg - arc / 2);
-      const ea = Phaser.Math.DegToRad(deg + arc / 2);
-      const R = MELEE_RANGE;
+      const arcRad = Phaser.Math.DegToRad(arc);
+      const sa = rad - arcRad / 2;
+      const ea = rad + arcRad / 2;
+      const R = MELEE_RANGE + P(5);
 
       const hitTargets = new Set<object>();
       const checkSweepHit = (curEa: number) => {
@@ -3990,7 +3991,45 @@ export class GameScene extends Phaser.Scene {
       return b;
     }
     if (bossDef.id === 'boss_vampire2') {
-      return new BossVampire2(this, cx, cy, totalHp, bossDef.element, bossDef.spriteKey, bossDef.tint);
+      const b = new BossVampire2(this, cx, cy, totalHp, bossDef.element, bossDef.spriteKey, bossDef.tint);
+
+      b.onMeteorRainHit = (x, y, r, dmg) => {
+        if (!this.bossActive) return;
+        this.hitInRadius(x, y, r, dmg);
+      };
+
+      b.onCometRingHit = (impactX, impactY, rInner, rOuter, dmg) => {
+        if (!this.bossActive) return;
+        const dist = (tx: number, ty: number) =>
+          Phaser.Math.Distance.Between(tx, ty, impactX, impactY);
+        const inZone = (d: number) => rInner === 0 ? d <= rOuter : d > rInner && d <= rOuter;
+        if (inZone(dist(this.player.x, this.player.y))) this.player.takeDamage(dmg);
+        for (const ally of this._allyMinions) {
+          if (!ally.isDead && inZone(dist(ally.x, ally.y))) ally.takeDamage(dmg);
+        }
+      };
+
+      b.onElFireHit = (x, y, r, dmg) => {
+        if (!this.bossActive) return;
+        this.hitInRadius(x, y, r, dmg);
+      };
+
+      b.onElIceHit = (x, y, r, dmg) => {
+        if (!this.bossActive) return;
+        this.hitInRadius(x, y, r, dmg);
+      };
+
+      b.onElThunderHit = (x, y, r, dmg) => {
+        if (!this.bossActive) return;
+        this.hitInRadius(x, y, r, dmg);
+      };
+
+      b.onElVoidHit = (cx, cy, r, dmg) => {
+        if (!this.bossActive) return;
+        this.hitInRadius(cx, cy, r, dmg);
+      };
+
+      return b;
     }
     if (bossDef.id === 'boss_vampire3') {
       return new BossVampire3(this, cx, cy, totalHp, bossDef.element, bossDef.spriteKey, bossDef.tint);
@@ -4164,9 +4203,12 @@ export class GameScene extends Phaser.Scene {
       if (['orc2_s', 'elite_orc2'].includes(defId)) { m.attackMode = defId.startsWith('elite') ? 'ground_crack' : 'leap_slam'; m.rangedRange = Math.round(180 * DPR); }
       if (['orc3_s', 'elite_orc3'].includes(defId)) { m.attackMode = defId.startsWith('elite') ? 'triple_wave' : 'blade_wave'; m.rangedRange = Math.round(200 * DPR); }
       if (defId.startsWith('orc') || defId.startsWith('elite_orc')) m.race = 'orc';
-      if (['vampire1_s', 'elite_vampire1'].includes(defId)) { m.attackMode = 'blood_needle'; m.rangedRange = Math.round(190 * DPR); }
-      if (['vampire2_s', 'elite_vampire2'].includes(defId)) { m.attackMode = 'meteor';       m.rangedRange = Math.round(220 * DPR); }
-      if (['vampire3_s', 'elite_vampire3'].includes(defId)) { m.attackMode = 'blood_burst';  m.rangedRange = Math.round(90  * DPR); }
+      if (defId === 'vampire1_s')     { m.attackMode = 'blood_needle';  m.rangedRange = Math.round(190 * DPR); }
+      if (defId === 'elite_vampire1') { m.attackMode = 'triple_needle'; m.rangedRange = Math.round(190 * DPR); }
+      if (defId === 'vampire2_s')     { m.attackMode = 'meteor';         m.rangedRange = Math.round(220 * DPR); }
+      if (defId === 'elite_vampire2') { m.attackMode = 'lightning_ring'; m.rangedRange = Math.round(220 * DPR); }
+      if (defId === 'vampire3_s')     { m.attackMode = 'blood_burst';   m.rangedRange = Math.round(90  * DPR); }
+      if (defId === 'elite_vampire3') { m.attackMode = 'orbit_burst';   m.rangedRange = Math.round(110 * DPR); }
       if (defId.startsWith('vampire') || defId.startsWith('elite_vampire')) { m.race = 'vampire'; m.walkAnim = 'run'; }
       m.setPatrolCenter(isPlant ? spawnX : wx, isPlant ? spawnY : wy);
       m.getTargetPos = () => this.nearestTargetPos(m.x, m.y);
@@ -6310,14 +6352,14 @@ export class GameScene extends Phaser.Scene {
       },
     });
 
-    const afterPts = buildCrescent(R * 1.06, R2 * 0.92);
+    const afterPts = buildCrescent(R, R2 * 0.92);
     const afterG = this.add.graphics().setDepth(D + 1).setAlpha(0);
     afterG.fillStyle(0x3366cc, 0.30); afterG.fillPoints(afterPts, true);
     afterG.lineStyle(1.5, 0x88bbff, 0.50);
     afterG.beginPath();
     for (let i = 0; i <= 28; i++) {
       const a = sa + (ea - sa) * (i / 28);
-      const x = px + Math.cos(a) * R * 1.06, y = py + Math.sin(a) * R * 1.06;
+      const x = px + Math.cos(a) * R, y = py + Math.sin(a) * R;
       i === 0 ? afterG.moveTo(x, y) : afterG.lineTo(x, y);
     }
     afterG.strokePath();
@@ -7586,7 +7628,7 @@ export class GameScene extends Phaser.Scene {
       onComplete: () => gfx.destroy(),
     });
 
-    // Damage: cone check (hits while travelling)
+    // Damage: cone check
     const check = (px: number, py: number): boolean => {
       if (Phaser.Math.Distance.Between(wx, wy, px, py) > R * 2) return false;
       const a = Phaser.Math.Angle.Between(wx, wy, px, py);
