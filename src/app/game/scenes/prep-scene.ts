@@ -14,6 +14,7 @@ import { NetworkService } from '../network/network.service';
 import { SkinStore, SKINS, getSkinFile } from '../data/skin-store';
 import { VirtualJoystick } from '../ui/joystick';
 import { VERSION } from '../version';
+import { TowerStore } from '../data/tower-store';
 
 
 const DPR = (window as any).__gameDpr as number;
@@ -652,6 +653,32 @@ export class PrepScene extends Phaser.Scene {
     }).setOrigin(0.5).setDepth(31);
     this.add.rectangle(SET_X + SET_S / 2, SET_Y + SET_S / 2, SET_S, SET_S)
       .setInteractive({ useHandCursor: true }).setDepth(35).setAlpha(0.001);
+
+    // ── 無限塔按鈕（漢堡下方）──────────────────────────────
+    const TWR_Y = SET_Y + SET_S + P(6);
+    const tg = this.add.graphics().setDepth(30);
+    tg.fillStyle(0x000000, 0.5);
+    tg.fillRoundedRect(SET_X + P(2), TWR_Y + P(2), SET_S, SET_S, P(8));
+    tg.fillStyle(0x1a0033, 0.92);
+    tg.fillRoundedRect(SET_X, TWR_Y, SET_S, SET_S, P(8));
+    tg.fillStyle(0xffffff, 0.04);
+    tg.fillRoundedRect(SET_X + P(1), TWR_Y + P(1), SET_S - P(2), SET_S * 0.45, { tl: P(7), tr: P(7), bl: 0, br: 0 });
+    tg.lineStyle(1.5, 0xcc44ff, 0.5);
+    tg.strokeRoundedRect(SET_X, TWR_Y, SET_S, SET_S, P(8));
+    this.add.text(SET_X + SET_S / 2, TWR_Y + SET_S / 2 + P(1), '塔', {
+      fontSize: F(18), fontStyle: 'bold', color: '#cc88ff', stroke: '#1a0033', strokeThickness: 1,
+    }).setOrigin(0.5).setDepth(31);
+    const towerKeyTxt = this.add.text(SET_X + SET_S - P(2), TWR_Y + P(2), `${TowerStore.getKeys()}`, {
+      fontSize: F(10), color: '#ffdd88', stroke: '#000', strokeThickness: 1,
+    }).setOrigin(1, 0).setDepth(32);
+    const onTowerStoreChange = () => towerKeyTxt.setText(`${TowerStore.getKeys()}`);
+    TowerStore.onChange(onTowerStoreChange);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => TowerStore.offChange(onTowerStoreChange));
+    this.add.rectangle(SET_X + SET_S / 2, TWR_Y + SET_S / 2, SET_S, SET_S)
+      .setInteractive({ useHandCursor: true }).setDepth(35).setAlpha(0.001)
+      .on('pointerdown', () => {
+        this.scene.start('GameScene', { towerFloor: 1 });
+      });
 
     // ── Quick-access buttons (horizontal, bottom-right) ───
     const QB_S   = SET_S * 1.5;

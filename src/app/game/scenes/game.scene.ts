@@ -31,6 +31,7 @@ import { QuestStore, STAR_HP_MULT, STAR_STAT_MULT, STAR_DROP_MULT, STAR_DEF_MULT
 import { ELITE_HP_MULT, ELITE_SCALE_MOD } from '../data/monster-data';
 import { NetworkService } from '../network/network.service';
 import { PotionBarStore } from '../data/potion-bar-store';
+import { TowerStore } from '../data/tower-store';
 import { ITEM_POTION_HEALTH_S, ITEM_POTION_HEALTH_M, ITEM_POTION_HEALTH_L, ITEM_POTION_REVIVE, ITEM_POTION_ATK, ITEM_POTION_DEF, ITEM_POTION_SPEED, ITEM_STONE_BROKEN, ITEM_STONE_INTACT, ITEM_STONE_RECAST, ITEM_QUEST_REROLL, ITEM_BLANK_CARD, getHealthPotionForStar } from '../data/monster-data';
 import type { MapParams } from '../../../../shared/types';
 
@@ -180,6 +181,13 @@ export class GameScene extends Phaser.Scene {
   private bossMonsterId = 'boss_orc1';
   private questStar = 1;
   private _mapSeed = 0;
+  // ── Tower mode ──────────────────────────────────────────
+  private _towerFloor    = 0;
+  private _towerWalls?: Phaser.Physics.Arcade.StaticGroup;
+  private _towerBoss2?: Boss;
+  private _towerEnemyAlive = 0;
+  private _towerPortalGfx?: Phaser.GameObjects.Graphics;
+  private _towerPortalHit?: Phaser.GameObjects.Zone;
   private _mapTheme: 'grassland' | 'desert' | 'snow' | 'lava' | 'forest' | 'dungeon' = 'grassland';
   private _initBossId?: string;
   private _initQuestStar?: number;
@@ -318,7 +326,8 @@ export class GameScene extends Phaser.Scene {
     this.generateTextures();
   }
 
-  init(data: { seed?: number; questStar?: number; bossMonsterId?: string; mapParams?: MapParams; partnerNickname?: string; playerCount?: number; ownSkinId?: number; partnerSkinId?: number; mapTheme?: GameScene['_mapTheme'] }): void {
+  init(data: { seed?: number; questStar?: number; bossMonsterId?: string; mapParams?: MapParams; partnerNickname?: string; playerCount?: number; ownSkinId?: number; partnerSkinId?: number; mapTheme?: GameScene['_mapTheme']; towerFloor?: number }): void {
+    this._towerFloor = data?.towerFloor ?? 0;
     this._mapSeed = data?.seed ?? Math.floor(Math.random() * 1_000_000);
     const themes = ['grassland', 'desert', 'snow', 'lava', 'forest', 'dungeon'] as const;
     this._mapTheme = data?.mapTheme ?? themes[new SeededRNG(this._mapSeed + 77777).between(0, themes.length - 1)];
@@ -417,7 +426,20 @@ export class GameScene extends Phaser.Scene {
       this._sessionQty.set(id, Math.min(InventoryStore.getItemQty(id), cap));
     }
 
-    this.generateWaypoints();   // sets this.worldW / worldH / waypoints
+    if (this._towerFloor > 0) {
+      this.buildTowerRoom();
+      this.playerStartX = Math.round(this.worldW / 2);
+      this.playerStartY = this.worldH - P(140);
+    } else {
+      this.generateWaypoints();   // sets this.worldW / worldH / waypoints
+      this.generateAndDrawMap();
+      this.wallLayer = this.buildWallTilemap();
+      const startPt = this.waypoints[0];
+      this.playerStartX = startPt.x;
+      this.playerStartY = startPt.y;
+    }
+    this.lastSafeX = this.playerStartX;
+    this.lastSafeY = this.playerStartY;
 
     this.physics.world.setBounds(0, 0, this.worldW, this.worldH);
     this.cameras.main.setBounds(0, 0, this.worldW, this.worldH);
@@ -425,14 +447,6 @@ export class GameScene extends Phaser.Scene {
     this.createPlayerAnims();
     if (NetworkService.connected) this.createPartnerAnims();
     this.createSlimeAnims();
-    this.generateAndDrawMap();
-    this.wallLayer = this.buildWallTilemap();
-
-    const startPt = this.waypoints[0];
-    this.playerStartX = startPt.x;
-    this.playerStartY = startPt.y;
-    this.lastSafeX = startPt.x;
-    this.lastSafeY = startPt.y;
     this.player = new Player(this, this.playerStartX, this.playerStartY);
     this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
     this.player.onDead = () => this.handlePlayerDead();
@@ -689,77 +703,81 @@ export class GameScene extends Phaser.Scene {
         document.removeEventListener('visibilitychange', onVisibility));
     }
 
-    const bossWp = this.waypoints[this.waypoints.length - 1];
-    const bossDef = getMonsterDef(this.bossMonsterId)!;
-    const hpMult = STAR_HP_MULT[this.questStar] ?? 1;
-    const coopMult = CO_OP_HP_MULTS[this._playerCount] ?? CO_OP_HP_MULTS[2];
-    const bossInitHp = Math.round(bossDef.hp * hpMult * coopMult);
-    this.boss = this.createBoss(bossDef, bossInitHp);
-    this.boss.questStar = this.questStar;
-    if (NetworkService.connected && NetworkService.isHost) {
-      NetworkService.sendBossInit(bossInitHp);
-    }
-    if (NetworkService.connected && !NetworkService.isHost) {
-      this.boss.guestMode = true;
-    }
-    this.boss.arenaRadius = this.BOSS_ARENA_RADIUS;
-    this.boss.arenaShape = this.bossArenaShape;
-    this.boss.def = Math.round((bossDef.def ?? 0) * (STAR_DEF_MULT[this.questStar] ?? 0));
-    bossDef.fillTint ? this.boss.setTintFill(bossDef.tint) : this.boss.setTint(bossDef.tint);
-    this.boss.setVisible(false);
-    this.boss.getTargetPos = () => this.nearestTargetPos(this.boss.x, this.boss.y);
-    this.boss.onHpChanged = () => this.refreshBossBar();
-    this.boss.onDead = () => this.handleBossDefeated();
-    this.boss.onAoeExplode = (x, y) => {
-      if (!this.bossActive) return;
-      const dSq = Phaser.Math.Distance.BetweenPointsSquared({ x, y }, this.player);
-      if (dSq <= Boss.AOE_RADIUS ** 2) this.player.takeDamage(this.boss.scaleDmg(50));
-      this.damageAlliesNear(x, y, Boss.AOE_RADIUS, this.boss.scaleDmg(50));
-    };
-    this.boss.onRangedBarrageTrailTick = (x1, y1, x2, y2, radius, dmg) => {
-      if (!this.bossActive) return;
-      // Point-to-segment distance check
-      const abx = x2 - x1, aby = y2 - y1;
-      const apx = this.player.x - x1, apy = this.player.y - y1;
-      const t = Math.max(0, Math.min(1, (apx * abx + apy * aby) / (abx * abx + aby * aby || 1)));
-      const nx = x1 + t * abx - this.player.x;
-      const ny = y1 + t * aby - this.player.y;
-      if (nx * nx + ny * ny <= radius * radius) this.player.takeDamage(dmg);
-      for (const ally of this._allyMinions) {
-        if (ally.isDead) continue;
-        const apxa = ally.x - x1, apya = ally.y - y1;
-        const ta = Math.max(0, Math.min(1, (apxa * abx + apya * aby) / (abx * abx + aby * aby || 1)));
-        const nxa = x1 + ta * abx - ally.x, nya = y1 + ta * aby - ally.y;
-        if (nxa * nxa + nya * nya <= radius * radius) ally.takeDamage(dmg);
-      }
-    };
+    let bossWp = new Phaser.Math.Vector2(0, 0);
 
-    const bossGroup = this.physics.add.group();
-    bossGroup.add(this.boss, false);
+    if (this._towerFloor === 0) {
+      bossWp = this.waypoints[this.waypoints.length - 1];
+      const bossDef = getMonsterDef(this.bossMonsterId)!;
+      const hpMult = STAR_HP_MULT[this.questStar] ?? 1;
+      const coopMult = CO_OP_HP_MULTS[this._playerCount] ?? CO_OP_HP_MULTS[2];
+      const bossInitHp = Math.round(bossDef.hp * hpMult * coopMult);
+      this.boss = this.createBoss(bossDef, bossInitHp);
+      this.boss.questStar = this.questStar;
+      if (NetworkService.connected && NetworkService.isHost) {
+        NetworkService.sendBossInit(bossInitHp);
+      }
+      if (NetworkService.connected && !NetworkService.isHost) {
+        this.boss.guestMode = true;
+      }
+      this.boss.arenaRadius = this.BOSS_ARENA_RADIUS;
+      this.boss.arenaShape = this.bossArenaShape;
+      this.boss.def = Math.round((bossDef.def ?? 0) * (STAR_DEF_MULT[this.questStar] ?? 0));
+      bossDef.fillTint ? this.boss.setTintFill(bossDef.tint) : this.boss.setTint(bossDef.tint);
+      this.boss.setVisible(false);
+      this.boss.getTargetPos = () => this.nearestTargetPos(this.boss.x, this.boss.y);
+      this.boss.onHpChanged = () => this.refreshBossBar();
+      this.boss.onDead = () => this.handleBossDefeated();
+      this.boss.onAoeExplode = (x, y) => {
+        if (!this.bossActive) return;
+        const dSq = Phaser.Math.Distance.BetweenPointsSquared({ x, y }, this.player);
+        if (dSq <= Boss.AOE_RADIUS ** 2) this.player.takeDamage(this.boss.scaleDmg(50));
+        this.damageAlliesNear(x, y, Boss.AOE_RADIUS, this.boss.scaleDmg(50));
+      };
+      this.boss.onRangedBarrageTrailTick = (x1, y1, x2, y2, radius, dmg) => {
+        if (!this.bossActive) return;
+        const abx = x2 - x1, aby = y2 - y1;
+        const apx = this.player.x - x1, apy = this.player.y - y1;
+        const t = Math.max(0, Math.min(1, (apx * abx + apy * aby) / (abx * abx + aby * aby || 1)));
+        const nx = x1 + t * abx - this.player.x;
+        const ny = y1 + t * aby - this.player.y;
+        if (nx * nx + ny * ny <= radius * radius) this.player.takeDamage(dmg);
+        for (const ally of this._allyMinions) {
+          if (ally.isDead) continue;
+          const apxa = ally.x - x1, apya = ally.y - y1;
+          const ta = Math.max(0, Math.min(1, (apxa * abx + apya * aby) / (abx * abx + aby * aby || 1)));
+          const nxa = x1 + ta * abx - ally.x, nya = y1 + ta * aby - ally.y;
+          if (nxa * nxa + nya * nya <= radius * radius) ally.takeDamage(dmg);
+        }
+      };
+
+      const bossGroup = this.physics.add.group();
+      bossGroup.add(this.boss, false);
+      (this.boss.body as Phaser.Physics.Arcade.Body).setCollideWorldBounds(true);
+
+      this.physics.add.overlap(bossGroup, this.player, () => {
+        if (!this.bossActive) return;
+        if (this.boss.currentState === 'DASHING') this.player.takeDamage(this.boss.scaleDmg(45));
+      });
+      this.physics.add.overlap(bossGroup, this._allyGroup, (_b, allyObj) => {
+        if (!this.bossActive) return;
+        const ally = allyObj as MinionSlime;
+        if (this.boss.currentState !== 'DASHING' || ally.isDead) return;
+        const now = this.time.now;
+        if (now - ((ally as any)._lastDashHit ?? 0) < 300) return;
+        (ally as any)._lastDashHit = now;
+        ally.takeDamage(this.boss.scaleDmg(45));
+      });
+    }
+
     this.player.setCollideWorldBounds(true);
-    (this.boss.body as Phaser.Physics.Arcade.Body).setCollideWorldBounds(true);
 
     // 友軍花怪群組 — 必須在 overlap 註冊前建立，避免第二場時使用已銷毀的舊群組
     this._allyGroup = this.physics.add.group();
     // Minion projectile group
     this.minionProjGroup = this.physics.add.group();
 
-    this.physics.add.overlap(bossGroup, this.player, () => {
-      if (!this.bossActive) return;
-      if (this.boss.currentState === 'DASHING') this.player.takeDamage(this.boss.scaleDmg(45));
-    });
-    this.physics.add.overlap(bossGroup, this._allyGroup, (_b, allyObj) => {
-      if (!this.bossActive) return;
-      const ally = allyObj as MinionSlime;
-      if (this.boss.currentState !== 'DASHING' || ally.isDead) return;
-      const now = this.time.now;
-      if (now - ((ally as any)._lastDashHit ?? 0) < 300) return;
-      (ally as any)._lastDashHit = now;
-      ally.takeDamage(this.boss.scaleDmg(45));
-    });
-
-    this.physics.add.collider(this.player, this.wallLayer);
-    this.physics.add.collider(this.boss, this.wallLayer);
+    this.physics.add.collider(this.player, this._towerWalls ?? this.wallLayer);
+    if (this.boss) this.physics.add.collider(this.boss, this._towerWalls ?? this.wallLayer);
     this.physics.add.overlap(this.minionProjGroup, this._allyGroup, (proj, _ally) => {
       const p    = proj as Phaser.Physics.Arcade.Image;
       const ally = _ally as MinionSlime;
@@ -856,8 +874,12 @@ export class GameScene extends Phaser.Scene {
     this.joystick = new VirtualJoystick(this);
     this.addHUD();
     this.createExitButton();
-    this.spawnAllMonsters();
-    this.setupPortal(bossWp.x, bossWp.y);
+    if (this._towerFloor > 0) {
+      this.spawnTowerFloor();
+    } else {
+      this.spawnAllMonsters();
+      this.setupPortal(bossWp.x, bossWp.y);
+    }
 
     // 燃燒狀態 tick（400ms，處理疊層與傷害）
     this.time.addEvent({ delay: 400, repeat: -1, callback: this.tickBurns, callbackScope: this });
@@ -4177,14 +4199,14 @@ export class GameScene extends Phaser.Scene {
     return new Boss(this, cx, cy, totalHp, bossDef.element, bossDef.spriteKey, bossDef.tint);
   }
 
-  private spawnMinionAt(defId: string, wx: number, wy: number, isElite: boolean): void {
+  private spawnMinionAt(defId: string, wx: number, wy: number, isElite: boolean, hpOverride?: number, atkOverride?: number): void {
     const def = getMonsterDef(defId);
     if (!def) return;
     const hpMult = STAR_HP_MULT[this.questStar] ?? 1;
     const atkMult = STAR_STAT_MULT[this.questStar] ?? 1;
     const coopMult = CO_OP_HP_MULTS[this._playerCount] ?? CO_OP_HP_MULTS[2];
-    const hp = Math.round(def.hp * hpMult * coopMult * (isElite ? ELITE_HP_MULT : 1));
-    const atk = Math.round(def.atk * atkMult * (isElite ? 1.5 : 1));
+    const hp  = hpOverride  ?? Math.round(def.hp  * hpMult * coopMult * (isElite ? ELITE_HP_MULT : 1));
+    const atk = atkOverride ?? Math.round(def.atk * atkMult * (isElite ? 1.5 : 1));
     const a = Phaser.Math.FloatBetween(0, Math.PI * 2);
     const r = Phaser.Math.FloatBetween(20, 60);
     const m = new MinionSlime(this, wx + Math.cos(a) * r, wy + Math.sin(a) * r, hp, def.spriteKey, def.tint);
@@ -4220,10 +4242,17 @@ export class GameScene extends Phaser.Scene {
     if (defId.startsWith('vampire') || defId.startsWith('elite_vampire')) { m.race = 'vampire'; m.walkAnim = 'run'; }
     m.setPatrolCenter(wx, wy);
     m.getTargetPos = () => this.nearestTargetPos(m.x, m.y);
-    m.onDead = () => this.handleMinionDrop(defId, m.x, m.y);
+    m.onDead = () => {
+      this.handleMinionDrop(defId, m.x, m.y);
+      if (this._towerFloor > 0 && !this.bossActive) {
+        this._towerEnemyAlive = Math.max(0, this._towerEnemyAlive - 1);
+        if (this._towerEnemyCountTxt) this._towerEnemyCountTxt.setText(`剩餘：${this._towerEnemyAlive}`);
+        if (this._towerEnemyAlive <= 0) this.handleTowerFloorComplete();
+      }
+    };
     m.minionId = `m${this.allMinions.length}`;
     this.allMinions.push(m);
-    this.physics.add.collider(m, this.wallLayer);
+    this.physics.add.collider(m, this._towerWalls ?? this.wallLayer);
     this.physics.add.overlap(m, this.player, () => {
       if (!m.isDead && m.isDashing) this.player.takeDamage(m.atk * 3);
     });
@@ -4357,7 +4386,7 @@ export class GameScene extends Phaser.Scene {
       m.getTargetPos = () => this.nearestTargetPos(m.x, m.y);
       m.onDead = () => this.handleMinionDrop(defId, m.x, m.y);
       this.allMinions.push(m);
-      this.physics.add.collider(m, this.wallLayer);
+      this.physics.add.collider(m, this._towerWalls ?? this.wallLayer);
       this.physics.add.overlap(m, this.player, () => {
         if (!m.isDead && m.isDashing) this.player.takeDamage(m.atk * 3);
       });
@@ -4480,6 +4509,312 @@ export class GameScene extends Phaser.Scene {
       zone.destroy();
       this.teleportToBossArena();
     });
+  }
+
+  // ── Tower mode methods ────────────────────────────────────────
+
+  private buildTowerRoom(): void {
+    const W = this.scale.width;
+    const H = this.scale.height;
+    const WALL = P(24);
+    const PORTAL_W = P(88);
+
+    // World = slightly larger than screen so camera can scroll vertically
+    this.worldW = W;
+    this.worldH = Math.round(H * 1.6);
+
+    const roomW = this.worldW;
+    const roomH = this.worldH;
+
+    // ── Floor ───────────────────────────────────────────────
+    const floor = this.add.graphics().setDepth(-2);
+    floor.fillStyle(0x12082a, 1);
+    floor.fillRect(0, 0, roomW, roomH);
+    floor.lineStyle(1, 0x1e1035, 0.6);
+    for (let x = 0; x <= roomW; x += P(36)) floor.lineBetween(x, 0, x, roomH);
+    for (let y = 0; y <= roomH; y += P(36)) floor.lineBetween(0, y, roomW, y);
+
+    // ── Wall graphics (visual only) ──────────────────────────
+    const wg = this.add.graphics().setDepth(2);
+    wg.fillStyle(0x2c1a4e, 1);
+    wg.fillRect(0, 0, WALL, roomH);                        // left
+    wg.fillRect(roomW - WALL, 0, WALL, roomH);             // right
+    wg.fillRect(0, roomH - WALL, roomW, WALL);             // bottom
+    const gapL = Math.round((roomW - PORTAL_W) / 2);
+    wg.fillRect(0, 0, gapL, WALL);                         // top-left
+    wg.fillRect(gapL + PORTAL_W, 0, roomW - gapL - PORTAL_W, WALL); // top-right
+    wg.lineStyle(P(2), 0x6633aa, 0.5);
+    wg.strokeRect(WALL, WALL, roomW - WALL * 2, roomH - WALL * 2);
+
+    // ── Physics walls using Zones (same pattern as setupPortal) ──
+    // World bounds cover all 4 edges; we add zone bodies for the actual wall thickness
+    this._towerWalls = this.physics.add.staticGroup();
+    const addWallZone = (cx: number, cy: number, w: number, h: number) => {
+      const z = this.add.zone(cx, cy, w, h);
+      this.physics.world.enable(z, Phaser.Physics.Arcade.STATIC_BODY);
+      (this._towerWalls as Phaser.Physics.Arcade.StaticGroup).add(z);
+    };
+    addWallZone(WALL / 2,               roomH / 2,       WALL, roomH);             // left
+    addWallZone(roomW - WALL / 2,       roomH / 2,       WALL, roomH);             // right
+    addWallZone(roomW / 2,              roomH - WALL / 2, roomW, WALL);            // bottom
+    addWallZone(gapL / 2,              WALL / 2,         gapL,  WALL);             // top-left
+    addWallZone(gapL + PORTAL_W + (roomW - gapL - PORTAL_W) / 2,
+                WALL / 2, roomW - gapL - PORTAL_W, WALL);                          // top-right
+
+    // ── Floor label ──────────────────────────────────────────
+    const label = this._towerFloor === 51 ? '第 51 層：最終魔王' : `無限塔  第 ${this._towerFloor} 層`;
+    this.add.text(W / 2, P(28), label, {
+      fontSize: F(12), fontStyle: 'bold', color: '#aa66ff', stroke: '#000', strokeThickness: 2,
+    }).setOrigin(0.5, 0.5).setDepth(5).setScrollFactor(0);
+
+    // ── Portal placeholder (locked) ──────────────────────────
+    this._towerPortalGfx = this.add.graphics().setDepth(3);
+    this._drawTowerPortalLocked(gapL, PORTAL_W);
+  }
+
+  private _drawTowerPortalLocked(gapL: number, pw: number): void {
+    if (!this._towerPortalGfx) return;
+    this._towerPortalGfx.clear();
+    this._towerPortalGfx.fillStyle(0x440066, 0.35);
+    this._towerPortalGfx.fillRect(gapL, 0, pw, P(20));
+    this._towerPortalGfx.lineStyle(P(2), 0x660099, 0.4);
+    this._towerPortalGfx.lineBetween(gapL, 0, gapL, P(20));
+    this._towerPortalGfx.lineBetween(gapL + pw, 0, gapL + pw, P(20));
+  }
+
+  private readonly TOWER_SLIMES    = ['boss_slime_green','boss_slime_red','boss_slime_blue','boss_slime_white','boss_zombie_slime','boss_lava_slime'];
+  private readonly TOWER_FLOWERS   = ['boss_flower_one','boss_flower_two','boss_flower_three'];
+  private readonly TOWER_ORCS      = ['boss_orc1','boss_orc2','boss_orc3'];
+  private readonly TOWER_VAMPIRES  = ['boss_vampire1','boss_vampire2','boss_vampire3'];
+
+  private readonly TOWER_MINION_SLIMES   = ['slime_green_s','slime_red_s','slime_blue_s','slime_white_s','slime_zombie_s','slime_lava_s'];
+  private readonly TOWER_MINION_FLOWERS  = ['plant1_s','plant2_s','plant3_s'];
+  private readonly TOWER_MINION_ORCS     = ['orc1_s','orc2_s','orc3_s'];
+  private readonly TOWER_MINION_VAMPIRES = ['vampire1_s','vampire2_s','vampire3_s'];
+
+  private _towerPick(arr: string[]): string { return arr[Math.floor(Math.random() * arr.length)]; }
+
+  private _towerMinionPool(floor: number): string[] {
+    if      (floor <= 4)  return this.TOWER_MINION_SLIMES;
+    else if (floor <= 9)  return this.TOWER_MINION_FLOWERS;
+    else if (floor <= 14) return this.TOWER_MINION_ORCS;
+    else if (floor <= 19) return this.TOWER_MINION_VAMPIRES;
+    else if (floor <= 24) return [...this.TOWER_MINION_SLIMES, ...this.TOWER_MINION_FLOWERS];
+    else if (floor <= 29) return this.TOWER_MINION_FLOWERS;
+    else if (floor <= 34) return [...this.TOWER_MINION_ORCS, ...this.TOWER_MINION_FLOWERS];
+    else if (floor <= 39) return this.TOWER_MINION_ORCS;
+    else if (floor <= 44) return [...this.TOWER_MINION_ORCS, ...this.TOWER_MINION_VAMPIRES];
+    else                  return this.TOWER_MINION_VAMPIRES;
+  }
+
+  private spawnTowerFloor(): void {
+    const f = this._towerFloor;
+    const WALL = P(20);
+    const towerHpMult  = 16 + (f - 1) * (16 / 49);
+    const towerAtkMult = STAR_STAT_MULT[5] * (1.0 + (f - 1) * (0.6 / 49));
+
+    const isBossFloor = f % 5 === 0;
+    if (isBossFloor) {
+      this._spawnTowerBossFloor(f, towerHpMult, towerAtkMult);
+    } else {
+      // Regular floor: 50 scattered minions
+      const pool = this._towerMinionPool(f);
+      const spawnW = this.worldW - WALL * 2 - P(40);
+      const spawnH = this.worldH * 0.55;
+      const spawnX0 = WALL + P(20);
+      const spawnY0 = WALL + P(30);
+      this._towerEnemyAlive = 50;
+      for (let i = 0; i < 50; i++) {
+        const defId = this._towerPick(pool);
+        const def = getMonsterDef(defId);
+        if (!def) { this._towerEnemyAlive--; continue; }
+        const hp  = Math.round(def.hp  * towerHpMult);
+        const atk = Math.round(def.atk * towerAtkMult);
+        const ex  = spawnX0 + Math.random() * spawnW;
+        const ey  = spawnY0 + Math.random() * spawnH;
+        this.spawnMinionAt(defId, ex, ey, false, hp, atk);
+      }
+      // show remaining counter
+      this._towerShowEnemyCounter();
+    }
+  }
+
+  private _towerEnemyCountTxt?: Phaser.GameObjects.Text;
+
+  private _towerShowEnemyCounter(): void {
+    if (this._towerEnemyCountTxt) this._towerEnemyCountTxt.destroy();
+    this._towerEnemyCountTxt = this.add.text(P(8), P(8), `剩餘：${this._towerEnemyAlive}`, {
+      fontSize: F(13), fontStyle: 'bold', color: '#ffcc88', stroke: '#000', strokeThickness: 2,
+    }).setScrollFactor(0).setDepth(9790);
+  }
+
+  private _spawnTowerBossFloor(f: number, hpMult: number, atkMult: number): void {
+    this.bossActive = true;
+    this._towerEnemyAlive = 0;
+    const CX = this.worldW / 2;
+    const CY = this.worldH * 0.30;
+
+    let id1: string, id2: string | null = null;
+    if (f === 5)  { id1 = this._towerPick(this.TOWER_SLIMES); }
+    else if (f === 10) { id1 = this._towerPick(this.TOWER_FLOWERS); }
+    else if (f === 15) { id1 = this._towerPick(this.TOWER_ORCS); }
+    else if (f === 20) { id1 = this._towerPick(this.TOWER_VAMPIRES); }
+    else if (f === 25) { id1 = this._towerPick(this.TOWER_SLIMES);   id2 = this._towerPick(this.TOWER_FLOWERS); }
+    else if (f === 30) { id1 = this._towerPick(this.TOWER_FLOWERS);  id2 = this._towerPick(this.TOWER_FLOWERS); }
+    else if (f === 35) { id1 = this._towerPick(this.TOWER_ORCS);     id2 = this._towerPick(this.TOWER_FLOWERS); }
+    else if (f === 40) { id1 = this._towerPick(this.TOWER_ORCS);     id2 = this._towerPick(this.TOWER_ORCS); }
+    else if (f === 45) { id1 = this._towerPick(this.TOWER_ORCS);     id2 = this._towerPick(this.TOWER_VAMPIRES); }
+    else if (f === 50) { id1 = this._towerPick(this.TOWER_VAMPIRES); id2 = this._towerPick(this.TOWER_VAMPIRES); }
+    else               { id1 = 'boss_vampire3'; }   // floor 51
+
+    const bx1 = id2 ? Math.round(CX - P(80)) : CX;
+    this.boss = this._createTowerBoss(id1, bx1, CY, hpMult, atkMult);
+    this.boss.onDead = () => this.handleBossDefeated();
+
+    if (id2) {
+      const bx2 = Math.round(CX + P(80));
+      this._towerBoss2 = this._createTowerBoss(id2, bx2, CY, hpMult, atkMult);
+      this._towerBoss2.onDead = () => this.handleBossDefeated();
+      const bg2 = this.physics.add.group();
+      bg2.add(this._towerBoss2, false);
+      (this._towerBoss2.body as Phaser.Physics.Arcade.Body).setCollideWorldBounds(true);
+      this.physics.add.collider(this._towerBoss2, this._towerWalls!);
+      this.physics.add.overlap(bg2, this.player, () => {
+        if (!this.bossActive || !this._towerBoss2) return;
+        if (this._towerBoss2.currentState === 'DASHING') this.player.takeDamage(this._towerBoss2.scaleDmg(45));
+      });
+    }
+
+    this.bossHpGfx.setVisible(true);
+    this.bossHpLabel.setVisible(true);
+    this.bossDebuffGfx.setVisible(true);
+    this.refreshBossBar();
+    this.time.delayedCall(400, () => {
+      this.boss.start();
+      this._towerBoss2?.start();
+    });
+  }
+
+  private _createTowerBoss(id: string, x: number, y: number, hpMult: number, atkMult: number): Boss {
+    const def = getMonsterDef(id)!;
+    const hp  = Math.round(def.hp  * hpMult);
+    const b   = this.createBoss(def, hp);
+    b.def = Math.round((def.def ?? 0) * STAR_DEF_MULT[5]);
+    def.fillTint ? b.setTintFill(def.tint) : b.setTint(def.tint);
+    b.setPosition(x, y).setVisible(true);
+    (b.body as Phaser.Physics.Arcade.Body).enable = true;
+    (b.body as Phaser.Physics.Arcade.Body).setCollideWorldBounds(true);
+    b.getTargetPos = () => this.nearestTargetPos(b.x, b.y);
+    b.onHpChanged = () => this.refreshBossBar();
+    b.onAoeExplode = (bx, by) => {
+      if (!this.bossActive) return;
+      const dSq = Phaser.Math.Distance.BetweenPointsSquared({ x: bx, y: by }, this.player);
+      if (dSq <= Boss.AOE_RADIUS ** 2) this.player.takeDamage(b.scaleDmg(50));
+      this.damageAlliesNear(bx, by, Boss.AOE_RADIUS, b.scaleDmg(50));
+    };
+    b.onRangedBarrageTrailTick = (x1, y1, x2, y2, radius, dmg) => {
+      if (!this.bossActive) return;
+      const abx = x2 - x1, aby = y2 - y1;
+      const apx = this.player.x - x1, apy = this.player.y - y1;
+      const t = Math.max(0, Math.min(1, (apx * abx + apy * aby) / (abx * abx + aby * aby || 1)));
+      const nx = x1 + t * abx - this.player.x, ny = y1 + t * aby - this.player.y;
+      if (nx * nx + ny * ny <= radius * radius) this.player.takeDamage(dmg);
+    };
+    // scale atk via questStar proxy (we set questStar=5 baseline then override scaleDmg)
+    b.questStar = 5;
+    // apply additional atkMult scaling relative to star5 baseline
+    const atkRatio = atkMult / (STAR_STAT_MULT[5]);
+    (b as any)._towerAtkRatio = atkRatio;  // used by overridden scaleDmg if needed
+    const origScaleDmg = b.scaleDmg.bind(b);
+    b.scaleDmg = (base: number) => Math.round(origScaleDmg(base) * atkRatio);
+    const bg = this.physics.add.group();
+    bg.add(b, false);
+    this.physics.add.overlap(bg, this.player, () => {
+      if (!this.bossActive) return;
+      if (b.currentState === 'DASHING') this.player.takeDamage(b.scaleDmg(45));
+    });
+    return b;
+  }
+
+  private handleTowerFloorComplete(): void {
+    if (this.gameOver) return;
+    TowerStore.recordFloor(this._towerFloor);
+    SaveStore.save();
+
+    // Key drop on floor 50
+    if (this._towerFloor === 50) {
+      const dropChance = 0.40;
+      if (Math.random() < dropChance) {
+        TowerStore.addKey();
+        SaveStore.save();
+        const W = this.scale.width, H = this.scale.height;
+        const msg = this.add.text(W / 2, H * 0.35, '🗝 獲得無限塔鑰匙！', {
+          fontSize: F(18), fontStyle: 'bold', color: '#ffd84d', stroke: '#442200', strokeThickness: 3,
+        }).setOrigin(0.5).setScrollFactor(0).setDepth(9700);
+        this.tweens.add({ targets: msg, alpha: 0, delay: 2500, duration: 800, onComplete: () => msg.destroy() });
+      }
+    }
+
+    this._activateTowerPortal();
+  }
+
+  private _activateTowerPortal(): void {
+    const W = this.scale.width;
+    const WALL = P(20);
+    const PORTAL_W = P(88);
+    const gapL = Math.round((W - PORTAL_W) / 2);
+    const px = Math.round(W / 2);
+    const py = Math.round(WALL / 2);
+
+    // Replace locked graphic with glowing portal
+    if (this._towerPortalGfx) { this._towerPortalGfx.clear(); this._towerPortalGfx.destroy(); }
+    const pg = this.add.graphics().setDepth(4);
+    pg.fillStyle(0x6600cc, 0.18); pg.fillEllipse(px, py + P(4), PORTAL_W, P(32));
+    pg.fillStyle(0x9900ff, 0.30); pg.fillEllipse(px, py,        PORTAL_W * 0.75, P(22));
+    pg.fillStyle(0x1a0033, 0.80); pg.fillEllipse(px, py,        PORTAL_W * 0.55, P(14));
+    const ringG = this.add.graphics().setDepth(5);
+    ringG.lineStyle(P(3), 0xcc44ff, 1.0); ringG.strokeEllipse(px, py, PORTAL_W * 0.55, P(14));
+    this.tweens.add({ targets: ringG, alpha: { from: 0.4, to: 1.0 }, duration: 700, yoyo: true, repeat: -1 });
+
+    const isLastFloor = this._towerFloor >= 50;
+    const portalLabel = isLastFloor && this._towerFloor === 51
+      ? '返回'
+      : this._towerFloor === 50 && TowerStore.hasKey()
+        ? '進入 51 層 ⚔'
+        : `前往第 ${this._towerFloor + 1} 層`;
+    const lbl = this.add.text(px, -P(2), portalLabel, {
+      fontSize: F(11), fontStyle: 'bold', color: '#dd88ff', stroke: '#000', strokeThickness: 2,
+    }).setOrigin(0.5, 1).setDepth(6);
+    this.tweens.add({ targets: lbl, y: { from: -P(2), to: -P(8) }, alpha: { from: 0.7, to: 1 }, duration: 900, yoyo: true, repeat: -1 });
+
+    // Trigger zone
+    this._towerPortalHit = this.add.zone(px, py, PORTAL_W * 0.55, P(14));
+    this.physics.world.enable(this._towerPortalHit, Phaser.Physics.Arcade.STATIC_BODY);
+    this.physics.add.overlap(this.player, this._towerPortalHit, () => {
+      if (this.gameOver || this.teleporting) return;
+      this.teleporting = true;
+      this._towerPortalHit?.destroy();
+      const nextFloor = this._towerFloor === 50 && TowerStore.hasKey()
+        ? 51
+        : this._towerFloor >= 51
+          ? 0   // exit after final boss
+          : this._towerFloor + 1;
+      if (nextFloor === 0) { this.exitToLobby(); return; }
+      if (this._towerFloor === 50 && nextFloor === 51) TowerStore.useKey();
+      this.cameras.main.fadeOut(300, 0, 0, 0);
+      this.cameras.main.once('camerafadeoutcomplete', () => {
+        this.scene.restart({ towerFloor: nextFloor });
+      });
+    });
+
+    // Expiry guard: destroy loot items so they don't persist into next floor
+    const W2 = this.scale.width, H2 = this.scale.height;
+    const msg = this.add.text(W2 / 2, H2 * 0.42, '通關！走向傳送門前往下一層', {
+      fontSize: F(15), fontStyle: 'bold', color: '#ffe066', stroke: '#000', strokeThickness: 3,
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(9700);
+    if (this._towerFloor === 50) msg.setText('通關！前往 51 層需要鑰匙');
+    if (this._towerFloor === 51) msg.setText('最終魔王討伐成功！');
+    this.tweens.add({ targets: msg, alpha: 0, delay: 2800, duration: 800, onComplete: () => msg.destroy() });
   }
 
   private teleportToBossArena(): void {
@@ -4901,6 +5236,26 @@ export class GameScene extends Phaser.Scene {
   // ── Game-end handlers ─────────────────────────────────
 
   private handleBossDefeated(): void {
+    // Tower mode: wait for both bosses to die before completing floor
+    if (this._towerFloor > 0) {
+      const boss1Dead = !this.boss?.active;
+      const boss2Dead = !this._towerBoss2 || !this._towerBoss2.active;
+      if (!boss1Dead || !boss2Dead) return;  // other boss still alive
+      this.bossActive = false;
+      this._endDarkNight();
+      // Fade out boss bar
+      [this.bossHpGfx, this.bossHpLabel, this.bossDebuffGfx].forEach(t => {
+        if (t?.active) this.tweens.add({ targets: t, alpha: 0, delay: 300, duration: 600,
+          onComplete: () => { if (t.active) t.setVisible(false).setAlpha(1); } });
+      });
+      // Normal drops from boss still occur via existing onDead chain
+      const expGain = Phaser.Math.Between(25, 50);
+      const levelsGained = PlayerStore.addExp(expGain);
+      if (levelsGained > 0) this.showLevelUp(PlayerStore.getLevel());
+      this.time.delayedCall(600, () => this.handleTowerFloorComplete());
+      return;
+    }
+
     this.bossActive = false;
     this._endDarkNight();
     // Fade out boss HP bar UI
@@ -4990,6 +5345,23 @@ export class GameScene extends Phaser.Scene {
     this.player.setActive(false);
     this.player.stop();
     this.player.setTexture('player_death_shadow', 6);
+
+    if (this._towerFloor > 0) {
+      // Tower: save best floor, then return to PrepScene after delay
+      TowerStore.recordFloor(this._towerFloor - 1);
+      SaveStore.save();
+      const W = this.scale.width, H = this.scale.height;
+      const msg = this.add.text(W / 2, H * 0.38, `在第 ${this._towerFloor} 層陣亡\n最高紀錄：第 ${TowerStore.getBestFloor()} 層`, {
+        fontSize: F(16), fontStyle: 'bold', color: '#ff6666', stroke: '#000', strokeThickness: 3,
+        align: 'center',
+      }).setOrigin(0.5).setScrollFactor(0).setDepth(9700);
+      this.time.delayedCall(3000, () => {
+        msg.destroy();
+        this.exitToLobby();
+      });
+      return;
+    }
+
     if (NetworkService.connected) NetworkService.sendPlayerDead();
   }
 
