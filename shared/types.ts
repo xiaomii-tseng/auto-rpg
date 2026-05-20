@@ -53,7 +53,7 @@ export interface MsgRewardSync   { isEquipReward: boolean; gold: number; star: n
 export interface MsgRunEnd       { won: boolean }
 export interface MsgMinionAttack {
   minionId: string;
-  type:     'shoot' | 'triple' | 'explode' | 'spike' | 'blade_wave' | 'triple_wave' | 'arc_slash' | 'leap_slam' | 'spin_slash' | 'ground_crack' | 'whirl_slash' | 'blood_needle' | 'meteor' | 'blood_burst' | 'triple_needle' | 'lightning_ring' | 'orbit_burst';
+  type:     'shoot' | 'triple' | 'explode' | 'spike' | 'blade_wave' | 'triple_wave' | 'arc_slash' | 'leap_slam' | 'spin_slash' | 'ground_crack' | 'whirl_slash' | 'blood_needle' | 'meteor' | 'blood_burst' | 'triple_needle' | 'lightning_ring' | 'orbit_burst' | 'blood_channel';
   mx:       number;  // minion x (DPR-normalised)
   my:       number;  // minion y (DPR-normalised)
   tx:       number;  // target x (DPR-normalised)

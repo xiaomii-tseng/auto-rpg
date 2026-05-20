@@ -131,13 +131,17 @@ const COMBO1_BONUSES: Record<string, { name: string; bonus: StatBonus }> = {
   orc1:        { name: '獸人 菁英獸人 獸人族長：蠻力法則', bonus: { critToAtk: 1.0, allDmgPct: 0.10 } },
   orc2:        { name: '獸人戰士 菁英獸人戰士 獸人戰士長：業火狂潮', bonus: { blazingShieldChance: 0.15, blazingShieldAtkPct: 0.15 } },
   orc3:        { name: '獸人武士 菁英獸人武士 獸人武士長：一閃共鳴', bonus: { impaleDmgPct: 0.60, atkSpeedMult: 1.15 } },
+  vampire1:    { name: '吸血鬼家族：靈魂收割', bonus: { soulHarvest: 1 } },
+  vampire2:    { name: '吸血鬼法師家族：恐懼光環', bonus: { fearAura: 1 } },
+  vampire3:    { name: '吸血鬼術士家族：血脈噴張', bonus: { bloodRage: 1 } },
 };
 
 // ── 組合二加成表（同種族 N+E+B 不同家族）──
 const COMBO2_BONUSES: Record<string, { name: string; bonus: StatBonus }> = {
-  slime:  { name: '史萊姆跨族陣容', bonus: { dmgVsAnyElement: 0.10, condCritDmgBonus: 0.10 } },
-  flower: { name: '花怪跨族陣容',   bonus: { hpRegen: 2.0, takenDmgPct: -0.08 } },
-  orc:    { name: '獸人跨族狂戰陣容', bonus: { allDmgPct: 0.10, takenDmgPct: 0.05 } },
+  slime:   { name: '史萊姆跨族陣容', bonus: { dmgVsAnyElement: 0.10, condCritDmgBonus: 0.10 } },
+  flower:  { name: '花怪跨族陣容',   bonus: { hpRegen: 2.0, takenDmgPct: -0.08 } },
+  orc:     { name: '獸人跨族狂戰陣容', bonus: { allDmgPct: 0.10, takenDmgPct: 0.05 } },
+  vampire: { name: '吸血鬼跨族共鳴', bonus: { lifesteal: 0.025, allDmgPct: 0.08 } },
 };
 
 // ── 組合四加成表（同階級×3）──
@@ -149,9 +153,10 @@ const COMBO4_BONUSES: Record<string, { name: string; bonus: StatBonus }> = {
 
 // ── 組合三加成表（同種族任意三張）──
 const COMBO3_BONUSES: Record<string, { name: string; bonus: StatBonus }> = {
-  slime:  { name: '史萊姆族共鳴', bonus: { dmgVsAnyElement: 0.08 } },
-  flower: { name: '花怪族共鳴',   bonus: { hpRegen: 1.5 } },
-  orc:    { name: '獸人族共鳴',   bonus: { atk: 10, penetration: 10 } },
+  slime:   { name: '史萊姆族共鳴', bonus: { dmgVsAnyElement: 0.08 } },
+  flower:  { name: '花怪族共鳴',   bonus: { hpRegen: 1.5 } },
+  orc:     { name: '獸人族共鳴',   bonus: { atk: 10, penetration: 10 } },
+  vampire: { name: '吸血鬼族共鳴', bonus: { lifesteal: 0.02, dmgVsNone: 0.10 } },
 };
 
 export const CardStore = {
@@ -351,6 +356,11 @@ export const CardStore = {
           ? Math.min(b.impaleCharge, e.impaleCharge!)
           : e.impaleCharge;
       }
+      if ((e.damageCap ?? 0) > 0)
+        b.damageCap = b.damageCap ? Math.min(b.damageCap, e.damageCap!) : e.damageCap;
+      b.soulHarvest = (b.soulHarvest ?? 0) + (e.soulHarvest ?? 0);
+      b.fearAura    = (b.fearAura    ?? 0) + (e.fearAura    ?? 0);
+      b.bloodRage   = (b.bloodRage   ?? 0) + (e.bloodRage   ?? 0);
     }
     return b;
   },
@@ -517,6 +527,10 @@ export const CardStore = {
       blazingShieldHealPct: bonus.blazingShieldHealPct,
       impaleCharge:         bonus.impaleCharge,
       impaleDmgPct:         bonus.impaleDmgPct,
+      damageCap:            bonus.damageCap,
+      soulHarvest:          bonus.soulHarvest,
+      fearAura:             bonus.fearAura,
+      bloodRage:            bonus.bloodRage,
     };
   },
 

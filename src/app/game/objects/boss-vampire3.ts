@@ -1000,8 +1000,10 @@ export class BossVampire3 extends Boss {
           { x: ex - pc * HW,  y: ey - ps * HW  },
           { x: ex + pc * HW,  y: ey + ps * HW  },
         ], true);
-        // Channel border lines
+        warnG.fillCircle(bx, by, HW);
+        // Channel border — arc cap at origin
         warnG.lineStyle(P(2), 0xff2244, 0.75 * ww.v);
+        warnG.strokeCircle(bx, by, HW);
         warnG.lineBetween(bx + pc * HW,  by + ps * HW,  ex + pc * HW,  ey + ps * HW);
         warnG.lineBetween(bx - pc * HW,  by - ps * HW,  ex - pc * HW,  ey - ps * HW);
         // Arrow markers along channel
@@ -1053,6 +1055,7 @@ export class BossVampire3 extends Boss {
         { x: ex - pc * halfW, y: ey - ps * halfW },
         { x: ex + pc * halfW, y: ey + ps * halfW },
       ], true);
+      riverG.fillCircle(bx, by, halfW);
       // Blood fill
       riverG.fillStyle(0xaa0022, 0.70 * alpha);
       riverG.fillPoints([
@@ -1061,6 +1064,7 @@ export class BossVampire3 extends Boss {
         { x: ex - pc * halfW * 0.85, y: ey - ps * halfW * 0.85 },
         { x: ex + pc * halfW * 0.85, y: ey + ps * halfW * 0.85 },
       ], true);
+      riverG.fillCircle(bx, by, halfW * 0.85);
       // Center bright channel
       riverG.fillStyle(0xdd0033, 0.50 * alpha);
       riverG.fillPoints([
@@ -1069,8 +1073,10 @@ export class BossVampire3 extends Boss {
         { x: ex - pc * halfW * 0.40, y: ey - ps * halfW * 0.40 },
         { x: ex + pc * halfW * 0.40, y: ey + ps * halfW * 0.40 },
       ], true);
-      // Edge highlights
+      riverG.fillCircle(bx, by, halfW * 0.40);
+      // Edge highlights — arc cap at origin, straight lines along sides
       riverG.lineStyle(P(2.5), 0xff3355, 0.75 * alpha);
+      riverG.strokeCircle(bx, by, halfW);
       riverG.lineBetween(bx + pc * halfW, by + ps * halfW, ex + pc * halfW, ey + ps * halfW);
       riverG.lineBetween(bx - pc * halfW, by - ps * halfW, ex - pc * halfW, ey - ps * halfW);
 

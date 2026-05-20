@@ -95,14 +95,19 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
   static readonly LIGHTNING_RING_WARN_MS    = 1100;
   static readonly COOLDOWN_ORBIT_BURST      = 3800;
   static readonly ORBIT_BURST_WARN_MS       = 340;
+  static readonly COOLDOWN_BLOOD_CHANNEL    = 3500;
+  static readonly BLOOD_CHANNEL_WARN_MS     = 1000;
 
   getTargetPos: () => [number, number] = () => [0, 0];
   onDead?: () => void;
-  onFire?: (type: 'shoot' | 'triple' | 'explode' | 'spike' | 'blade_wave' | 'triple_wave' | 'arc_slash' | 'leap_slam' | 'spin_slash' | 'ground_crack' | 'whirl_slash' | 'blood_needle' | 'meteor' | 'blood_burst' | 'triple_needle' | 'lightning_ring' | 'orbit_burst', mx: number, my: number, tx: number, ty: number) => void;
-  slowMult = 1;  // 減速倍率（1 = 正常，0.8 = 緩速 20%）
+  onFire?: (type: 'shoot' | 'triple' | 'explode' | 'spike' | 'blade_wave' | 'triple_wave' | 'arc_slash' | 'leap_slam' | 'spin_slash' | 'ground_crack' | 'whirl_slash' | 'blood_needle' | 'meteor' | 'blood_burst' | 'triple_needle' | 'lightning_ring' | 'orbit_burst' | 'blood_channel', mx: number, my: number, tx: number, ty: number) => void;
+  onBloodChannelWarn?: (mx: number, my: number, tx: number, ty: number, warnMs: number) => void;
+  slowMult     = 1;  // 減速倍率（1 = 正常，0.8 = 緩速 20%）
+  fearSlowMult = 1;  // 恐懼光環：移動速度乘算（0.85 = -15%）
+  fearAtkExtend = 0; // 恐懼光環：攻擊冷卻延長（ms）
 
   minionId        = '';
-  attackMode: 'dash' | 'shoot' | 'triple' | 'explode' | 'spike' | 'arc_slash' | 'leap_slam' | 'blade_wave' | 'triple_wave' | 'spin_slash' | 'ground_crack' | 'whirl_slash' | 'blood_needle' | 'meteor' | 'blood_burst' | 'triple_needle' | 'lightning_ring' | 'orbit_burst' = 'dash';
+  attackMode: 'dash' | 'shoot' | 'triple' | 'explode' | 'spike' | 'arc_slash' | 'leap_slam' | 'blade_wave' | 'triple_wave' | 'spin_slash' | 'ground_crack' | 'whirl_slash' | 'blood_needle' | 'meteor' | 'blood_burst' | 'triple_needle' | 'lightning_ring' | 'orbit_burst' | 'blood_channel' = 'dash';
   stationary       = false;
   isAlly           = false;
   attackCooldownMs?: number;  // 若設定則覆蓋各攻擊模式的預設冷卻時間
@@ -388,25 +393,32 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
     } else {
       this.playDir(`${this.animPrefix}_attack`);
       this.setTint(
-        this.attackMode === 'blood_burst' ? 0xcc0033 :
-        this.attackMode === 'orbit_burst' ? 0x990044 :
+        this.attackMode === 'blood_burst'   ? 0xcc0033 :
+        this.attackMode === 'orbit_burst'   ? 0x990044 :
+        this.attackMode === 'blood_channel' ? 0x880022 :
         0xaa00ff,
       );
       this.stateTimer?.destroy();
       const warnMs =
-        this.attackMode === 'blood_burst' ? MinionSlime.BURST_WARN_MS       :
-        this.attackMode === 'orbit_burst' ? MinionSlime.ORBIT_BURST_WARN_MS :
+        this.attackMode === 'blood_burst'   ? MinionSlime.BURST_WARN_MS          :
+        this.attackMode === 'orbit_burst'   ? MinionSlime.ORBIT_BURST_WARN_MS    :
+        this.attackMode === 'blood_channel' ? MinionSlime.BLOOD_CHANNEL_WARN_MS  :
         200;
+      if (this.attackMode === 'blood_channel') {
+        this.onBloodChannelWarn?.(this.x / DPR, this.y / DPR, this.atkX / DPR, this.atkY / DPR, warnMs);
+      }
       this.stateTimer = this.scene.time.delayedCall(warnMs, () => {
         this.applyBaseTint();
-        const type: 'blood_burst' | 'orbit_burst' | 'triple' =
-          this.attackMode === 'blood_burst' ? 'blood_burst' :
-          this.attackMode === 'orbit_burst' ? 'orbit_burst' :
+        const type: 'blood_burst' | 'orbit_burst' | 'blood_channel' | 'triple' =
+          this.attackMode === 'blood_burst'   ? 'blood_burst'   :
+          this.attackMode === 'orbit_burst'   ? 'orbit_burst'   :
+          this.attackMode === 'blood_channel' ? 'blood_channel' :
           'triple';
         this.onFire?.(type, this.x / DPR, this.y / DPR, this.atkX / DPR, this.atkY / DPR);
         const cd =
-          this.attackMode === 'blood_burst' ? MinionSlime.COOLDOWN_BURST       :
-          this.attackMode === 'orbit_burst' ? MinionSlime.COOLDOWN_ORBIT_BURST :
+          this.attackMode === 'blood_burst'   ? MinionSlime.COOLDOWN_BURST          :
+          this.attackMode === 'orbit_burst'   ? MinionSlime.COOLDOWN_ORBIT_BURST    :
+          this.attackMode === 'blood_channel' ? MinionSlime.COOLDOWN_BLOOD_CHANNEL  :
           MinionSlime.COOLDOWN_TRIPLE;
         this.attackCooldownUntil = this.scene.time.now + (this.attackCooldownMs ?? cd + Phaser.Math.Between(0, 800));
         this.enterIdle();
@@ -807,7 +819,7 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
         } else {
           const angle = Phaser.Math.Angle.Between(this.x, this.y, tx, ty);
           (this.scene.physics as Phaser.Physics.Arcade.ArcadePhysics).velocityFromAngle(
-            Phaser.Math.RadToDeg(angle), MinionSlime.CHASE_SPEED * this.slowMult, body.velocity,
+            Phaser.Math.RadToDeg(angle), MinionSlime.CHASE_SPEED * this.slowMult * this.fearSlowMult, body.velocity,
           );
           this.ensureWalkAnim(prevDir);
         }
@@ -824,9 +836,9 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
         if (dist <= attackRange) {
           body.setVelocity(0, 0);
           this.ensureIdleAnim(prevDir);
-          if (time >= this.attackCooldownUntil) {
+          if (time >= this.attackCooldownUntil + this.fearAtkExtend) {
             if      (this.attackMode === 'shoot'  || this.attackMode === 'blade_wave'  || this.attackMode === 'blood_needle' || this.attackMode === 'triple_needle') this.enterShootWarn();
-            else if (this.attackMode === 'triple' || this.attackMode === 'triple_wave' || this.attackMode === 'blood_burst'  || this.attackMode === 'orbit_burst')   this.enterTripleWarn();
+            else if (this.attackMode === 'triple' || this.attackMode === 'triple_wave' || this.attackMode === 'blood_burst'  || this.attackMode === 'orbit_burst' || this.attackMode === 'blood_channel') this.enterTripleWarn();
             else if (this.attackMode === 'explode')      this.enterExplodeWarn();
             else if (this.attackMode === 'spike')        this.enterSpikeWarn();
             else if (this.attackMode === 'arc_slash')    this.enterArcWarn();
@@ -840,7 +852,7 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
         } else if (!this.stationary) {
           const angle = Phaser.Math.Angle.Between(this.x, this.y, tx, ty);
           (this.scene.physics as Phaser.Physics.Arcade.ArcadePhysics).velocityFromAngle(
-            Phaser.Math.RadToDeg(angle), MinionSlime.CHASE_SPEED * this.slowMult, body.velocity,
+            Phaser.Math.RadToDeg(angle), MinionSlime.CHASE_SPEED * this.slowMult * this.fearSlowMult, body.velocity,
           );
           this.ensureWalkAnim(prevDir);
         } else {

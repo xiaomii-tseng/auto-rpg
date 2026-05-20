@@ -120,6 +120,10 @@ export interface EffectiveStats {
   impaleCharge?:          number;
   impaleDmgPct?:          number;
   weaponRefineHp?:       number;
+  damageCap?:   number;
+  soulHarvest?: number;
+  fearAura?:    number;
+  bloodRage?:   number;
 }
 
 type EquippedMap = { [K in EquipSlot]: EquipmentItem | null };

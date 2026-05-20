@@ -141,6 +141,9 @@ export class GameScene extends Phaser.Scene {
   private _blazingActive = false;
   private _blazingTimer?: Phaser.Time.TimerEvent;
   private _blazingGfx?: Phaser.GameObjects.Graphics;
+  // 恐懼光環
+  private _fearAuraTimer?: Phaser.Time.TimerEvent;
+  private _fearAuraGfx?: Phaser.GameObjects.Graphics;
   // 蓄勁一閃
   private _impaleHitCount = 0;
   private _reviveDialogActive = false;
@@ -374,6 +377,10 @@ export class GameScene extends Phaser.Scene {
     this._blazingActive = false;
     this._blazingGfx?.destroy();
     this._blazingGfx = undefined;
+    this._fearAuraTimer?.destroy();
+    this._fearAuraTimer = undefined;
+    this._fearAuraGfx?.destroy();
+    this._fearAuraGfx = undefined;
     this._impaleHitCount = 0;
     this._allyMinions = [];
     this.bossDebuffTexts.clear();
@@ -881,7 +888,7 @@ export class GameScene extends Phaser.Scene {
       duration: 900, yoyo: true, repeat: -1, ease: 'Sine.InOut',
     });
 
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => { this.auraTimer?.destroy(); this.auraRing?.destroy(); });
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => { this.auraTimer?.destroy(); this.auraRing?.destroy(); this._fearAuraTimer?.destroy(); this._fearAuraGfx?.destroy(); });
   }
 
   // ══════════════════════════════════════════════════════════════
@@ -940,6 +947,11 @@ export class GameScene extends Phaser.Scene {
     // 岩漿史萊姆夥伴
     if ((stats.lavaSlimeCompanion ?? 0) > 0) {
       this.spawnLavaSlimeCompanion();
+    }
+
+    // 恐懼光環
+    if ((stats.fearAura ?? 0) >= 1) {
+      this._startFearAura();
     }
   }
 
@@ -1304,6 +1316,52 @@ export class GameScene extends Phaser.Scene {
         onComplete: () => p.destroy(),
       });
     }
+  }
+
+  // ── 靈魂收割：擊殺觸發衝擊波 ──────────────────────────────
+  private _soulHarvestProc(ox: number, oy: number): void {
+    const stats = CardStore.getTotalStats();
+    const R = P(100);
+    let hitCount = 0;
+    for (const t of this.getHittableTargets()) {
+      if (Phaser.Math.Distance.Between(ox, oy, t.x, t.y) > R) continue;
+      const dmg = Math.round(stats.atk * 0.60);
+      if (t === this.boss) t.takeDamage(dmg, 0);
+      else (t as MinionSlime).takeDamage(dmg);
+      this.spawnDamageNumber(t.x, t.y, dmg, false, 1);
+      hitCount++;
+    }
+    if (hitCount > 0) this.player.heal(Math.round(this.player.maxHpValue * 0.03 * hitCount));
+    // VFX
+    const ring = this.add.graphics({ x: ox, y: oy }).setDepth(58);
+    ring.lineStyle(P(3), 0xcc44ff, 0.9); ring.strokeCircle(0, 0, P(12));
+    this.tweens.add({ targets: ring, scaleX: P(100) / P(12), scaleY: P(100) / P(12), alpha: 0, duration: 380, ease: 'Cubic.Out', onComplete: () => ring.destroy() });
+    const core = this.add.graphics({ x: ox, y: oy }).setDepth(59);
+    core.fillStyle(0xee88ff, 0.9); core.fillCircle(0, 0, P(5));
+    this.tweens.add({ targets: core, scaleX: 3, scaleY: 3, alpha: 0, duration: 250, onComplete: () => core.destroy() });
+  }
+
+  // ── 恐懼光環：啟動計時器和視覺環 ──────────────────────────
+  private _startFearAura(): void {
+    const RADIUS = P(200);
+    this._fearAuraGfx = this.add.graphics().setDepth(this.player.depth - 1);
+    this._fearAuraGfx.lineStyle(P(2), 0x8800cc, 0.5);
+    this._fearAuraGfx.strokeCircle(0, 0, RADIUS);
+    this.tweens.add({ targets: this._fearAuraGfx, alpha: { from: 0.35, to: 0.65 }, duration: 1400, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
+
+    this._fearAuraTimer = this.time.addEvent({
+      delay: 500, loop: true,
+      callback: () => {
+        if (!this.player.active) return;
+        this._fearAuraGfx?.setPosition(this.player.x, this.player.y);
+        for (const m of this.allMinions) {
+          if (m.isDead) continue;
+          const inRange = Phaser.Math.Distance.Between(this.player.x, this.player.y, m.x, m.y) <= RADIUS;
+          m.fearSlowMult  = inRange ? 0.85 : 1;
+          m.fearAtkExtend = inRange ? 750  : 0;
+        }
+      },
+    });
   }
 
   private addBloodlustStack(max: number): void {
@@ -1911,6 +1969,13 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
+    // 恐懼光環視覺圈跟著玩家
+    if (this._fearAuraGfx) {
+      const showFear = this.player.active && !this.gameOver;
+      this._fearAuraGfx.setVisible(showFear);
+      if (showFear) this._fearAuraGfx.setPosition(this.player.x, this.player.y);
+    }
+
     // 夥伴血環（僅在對方裝備 aura 時顯示）
     this._partners.forEach(pd => {
       if (pd.auraRing && pd.sprite.active) {
@@ -2064,44 +2129,6 @@ export class GameScene extends Phaser.Scene {
       g.strokeCircle(0, 0, r);
     }
 
-    // 攻擊方向指示（固定在螢幕中心，玩家永遠在此）
-    if (this._atkDirGfx && this._atkDragAngle !== null && this.player.active) {
-      const g      = this._atkDirGfx;
-      const angle  = this._atkDragAngle;
-      const px = this.player.x - this.cameras.main.scrollX;
-      const py = this.player.y - this.cameras.main.scrollY;
-      const innerR = P(22), outerR = P(46);
-      const sx = px + Math.cos(angle) * innerR, sy = py + Math.sin(angle) * innerR;
-      const ex = px + Math.cos(angle) * outerR, ey = py + Math.sin(angle) * outerR;
-      const headLen = P(10), headAngle = 0.5;
-
-      g.clear();
-
-      // 點狀提示圈
-      const dotCount = 12;
-      for (let i = 0; i < dotCount; i++) {
-        const a = (i / dotCount) * Math.PI * 2;
-        g.fillStyle(0xffffff, Math.abs(Math.cos(a - angle)) * 0.3 + 0.1);
-        g.fillCircle(px + Math.cos(a) * innerR, py + Math.sin(a) * innerR, P(2));
-      }
-
-      // 箭頭桿
-      g.lineStyle(P(2.5), 0xffe066, 0.95);
-      g.beginPath(); g.moveTo(sx, sy); g.lineTo(ex, ey); g.strokePath();
-
-      // 箭頭頭
-      g.lineStyle(P(2.5), 0xffe066, 0.95);
-      g.beginPath();
-      g.moveTo(ex, ey);
-      g.lineTo(ex - headLen * Math.cos(angle - headAngle), ey - headLen * Math.sin(angle - headAngle));
-      g.moveTo(ex, ey);
-      g.lineTo(ex - headLen * Math.cos(angle + headAngle), ey - headLen * Math.sin(angle + headAngle));
-      g.strokePath();
-
-      // 尖端亮點
-      g.fillStyle(0xffffff, 0.9);
-      g.fillCircle(ex, ey, P(3));
-    }
 
     // ── 花怪充能回復 + 按鈕 UI ────────────────────────────────
     if ((CardStore.getTotalStats().flowerSummonMode ?? 0) > 0 || SkillTreeStore.getAttackMode() === 'flowerMode') {
@@ -2262,7 +2289,16 @@ export class GameScene extends Phaser.Scene {
         this._showImpaleEffect(target.x, target.y);
       }
     }
-    const dmg = Math.round((stats.atk + lowHpAtk) * Phaser.Math.FloatBetween(0.85, 1.15) * dmgMult * (isCrit ? (1 + stats.critDmg) : 1) * elemMult * targetMult * allMult * atkBuffMult * blazingMult * bloodlustDmgMult * impaleMult);
+    // 血脈噴張：血量越低傷害和吸血越高
+    let bloodRageMult = 1;
+    let bloodRageLeech = 0;
+    if ((stats.bloodRage ?? 0) >= 1) {
+      const hpRatio = this.player.currentHp / this.player.maxHpValue;
+      const t = Math.min(Math.max((1 - hpRatio) / 0.8, 0), 1);
+      bloodRageMult  = 1.10 + 0.40 * t;
+      bloodRageLeech = 0.005 + 0.025 * t;
+    }
+    const dmg = Math.round((stats.atk + lowHpAtk) * Phaser.Math.FloatBetween(0.85, 1.15) * dmgMult * (isCrit ? (1 + stats.critDmg) : 1) * elemMult * targetMult * allMult * atkBuffMult * blazingMult * bloodlustDmgMult * impaleMult * bloodRageMult);
     const pen = isBoss ? stats.penetration : 0;
 
     if (isBoss && (this.boss as any).isGuarding) {
@@ -2282,6 +2318,7 @@ export class GameScene extends Phaser.Scene {
     target.knockback(srcX, srcY);
     const displayDmg = isBoss ? Math.round(dmg * this.boss.dmgDisplayMult) : dmg;
     if (stats.lifesteal > 0) this._leechPool += Math.round(displayDmg * stats.lifesteal);
+    if (bloodRageLeech > 0) this._leechPool += Math.round(displayDmg * bloodRageLeech);
     this.spawnDamageNumber(target.x, target.y, displayDmg, isCrit, elemMult * targetMult);
     if (isCrit) this._pendingHitWeight += 2;
     if (!this._hitShakePending) {
@@ -2303,6 +2340,11 @@ export class GameScene extends Phaser.Scene {
     // 溢出傷害 AOE
     if ((stats.overkillSplash ?? 0) > 0 && overkill > 0) {
       this.overkillSplash(target.x, target.y, overkill);
+    }
+
+    // 靈魂收割：擊殺觸發衝擊波+回血
+    if ((stats.soulHarvest ?? 0) >= 1 && !isBoss && (target as MinionSlime).isDead) {
+      this._soulHarvestProc(target.x, target.y);
     }
 
     // 傷害濺射
@@ -2434,7 +2476,7 @@ export class GameScene extends Phaser.Scene {
     const px = this.player.x, py = this.player.y;
     const D = this.player.depth;
     this.player.playWhirlwind(() => {
-      this.hitInArea(px, py, RANGE, 0.8 * (1 + (stats.whirlwindDmgPct ?? 0)), 360, 0, 'down');
+      this.hitInArea(px, py, RANGE, 0.95 * (1 + (stats.whirlwindDmgPct ?? 0)), 360, 0, 'down');
       this.fxWhirlwind(px, py, RANGE, D);
     });
   }
@@ -2475,7 +2517,7 @@ export class GameScene extends Phaser.Scene {
   private executeDashPierce(rad: number): void {
     const stats = CardStore.getTotalStats();
     const isDouble = (stats.dashDoubleHit ?? 0) >= 1;
-    const dmgMult = isDouble ? 0.65 : 0.91;
+    const dmgMult = isDouble ? 0.55 : 0.91;
     const dx = Math.cos(rad), dy = Math.sin(rad);
     const dir: 'down' | 'left' | 'right' | 'up' =
       Math.abs(dx) >= Math.abs(dy) ? (dx < 0 ? 'left' : 'right') : (dy < 0 ? 'up' : 'down');
@@ -4165,7 +4207,7 @@ export class GameScene extends Phaser.Scene {
     if (defId === 'vampire2_s')     { m.attackMode = 'meteor';         m.rangedRange = Math.round(220 * DPR); }
     if (defId === 'elite_vampire2') { m.attackMode = 'lightning_ring'; m.rangedRange = Math.round(220 * DPR); }
     if (defId === 'vampire3_s')     { m.attackMode = 'blood_burst';   m.rangedRange = Math.round(90  * DPR); }
-    if (defId === 'elite_vampire3') { m.attackMode = 'orbit_burst';   m.rangedRange = Math.round(110 * DPR); }
+    if (defId === 'elite_vampire3') { m.attackMode = 'blood_channel'; m.rangedRange = Math.round(110 * DPR); }
     if (defId.startsWith('vampire') || defId.startsWith('elite_vampire')) { m.race = 'vampire'; m.walkAnim = 'run'; }
     m.setPatrolCenter(wx, wy);
     m.getTargetPos = () => this.nearestTargetPos(m.x, m.y);
@@ -4189,6 +4231,9 @@ export class GameScene extends Phaser.Scene {
         this.spawnMinionAttack(type, mx, my, tx, ty, m.atk, m.isElite);
         if (NetworkService.connected)
           NetworkService.sendMinionAttack({ minionId: m.minionId, type, mx, my, tx, ty, atk: m.atk, isElite: m.isElite });
+      };
+      m.onBloodChannelWarn = (mx, my, tx, ty, warnMs) => {
+        this.bloodChannelFloorWarn(mx, my, tx, ty, m.isElite, warnMs);
       };
       m.start();
     } else {
@@ -4297,7 +4342,7 @@ export class GameScene extends Phaser.Scene {
       if (defId === 'vampire2_s')     { m.attackMode = 'meteor';         m.rangedRange = Math.round(220 * DPR); }
       if (defId === 'elite_vampire2') { m.attackMode = 'lightning_ring'; m.rangedRange = Math.round(220 * DPR); }
       if (defId === 'vampire3_s')     { m.attackMode = 'blood_burst';   m.rangedRange = Math.round(90  * DPR); }
-      if (defId === 'elite_vampire3') { m.attackMode = 'orbit_burst';   m.rangedRange = Math.round(110 * DPR); }
+      if (defId === 'elite_vampire3') { m.attackMode = 'blood_channel'; m.rangedRange = Math.round(110 * DPR); }
       if (defId.startsWith('vampire') || defId.startsWith('elite_vampire')) { m.race = 'vampire'; m.walkAnim = 'run'; }
       m.setPatrolCenter(isPlant ? spawnX : wx, isPlant ? spawnY : wy);
       m.getTargetPos = () => this.nearestTargetPos(m.x, m.y);
@@ -4320,6 +4365,9 @@ export class GameScene extends Phaser.Scene {
           this.spawnMinionAttack(type, mx, my, tx, ty, m.atk, m.isElite);
           if (NetworkService.connected)
             NetworkService.sendMinionAttack({ minionId: m.minionId, type, mx, my, tx, ty, atk: m.atk, isElite: m.isElite });
+        };
+        m.onBloodChannelWarn = (mx, my, tx, ty, warnMs) => {
+          this.bloodChannelFloorWarn(mx, my, tx, ty, m.isElite, warnMs);
         };
       }
     };
@@ -5591,7 +5639,7 @@ export class GameScene extends Phaser.Scene {
         const tx = Phaser.Math.Clamp(cx + Math.cos(angle) * dist, P(32), this.worldW - P(32));
         const ty = Phaser.Math.Clamp(cy + Math.sin(angle) * dist * 0.4, P(32), this.worldH - P(32));
         const img = this.add.image(cx, cy, iconKey)
-          .setDisplaySize(P(28), P(28)).setDepth(ty + 4);
+          .setDisplaySize(P(17), P(17)).setDepth(ty + 4);
         const delay = bi++ * 25;
         const arcX = cx + Math.cos(angle) * dist * 0.3;
         const arcY = cy - P(55);
@@ -5613,7 +5661,7 @@ export class GameScene extends Phaser.Scene {
         const tx = cx + ox;
         const ty = cy + oy + P(18);
         const img = this.add.image(tx, cy - P(24), iconKey)
-          .setDisplaySize(P(28), P(28)).setDepth(ty + 4);
+          .setDisplaySize(P(17), P(17)).setDepth(ty + 4);
         this.tweens.add({
           targets: img, y: ty, duration: 420, ease: 'Bounce.Out',
           onComplete: () => {
@@ -6317,12 +6365,8 @@ export class GameScene extends Phaser.Scene {
 
       if (dist >= this._atkDragThreshold) {
         this._atkDragAngle = Math.atan2(dy, dx);
-        if (!this._atkDirGfx) {
-          this._atkDirGfx = this.add.graphics().setScrollFactor(0).setDepth(102);
-        }
       } else {
         this._atkDragAngle = null;
-        this._atkDirGfx?.clear();
       }
     };
 
@@ -7494,6 +7538,8 @@ export class GameScene extends Phaser.Scene {
       this.bloodBurstAt(wx, wy, wtx, wty, atk, isElite);
     } else if (type === 'orbit_burst') {
       this.orbitBurstAt(wx, wy, atk, isElite);
+    } else if (type === 'blood_channel') {
+      this.bloodChannelAt(wx, wy, wtx, wty, atk, isElite);
     } else {
       this.explodeAt(wx, wy, atk, isElite ? 1.4 : 1.0);
     }
@@ -8097,7 +8143,7 @@ export class GameScene extends Phaser.Scene {
 
   private bloodBurstAt(wx: number, wy: number, wtx: number, wty: number, atk: number, isElite: boolean): void {
     const dmg       = Math.round(atk * (isElite ? 3.0 : 2.5));
-    const count     = 6;
+    const count     = 1;
     const tDist     = P(isElite ? 175 : 140);
     const duration  = 580;
     const orbR      = P(isElite ? 7 : 5);
@@ -8319,7 +8365,7 @@ export class GameScene extends Phaser.Scene {
     const hitR      = P(isElite ? 16 : 13);
     const rotations = 1.65; // full rotations during spiral
 
-    for (let i = 0; i < 2; i++) {
+    for (let i = 0; i < 1; i++) {
       const phase = (i / 2) * Math.PI * 2; // 180° apart
       const orb   = this.add.graphics().setDepth(52);
       // Core orb layers
@@ -8373,6 +8419,102 @@ export class GameScene extends Phaser.Scene {
           trail.fillStyle(0x770011, 0.24); trail.fillCircle(0, 0, orbR * 0.72);
           this.tweens.add({ targets: trail, alpha: 0, duration: 160, onComplete: () => trail.destroy() });
         },
+      });
+    }
+  }
+
+  private bloodChannelFloorWarn(wx: number, wy: number, wtx: number, wty: number, isElite: boolean, warnMs: number): void {
+    const HW       = P(isElite ? 18 : 14);
+    const CHAN_LEN = P(280);
+    const angle    = Phaser.Math.Angle.Between(wx * DPR, wy * DPR, wtx * DPR, wty * DPR);
+
+    const floorG = this.add.graphics().setDepth(46);
+    floorG.x = wx * DPR; floorG.y = wy * DPR; floorG.setRotation(angle);
+
+    const drawWarn = (pulse: number) => {
+      floorG.clear();
+      floorG.fillStyle(0x660011, 0.25 + pulse * 0.20);
+      floorG.fillRect(0, -HW, CHAN_LEN, HW * 2);
+      floorG.fillCircle(0, 0, HW);
+      floorG.lineStyle(P(2), 0xff2244, 0.55 + pulse * 0.35);
+      floorG.strokeCircle(0, 0, HW * 1.1);
+      floorG.strokeCircle(CHAN_LEN, 0, HW * 1.1);
+      floorG.lineStyle(P(1.5), 0xff2244, 0.40 + pulse * 0.45);
+      floorG.lineBetween(0, -HW, CHAN_LEN, -HW);
+      floorG.lineBetween(0,  HW, CHAN_LEN,  HW);
+    };
+
+    drawWarn(0);
+    const p = { v: 0 };
+    const tw = this.tweens.add({
+      targets: p, v: 1, duration: 220, yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
+      onUpdate: () => drawWarn(p.v),
+    });
+    this.time.delayedCall(warnMs, () => { tw.stop(); floorG.destroy(); });
+  }
+
+  private bloodChannelAt(wx: number, wy: number, wtx: number, wty: number, atk: number, isElite: boolean): void {
+    const HW       = P(isElite ? 18 : 14);
+    const CHAN_LEN = P(280);
+    const DUR_MS   = 1500;
+    const TICK_MS  = 300;
+    const dmgPerTick = Math.round(atk * (isElite ? 1.2 : 0.9));
+
+    const angle   = Phaser.Math.Angle.Between(wx, wy, wtx, wty);
+    const cos     = Math.cos(angle);
+    const sin     = Math.sin(angle);
+
+    {
+      // ── 血流通道 ─────────────────────────────────────────────
+      const chanG = this.add.graphics().setDepth(54);
+      const drawChan = (alpha: number) => {
+        chanG.clear();
+        chanG.fillStyle(0x550011, alpha * 0.85);
+        chanG.fillRect(0, -HW, CHAN_LEN, HW * 2);
+        chanG.fillCircle(0, 0, HW);
+        chanG.fillStyle(0xcc0033, alpha * 0.55);
+        chanG.fillRect(0, -Math.round(HW * 0.4), CHAN_LEN, Math.round(HW * 0.8));
+        chanG.fillCircle(0, 0, Math.round(HW * 0.4));
+        chanG.lineStyle(P(1.5), 0xff3355, alpha * 0.7);
+        chanG.strokeCircle(0, 0, HW);
+        chanG.lineBetween(0, -HW, CHAN_LEN, -HW);
+        chanG.lineBetween(0,  HW, CHAN_LEN,  HW);
+      };
+      chanG.x = wx; chanG.y = wy; chanG.setRotation(angle);
+      drawChan(1);
+
+      const hitPlayer  = false;
+      const hitSet = new Set<MinionSlime>();
+      let elapsed = 0;
+
+      const ticker = this.time.addEvent({
+        delay: TICK_MS, repeat: Math.ceil(DUR_MS / TICK_MS) - 1,
+        callback: () => {
+          elapsed += TICK_MS;
+          drawChan(1 - elapsed / DUR_MS * 0.3);
+
+          const checkHit = (px: number, py: number): boolean => {
+            const dx = px - wx, dy = py - wy;
+            const along = dx * cos + dy * sin;
+            const perp  = Math.abs(-dx * sin + dy * cos);
+            return along >= 0 && along <= CHAN_LEN && perp <= HW;
+          };
+
+          if (!this.player.active) return;
+          if (checkHit(this.player.x, this.player.y)) this.player.takeDamage(dmgPerTick);
+
+          for (const ally of this._allyMinions) {
+            if (!ally.isDead && !hitSet.has(ally) && checkHit(ally.x, ally.y)) {
+              hitSet.add(ally); ally.takeDamage(dmgPerTick);
+            }
+          }
+          hitSet.clear();
+        },
+      });
+
+      this.time.delayedCall(DUR_MS, () => {
+        ticker.destroy();
+        this.tweens.add({ targets: chanG, alpha: 0, duration: 200, onComplete: () => chanG.destroy() });
       });
     }
   }

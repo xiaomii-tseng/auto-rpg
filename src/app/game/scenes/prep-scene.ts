@@ -3582,7 +3582,7 @@ export class PrepScene extends Phaser.Scene {
         const iconKey = `icon_${item.id}`;
         if (this.textures.exists(iconKey)) {
           gridContainer.add(
-            this.add.image(cx2 + cellSz / 2, cy2 + P(34), iconKey).setDisplaySize(P(44), P(44)),
+            this.add.image(cx2 + cellSz / 2, cy2 + P(34), iconKey).setDisplaySize(P(26), P(26)),
           );
         }
 
@@ -5037,7 +5037,7 @@ export class PrepScene extends Phaser.Scene {
         scrollCont.add(iconBg);
         const iconKey = `icon_${item.id}`;
         if (this.textures.exists(iconKey))
-          scrollCont.add(this.add.image(iconCX, iconCY, iconKey).setDisplaySize(P(20), P(20)));
+          scrollCont.add(this.add.image(iconCX, iconCY, iconKey).setDisplaySize(P(12), P(12)));
 
         const tx = cx + P(7) + ICON_SZ + P(5);
         const txtMaxW = CELL_W - ICON_SZ - P(18);

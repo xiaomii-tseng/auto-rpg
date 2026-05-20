@@ -170,7 +170,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     const def       = stats.def + this.divineShieldDef + this.defBonus;
     const reduction = def / (def + 65);
     const takenMult = 1 + (stats.takenDmgPct ?? 0);
-    const actual    = Math.max(1, Math.round(amount * (1 - reduction) * takenMult));
+    let actual = Math.max(1, Math.round(amount * (1 - reduction) * takenMult));
+    if (stats.damageCap) actual = Math.min(actual, Math.round(this.maxHp * stats.damageCap));
     this.hp = Math.max(0, this.hp - actual);
     this.onHpChanged?.(this.hp, this.maxHp);
     if (this.hp <= 0) {

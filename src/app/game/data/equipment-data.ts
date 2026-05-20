@@ -155,6 +155,11 @@ export interface StatBonus {
   blazingShieldHealPct?:  number;  // 業火盾觸發時回復HP%
   impaleCharge?:          number;  // 蓄勁一閃：每N次攻擊觸發爆發
   impaleDmgPct?:          number;  // 蓄勁一閃：爆發傷害加成比例
+  // ── 吸血鬼族專屬機制 ──
+  damageCap?:   number;  // 單次受傷上限（佔最大HP比例，0.51=51%）
+  soulHarvest?: number;  // 靈魂收割：擊殺觸發衝擊波+回血（1=啟用）
+  fearAura?:    number;  // 恐懼光環：降低周圍敵人攻速和移動速度（1=啟用）
+  bloodRage?:   number;  // 血脈噴張：低血量時傷害和吸血量增加（1=啟用）
 }
 
 // ── Affix system ───────────────────────────────────────────────────────────────
