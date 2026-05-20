@@ -72,7 +72,8 @@
       "Bash(Get-ChildItem -Path \"c:\\\\MyCode\\\\auto-rpg\\\\src\\\\app\\\\game\" -Recurse -File -Filter \"*.ts\")",
       "Bash(Select-Object FullName)",
       "PowerShell(cd \"c:\\\\MyCode\\\\auto-rpg\"; git diff HEAD src/app/game/data/monster-data.ts | Select-String \"card_slime_green|card_slime_blue\" | Select-Object -First 30 | ForEach-Object { $_.Line })",
-      "PowerShell(cd \"c:\\\\MyCode\\\\auto-rpg\"; git diff HEAD src/app/game/data/monster-data.ts | Select-String \"tint: 0x44ff44|tint: 0x2299ff|tint: 0x33ff33|tint: 0x1188ff\" | Select-Object -First 20 | ForEach-Object { $_.Line })"
+      "PowerShell(cd \"c:\\\\MyCode\\\\auto-rpg\"; git diff HEAD src/app/game/data/monster-data.ts | Select-String \"tint: 0x44ff44|tint: 0x2299ff|tint: 0x33ff33|tint: 0x1188ff\" | Select-Object -First 20 | ForEach-Object { $_.Line })",
+      "Bash(Get-ChildItem -Path \"c:\\\\MyCode\\\\auto-rpg\\\\src\\\\app\\\\game\\\\data\" -Recurse -File -ErrorAction SilentlyContinue)"
     ],
     "additionalDirectories": [
       "\\MyCode\\auto-rpg\\src\\app\\game\\scenes",
