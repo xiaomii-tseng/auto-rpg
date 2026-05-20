@@ -2,6 +2,15 @@ export interface SkinDef {
   label:  string;
   folder: string;
   prefix: string;
+  /** Override individual file names (relative to folder/). Omitted keys fall back to the default naming convention. */
+  fileMap?: {
+    idle?:      string;
+    run?:       string;
+    attack?:    string;
+    runAttack?: string;
+    hurt?:      string;
+    death?:     string;
+  };
 }
 
 export const SKINS: readonly SkinDef[] = [
@@ -20,6 +29,22 @@ export const SkinStore = {
 
 const CFG = { frameWidth: 64, frameHeight: 64 };
 
+/** Returns the full path for a specific animation file within a skin. */
+export function getSkinFile(s: SkinDef, type: 'idle' | 'run' | 'attack' | 'runAttack' | 'hurt' | 'death'): string {
+  const f = `${s.folder}/`;
+  if (s.fileMap?.[type]) return `${f}${s.fileMap[type]}`;
+  const p = s.prefix;
+  const defaults: Record<typeof type, string> = {
+    idle:      `${p}_Idle_with_shadow.png`,
+    run:       `${p}_Run_with_shadow.png`,
+    attack:    `${p}_attack_with_shadow.png`,
+    runAttack: `${p}_Run_Attack_with_shadow.png`,
+    hurt:      `${p}_Hurt_with_shadow.png`,
+    death:     `${p}_Death_with_shadow.png`,
+  };
+  return `${f}${defaults[type]}`;
+}
+
 /**
  * Load a skin's spritesheets into Phaser's texture manager.
  * keyPrefix = 'player' → loads player_idle_shadow, player_run_shadow, …
@@ -27,19 +52,17 @@ const CFG = { frameWidth: 64, frameHeight: 64 };
  */
 export function loadSkinTextures(scene: Phaser.Scene, skinId: number, keyPrefix: string): void {
   const s = SKINS[skinId];
-  const f = `${s.folder}/`;
-  const p = s.prefix;
   const k = keyPrefix;
   if (!scene.textures.exists(`${k}_idle_shadow`))
-    scene.load.spritesheet(`${k}_idle_shadow`,       `${f}${p}_Idle_with_shadow.png`,       CFG);
+    scene.load.spritesheet(`${k}_idle_shadow`,       getSkinFile(s, 'idle'),      CFG);
   if (!scene.textures.exists(`${k}_run_shadow`))
-    scene.load.spritesheet(`${k}_run_shadow`,        `${f}${p}_Run_with_shadow.png`,        CFG);
+    scene.load.spritesheet(`${k}_run_shadow`,        getSkinFile(s, 'run'),       CFG);
   if (!scene.textures.exists(`${k}_attack_shadow`))
-    scene.load.spritesheet(`${k}_attack_shadow`,     `${f}${p}_attack_with_shadow.png`,     CFG);
+    scene.load.spritesheet(`${k}_attack_shadow`,     getSkinFile(s, 'attack'),    CFG);
   if (!scene.textures.exists(`${k}_run_attack_shadow`))
-    scene.load.spritesheet(`${k}_run_attack_shadow`, `${f}${p}_Run_Attack_with_shadow.png`, CFG);
+    scene.load.spritesheet(`${k}_run_attack_shadow`, getSkinFile(s, 'runAttack'), CFG);
   if (!scene.textures.exists(`${k}_hurt`))
-    scene.load.spritesheet(`${k}_hurt`,              `${f}${p}_Hurt_with_shadow.png`,       CFG);
+    scene.load.spritesheet(`${k}_hurt`,              getSkinFile(s, 'hurt'),      CFG);
   if (!scene.textures.exists(`${k}_death_shadow`))
-    scene.load.spritesheet(`${k}_death_shadow`,      `${f}${p}_Death_with_shadow.png`,      CFG);
+    scene.load.spritesheet(`${k}_death_shadow`,      getSkinFile(s, 'death'),     CFG);
 }

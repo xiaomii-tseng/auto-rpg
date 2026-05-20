@@ -11,7 +11,7 @@ import { getCardDef, getMonsterDef, getCardDisplayName, monsterCardScale, monste
 import { QuestStore, Quest, STAR_EQUIP_QUALITY, getStarWeights } from '../data/quest-store';
 import { SkillTreeStore, SKILL_NODES, SKILL_NODE_MAP, ATTACK_MODES, MODE_COLORS } from '../data/skill-tree-store';
 import { NetworkService } from '../network/network.service';
-import { SkinStore, SKINS } from '../data/skin-store';
+import { SkinStore, SKINS, getSkinFile } from '../data/skin-store';
 import { VirtualJoystick } from '../ui/joystick';
 import { VERSION } from '../version';
 
@@ -241,16 +241,16 @@ export class PrepScene extends Phaser.Scene {
      'player_idle_down', 'player_idle_left', 'player_idle_right', 'player_idle_up',
      'player_run_down',  'player_run_left',  'player_run_right',  'player_run_up',
     ].forEach(k => { if (this.anims.exists(k)) this.anims.remove(k); });
-    this.load.spritesheet('player_idle_shadow', `${_skin.folder}/${_skin.prefix}_Idle_with_shadow.png`, cfg);
-    this.load.spritesheet('player_run_shadow',  `${_skin.folder}/${_skin.prefix}_Run_with_shadow.png`,  cfg);
+    this.load.spritesheet('player_idle_shadow', getSkinFile(_skin, 'idle'), cfg);
+    this.load.spritesheet('player_run_shadow',  getSkinFile(_skin, 'run'),  cfg);
     // Load all skin idle + run previews for wardrobe panel and town remote players
     SKINS.forEach((s, i) => {
       const key = `skin_preview_${i}`;
       if (!this.textures.exists(key))
-        this.load.spritesheet(key, `${s.folder}/${s.prefix}_Idle_with_shadow.png`, cfg);
+        this.load.spritesheet(key, getSkinFile(s, 'idle'), cfg);
       const runKey = `skin_run_preview_${i}`;
       if (!this.textures.exists(runKey))
-        this.load.spritesheet(runKey, `${s.folder}/${s.prefix}_Run_with_shadow.png`, cfg);
+        this.load.spritesheet(runKey, getSkinFile(s, 'run'), cfg);
     });
     // Town ground tiles
     if (!this.textures.exists('tile_grass'))
