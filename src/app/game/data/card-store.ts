@@ -426,7 +426,7 @@ export const CardStore = {
 
     return {
       atk:         Math.round((flatAtk + condAtk) * (1 + (bonus.atkPct ?? 0))),
-      maxHp:       Math.round(flatHp * (1 + (bonus.hpPct ?? 0) + condHpPct + (bonus.maxHpPct ?? 0))),
+      maxHp:       Math.round(flatHp * (1 + (bonus.hpPct ?? 0) + condHpPct + (bonus.maxHpPct ?? 0) + (SkillTreeStore.getAttackMode() === 'aura' ? 0.40 : 0))),
       def:         defVal,
       speed:       base.speed     + (bonus.speed    ?? 0),
       crit:        flatCrit,
@@ -531,6 +531,7 @@ export const CardStore = {
       soulHarvest:          bonus.soulHarvest,
       fearAura:             bonus.fearAura,
       bloodRage:            bonus.bloodRage,
+      lifestealInstant:     bonus.lifestealInstant,
     };
   },
 

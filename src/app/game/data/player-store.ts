@@ -124,6 +124,7 @@ export interface EffectiveStats {
   soulHarvest?: number;
   fearAura?:    number;
   bloodRage?:   number;
+  lifestealInstant?: number;
 }
 
 type EquippedMap = { [K in EquipSlot]: EquipmentItem | null };

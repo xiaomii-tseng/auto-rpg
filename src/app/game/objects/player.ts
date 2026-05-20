@@ -166,7 +166,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     if (this.invincible || !this.active) return;
     const stats   = CardStore.getTotalStats();
     const evasion = stats.evasion;
-    if (evasion > 0 && Math.random() < evasion) { this.onEvade?.(this.x, this.y); return; }
+    if (evasion > 0 && Math.random() < evasion) { this.onEvade?.(this.x, this.y); this.startInvincibility(false); return; }
     const def       = stats.def + this.divineShieldDef + this.defBonus;
     const reduction = def / (def + 65);
     const takenMult = 1 + (stats.takenDmgPct ?? 0);
@@ -205,11 +205,11 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.startInvincibility();
   }
 
-  private startInvincibility(): void {
+  private startInvincibility(playHurt = true): void {
     this.invincible = true;
     this.flashTween?.stop();
 
-    if (!this.noInterrupt) {
+    if (playHurt && !this.noInterrupt) {
       this.playingHurt = true;
       this.play('player_hurt', true);
       this.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => {

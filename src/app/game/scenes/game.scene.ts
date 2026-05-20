@@ -2317,7 +2317,10 @@ export class GameScene extends Phaser.Scene {
 
     target.knockback(srcX, srcY);
     const displayDmg = isBoss ? Math.round(dmg * this.boss.dmgDisplayMult) : dmg;
-    if (stats.lifesteal > 0) this._leechPool += Math.round(displayDmg * stats.lifesteal);
+    if (stats.lifesteal > 0) {
+      const leech = Math.round(displayDmg * stats.lifesteal);
+      if (stats.lifestealInstant) this.player.heal(leech); else this._leechPool += leech;
+    }
     if (bloodRageLeech > 0) this._leechPool += Math.round(displayDmg * bloodRageLeech);
     this.spawnDamageNumber(target.x, target.y, displayDmg, isCrit, elemMult * targetMult);
     if (isCrit) this._pendingHitWeight += 2;
@@ -2880,7 +2883,7 @@ export class GameScene extends Phaser.Scene {
 
     const stats = CardStore.getTotalStats();
     const RANGE = this.AURA_RANGE * (1 + (stats.auraRadiusPct ?? 0));
-    const baseDmg = this.player.maxHpValue * 0.065 * (1 + (stats.auraDmgPct ?? 0));
+    const baseDmg = this.player.maxHpValue * 0.125 * (1 + (stats.auraDmgPct ?? 0));
     const px = this.player.x, py = this.player.y;
 
     for (const m of this.allMinions) {
@@ -2889,7 +2892,10 @@ export class GameScene extends Phaser.Scene {
       const isCrit = Math.random() < stats.crit;
       const dmg = Math.round(baseDmg * Phaser.Math.FloatBetween(0.9, 1.1) * (isCrit ? (1 + stats.critDmg) : 1));
       m.takeDamage(dmg);
-      if (stats.lifesteal > 0) this._leechPool += Math.round(dmg * stats.lifesteal);
+      if (stats.lifesteal > 0) {
+        const leech = Math.round(dmg * stats.lifesteal);
+        if (stats.lifestealInstant) this.player.heal(leech); else this._leechPool += leech;
+      }
       this.spawnDamageNumber(m.x, m.y, dmg, isCrit, 1);
       if (isCrit) this._pendingHitWeight += 2;
       if (NetworkService.connected) NetworkService.sendMinionHit(m.minionId, dmg);
@@ -2901,7 +2907,10 @@ export class GameScene extends Phaser.Scene {
       const dmg = Math.round(baseDmg * Phaser.Math.FloatBetween(0.9, 1.1) * (isCrit ? (1 + stats.critDmg) : 1) * elemMult);
       const auraHpBefore = this.boss.currentHp;
       this.boss.takeDamage(dmg, stats.penetration);
-      if (stats.lifesteal > 0) this._leechPool += Math.round(dmg * stats.lifesteal);
+      if (stats.lifesteal > 0) {
+        const leech = Math.round(dmg * stats.lifesteal);
+        if (stats.lifestealInstant) this.player.heal(leech); else this._leechPool += leech;
+      }
       this.spawnDamageNumber(this.boss.x, this.boss.y, dmg, isCrit, elemMult);
       if (isCrit) this._pendingHitWeight += 2;
       if (NetworkService.connected) NetworkService.sendBossHit(auraHpBefore - this.boss.currentHp);

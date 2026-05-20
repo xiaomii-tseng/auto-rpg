@@ -160,6 +160,7 @@ export interface StatBonus {
   soulHarvest?: number;  // 靈魂收割：擊殺觸發衝擊波+回血（1=啟用）
   fearAura?:    number;  // 恐懼光環：降低周圍敵人攻速和移動速度（1=啟用）
   bloodRage?:   number;  // 血脈噴張：低血量時傷害和吸血量增加（1=啟用）
+  lifestealInstant?: number;  // 即時吸血：跳過蓄血池，命中時直接回復（1=啟用）
 }
 
 // ── Affix system ───────────────────────────────────────────────────────────────
@@ -309,8 +310,8 @@ export const BEHAVIOR_INFO: Record<AttackBehavior, BehaviorInfo> = {
     ],
   },
   aura: {
-    desc:    '持續釋放血氣光環，對範圍內的敵人造成持續傷害，無需手動攻擊。',
-    formula: ['傷害：最大HP × 7.5% / 次', '頻率：每 250ms（攻速越高越快）'],
+    desc:    '持續釋放血氣光環，對範圍內的敵人造成持續傷害，無需手動攻擊。選擇此模式時最大HP +40%。',
+    formula: ['傷害：最大HP × 12.5% / 次', '頻率：每 300ms（攻速越高越快）'],
     relatedStats: [
       { stat: 'hp',       note: '決定傷害' },
       { stat: 'atkSpeed', note: '提升攻擊頻率' },

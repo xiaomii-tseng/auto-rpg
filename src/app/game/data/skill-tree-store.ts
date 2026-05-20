@@ -143,6 +143,11 @@ export const SKILL_NODES: SkillNode[] = [
   { id: '8',     label: '傷害溢出', desc: '傷害溢出時對附近範圍內所有敵人造成溢出傷害', x:   0, y:  240, isRoot: true },
   { id: '8-1',   label: '連鎖觸發', desc: '溢出可無限連鎖觸發',                         x:   0, y:  305, parentId: '8'   },
   { id: '8-1-1', label: '溢出強化', desc: '溢出傷害 +20%',                   x:   0, y:  370, parentId: '8-1' },
+
+  // ── Cluster 10: 吸血天賦 (top-right) ─────────────────────────────────────
+  { id: '10',       label: '吸血天賦',  desc: '吸血 +0.3%',         x:  305, y:  -95, isRoot: true       },
+  { id: '10-1',     label: '吸血天賦Ⅱ', desc: '吸血 +0.5%',         x:  360, y: -135, parentId: '10'     },
+  { id: '10-1-1',   label: '即時吸血',  desc: '吸血效果改為立即回血（跳過蓄血池，命中時直接回復）', x:  415, y: -175, parentId: '10-1'   },
 ];
 
 export const SKILL_NODE_MAP: Record<string, SkillNode> = {};
@@ -173,7 +178,8 @@ export const CLUSTER_COLORS: Record<string, number> = {
   '6': 0xaaaacc,
   '7': 0xff4466,
   '8': 0xcc66ff,
-  '9': 0x44ee88,
+  '9':  0x44ee88,
+  '10': 0xcc2255,
 };
 
 export function skillNodeColor(node: SkillNode): number {
@@ -296,6 +302,9 @@ export const SkillTreeStore = {
       skillFlowerCap:       (L('9') ? 1 : 0) + (L('9-1-1') ? 1 : 0) + (L('9-1-1-1-1-1') ? 1 : 0),
       skillFlowerHpPct:     (L('9-1-1-1-1') ? 1.50 : 0),
       summonFlowerDmgPct:   (L('9-1') ? 0.30 : 0) + (L('9-1-1-1') ? 0.50 : 0),
+      // ── 吸血天賦 ──────────────────────────────────────
+      lifesteal:          (L('10') ? 0.003 : 0) + (L('10-1') ? 0.005 : 0),
+      lifestealInstant:   (L('10-1-1') ? 1 : 0),
     };
   },
 

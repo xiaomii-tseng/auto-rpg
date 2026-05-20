@@ -2314,10 +2314,31 @@ export class PrepScene extends Phaser.Scene {
           return _dismantlePrefs.qualities.has(item.quality) && inSlot && !equippedIds.has(item.id);
         });
         if (toDismantle.length === 0) { closeModal(); return; }
-        toDismantle.forEach(item => PlayerStore.removeOwned(item));
-        InventoryStore.addItem(ITEM_STONE_BROKEN, '破損強化石', toDismantle.length);
-        SaveStore.save();
-        closeModal();
+
+        // ── 分解中提示 ────────────────────────────────────────
+        const LD = BD + 20;
+        const loadObjs: Phaser.GameObjects.GameObject[] = [];
+        const loadBg = this.add.graphics().setDepth(LD);
+        loadBg.fillStyle(0x000000, 0.72);
+        loadBg.fillRect(0, 0, W, H);
+        const boxW = P(200), boxH = P(64);
+        const bx = W / 2 - boxW / 2, by = H / 2 - boxH / 2;
+        loadBg.fillStyle(0x1a1008, 0.97); loadBg.fillRoundedRect(bx, by, boxW, boxH, P(8));
+        loadBg.lineStyle(P(2), 0x997733, 0.85); loadBg.strokeRoundedRect(bx, by, boxW, boxH, P(8));
+        loadObjs.push(loadBg);
+        const loadTxt = this.add.text(W / 2, H / 2, '分解中…', {
+          fontSize: F(16), fontStyle: 'bold', color: '#e8c070', stroke: '#1a0800', strokeThickness: 2,
+        }).setOrigin(0.5).setDepth(LD + 1);
+        loadObjs.push(loadTxt);
+
+        // 讓瀏覽器先繪製提示框，再執行分解
+        this.time.delayedCall(50, () => {
+          toDismantle.forEach(item => PlayerStore.removeOwned(item));
+          InventoryStore.addItem(ITEM_STONE_BROKEN, '破損強化石', toDismantle.length);
+          SaveStore.save();
+          loadObjs.forEach(x => x.destroy());
+          closeModal();
+        });
       };
 
       redrawChks();
