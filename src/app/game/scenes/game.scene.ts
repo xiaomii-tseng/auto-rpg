@@ -4082,6 +4082,21 @@ export class GameScene extends Phaser.Scene {
       b.onBurstOrbLand = (x, y, r, dmg) => {
         if (!this.bossActive) return;
         if (Phaser.Math.Distance.Between(this.player.x, this.player.y, x, y) <= r) this.player.takeDamage(dmg);
+        for (const ally of this._allyMinions) {
+          if (!ally.isDead && Phaser.Math.Distance.Between(ally.x, ally.y, x, y) <= r) ally.takeDamage(dmg);
+        }
+      };
+
+      b.onBurstOrbFly = (x, y, r, dmg) => {
+        if (!this.bossActive) return false;
+        let hit = false;
+        if (Phaser.Math.Distance.Between(this.player.x, this.player.y, x, y) <= r) {
+          this.player.takeDamage(dmg); hit = true;
+        }
+        for (const ally of this._allyMinions) {
+          if (!ally.isDead && Phaser.Math.Distance.Between(ally.x, ally.y, x, y) <= r) ally.takeDamage(dmg);
+        }
+        return hit;
       };
 
       b.onSpikeHit = (x, y, r, dmg) => {
@@ -4091,12 +4106,19 @@ export class GameScene extends Phaser.Scene {
 
       b.onRiverTick = (x1, y1, x2, y2, hw, dmg) => {
         if (!this.bossActive) return;
-        const px = this.player.x, py = this.player.y;
         const abx = x2 - x1, aby = y2 - y1;
         const lenSq = abx * abx + aby * aby || 1;
-        const t  = Math.max(0, Math.min(1, ((px - x1) * abx + (py - y1) * aby) / lenSq));
-        const nx = x1 + t * abx - px, ny = y1 + t * aby - py;
-        if (nx * nx + ny * ny <= hw * hw) this.player.takeDamage(dmg);
+        const inRiver = (cx: number, cy: number) => {
+          const raw = ((cx - x1) * abx + (cy - y1) * aby) / lenSq;
+          if (raw < 0) return false; // BOSS 背後不判定
+          const t  = Math.min(1, raw);
+          const nx = x1 + t * abx - cx, ny = y1 + t * aby - cy;
+          return nx * nx + ny * ny <= hw * hw;
+        };
+        if (inRiver(this.player.x, this.player.y)) this.player.takeDamage(dmg);
+        for (const ally of this._allyMinions) {
+          if (!ally.isDead && inRiver(ally.x, ally.y)) ally.takeDamage(dmg);
+        }
       };
 
       return b;

@@ -715,30 +715,30 @@ export const CARD_DEFS: CardDef[] = [
     effect: { lifesteal: 0.04, hp: 60 },
     desc: '生命竊取+4%  最大HP+60' },
 
-  // ── 血族武士家族（韌性防禦）──
-  { id: 'card_vampire2_n', name: '血族武士卡', monsterId: 'vampire2_s',
+  // ── 吸血鬼法師家族（韌性防禦）──
+  { id: 'card_vampire2_n', name: '吸血鬼法師卡', monsterId: 'vampire2_s',
     family: 'vampire2', race: 'vampire', cardType: 'n',
     element: 'none', tint: 0xff4466,
     effect: { def: 8 },
     desc: '防禦力+8' },
-  { id: 'card_vampire2_e', name: '菁英血族武士卡', monsterId: 'elite_vampire2',
+  { id: 'card_vampire2_e', name: '菁英吸血鬼法師卡', monsterId: 'elite_vampire2',
     family: 'vampire2', race: 'vampire', cardType: 'e',
     element: 'none', tint: 0xff6688,
     effect: { def: 14, hp: 25 },
     desc: '防禦力+14  最大HP+25' },
-  { id: 'card_vampire2_b', name: '血族戰王卡', monsterId: 'boss_vampire2',
+  { id: 'card_vampire2_b', name: '血族法王卡', monsterId: 'boss_vampire2',
     family: 'vampire2', race: 'vampire', cardType: 'b',
     element: 'none', tint: 0xff88aa,
     effect: { def: 20, evasion: 0.06 },
     desc: '防禦力+20  閃避+6%' },
 
-  // ── 血族法師家族（暴擊爆發）──
-  { id: 'card_vampire3_n', name: '血族法師卡', monsterId: 'vampire3_s',
+  // ── 吸血鬼術士家族（暴擊爆發）──
+  { id: 'card_vampire3_n', name: '吸血鬼術士卡', monsterId: 'vampire3_s',
     family: 'vampire3', race: 'vampire', cardType: 'n',
     element: 'none', tint: 0x8866dd,
     effect: { crit: 0.06 },
     desc: '暴擊率+6%' },
-  { id: 'card_vampire3_e', name: '菁英血族法師卡', monsterId: 'elite_vampire3',
+  { id: 'card_vampire3_e', name: '菁英吸血鬼術士卡', monsterId: 'elite_vampire3',
     family: 'vampire3', race: 'vampire', cardType: 'e',
     element: 'none', tint: 0xaa88ff,
     effect: { crit: 0.10, critDmg: 0.15 },

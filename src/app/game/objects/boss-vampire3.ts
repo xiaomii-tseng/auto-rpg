@@ -8,7 +8,7 @@ const MOB = !!(window as any).__gameMobile;
 const mq  = (n: number) => MOB ? Math.max(1, Math.ceil(n * 0.5)) : n;
 
 // ── 猩紅鐮刃 ────────────────────────────────────────────────
-const SCYTHE_WARN_MS   = 750;
+const SCYTHE_WARN_MS   = 1000;
 const SCYTHE_R         = 190;
 const SCYTHE_ARC_DEG   = 155;
 const SCYTHE_SWEEP_MS  = 500;
@@ -18,7 +18,7 @@ const SCYTHE_TRAIL_DMG = 42;
 
 // ── 血液爆星 ────────────────────────────────────────────────
 const BURST_WARN_MS  = 650;
-const BURST_COUNT    = 16;
+const BURST_COUNT    = 10;
 const BURST_HIT_R    = 22;
 const BURST_DMG      = 72;
 
@@ -27,7 +27,7 @@ const SPIKE_WARN_MS  = 380;
 const SPIKE_WAVES    = 3;
 const SPIKE_PER_WAVE = 25;
 const SPIKE_WAVE_GAP = 550;
-const SPIKE_HIT_R    = 18;
+const SPIKE_HIT_R    = 30;
 const SPIKE_DMG      = 88;
 
 // ── 血液分裂 ────────────────────────────────────────────────
@@ -37,7 +37,7 @@ const SPLIT_CORNER_R  = 210;
 const CLONE_SCYTHE_DMG = 55;
 
 // ── 鮮血長河 ────────────────────────────────────────────────
-const RIVER_WARN_MS  = 850;
+const RIVER_WARN_MS  = 700;
 const RIVER_HALF_W   = 52;
 const RIVER_DMG      = 65;
 const RIVER_TICK_MS  = 200;
@@ -82,6 +82,7 @@ export class BossVampire3 extends Boss {
   onScytheHit?:       (cx: number, cy: number, r: number, aimAng: number, arcDeg: number, dmg: number) => void;
   onScytheTrailTick?: (cx: number, cy: number, r: number, aimAng: number, arcDeg: number, dmg: number) => void;
   onBurstOrbLand?:    (x: number, y: number, r: number, dmg: number) => void;
+  onBurstOrbFly?:     (x: number, y: number, r: number, dmg: number) => boolean;
   onSpikeHit?:        (x: number, y: number, r: number, dmg: number) => void;
   onRiverTick?:       (x1: number, y1: number, x2: number, y2: number, r: number, dmg: number) => void;
   onCloneScytheHit?:  (cx: number, cy: number, r: number, aimAng: number, arcDeg: number, dmg: number) => void;
@@ -110,12 +111,21 @@ export class BossVampire3 extends Boss {
     if (this.guestMode) return;
     const roll = Math.random();
     let fn: () => void;
-    // scythe 28%  burst 22%  spike 22%  river 16%  split 12%
-    if      (roll < 0.28) fn = () => this.enterScytheWarn();
-    else if (roll < 0.50) fn = () => this.enterBurstWarn();
-    else if (roll < 0.72) fn = () => this.enterSpikeHellWarn();
-    else if (roll < 0.88) fn = () => this.enterBloodRiverWarn();
-    else                  fn = () => this.enterBloodSplitWarn();
+    // 分身還在場上時不使用血液分裂，改以等比例重分配給其他技能
+    // scythe 28%  burst 22%  spike 22%  river 16%  split 12%（無分身時）
+    // scythe 32%  burst 25%  spike 25%  river 18%（有分身時）
+    if (this._splitActive) {
+      if      (roll < 0.32) fn = () => this.enterScytheWarn();
+      else if (roll < 0.57) fn = () => this.enterBurstWarn();
+      else if (roll < 0.82) fn = () => this.enterSpikeHellWarn();
+      else                  fn = () => this.enterBloodRiverWarn();
+    } else {
+      if      (roll < 0.28) fn = () => this.enterScytheWarn();
+      else if (roll < 0.50) fn = () => this.enterBurstWarn();
+      else if (roll < 0.72) fn = () => this.enterSpikeHellWarn();
+      else if (roll < 0.88) fn = () => this.enterBloodRiverWarn();
+      else                  fn = () => this.enterBloodSplitWarn();
+    }
     this.stateTimer = this.scene.time.delayedCall(this.getNextAttackDelay(), fn);
   }
 
@@ -253,6 +263,10 @@ export class BossVampire3 extends Boss {
         const fa = startA, ta = prog.ang;
         if (fa >= ta) return;
 
+        // 扇形內部淡填色
+        sweepG.fillStyle(0xaa0022, 0.13);
+        sweepG.beginPath(); sweepG.moveTo(cx, cy); sweepG.arc(cx, cy, R - P(2), fa, ta, false); sweepG.closePath(); sweepG.fillPath();
+
         // Outer glow
         sweepG.lineStyle(P(32), 0x660022, 0.28);
         sweepG.beginPath(); sweepG.arc(cx, cy, R + P(10), fa, ta, false); sweepG.strokePath();
@@ -315,7 +329,7 @@ export class BossVampire3 extends Boss {
         emitter.stop();
         this.scene.time.delayedCall(400, () => { if (emitter.active) emitter.destroy(); });
 
-        if (!isClone) this._leaveScytheTrail(cx, cy, aimAng, HALF, R);
+        if (!isClone) this._leaveScytheTrail(cx, cy, aimAng, HALF, R, 1 / 3);
 
         if (onDone) onDone();
         else this.stateTimer = this.scene.time.delayedCall(200, () => this.enterIdle());
@@ -323,7 +337,7 @@ export class BossVampire3 extends Boss {
     });
   }
 
-  private _leaveScytheTrail(cx: number, cy: number, aimAng: number, half: number, r: number): void {
+  private _leaveScytheTrail(cx: number, cy: number, aimAng: number, half: number, r: number, dmgMult = 1.0): void {
     const startA = aimAng - half, endA = aimAng + half;
     const trailG = this.scene.add.graphics().setDepth(6);
     const ta     = { v: 1 };
@@ -350,7 +364,7 @@ export class BossVampire3 extends Boss {
     const tickTimer = this.scene.time.addEvent({
       delay: 500, repeat: Math.floor(SCYTHE_TRAIL_DUR / 500) - 1,
       callback: () => {
-        if (!this.guestMode) this.onScytheTrailTick?.(cx, cy, r, aimAng, SCYTHE_ARC_DEG, this.scaleDmg(SCYTHE_TRAIL_DMG));
+        if (!this.guestMode) this.onScytheTrailTick?.(cx, cy, r, aimAng, SCYTHE_ARC_DEG, this.scaleDmg(SCYTHE_TRAIL_DMG) * dmgMult);
       },
     });
 
@@ -464,7 +478,6 @@ export class BossVampire3 extends Boss {
       this.scene.time.delayedCall(i * 18, () => {
         if (this.currentState === BossState.DEAD) return;
 
-        // Orb graphics
         const orbG = this.scene.add.graphics({ x: bx, y: by }).setDepth(20);
         const trail = this.scene.add.particles(bx, by, 'pxl2', {
           speed: { min: 10, max: 30 }, angle: { min: 0, max: 360 },
@@ -474,6 +487,8 @@ export class BossVampire3 extends Boss {
         }).setDepth(19);
 
         const prog = { t: 0 };
+        let flyHit = false;
+        const flyDmg = Math.round(dmg * 0.6);
         this.scene.tweens.add({
           targets: prog, t: 1, duration: travelMs, ease: 'Linear',
           onUpdate: () => {
@@ -481,13 +496,16 @@ export class BossVampire3 extends Boss {
             const cy = by + Math.sin(ang) * dist * prog.t;
             orbG.setPosition(cx, cy); trail.setPosition(cx, cy);
             orbG.clear();
-            // Glow layers
             orbG.fillStyle(0x550022, 0.22);  orbG.fillCircle(0, 0, P(18));
             orbG.fillStyle(0xaa0033, 0.55);  orbG.fillCircle(0, 0, P(12));
             orbG.fillStyle(0xcc0044, 0.92);  orbG.fillCircle(0, 0, P(8));
             orbG.fillStyle(0xff3355, 0.80);  orbG.fillCircle(0, 0, P(5));
             orbG.fillStyle(0xffeeff, 0.85);  orbG.fillCircle(0, 0, P(2));
             orbG.lineStyle(P(1.5), 0xff6677, 0.70); orbG.strokeCircle(0, 0, P(10));
+            // 飛行中碰撞（每顆只打一次）
+            if (!flyHit && prog.t > 0.05 && !this.guestMode) {
+              if (this.onBurstOrbFly?.(cx, cy, HIT_R, flyDmg)) flyHit = true;
+            }
           },
           onComplete: () => {
             orbG.destroy(); trail.stop();
@@ -816,20 +834,42 @@ export class BossVampire3 extends Boss {
 
     const ap = this.scene.time.delayedCall(80, () => {
       if (this.currentState === BossState.DEAD) return;
-      // Boss fires chosen skill
+      // 本體打完第一招後恢復自由行動
       this._fireSplitBossAttack(splitType, chosen[0].x, chosen[0].y, () => {
-        if (this._splitClonesAliveCount <= 0) this._endSplit();
+        if (this._splitActive) this.enterIdle();
       });
-      // Clones fire same skill
+      // 分身打第一招
       for (let i = 0; i < 2; i++) {
         this._doCloneAttack(i, chosen[1 + i].x, chosen[1 + i].y, splitType);
       }
+      // 分身第一招結束後開始自由出招循環
+      this.scene.time.delayedCall(3500, () => {
+        for (let i = 0; i < 2; i++) {
+          this._startCloneLoop(i);
+        }
+      });
     });
     void ap;
 
-    // Safety timeout: end split after 8s regardless
-    this.scene.time.delayedCall(8000, () => {
+    // 15 秒後結束分裂
+    this.scene.time.delayedCall(15000, () => {
       if (this._splitActive) this._endSplit();
+    });
+  }
+
+  private _startCloneLoop(idx: number): void {
+    if (!this._splitActive || this.currentState === BossState.DEAD) return;
+    const proxy = this._splitCloneProxies[idx];
+    if (!proxy || proxy.isDead) return;
+
+    const SKILLS = ['scythe', 'burst', 'spike', 'river'] as const;
+    const type = SKILLS[Math.floor(Math.random() * SKILLS.length)];
+    this._doCloneAttack(idx, proxy.x, proxy.y, type);
+
+    // 下一次出招
+    const nextDelay = Phaser.Math.Between(3500, 5500);
+    this.scene.time.delayedCall(nextDelay, () => {
+      this._startCloneLoop(idx);
     });
   }
 
@@ -853,13 +893,7 @@ export class BossVampire3 extends Boss {
       if (!proxy.alive || this.currentState === BossState.DEAD) return;
 
       this._doScytheSweep(cx, cy, aimAng, true, () => {
-        // Clone self-destructs after attack
-        if (proxy.alive) {
-          proxy.isDead = true; proxy.alive  = false; proxy.active = false;
-          this._destroyCloneGfx(idx, cx, cy);
-          this._splitClonesAliveCount--;
-          if (this._splitClonesAliveCount <= 0) this._endSplit();
-        }
+        this._cloneSelfDestruct(idx, cx, cy);
       });
     });
   }
@@ -1108,9 +1142,36 @@ export class BossVampire3 extends Boss {
     const [px, py] = this.getTargetPos();
     if (type === 'scythe') {
       const aimAng = Math.atan2(py - by, px - bx);
-      this._doScytheSweep(bx, by, aimAng, false, onDone);
+      const HALF   = (SCYTHE_ARC_DEG / 2) * Math.PI / 180;
+      const R      = P(SCYTHE_R);
+      const warnG  = this.scene.add.graphics().setDepth(7);
+      const fw     = { v: 0.5 };
+      const pulse  = this.scene.tweens.add({ targets: fw, v: 1.0, duration: 160, yoyo: true, repeat: -1,
+        onUpdate: () => this._drawScytheWarnArc(warnG, bx, by, aimAng, HALF, R, fw.v) });
+      this.scene.time.delayedCall(SCYTHE_WARN_MS, () => {
+        pulse.stop(); warnG.destroy();
+        this._doScytheSweep(bx, by, aimAng, false, onDone);
+      });
     } else if (type === 'burst') {
-      this._fireBurstOrbs(bx, by, onDone);
+      const orbG = this.scene.add.graphics({ x: bx, y: by - P(20) }).setDepth(17);
+      const os   = { r: 0, rot: 0 };
+      this.scene.tweens.add({ targets: os, r: P(30), rot: Math.PI * 3, duration: BURST_WARN_MS, ease: 'Quad.In',
+        onUpdate: () => {
+          orbG.clear();
+          const eg = Math.min(os.r / P(30), 1);
+          orbG.fillStyle(0x550022, 0.22 * eg); orbG.fillCircle(0, 0, os.r * 1.8);
+          orbG.fillStyle(0xcc0044, 0.92 * eg); orbG.fillCircle(0, 0, os.r);
+          orbG.fillStyle(0xff3355, 0.85 * eg); orbG.fillCircle(0, 0, os.r * 0.55);
+          for (let i = 0; i < 8; i++) {
+            const a  = os.rot + i * Math.PI / 4;
+            const ir = os.r * 1.1;
+            orbG.lineStyle(P(2), 0xff2244, 0.65 * eg);
+            orbG.lineBetween(Math.cos(a) * ir, Math.sin(a) * ir, Math.cos(a) * (ir + P(8) * eg), Math.sin(a) * (ir + P(8) * eg));
+          }
+        },
+        onComplete: () => orbG.destroy(),
+      });
+      this.scene.time.delayedCall(BURST_WARN_MS, () => this._fireBurstOrbs(bx, by, onDone));
     } else if (type === 'spike') {
       const aR = this.arenaRadius * 0.85;
       const acx = this.arenaCenter.x, acy = this.arenaCenter.y;
@@ -1129,7 +1190,26 @@ export class BossVampire3 extends Boss {
       const dist = this.arenaRadius * 1.5;
       const ex   = bx + Math.cos(ang) * P(dist);
       const ey   = by + Math.sin(ang) * P(dist);
-      this._fireBloodRiver(bx, by, ex, ey, ang, P(RIVER_HALF_W), onDone);
+      const HW   = P(RIVER_HALF_W);
+      const perp = ang + Math.PI / 2;
+      const pc   = Math.cos(perp), ps = Math.sin(perp);
+      const warnG = this.scene.add.graphics().setDepth(7);
+      const ww    = { v: 0.4 };
+      const pulse = this.scene.tweens.add({ targets: ww, v: 1.0, duration: 180, yoyo: true, repeat: -1,
+        onUpdate: () => {
+          warnG.clear();
+          warnG.fillStyle(0x880022, 0.22 * ww.v);
+          warnG.fillPoints([{ x: bx + pc * HW, y: by + ps * HW }, { x: bx - pc * HW, y: by - ps * HW },
+            { x: ex - pc * HW, y: ey - ps * HW }, { x: ex + pc * HW, y: ey + ps * HW }], true);
+          warnG.lineStyle(P(2), 0xff2244, 0.75 * ww.v);
+          warnG.lineBetween(bx + pc * HW, by + ps * HW, ex + pc * HW, ey + ps * HW);
+          warnG.lineBetween(bx - pc * HW, by - ps * HW, ex - pc * HW, ey - ps * HW);
+        },
+      });
+      this.scene.time.delayedCall(1200, () => {
+        pulse.stop(); warnG.destroy();
+        this._fireBloodRiver(bx, by, ex, ey, ang, HW, onDone);
+      });
     }
   }
 
@@ -1168,7 +1248,7 @@ export class BossVampire3 extends Boss {
     const chargeG = this.scene.add.graphics({ x: cx, y: cy }).setDepth(17);
     const cs = { r: 0 };
     this.scene.tweens.add({
-      targets: cs, r: P(22), duration: 520, ease: 'Quad.In',
+      targets: cs, r: P(22), duration: BURST_WARN_MS, ease: 'Quad.In',
       onUpdate: () => {
         chargeG.clear();
         const eg = cs.r / P(22);
@@ -1259,23 +1339,23 @@ export class BossVampire3 extends Boss {
     const totalDist = Phaser.Math.Distance.Between(cx, cy, ex, ey);
     const dmg = this.scaleDmg(Math.round(RIVER_DMG * 0.75));
 
-    // Brief warn
+    const CLONE_RIVER_WARN = 1200;
     const warnG = this.scene.add.graphics().setDepth(7);
-    const ww = { v: 0 };
-    const wt = this.scene.tweens.add({
-      targets: ww, v: 1, duration: 450, ease: 'Quad.In',
+    const ww    = { v: 0.4 };
+    const pulse = this.scene.tweens.add({ targets: ww, v: 1.0, duration: 180, yoyo: true, repeat: -1,
       onUpdate: () => {
         warnG.clear();
-        warnG.fillStyle(0x880022, 0.14 * ww.v);
-        warnG.fillPoints([{ x: cx + pc * HW, y: cy + ps * HW }, { x: cx - pc * HW, y: cy - ps * HW }, { x: ex - pc * HW, y: ey - ps * HW }, { x: ex + pc * HW, y: ey + ps * HW }], true);
-        warnG.lineStyle(P(2), 0xff2244, 0.60 * ww.v);
+        warnG.fillStyle(0x880022, 0.22 * ww.v);
+        warnG.fillPoints([{ x: cx + pc * HW, y: cy + ps * HW }, { x: cx - pc * HW, y: cy - ps * HW },
+          { x: ex - pc * HW, y: ey - ps * HW }, { x: ex + pc * HW, y: ey + ps * HW }], true);
+        warnG.lineStyle(P(2), 0xff2244, 0.75 * ww.v);
         warnG.lineBetween(cx + pc * HW, cy + ps * HW, ex + pc * HW, ey + ps * HW);
         warnG.lineBetween(cx - pc * HW, cy - ps * HW, ex - pc * HW, ey - ps * HW);
       },
     });
-    void wt;
 
-    this.scene.time.delayedCall(500, () => {
+    this.scene.time.delayedCall(CLONE_RIVER_WARN, () => {
+      pulse.stop();
       warnG.destroy();
       if (!proxy.alive || this.currentState === BossState.DEAD) return;
 
