@@ -361,8 +361,7 @@ export class GameScene extends Phaser.Scene {
   init(data: { seed?: number; questStar?: number; bossMonsterId?: string; mapParams?: MapParams; partnerNickname?: string; playerCount?: number; ownSkinId?: number; partnerSkinId?: number; mapTheme?: GameScene['_mapTheme']; towerFloor?: number }): void {
     this._towerFloor = data?.towerFloor ?? 0;
     this._mapSeed = data?.seed ?? Math.floor(Math.random() * 1_000_000);
-    const themes = ['grassland', 'desert', 'snow', 'lava', 'forest', 'dungeon'] as const;
-    this._mapTheme = data?.mapTheme ?? themes[new SeededRNG(this._mapSeed + 77777).between(0, themes.length - 1)];
+    this._mapTheme = data?.mapTheme ?? 'dungeon';
     this._initQuestStar = data?.questStar;
     this._initBossId = data?.bossMonsterId;
     this._mapParams = data?.mapParams;
@@ -3163,8 +3162,10 @@ export class GameScene extends Phaser.Scene {
   }
 
   private generateAndDrawMap(): void {
-    this.cameras.main.setBackgroundColor(0x000000);
-    this.add.rectangle(this.worldW / 2, this.worldH / 2, this.worldW, this.worldH, 0x000000)
+    // 牆體用暗石頭色填滿世界，讓整塊牆都有顏色而非純黑洞
+    const BG = 0x0d0d1a;
+    this.cameras.main.setBackgroundColor(BG);
+    this.add.rectangle(this.worldW / 2, this.worldH / 2, this.worldW, this.worldH, BG)
       .setDepth(-1);
 
     this.buildCorridorSegs();
@@ -3231,6 +3232,7 @@ export class GameScene extends Phaser.Scene {
 
     // walls handled by buildWallTilemap() after generateAndDrawMap()
     this.placeInteriorDeco();
+    this.buildDungeon3DWalls();
     this.drawBossArena();
   }
 
@@ -3345,6 +3347,156 @@ export class GameScene extends Phaser.Scene {
     layer.setCollisionBetween(0, 0);
     layer.setVisible(false);
     return layer;
+  }
+
+  /**
+   * 在每一段走廊/房間的「北邊界」繪製假立體牆面。
+   *
+   * 掃描線邏輯：對每條候選北邊界沿 X 逐步採樣，
+   *   只在「上方是牆、下方是地板」的位置才計入面段，
+   *   避免 corner/room 重疊區域出現錯誤牆面。
+   *
+   * 偏移修正：用前後兩個採樣點的中點作為段起終位置，
+   *   消除「左凹右凸」的系統性偏移。
+   *
+   * 立體結構：
+   *   牆頂面 (depth -0.5)  — 插在背景(-1)和地板(0)之間，只在牆面區域可見
+   *   牆正面 (depth northY) — Y-sort 決定是否遮擋玩家
+   */
+  private buildDungeon3DWalls(): void {
+    const WALL_TOP_H = P(20);   // 牆頂面高度（往上延伸）
+    const SCAN       = P(8);    // 掃描步距
+    const hw         = this.CORR_HW;
+    const rw         = Math.round(hw * 2.2);
+
+    // ── 候選北邊界 ────────────────────────────────────────────
+    const candidates: { xLeft: number; northY: number; width: number }[] = [];
+
+    for (const s of this.corridorSegs) {
+      if (Math.abs(s.y1 - s.y2) < 1) {
+        candidates.push({ xLeft: Math.min(s.x1, s.x2) - hw, northY: s.y1 - hw, width: Math.abs(s.x2 - s.x1) + hw * 2 });
+      } else {
+        candidates.push({ xLeft: s.x1 - hw, northY: Math.min(s.y1, s.y2) - hw, width: hw * 2 });
+      }
+    }
+    for (const c of this.cornerPts)
+      candidates.push({ xLeft: c.x - rw, northY: c.y - rw, width: rw * 2 });
+    for (const rects of this.waypointRooms)
+      for (const r of rects)
+        candidates.push({ xLeft: r.x, northY: r.y, width: r.w });
+
+    // ── 繪製：牆頂面 ─────────────────────────────────────────
+    // depth -0.5：插在背景(-1)和地板(0)之間
+    // 地板(depth 0)有 sharedMask，會蓋住 topG 在地板區的部分，所以直接畫全段即可
+    const topG = this.add.graphics().setDepth(-0.5);
+
+    for (const { xLeft, northY, width } of candidates) {
+      if (width < P(4)) continue;
+      topG.fillStyle(0x2a2a3e, 1);
+      topG.fillRect(xLeft, northY - WALL_TOP_H, width, WALL_TOP_H);
+      topG.fillStyle(0x34344e, 1);
+      topG.fillRect(xLeft, northY - P(3), width, P(3));
+      topG.lineStyle(P(1), 0x3d3d5a, 0.45);
+      for (let ly = northY - WALL_TOP_H + P(5); ly < northY - P(4); ly += P(5))
+        topG.lineBetween(xLeft, ly, xLeft + width, ly);
+    }
+
+    // ── 西邊界陰影（往東漸層）────────────────────────────────
+    // 在每個走廊/房間左側邊界往右畫半透明漸層，模擬西牆投影到地板
+    const westCandidates: { westX: number; yTop: number; height: number }[] = [];
+
+    for (const s of this.corridorSegs) {
+      if (Math.abs(s.y1 - s.y2) >= 1) {
+        // 垂直走廊：左側邊界
+        westCandidates.push({ westX: s.x1 - hw, yTop: Math.min(s.y1, s.y2) - hw, height: Math.abs(s.y2 - s.y1) + hw * 2 });
+      } else {
+        // 水平走廊：左端
+        westCandidates.push({ westX: Math.min(s.x1, s.x2) - hw, yTop: s.y1 - hw, height: hw * 2 });
+      }
+    }
+    for (const c of this.cornerPts)
+      westCandidates.push({ westX: c.x - rw, yTop: c.y - rw, height: rw * 2 });
+    for (const rects of this.waypointRooms)
+      for (const r of rects)
+        westCandidates.push({ westX: r.x, yTop: r.y, height: r.h });
+
+    // 沿 Y 軸掃描：找出真實西邊界子段（左方是牆、右方是地板）
+    const byX = new Map<number, { y0: number; y1: number }[]>();
+
+    for (const { westX, yTop, height } of westCandidates) {
+      let segStart = -1;
+      let prevEdge = false;
+
+      for (let oy = 0; oy <= height + SCAN; oy += SCAN) {
+        const inRange = oy <= height;
+        const sy      = yTop + (inRange ? oy : height);
+        const isEdge  = inRange
+          && !this.isInOpenArea(westX - P(10), sy)
+          &&  this.isInOpenArea(westX + P(10), sy);
+
+        if (isEdge && !prevEdge)  { segStart = sy; }
+        else if (!isEdge && prevEdge && segStart >= 0) {
+          // 延伸一個 SCAN 補轉角缺口，mask 會裁掉超出地板的部分
+          const y1 = sy;
+          if (y1 - segStart >= P(4)) {
+            if (!byX.has(westX)) byX.set(westX, []);
+            byX.get(westX)!.push({ y0: segStart - SCAN, y1 });
+          }
+          segStart = -1;
+        }
+        prevEdge = isEdge;
+      }
+      if (segStart >= 0) {
+        const y1 = yTop + height + SCAN;
+        if (y1 - segStart >= P(4)) {
+          if (!byX.has(westX)) byX.set(westX, []);
+          byX.get(westX)!.push({ y0: segStart - SCAN, y1 });
+        }
+      }
+    }
+
+    // geometry mask：與地板同形，裁掉陰影超出地板範圍的部分
+    const shadowMaskGfx = (this.make.graphics as any)({ x: 0, y: 0, add: false }) as Phaser.GameObjects.Graphics;
+    shadowMaskGfx.fillStyle(0xffffff, 1);
+    for (const s of this.corridorSegs) {
+      if (Math.abs(s.y1 - s.y2) < 1)
+        shadowMaskGfx.fillRect(Math.min(s.x1, s.x2) - hw, s.y1 - hw, Math.abs(s.x2 - s.x1) + hw * 2, hw * 2);
+      else
+        shadowMaskGfx.fillRect(s.x1 - hw, Math.min(s.y1, s.y2) - hw, hw * 2, Math.abs(s.y2 - s.y1) + hw * 2);
+    }
+    for (const c of this.cornerPts)
+      shadowMaskGfx.fillRect(c.x - rw, c.y - rw, rw * 2, rw * 2);
+    for (const rects of this.waypointRooms)
+      for (const r of rects) shadowMaskGfx.fillRect(r.x, r.y, r.w, r.h);
+
+    // 繪製西側陰影漸層（depth 1）
+    const SHADOW_W = P(24);
+    const shadowG  = this.add.graphics().setDepth(1).setMask(shadowMaskGfx.createGeometryMask());
+
+    for (const [westX, segs] of byX) {
+      // 合併重疊 segment，避免同一位置畫兩次造成加深
+      segs.sort((a, b) => a.y0 - b.y0);
+      const merged: { y0: number; y1: number }[] = [];
+      for (const s of segs) {
+        if (merged.length && s.y0 <= merged[merged.length - 1].y1)
+          merged[merged.length - 1].y1 = Math.max(merged[merged.length - 1].y1, s.y1);
+        else
+          merged.push({ ...s });
+      }
+      const TOP_OFFSET    = P(20);
+      const BOTTOM_OFFSET = P(5);
+      for (const { y0, y1 } of merged) {
+        if (y1 - y0 < P(4)) continue;
+        // 頂部/底部接牆則滿，否則縮進
+        const topFull    = !this.isInOpenArea(westX + P(10), y0 - P(20));
+        const bottomFull = !this.isInOpenArea(westX + P(10), y1 + P(20));
+        const drawY0 = topFull    ? y0 : y0 + TOP_OFFSET;
+        const drawY1 = bottomFull ? y1 : y1 - BOTTOM_OFFSET;
+        if (drawY1 - drawY0 < P(4)) continue;
+        shadowG.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0.45, 0, 0.45, 0);
+        shadowG.fillRect(westX, drawY0, SHADOW_W, drawY1 - drawY0);
+      }
+    }
   }
 
   private placeInteriorDeco(): void {
