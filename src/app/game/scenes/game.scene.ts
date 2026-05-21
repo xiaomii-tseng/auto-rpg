@@ -102,6 +102,22 @@ interface PartnerData {
   skinId:     number;
 }
 
+// ── SAO-style maze types ───────────────────────────────────────
+type MazeDoorDir = 'N'|'S'|'E'|'W';
+type MazeRoomType = 'start'|'normal'|'elite'|'dark'|'poison'|'sealed'|'heal'|'stairs';
+interface MazeRoom {
+  row: number; col: number;
+  cx: number;  cy: number;
+  rw: number;  rh: number;
+  connections: Set<MazeDoorDir>;
+  type: MazeRoomType;
+  revealed: boolean;
+  cleared: boolean;
+  enemiesAlive: number;
+  doorBlockers: Map<MazeDoorDir, Phaser.GameObjects.Rectangle>;
+  fogGfx?: Phaser.GameObjects.Graphics;
+}
+
 export class GameScene extends Phaser.Scene {
   private player!: Player;
   private boss!: Boss;
@@ -188,6 +204,21 @@ export class GameScene extends Phaser.Scene {
   private _towerEnemyAlive = 0;
   private _towerPortalGfx?: Phaser.GameObjects.Graphics;
   private _towerPortalHit?: Phaser.GameObjects.Zone;
+  private _towerPortalX = 0;
+  private _towerPortalY = 0;
+  private _towerCorridorRects: { x: number, y: number, w: number, h: number }[] = [];
+  // ── Maze mode (SAO-style) ───────────────────────────────────
+  private _mazeRooms: MazeRoom[][] = [];
+  private _mazeRows = 0;
+  private _mazeCols = 0;
+  private _currentRoomKey = '';
+  private _miniMapGfx?: Phaser.GameObjects.Graphics;
+  private _mazeDarkRt?: Phaser.GameObjects.RenderTexture;
+  private _mazePoisonTimer?: Phaser.Time.TimerEvent;
+  private _mazeTrapTimer?: Phaser.Time.TimerEvent;
+  private _mazeRoomSealedActive = false;
+  private _stairsGfx?: Phaser.GameObjects.Graphics;
+  private _stairsZone?: Phaser.GameObjects.Zone;
   private _mapTheme: 'grassland' | 'desert' | 'snow' | 'lava' | 'forest' | 'dungeon' = 'grassland';
   private _initBossId?: string;
   private _initQuestStar?: number;
@@ -363,8 +394,25 @@ export class GameScene extends Phaser.Scene {
     const W = this.scale.width;
     // 遊戲一開始就清掉大廳 callbacks，避免 Guest 先退出時觸發 stale rebuild
     if (NetworkService.connected) NetworkService.clearLobbyCallbacks();
-    this.gameOver = false;
-    this.bossActive = false;
+    this.gameOver    = false;
+    this.bossActive  = false;
+    this.teleporting = false;
+    this._towerBoss2  = undefined;
+    this._towerWalls  = undefined;
+    this._towerCorridorRects = [];
+    this._mazeRooms   = [];
+    this._mazeRows    = 0;
+    this._mazeCols    = 0;
+    this._currentRoomKey = '';
+    this._miniMapGfx  = undefined;
+    this._mazeDarkRt  = undefined;
+    this._mazePoisonTimer?.destroy();
+    this._mazePoisonTimer = undefined;
+    this._mazeTrapTimer?.destroy();
+    this._mazeTrapTimer   = undefined;
+    this._mazeRoomSealedActive = false;
+    this._stairsGfx   = undefined;
+    this._stairsZone  = undefined;
     this.allMinions = [];
     this.lootDrops = [];
     this._sessionLoot = [];
@@ -427,9 +475,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     if (this._towerFloor > 0) {
-      this.buildTowerRoom();
-      this.playerStartX = Math.round(this.worldW / 2);
-      this.playerStartY = this.worldH - P(140);
+      this.buildTowerRoom(); // sets playerStartX/Y internally
     } else {
       this.generateWaypoints();   // sets this.worldW / worldH / waypoints
       this.generateAndDrawMap();
@@ -441,7 +487,13 @@ export class GameScene extends Phaser.Scene {
     this.lastSafeX = this.playerStartX;
     this.lastSafeY = this.playerStartY;
 
-    this.physics.world.setBounds(0, 0, this.worldW, this.worldH);
+    if (this._towerFloor > 0 && this._towerFloor % 5 === 0) {
+      // Boss floor: inset world bounds to match visual walls.
+      const TW = P(24);
+      this.physics.world.setBounds(TW, 0, this.worldW - TW * 2, this.worldH - TW);
+    } else {
+      this.physics.world.setBounds(0, 0, this.worldW, this.worldH);
+    }
     this.cameras.main.setBounds(0, 0, this.worldW, this.worldH);
 
     this.createPlayerAnims();
@@ -705,6 +757,10 @@ export class GameScene extends Phaser.Scene {
 
     let bossWp = new Phaser.Math.Vector2(0, 0);
 
+    // 必須在任何 overlap 使用 _allyGroup 之前建立，避免第二場時持有已銷毀的舊群組
+    this._allyGroup = this.physics.add.group();
+    this.minionProjGroup = this.physics.add.group();
+
     if (this._towerFloor === 0) {
       bossWp = this.waypoints[this.waypoints.length - 1];
       const bossDef = getMonsterDef(this.bossMonsterId)!;
@@ -771,13 +827,9 @@ export class GameScene extends Phaser.Scene {
 
     this.player.setCollideWorldBounds(true);
 
-    // 友軍花怪群組 — 必須在 overlap 註冊前建立，避免第二場時使用已銷毀的舊群組
-    this._allyGroup = this.physics.add.group();
-    // Minion projectile group
-    this.minionProjGroup = this.physics.add.group();
-
-    this.physics.add.collider(this.player, this._towerWalls ?? this.wallLayer);
-    if (this.boss) this.physics.add.collider(this.boss, this._towerWalls ?? this.wallLayer);
+    const _wl = this._towerWalls ?? this.wallLayer;
+    if (_wl) this.physics.add.collider(this.player, _wl);
+    if (this.boss && _wl) this.physics.add.collider(this.boss, _wl);
     this.physics.add.overlap(this.minionProjGroup, this._allyGroup, (proj, _ally) => {
       const p    = proj as Phaser.Physics.Arcade.Image;
       const ally = _ally as MinionSlime;
@@ -1902,6 +1954,7 @@ export class GameScene extends Phaser.Scene {
 
     this.player.move(vx, vy);
 
+
     // 血環火焰圈跟著玩家
     if (this.auraRing) {
       const isAura = (SkillTreeStore.getAttackMode()) === 'aura';
@@ -2057,12 +2110,21 @@ export class GameScene extends Phaser.Scene {
     }
 
     // Snap player back if they somehow escape the open area (safety net for arena/corridor edges)
-    if (this.isInOpenArea(this.player.x, this.player.y)) {
-      this.lastSafeX = this.player.x;
-      this.lastSafeY = this.player.y;
-    } else {
-      this.player.setPosition(this.lastSafeX, this.lastSafeY);
-      (this.player.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
+    // Tower mode has no tilemap, so skip this check entirely.
+    if (this._towerFloor === 0) {
+      if (this.isInOpenArea(this.player.x, this.player.y)) {
+        this.lastSafeX = this.player.x;
+        this.lastSafeY = this.player.y;
+      } else {
+        this.player.setPosition(this.lastSafeX, this.lastSafeY);
+        (this.player.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
+      }
+    }
+
+    // Maze room detection + dark-room overlay update
+    if (this._towerFloor > 0 && this._mazeRooms.length > 0 && !this.gameOver) {
+      this._updateMazeRoomCheck();
+      if (this._mazeDarkRt) this._updateMazeDarkOverlay();
     }
 
     // Slow zone check — update player.slowMult each frame
@@ -4245,14 +4307,21 @@ export class GameScene extends Phaser.Scene {
     m.onDead = () => {
       this.handleMinionDrop(defId, m.x, m.y);
       if (this._towerFloor > 0 && !this.bossActive) {
-        this._towerEnemyAlive = Math.max(0, this._towerEnemyAlive - 1);
-        if (this._towerEnemyCountTxt) this._towerEnemyCountTxt.setText(`剩餘：${this._towerEnemyAlive}`);
-        if (this._towerEnemyAlive <= 0) this.handleTowerFloorComplete();
+        const mazeKey = (m as any)._mazeRoomKey as string | undefined;
+        if (mazeKey && this._mazeRooms.length > 0) {
+          this._onMazeEnemyKilled(mazeKey);
+        } else {
+          this._towerEnemyAlive = Math.max(0, this._towerEnemyAlive - 1);
+          if (this._towerEnemyCountTxt) this._towerEnemyCountTxt.setText(`剩餘：${this._towerEnemyAlive}`);
+          if (this._towerEnemyAlive <= 0) this.handleTowerFloorComplete();
+        }
       }
     };
     m.minionId = `m${this.allMinions.length}`;
+    if (this._towerFloor > 0) m.setCollideWorldBounds(true);
     this.allMinions.push(m);
-    this.physics.add.collider(m, this._towerWalls ?? this.wallLayer);
+    const _mwl = this._towerWalls ?? this.wallLayer;
+    if (_mwl) this.physics.add.collider(m, _mwl);
     this.physics.add.overlap(m, this.player, () => {
       if (!m.isDead && m.isDashing) this.player.takeDamage(m.atk * 3);
     });
@@ -4386,7 +4455,8 @@ export class GameScene extends Phaser.Scene {
       m.getTargetPos = () => this.nearestTargetPos(m.x, m.y);
       m.onDead = () => this.handleMinionDrop(defId, m.x, m.y);
       this.allMinions.push(m);
-      this.physics.add.collider(m, this._towerWalls ?? this.wallLayer);
+      const _awl = this._towerWalls ?? this.wallLayer;
+      if (_awl) this.physics.add.collider(m, _awl);
       this.physics.add.overlap(m, this.player, () => {
         if (!m.isDead && m.isDashing) this.player.takeDamage(m.atk * 3);
       });
@@ -4516,70 +4586,721 @@ export class GameScene extends Phaser.Scene {
   private buildTowerRoom(): void {
     const W = this.scale.width;
     const H = this.scale.height;
-    const WALL = P(24);
-    const PORTAL_W = P(88);
-
-    // World = slightly larger than screen so camera can scroll vertically
-    this.worldW = W;
-    this.worldH = Math.round(H * 1.6);
-
-    const roomW = this.worldW;
-    const roomH = this.worldH;
-
-    // ── Floor ───────────────────────────────────────────────
-    const floor = this.add.graphics().setDepth(-2);
-    floor.fillStyle(0x12082a, 1);
-    floor.fillRect(0, 0, roomW, roomH);
-    floor.lineStyle(1, 0x1e1035, 0.6);
-    for (let x = 0; x <= roomW; x += P(36)) floor.lineBetween(x, 0, x, roomH);
-    for (let y = 0; y <= roomH; y += P(36)) floor.lineBetween(0, y, roomW, y);
-
-    // ── Wall graphics (visual only) ──────────────────────────
-    const wg = this.add.graphics().setDepth(2);
-    wg.fillStyle(0x2c1a4e, 1);
-    wg.fillRect(0, 0, WALL, roomH);                        // left
-    wg.fillRect(roomW - WALL, 0, WALL, roomH);             // right
-    wg.fillRect(0, roomH - WALL, roomW, WALL);             // bottom
-    const gapL = Math.round((roomW - PORTAL_W) / 2);
-    wg.fillRect(0, 0, gapL, WALL);                         // top-left
-    wg.fillRect(gapL + PORTAL_W, 0, roomW - gapL - PORTAL_W, WALL); // top-right
-    wg.lineStyle(P(2), 0x6633aa, 0.5);
-    wg.strokeRect(WALL, WALL, roomW - WALL * 2, roomH - WALL * 2);
-
-    // ── Physics walls using Zones (same pattern as setupPortal) ──
-    // World bounds cover all 4 edges; we add zone bodies for the actual wall thickness
-    this._towerWalls = this.physics.add.staticGroup();
-    const addWallZone = (cx: number, cy: number, w: number, h: number) => {
-      const z = this.add.zone(cx, cy, w, h);
-      this.physics.world.enable(z, Phaser.Physics.Arcade.STATIC_BODY);
-      (this._towerWalls as Phaser.Physics.Arcade.StaticGroup).add(z);
-    };
-    addWallZone(WALL / 2,               roomH / 2,       WALL, roomH);             // left
-    addWallZone(roomW - WALL / 2,       roomH / 2,       WALL, roomH);             // right
-    addWallZone(roomW / 2,              roomH - WALL / 2, roomW, WALL);            // bottom
-    addWallZone(gapL / 2,              WALL / 2,         gapL,  WALL);             // top-left
-    addWallZone(gapL + PORTAL_W + (roomW - gapL - PORTAL_W) / 2,
-                WALL / 2, roomW - gapL - PORTAL_W, WALL);                          // top-right
-
-    // ── Floor label ──────────────────────────────────────────
-    const label = this._towerFloor === 51 ? '第 51 層：最終魔王' : `無限塔  第 ${this._towerFloor} 層`;
-    this.add.text(W / 2, P(28), label, {
-      fontSize: F(12), fontStyle: 'bold', color: '#aa66ff', stroke: '#000', strokeThickness: 2,
-    }).setOrigin(0.5, 0.5).setDepth(5).setScrollFactor(0);
-
-    // ── Portal placeholder (locked) ──────────────────────────
-    this._towerPortalGfx = this.add.graphics().setDepth(3);
-    this._drawTowerPortalLocked(gapL, PORTAL_W);
+    if (this._towerFloor % 5 === 0) {
+      this._buildTowerBossRoom(W, H);
+    } else {
+      this._buildTowerMaze(W, H);
+    }
   }
 
-  private _drawTowerPortalLocked(gapL: number, pw: number): void {
+  // ══════════════════════════════════════════════════════════════
+  //  SAO-style maze system
+  // ══════════════════════════════════════════════════════════════
+
+  private _buildTowerMaze(W: number, H: number): void {
+    const rng   = new SeededRNG(this._towerFloor * 7919 + 1337);
+    const COLS = 3, ROWS = 4;
+    const RW   = P(152), RH = P(118);   // room inner size
+    const CL   = P(72);                  // corridor length (gap between rooms)
+    const CW   = P(48);                  // corridor width
+    const WW   = P(14);                  // wall strip thickness
+
+    // Center maze horizontally, add top/bottom margin
+    const totalMazeW = COLS * RW + (COLS - 1) * CL;
+    const MAR_X = Math.round((W - totalMazeW) / 2);
+    const MAR_Y = P(56);
+    this.worldW = W;
+    this.worldH = MAR_Y * 2 + ROWS * RH + (ROWS - 1) * CL;
+
+    // ── Build room grid ───────────────────────────────────────
+    this._mazeRows = ROWS;
+    this._mazeCols = COLS;
+    this._mazeRooms = [];
+    for (let r = 0; r < ROWS; r++) {
+      this._mazeRooms[r] = [];
+      for (let c = 0; c < COLS; c++) {
+        const cx = MAR_X + c * (RW + CL) + Math.round(RW / 2);
+        const cy = MAR_Y + r * (RH + CL) + Math.round(RH / 2);
+        this._mazeRooms[r][c] = {
+          row: r, col: c, cx, cy, rw: RW, rh: RH,
+          connections: new Set<MazeDoorDir>(),
+          type: 'normal', revealed: false, cleared: false,
+          enemiesAlive: 0, doorBlockers: new Map(),
+        };
+      }
+    }
+
+    // ── DFS maze generation (seeded) ─────────────────────────
+    const startRow = ROWS - 1, startCol = 1;  // bottom-center
+    const visited: boolean[][] = Array.from({ length: ROWS }, () => new Array(COLS).fill(false));
+    const dfs = (r: number, c: number): void => {
+      visited[r][c] = true;
+      const dirs: [number, number, MazeDoorDir, MazeDoorDir][] = [[-1,0,'N','S'],[1,0,'S','N'],[0,-1,'W','E'],[0,1,'E','W']];
+      for (let i = dirs.length - 1; i > 0; i--) {
+        const j = rng.between(0, i);
+        [dirs[i], dirs[j]] = [dirs[j], dirs[i]];
+      }
+      for (const [dr, dc, dir, back] of dirs) {
+        const nr = r + dr, nc = c + dc;
+        if (nr >= 0 && nr < ROWS && nc >= 0 && nc < COLS && !visited[nr][nc]) {
+          this._mazeRooms[r][c].connections.add(dir);
+          this._mazeRooms[nr][nc].connections.add(back);
+          dfs(nr, nc);
+        }
+      }
+    };
+    dfs(startRow, startCol);
+
+    // ── Assign room types ─────────────────────────────────────
+    this._mazeRooms[startRow][startCol].type = 'start';
+    this._mazeRooms[startRow][startCol].revealed = true;
+
+    // Collect non-start rooms and shuffle
+    const nonStart: MazeRoom[] = [];
+    for (const row of this._mazeRooms) for (const room of row)
+      if (room.type !== 'start') nonStart.push(room);
+    for (let i = nonStart.length - 1; i > 0; i--) {
+      const j = rng.between(0, i);
+      [nonStart[i], nonStart[j]] = [nonStart[j], nonStart[i]];
+    }
+    // Assign stairs to a top-row or far room
+    const stairsRoom = this._mazeRooms[0][rng.between(0, COLS - 1)];
+    stairsRoom.type = 'stairs';
+    let assigned = 1;
+    // Heal room
+    const typeBudget: MazeRoomType[] = ['heal', 'dark', 'poison', 'sealed', 'elite', 'elite'];
+    for (const t of typeBudget) {
+      const r = nonStart.find(rm => rm.type === 'normal' && rm !== stairsRoom);
+      if (r) { r.type = t; assigned++; }
+    }
+
+    // ── Portal coords = stairs room center ────────────────────
+    this._towerPortalX = stairsRoom.cx;
+    this._towerPortalY = stairsRoom.cy;
+
+    // ── Player spawn ─────────────────────────────────────────
+    const start = this._mazeRooms[startRow][startCol];
+    this.playerStartX = start.cx;
+    this.playerStartY = start.cy + Math.round(RH / 2) - P(24);
+    this._currentRoomKey = `${startRow},${startCol}`;
+
+    // ── Draw world ───────────────────────────────────────────
+    this._drawMazeWorld(COLS, ROWS, RW, RH, CL, CW, WW, MAR_X, MAR_Y);
+    this._buildMazePhysics(COLS, ROWS, RW, RH, CL, CW, WW, MAR_X, MAR_Y);
+    this._buildMazeFog();
+    this._buildMazeStairs(stairsRoom);
+    this._buildMiniMap();
+
+    // Floor label
+    this.add.text(W / 2, P(24), `無限塔  第 ${this._towerFloor} 層`, {
+      fontSize: F(12), fontStyle: 'bold', color: '#aa88ff', stroke: '#000', strokeThickness: 2,
+    }).setOrigin(0.5).setDepth(5).setScrollFactor(0);
+
+    // Portal (locked until all cleared)
+    this._towerPortalGfx = this.add.graphics().setDepth(4);
+    this._drawTowerPortalLocked();
+  }
+
+  // ── Draw floor tiles + wall strips for every room & corridor ──
+  private _drawMazeWorld(
+    COLS: number, ROWS: number, RW: number, RH: number, CL: number, CW: number, WW: number,
+    MAR_X: number, MAR_Y: number,
+  ): void {
+    // Dark stone background (wall colour)
+    const bg = this.add.graphics().setDepth(-2);
+    bg.fillStyle(0x0a0a10, 1);
+    bg.fillRect(0, 0, this.worldW, this.worldH);
+
+    // Room floors and corridor floors (dungeon_floor tile)
+    for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c < COLS; c++) {
+        const room = this._mazeRooms[r][c];
+        // Room floor
+        this.add.tileSprite(room.cx - RW/2, room.cy - RH/2, RW, RH, 'dungeon_floor')
+          .setOrigin(0, 0).setDepth(-1);
+        // Room type indicator (faint tinted overlay)
+        if (room.type !== 'normal' && room.type !== 'start') {
+          const tintMap: Record<string, number> = {
+            elite:0x220000, dark:0x000022, poison:0x002200,
+            sealed:0x1a001a, heal:0x001a00, stairs:0x1a1a00,
+          };
+          const overlay = this.add.graphics().setDepth(0);
+          overlay.fillStyle(tintMap[room.type] ?? 0x111111, 0.35);
+          overlay.fillRect(room.cx - RW/2, room.cy - RH/2, RW, RH);
+        }
+        // Dungeon wall border around room
+        const wg = this.add.graphics().setDepth(1);
+        this._drawDungeonWallRect(wg, room.cx - RW/2 - WW, room.cy - RH/2 - WW, WW, RH + WW*2);
+        this._drawDungeonWallRect(wg, room.cx + RW/2,      room.cy - RH/2 - WW, WW, RH + WW*2);
+        this._drawDungeonWallRect(wg, room.cx - RW/2 - WW, room.cy - RH/2 - WW, RW + WW*2, WW);
+        this._drawDungeonWallRect(wg, room.cx - RW/2 - WW, room.cy + RH/2,      RW + WW*2, WW);
+
+        // Room icon label
+        const iconMap: Record<string, string> = {
+          elite:'⚔', dark:'🌑', poison:'☠', sealed:'🔒', heal:'💊', stairs:'▲',
+        };
+        if (iconMap[room.type]) {
+          this.add.text(room.cx, room.cy - RH/2 + P(10), iconMap[room.type], {
+            fontSize: F(10), color: '#ffffff88',
+          }).setOrigin(0.5, 0).setDepth(2).setAlpha(0.6);
+        }
+
+        // Corridors (connections)
+        for (const dir of room.connections) {
+          if (dir === 'S') {  // draw S corridor (going down)
+            const corridorX = room.cx - CW/2;
+            const corridorY = room.cy + RH/2;
+            this.add.tileSprite(corridorX, corridorY, CW, CL, 'dungeon_floor').setOrigin(0, 0).setDepth(-1);
+            // Wall strips on corridor sides
+            const cg = this.add.graphics().setDepth(1);
+            this._drawDungeonWallRect(cg, corridorX - WW, corridorY, WW, CL);
+            this._drawDungeonWallRect(cg, corridorX + CW,  corridorY, WW, CL);
+          }
+          if (dir === 'E') {  // draw E corridor (going right)
+            const corridorX = room.cx + RW/2;
+            const corridorY = room.cy - CW/2;
+            this.add.tileSprite(corridorX, corridorY, CL, CW, 'dungeon_floor').setOrigin(0, 0).setDepth(-1);
+            const cg = this.add.graphics().setDepth(1);
+            this._drawDungeonWallRect(cg, corridorX, corridorY - WW, CL, WW);
+            this._drawDungeonWallRect(cg, corridorX, corridorY + CW,  CL, WW);
+          }
+        }
+      }
+    }
+  }
+
+  private _drawDungeonWallRect(g: Phaser.GameObjects.Graphics, rx: number, ry: number, rw: number, rh: number): void {
+    if (rw < 1 || rh < 1) return;
+    g.fillStyle(0x0a0a10, 1); g.fillRect(rx, ry, rw, rh);
+    if (rw > P(6) && rh > P(6)) {
+      g.fillStyle(0x141420, 1); g.fillRect(rx + P(3), ry + P(3), rw - P(6), rh - P(6));
+    }
+    g.lineStyle(P(1), 0x3a3a5e, 0.5); g.strokeRect(rx, ry, rw, rh);
+  }
+
+  // ── Physics: room walls + door-blocker rects ───────────────
+  private _buildMazePhysics(
+    COLS: number, ROWS: number, RW: number, RH: number, CL: number, CW: number, WW: number,
+    MAR_X: number, MAR_Y: number,
+  ): void {
+    this._towerWalls = this.physics.add.staticGroup();
+    const addStatic = (rx: number, ry: number, rw: number, rh: number) => {
+      if (rw < 1 || rh < 1) return;
+      const r = this.add.rectangle(rx + rw/2, ry + rh/2, rw, rh).setVisible(false);
+      this._towerWalls!.add(r);
+    };
+
+    for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c < COLS; c++) {
+        const room = this._mazeRooms[r][c];
+        const L = room.cx - RW/2, T = room.cy - RH/2;
+        const R2 = room.cx + RW/2, B = room.cy + RH/2;
+
+        // Wall segments on each side, with gaps for connected corridors
+        const hasN = room.connections.has('N');
+        const hasS = room.connections.has('S');
+        const hasE = room.connections.has('E');
+        const hasW = room.connections.has('W');
+        const half = CW/2;
+
+        // North wall: split into left/right with gap if connected
+        if (hasN) {
+          addStatic(L - WW, T - WW, room.cx - half - (L - WW), WW);
+          addStatic(room.cx + half, T - WW, R2 + WW - (room.cx + half), WW);
+        } else {
+          addStatic(L - WW, T - WW, RW + WW*2, WW);
+        }
+        // South wall
+        if (hasS) {
+          addStatic(L - WW, B, room.cx - half - (L - WW), WW);
+          addStatic(room.cx + half, B, R2 + WW - (room.cx + half), WW);
+        } else {
+          addStatic(L - WW, B, RW + WW*2, WW);
+        }
+        // West wall
+        if (hasW) {
+          addStatic(L - WW, T, WW, room.cy - half - T);
+          addStatic(L - WW, room.cy + half, WW, B - (room.cy + half));
+        } else {
+          addStatic(L - WW, T, WW, RH);
+        }
+        // East wall
+        if (hasE) {
+          addStatic(R2, T, WW, room.cy - half - T);
+          addStatic(R2, room.cy + half, WW, B - (room.cy + half));
+        } else {
+          addStatic(R2, T, WW, RH);
+        }
+
+        // Door blockers (removable, one per direction with corridor entrance)
+        const DT = P(10);  // door blocker thickness
+        const makeDoor = (dx: number, dy: number, dw: number, dh: number, dir: MazeDoorDir): void => {
+          const vis = this.add.rectangle(dx + dw/2, dy + dh/2, dw, dh, 0x1a1a2a);
+          vis.setDepth(2);
+          this.physics.add.existing(vis, true);
+          room.doorBlockers.set(dir, vis);
+        };
+        if (hasN) makeDoor(room.cx - half, T - DT, CW, DT*2, 'N');
+        if (hasS) makeDoor(room.cx - half, B - DT, CW, DT*2, 'S');
+        if (hasW) makeDoor(L - DT, room.cy - half, DT*2, CW, 'W');
+        if (hasE) makeDoor(R2 - DT, room.cy - half, DT*2, CW, 'E');
+      }
+    }
+  }
+
+  // ── Fog of war: dark overlay per room, revealed on enter ───
+  private _buildMazeFog(): void {
+    for (const row of this._mazeRooms) {
+      for (const room of row) {
+        if (room.revealed) continue;
+        const g = this.add.graphics().setDepth(9000);
+        g.fillStyle(0x000000, 1);
+        g.fillRect(room.cx - room.rw/2 - P(16), room.cy - room.rh/2 - P(16),
+                   room.rw + P(32), room.rh + P(32));
+        room.fogGfx = g;
+      }
+    }
+  }
+
+  // ── Stairs (portal) in the designated room ────────────────
+  private _buildMazeStairs(room: MazeRoom): void {
+    this._stairsGfx = this.add.graphics().setDepth(3);
+    this._towerPortalGfx = this._stairsGfx;  // reuse portal rendering
+    this._drawTowerPortalLocked();
+    // Stairs zone for collision after cleared
+  }
+
+  // ── Mini-map (top-right HUD, scrollFactor=0) ───────────────
+  private _buildMiniMap(): void {
+    this._miniMapGfx = this.add.graphics().setScrollFactor(0).setDepth(9800);
+    this._refreshMiniMap();
+  }
+
+  private _refreshMiniMap(): void {
+    const g = this._miniMapGfx;
+    if (!g) return;
+    g.clear();
+    const W = this.scale.width;
+    const CELL = P(12), GAP = P(2), PAD = P(6);
+    const originX = W - PAD - this._mazeCols * (CELL + GAP);
+    const originY = PAD;
+
+    // Background
+    g.fillStyle(0x000000, 0.55);
+    g.fillRect(originX - PAD, originY - PAD,
+               this._mazeCols * (CELL + GAP) + PAD*2,
+               this._mazeRows * (CELL + GAP) + PAD*2);
+
+    for (const row of this._mazeRooms) {
+      for (const room of row) {
+        const mx = originX + room.col * (CELL + GAP);
+        const my = originY + room.row * (CELL + GAP);
+        const isCurrentKey = `${room.row},${room.col}` === this._currentRoomKey;
+        if (!room.revealed) {
+          g.fillStyle(0x333333, 1); g.fillRect(mx, my, CELL, CELL);
+        } else {
+          const colorMap: Record<string, number> = {
+            start:0x448844, normal:0x444466, elite:0x883333,
+            dark:0x222244,  poison:0x224422, sealed:0x442244,
+            heal:0x228844,  stairs:0xaaaa44,
+          };
+          const col = isCurrentKey ? 0xffffff : (colorMap[room.type] ?? 0x444466);
+          g.fillStyle(col, 1); g.fillRect(mx, my, CELL, CELL);
+        }
+        // Mini corridors
+        g.fillStyle(0x555566, 0.7);
+        if (room.connections.has('S') && room.row < this._mazeRows - 1) {
+          g.fillRect(mx + CELL/2 - 1, my + CELL, 2, GAP);
+        }
+        if (room.connections.has('E') && room.col < this._mazeCols - 1) {
+          g.fillRect(mx + CELL, my + CELL/2 - 1, GAP, 2);
+        }
+      }
+    }
+  }
+
+  // ── Per-frame: detect room transitions ────────────────────
+  private _updateMazeRoomCheck(): void {
+    const px = this.player.x, py = this.player.y;
+    for (const row of this._mazeRooms) {
+      for (const room of row) {
+        const key = `${room.row},${room.col}`;
+        if (Math.abs(px - room.cx) <= room.rw/2 && Math.abs(py - room.cy) <= room.rh/2) {
+          if (key !== this._currentRoomKey) {
+            this._currentRoomKey = key;
+            this._playerEnterMazeRoom(room);
+          }
+          return;
+        }
+      }
+    }
+  }
+
+  // ── Player enters a room ───────────────────────────────────
+  private _playerEnterMazeRoom(room: MazeRoom): void {
+    // Reveal fog
+    room.fogGfx?.destroy();
+    room.fogGfx = undefined;
+    room.revealed = true;
+    this._refreshMiniMap();
+
+    // Already cleared — nothing to lock
+    if (room.cleared || room.enemiesAlive <= 0 || room.type === 'start' || room.type === 'stairs') {
+      this._clearMazeRoom(room, true);
+      return;
+    }
+
+    // Lock doors
+    for (const [, blocker] of room.doorBlockers) {
+      blocker.setVisible(true);
+      (blocker.body as Phaser.Physics.Arcade.StaticBody | null)?.reset(blocker.x, blocker.y);
+    }
+
+    // Special room effects on entry
+    this._deactivateMazeEffects();
+    if (room.type === 'sealed') {
+      this._mazeRoomSealedActive = true;
+      this.player.slowMult = 0.32;
+      this._flashRoomOverlay(0x8800aa, 0.18);
+    } else if (room.type === 'poison') {
+      const baseDmg = Math.max(1, Math.round(this.player.maxHpValue * 0.015));
+      this._mazePoisonTimer = this.time.addEvent({
+        delay: 800, loop: true,
+        callback: () => { if (!this.gameOver) this.player.takeDamage(baseDmg); },
+      });
+      this._flashRoomOverlay(0x004400, 0.15);
+    } else if (room.type === 'dark') {
+      this._activateMazeDarkRoom(room);
+    } else if (room.type === 'heal') {
+      // Heal room has no enemies — auto-clear
+      this.player.heal(Math.round(this.player.maxHpValue * 0.30));
+      this.spawnHealText(room.cx, room.cy);
+      this._clearMazeRoom(room, true);
+    }
+  }
+
+  // ── Room is cleared (enemies gone) ───────────────────────
+  private _clearMazeRoom(room: MazeRoom, instant = false): void {
+    if (room.cleared) return;
+    room.cleared = true;
+
+    const doUnlock = () => {
+      // Unlock all door blockers
+      for (const [, blocker] of room.doorBlockers) {
+        this.tweens.add({ targets: blocker, alpha: 0, duration: 300,
+          onComplete: () => blocker.destroy() });
+        (blocker.body as any)?.destroy();
+      }
+      room.doorBlockers.clear();
+
+      // Deactivate room effects
+      this._deactivateMazeEffects();
+
+      // Activate stairs if this is the stairs room
+      if (room.type === 'stairs') {
+        this._activateTowerPortal();
+      }
+
+      this._refreshMiniMap();
+    };
+
+    if (instant) doUnlock();
+    else this.time.delayedCall(400, doUnlock);
+  }
+
+  private _deactivateMazeEffects(): void {
+    if (this._mazeRoomSealedActive) {
+      this._mazeRoomSealedActive = false;
+      this.player.slowMult = 1;
+    }
+    this._mazePoisonTimer?.destroy();
+    this._mazePoisonTimer = undefined;
+    this._mazeTrapTimer?.destroy();
+    this._mazeTrapTimer = undefined;
+    if (this._mazeDarkRt) {
+      this._mazeDarkRt.destroy();
+      this._mazeDarkRt = undefined;
+    }
+  }
+
+  private _flashRoomOverlay(color: number, alpha: number): void {
+    const room = this._mazeRooms.flatMap(r => r).find(r => `${r.row},${r.col}` === this._currentRoomKey);
+    if (!room) return;
+    const g = this.add.graphics().setDepth(8);
+    g.fillStyle(color, alpha);
+    g.fillRect(room.cx - room.rw/2, room.cy - room.rh/2, room.rw, room.rh);
+    this.tweens.add({ targets: g, alpha: { from: alpha, to: alpha * 0.5 }, duration: 1200, yoyo: true, repeat: -1 });
+    // Store for cleanup
+    (this as any)._mazeOverlayGfx = g;
+  }
+
+  // ── Dark room: RenderTexture-based light radius ────────────
+  private _activateMazeDarkRoom(room: MazeRoom): void {
+    // Generate soft light circle texture (once)
+    if (!this.textures.exists('_maze_light')) {
+      const R = P(88);
+      const lg = (this.make.graphics as any)({ x: 0, y: 0, add: false }) as Phaser.GameObjects.Graphics;
+      for (let i = P(88); i >= 0; i -= P(4)) {
+        const a = 1 - i / P(88);
+        lg.fillStyle(0xffffff, a);
+        lg.fillCircle(R, R, i);
+      }
+      lg.generateTexture('_maze_light', R * 2, R * 2);
+      lg.destroy();
+    }
+    const rt = this.add.renderTexture(0, 0, this.worldW, this.worldH);
+    rt.setDepth(8500);
+    rt.fill(0x000000, 220);  // ~0.86 alpha black
+    this._mazeDarkRt = rt;
+  }
+
+  private _updateMazeDarkOverlay(): void {
+    if (!this._mazeDarkRt) return;
+    const R = P(88);
+    this._mazeDarkRt.clear();
+    this._mazeDarkRt.fill(0x000000, 220);
+    this._mazeDarkRt.erase('_maze_light', this.player.x - R, this.player.y - R);
+  }
+
+  // ── Trap room: periodic spike damage ─────────────────────
+  private _startMazeTrapRoom(room: MazeRoom): void {
+    this._mazeTrapTimer = this.time.addEvent({
+      delay: 1800, loop: true,
+      callback: () => {
+        if (this.gameOver) return;
+        const pad = P(20);
+        const spX = room.cx - room.rw/2 + pad + Math.random() * (room.rw - pad*2);
+        const spY = room.cy - room.rh/2 + pad + Math.random() * (room.rh - pad*2);
+        const g = this.add.graphics().setDepth(5);
+        g.fillStyle(0xffaa00, 0.5); g.fillRect(spX - P(16), spY - P(16), P(32), P(32));
+        this.time.delayedCall(600, () => {
+          if (this.gameOver) { g.destroy(); return; }
+          g.clear(); g.fillStyle(0xff4400, 0.9); g.fillRect(spX - P(16), spY - P(16), P(32), P(32));
+          if (Phaser.Math.Distance.Between(this.player.x, this.player.y, spX, spY) < P(28))
+            this.player.takeDamage(Math.round(this.player.maxHpValue * 0.06));
+          this.time.delayedCall(300, () => g.destroy());
+        });
+      },
+    });
+  }
+
+  // ── Per-room enemy kill counting ──────────────────────────
+  private _onMazeEnemyKilled(roomKey: string): void {
+    const [r, c] = roomKey.split(',').map(Number);
+    const room = this._mazeRooms[r]?.[c];
+    if (!room) return;
+    room.enemiesAlive = Math.max(0, room.enemiesAlive - 1);
+    this._towerEnemyAlive = Math.max(0, this._towerEnemyAlive - 1);
+    if (this._towerEnemyCountTxt) this._towerEnemyCountTxt.setText(`剩餘：${this._towerEnemyAlive}`);
+    if (room.enemiesAlive <= 0 && !room.cleared) this._clearMazeRoom(room);
+    if (this._towerEnemyAlive <= 0) {
+      // All enemies dead; stairs room becomes activatable
+      const stairsRoom = this._mazeRooms.flatMap(r2 => r2).find(rm => rm.type === 'stairs');
+      if (stairsRoom && !stairsRoom.cleared) this._clearMazeRoom(stairsRoom);
+      this.handleTowerFloorComplete();
+    }
+  }
+
+  private _buildTowerBossRoom(W: number, H: number): void {
+    const WALL = P(24);
+    const PORTAL_W = P(88);
+    this.worldW = W;
+    this.worldH = Math.round(H * 1.6);
+    this.playerStartX = Math.round(W / 2);
+    this.playerStartY = this.worldH - P(140);
+    this._towerPortalX = Math.round(W / 2);
+    this._towerPortalY = Math.round(WALL / 2);
+
+    // Dungeon floor
+    const bg = this.add.graphics().setDepth(-2);
+    bg.fillStyle(0x0a0a10, 1);
+    bg.fillRect(0, 0, this.worldW, this.worldH);
+    bg.lineStyle(1, 0x141420, 0.5);
+    for (let x = 0; x <= this.worldW; x += P(36)) bg.lineBetween(x, 0, x, this.worldH);
+    for (let y = 0; y <= this.worldH; y += P(36)) bg.lineBetween(0, y, this.worldW, y);
+
+    // Dungeon walls
+    const wg = this.add.graphics().setDepth(2);
+    wg.fillStyle(0x1a1a2a, 1);
+    wg.fillRect(0, 0, WALL, this.worldH);
+    wg.fillRect(this.worldW - WALL, 0, WALL, this.worldH);
+    wg.fillRect(0, this.worldH - WALL, this.worldW, WALL);
+    const gapL = Math.round((this.worldW - PORTAL_W) / 2);
+    wg.fillRect(0, 0, gapL, WALL);
+    wg.fillRect(gapL + PORTAL_W, 0, this.worldW - gapL - PORTAL_W, WALL);
+    wg.lineStyle(P(2), 0x3a3a5e, 0.55);
+    wg.strokeRect(WALL, WALL, this.worldW - WALL * 2, this.worldH - WALL * 2);
+    wg.lineStyle(P(1), 0x5a5a8e, 0.25);
+    wg.strokeRect(WALL + P(4), WALL + P(4), this.worldW - WALL * 2 - P(8), this.worldH - WALL * 2 - P(8));
+
+    const label = this._towerFloor === 51 ? '第 51 層：最終魔王' : `無限塔  第 ${this._towerFloor} 層`;
+    this.add.text(W / 2, P(28), label, {
+      fontSize: F(12), fontStyle: 'bold', color: '#aa88ff', stroke: '#000', strokeThickness: 2,
+    }).setOrigin(0.5, 0.5).setDepth(5).setScrollFactor(0);
+
+    this._towerPortalGfx = this.add.graphics().setDepth(3);
+    this._drawTowerPortalLocked();
+  }
+
+  private _buildTowerCorridor(W: number, H: number): void {
+    const rng   = new SeededRNG(this._towerFloor * 9371 + 2718);
+    const CW    = P(128);  // corridor width
+    const WW    = P(24);   // wall thickness
+
+    this.worldW = W;
+    this.worldH = Math.round(H * 2.8);  // tall enough for camera to center player throughout
+
+    // Y layout (bottom → top)
+    const PAD   = P(90);
+    const CW2   = CW;      // horizontal-turn height = corridor width
+    const avail = this.worldH - PAD * 2 - CW2 * 2;
+    const SH    = Math.round(avail / 3);   // each vertical segment height
+
+    const y_bot    = this.worldH - PAD;
+    const y_t1_bot = y_bot    - SH;
+    const y_t1_top = y_t1_bot - CW2;
+    const y_t2_bot = y_t1_top - SH;
+    const y_t2_top = y_t2_bot - CW2;
+    const y_top    = y_t2_top - SH;
+
+    // True Z-shape: seg1 center → side → opposite side
+    const MARGIN = CW / 2 + P(18);
+    const x1 = Math.round(W / 2);
+    const goLeft = rng.between(0, 1) === 0;
+    const x2 = goLeft ? Math.round(MARGIN) : Math.round(W - MARGIN);
+    const x3 = goLeft ? Math.round(W - MARGIN) : Math.round(MARGIN);  // opposite of x2
+
+    // Player spawn & portal
+    this.playerStartX = x1;
+    this.playerStartY = Math.round(y_bot - P(60));
+    this._towerPortalX = x3;
+    this._towerPortalY = y_top + Math.round(CW / 2);
+
+    // Corridor rects for enemy spawning (inset from walls)
+    const INS = WW + P(10);
+    this._towerCorridorRects = [
+      { x: x1 - CW/2 + INS, y: y_t1_bot + INS, w: CW - INS*2, h: y_bot - y_t1_bot - INS*2 },
+      { x: INS,              y: y_t1_top + INS, w: W - INS*2,  h: CW2 - INS*2 },
+      { x: x2 - CW/2 + INS, y: y_t2_bot + INS, w: CW - INS*2, h: y_t1_top - y_t2_bot - INS*2 },
+      { x: INS,              y: y_t2_top + INS, w: W - INS*2,  h: CW2 - INS*2 },
+      { x: x3 - CW/2 + INS, y: y_top + INS,    w: CW - INS*2, h: y_t2_top - y_top - INS*2 },
+    ];
+
+    // ── Dark stone background (outside corridors) ─────────────
+    const bg = this.add.graphics().setDepth(-2);
+    bg.fillStyle(0x0a0a10, 1);
+    bg.fillRect(0, 0, this.worldW, this.worldH);
+
+    // ── Dungeon floor tiles ───────────────────────────────────
+    const floorSections: [number, number, number, number][] = [
+      [x1 - CW/2, y_t1_bot, CW, y_bot - y_t1_bot + PAD],
+      [0,          y_t1_top, W,  CW2],
+      [x2 - CW/2, y_t2_bot, CW, y_t1_top - y_t2_bot],
+      [0,          y_t2_top, W,  CW2],
+      [x3 - CW/2, y_top,    CW, y_t2_top - y_top + P(24)],
+    ];
+    for (const [rx, ry, rw, rh] of floorSections) {
+      if (rw < 1 || rh < 1) continue;
+      this.add.tileSprite(rx, ry, rw, rh, 'dungeon_floor').setOrigin(0, 0).setDepth(-1);
+    }
+
+    // ── Dungeon wall look (layered dark stone strips) ─────────
+    const wg = this.add.graphics().setDepth(1);
+
+    const drawWallRect = (rx: number, ry: number, rw: number, rh: number) => {
+      if (rw < 1 || rh < 1) return;
+      wg.fillStyle(0x0a0a10, 1); wg.fillRect(rx, ry, rw, rh);
+      wg.fillStyle(0x141420, 1); wg.fillRect(rx + P(3), ry + P(3), rw - P(6), rh - P(6));
+      wg.fillStyle(0x1e1e2e, 0.6); wg.fillRect(rx + P(6), ry + P(6), rw - P(12), rh - P(12));
+      wg.lineStyle(P(1), 0x3a3a5e, 0.55); wg.strokeRect(rx, ry, rw, rh);
+      wg.lineStyle(P(1), 0x5a5a8e, 0.20); wg.strokeRect(rx + P(3), ry + P(3), rw - P(6), rh - P(6));
+    };
+
+    // Horizontal wall strips at each turn junction (with gap for the corridor)
+    const hWall = (ry: number, gapX: number) => {
+      const lw = Math.max(0, gapX - CW/2);
+      const rw = Math.max(0, W - gapX - CW/2);
+      if (lw > 0) drawWallRect(0,           ry - WW, lw, WW * 2);
+      if (rw > 0) drawWallRect(gapX + CW/2, ry - WW, rw, WW * 2);
+    };
+    hWall(y_t1_bot, x1);
+    hWall(y_t1_top, x2);
+    hWall(y_t2_bot, x2);
+    hWall(y_t2_top, x3);
+
+    // Vertical wall strips on each segment's sides
+    const vWall = (cx: number, yTop: number, yBot: number) => {
+      drawWallRect(cx - CW/2 - WW, yTop, WW, yBot - yTop);
+      drawWallRect(cx + CW/2,      yTop, WW, yBot - yTop);
+    };
+    vWall(x1, y_t1_bot, y_bot + PAD);
+    vWall(x2, y_t2_bot, y_t1_top);
+    vWall(x3, y_top,    y_t2_top);
+
+    // ── Corner arrows (navigation hints) ─────────────────────
+    const arrow = (ax: number, ay: number, dir: 'up' | 'left' | 'right') => {
+      const ag = this.add.graphics().setDepth(2);
+      ag.fillStyle(0x8866cc, 0.65);
+      const S = P(14);
+      if (dir === 'up')    ag.fillTriangle(ax, ay - S, ax - S, ay + S, ax + S, ay + S);
+      if (dir === 'left')  ag.fillTriangle(ax - S, ay, ax + S, ay - S, ax + S, ay + S);
+      if (dir === 'right') ag.fillTriangle(ax + S, ay, ax - S, ay - S, ax - S, ay + S);
+      this.tweens.add({ targets: ag, alpha: { from: 0.25, to: 0.75 }, duration: 900, yoyo: true, repeat: -1, ease: 'Sine.InOut' });
+    };
+    arrow(x1, y_t1_bot + P(20), 'up');
+    arrow(goLeft ? x1 - P(32) : x1 + P(32), Math.round((y_t1_bot + y_t1_top) / 2), goLeft ? 'left' : 'right');
+    arrow(x2, y_t2_bot + P(20), 'up');
+    arrow(goLeft ? x2 + P(32) : x2 - P(32), Math.round((y_t2_bot + y_t2_top) / 2), goLeft ? 'right' : 'left');
+
+    // ── Physics walls (StaticGroup) ───────────────────────────
+    this._towerWalls = this.physics.add.staticGroup();
+    const addWall = (rx: number, ry: number, rw: number, rh: number) => {
+      if (rw < 1 || rh < 1) return;
+      const r = this.add.rectangle(rx + rw/2, ry + rh/2, rw, rh);
+      r.setVisible(false);
+      this._towerWalls!.add(r);
+    };
+
+    const hBar = (ry: number, gapX: number) => {
+      const lw = Math.max(0, gapX - CW/2);
+      const rw2 = Math.max(0, W - gapX - CW/2);
+      addWall(0,           ry - WW, lw,  WW * 2);
+      addWall(gapX + CW/2, ry - WW, rw2, WW * 2);
+    };
+    hBar(y_t1_bot, x1);
+    hBar(y_t1_top, x2);
+    hBar(y_t2_bot, x2);
+    hBar(y_t2_top, x3);
+
+    const vBar = (cx: number, yTop: number, yBot: number) => {
+      addWall(cx - CW/2 - WW, yTop, WW, yBot - yTop);
+      addWall(cx + CW/2,      yTop, WW, yBot - yTop);
+    };
+    vBar(x1, y_t1_bot, y_bot + PAD);
+    vBar(x2, y_t2_bot, y_t1_top);
+    vBar(x3, y_top,    y_t2_top);
+
+    // ── Floor label & locked portal ───────────────────────────
+    this.add.text(W / 2, P(28), `無限塔  第 ${this._towerFloor} 層`, {
+      fontSize: F(12), fontStyle: 'bold', color: '#aa88ff', stroke: '#000', strokeThickness: 2,
+    }).setOrigin(0.5, 0.5).setDepth(5).setScrollFactor(0);
+
+    this._towerPortalGfx = this.add.graphics().setDepth(3);
+    this._drawTowerPortalLocked();
+  }
+
+  private _drawTowerPortalLocked(): void {
     if (!this._towerPortalGfx) return;
+    const px = this._towerPortalX;
+    const py = this._towerPortalY;
+    const pw = P(72); const ph = P(26);
     this._towerPortalGfx.clear();
-    this._towerPortalGfx.fillStyle(0x440066, 0.35);
-    this._towerPortalGfx.fillRect(gapL, 0, pw, P(20));
-    this._towerPortalGfx.lineStyle(P(2), 0x660099, 0.4);
-    this._towerPortalGfx.lineBetween(gapL, 0, gapL, P(20));
-    this._towerPortalGfx.lineBetween(gapL + pw, 0, gapL + pw, P(20));
+    this._towerPortalGfx.fillStyle(0x330055, 0.22);
+    this._towerPortalGfx.fillEllipse(px, py, pw * 1.35, ph * 1.6);
+    this._towerPortalGfx.fillStyle(0x1a0033, 0.65);
+    this._towerPortalGfx.fillEllipse(px, py, pw, ph);
+    this._towerPortalGfx.lineStyle(P(2), 0x660099, 0.45);
+    this._towerPortalGfx.strokeEllipse(px, py, pw, ph);
   }
 
   private readonly TOWER_SLIMES    = ['boss_slime_green','boss_slime_red','boss_slime_blue','boss_slime_white','boss_zombie_slime','boss_lava_slime'];
@@ -4593,6 +5314,17 @@ export class GameScene extends Phaser.Scene {
   private readonly TOWER_MINION_VAMPIRES = ['vampire1_s','vampire2_s','vampire3_s'];
 
   private _towerPick(arr: string[]): string { return arr[Math.floor(Math.random() * arr.length)]; }
+  private _towerElitePick(pool: string[]): string {
+    const eliteMap: Record<string, string> = {
+      slime_green_s:'elite_slime_green', slime_red_s:'elite_slime_red', slime_blue_s:'elite_slime_blue',
+      slime_white_s:'elite_slime_white', slime_zombie_s:'elite_slime_zombie', slime_lava_s:'elite_slime_lava',
+      plant1_s:'elite_plant1', plant2_s:'elite_plant2', plant3_s:'elite_plant3',
+      orc1_s:'elite_orc1', orc2_s:'elite_orc2', orc3_s:'elite_orc3',
+      vampire1_s:'elite_vampire1', vampire2_s:'elite_vampire2', vampire3_s:'elite_vampire3',
+    };
+    const base = this._towerPick(pool);
+    return eliteMap[base] ?? base;
+  }
 
   private _towerMinionPool(floor: number): string[] {
     if      (floor <= 4)  return this.TOWER_MINION_SLIMES;
@@ -4617,24 +5349,34 @@ export class GameScene extends Phaser.Scene {
     if (isBossFloor) {
       this._spawnTowerBossFloor(f, towerHpMult, towerAtkMult);
     } else {
-      // Regular floor: 50 scattered minions
+      // Regular floor: spawn enemies distributed across corridor sections
       const pool = this._towerMinionPool(f);
-      const spawnW = this.worldW - WALL * 2 - P(40);
-      const spawnH = this.worldH * 0.55;
-      const spawnX0 = WALL + P(20);
-      const spawnY0 = WALL + P(30);
-      this._towerEnemyAlive = 50;
-      for (let i = 0; i < 50; i++) {
-        const defId = this._towerPick(pool);
-        const def = getMonsterDef(defId);
-        if (!def) { this._towerEnemyAlive--; continue; }
-        const hp  = Math.round(def.hp  * towerHpMult);
-        const atk = Math.round(def.atk * towerAtkMult);
-        const ex  = spawnX0 + Math.random() * spawnW;
-        const ey  = spawnY0 + Math.random() * spawnH;
-        this.spawnMinionAt(defId, ex, ey, false, hp, atk);
+      this._towerEnemyAlive = 0;
+      // Maze mode: spawn enemies per room, tagged with room key
+      for (let row = 0; row < this._mazeRows; row++) {
+        for (let col = 0; col < this._mazeCols; col++) {
+          const room = this._mazeRooms[row]?.[col];
+          if (!room || room.type === 'start' || room.type === 'heal' || room.type === 'stairs') continue;
+          const isElite = room.type === 'elite';
+          const perRoom = isElite ? 2 : (4 + Math.min(f - 1, 6));
+          room.enemiesAlive = 0;
+          for (let i = 0; i < perRoom; i++) {
+            const defId = isElite ? this._towerElitePick(pool) : this._towerPick(pool);
+            const def   = getMonsterDef(defId);
+            if (!def) continue;
+            const hp  = Math.round(def.hp  * towerHpMult);
+            const atk = Math.round(def.atk * towerAtkMult);
+            const pad = P(28);
+            const ex  = room.cx - room.rw/2 + pad + Math.random() * (room.rw - pad*2);
+            const ey  = room.cy - room.rh/2 + pad + Math.random() * (room.rh - pad*2);
+            const before = this.allMinions.length;
+            this.spawnMinionAt(defId, ex, ey, false, hp, atk);
+            const m = this.allMinions.length > before ? this.allMinions[this.allMinions.length - 1] : null;
+            if (m) { (m as any)._mazeRoomKey = `${row},${col}`; room.enemiesAlive++; }
+          }
+          this._towerEnemyAlive += room.enemiesAlive;
+        }
       }
-      // show remaining counter
       this._towerShowEnemyCounter();
     }
   }
@@ -4678,7 +5420,6 @@ export class GameScene extends Phaser.Scene {
       const bg2 = this.physics.add.group();
       bg2.add(this._towerBoss2, false);
       (this._towerBoss2.body as Phaser.Physics.Arcade.Body).setCollideWorldBounds(true);
-      this.physics.add.collider(this._towerBoss2, this._towerWalls!);
       this.physics.add.overlap(bg2, this.player, () => {
         if (!this.bossActive || !this._towerBoss2) return;
         if (this._towerBoss2.currentState === 'DASHING') this.player.takeDamage(this._towerBoss2.scaleDmg(45));
@@ -4759,36 +5500,30 @@ export class GameScene extends Phaser.Scene {
   }
 
   private _activateTowerPortal(): void {
-    const W = this.scale.width;
-    const WALL = P(20);
-    const PORTAL_W = P(88);
-    const gapL = Math.round((W - PORTAL_W) / 2);
-    const px = Math.round(W / 2);
-    const py = Math.round(WALL / 2);
+    const px = this._towerPortalX;
+    const py = this._towerPortalY;
+    const pw = P(72); const ph = P(26);
 
-    // Replace locked graphic with glowing portal
     if (this._towerPortalGfx) { this._towerPortalGfx.clear(); this._towerPortalGfx.destroy(); }
     const pg = this.add.graphics().setDepth(4);
-    pg.fillStyle(0x6600cc, 0.18); pg.fillEllipse(px, py + P(4), PORTAL_W, P(32));
-    pg.fillStyle(0x9900ff, 0.30); pg.fillEllipse(px, py,        PORTAL_W * 0.75, P(22));
-    pg.fillStyle(0x1a0033, 0.80); pg.fillEllipse(px, py,        PORTAL_W * 0.55, P(14));
+    pg.fillStyle(0x6600cc, 0.18); pg.fillEllipse(px, py, pw * 1.35, ph * 1.6);
+    pg.fillStyle(0x9900ff, 0.30); pg.fillEllipse(px, py, pw, ph);
+    pg.fillStyle(0x1a0033, 0.80); pg.fillEllipse(px, py, pw * 0.65, ph * 0.65);
     const ringG = this.add.graphics().setDepth(5);
-    ringG.lineStyle(P(3), 0xcc44ff, 1.0); ringG.strokeEllipse(px, py, PORTAL_W * 0.55, P(14));
+    ringG.lineStyle(P(3), 0xcc44ff, 1.0); ringG.strokeEllipse(px, py, pw, ph);
     this.tweens.add({ targets: ringG, alpha: { from: 0.4, to: 1.0 }, duration: 700, yoyo: true, repeat: -1 });
 
-    const isLastFloor = this._towerFloor >= 50;
-    const portalLabel = isLastFloor && this._towerFloor === 51
+    const portalLabel = this._towerFloor === 51
       ? '返回'
       : this._towerFloor === 50 && TowerStore.hasKey()
         ? '進入 51 層 ⚔'
         : `前往第 ${this._towerFloor + 1} 層`;
-    const lbl = this.add.text(px, -P(2), portalLabel, {
+    const lbl = this.add.text(px, py - ph, portalLabel, {
       fontSize: F(11), fontStyle: 'bold', color: '#dd88ff', stroke: '#000', strokeThickness: 2,
     }).setOrigin(0.5, 1).setDepth(6);
-    this.tweens.add({ targets: lbl, y: { from: -P(2), to: -P(8) }, alpha: { from: 0.7, to: 1 }, duration: 900, yoyo: true, repeat: -1 });
+    this.tweens.add({ targets: lbl, y: { from: py - ph, to: py - ph - P(6) }, alpha: { from: 0.7, to: 1 }, duration: 900, yoyo: true, repeat: -1 });
 
-    // Trigger zone
-    this._towerPortalHit = this.add.zone(px, py, PORTAL_W * 0.55, P(14));
+    this._towerPortalHit = this.add.zone(px, py, pw, ph);
     this.physics.world.enable(this._towerPortalHit, Phaser.Physics.Arcade.STATIC_BODY);
     this.physics.add.overlap(this.player, this._towerPortalHit, () => {
       if (this.gameOver || this.teleporting) return;
@@ -4797,7 +5532,7 @@ export class GameScene extends Phaser.Scene {
       const nextFloor = this._towerFloor === 50 && TowerStore.hasKey()
         ? 51
         : this._towerFloor >= 51
-          ? 0   // exit after final boss
+          ? 0
           : this._towerFloor + 1;
       if (nextFloor === 0) { this.exitToLobby(); return; }
       if (this._towerFloor === 50 && nextFloor === 51) TowerStore.useKey();
@@ -4807,7 +5542,6 @@ export class GameScene extends Phaser.Scene {
       });
     });
 
-    // Expiry guard: destroy loot items so they don't persist into next floor
     const W2 = this.scale.width, H2 = this.scale.height;
     const msg = this.add.text(W2 / 2, H2 * 0.42, '通關！走向傳送門前往下一層', {
       fontSize: F(15), fontStyle: 'bold', color: '#ffe066', stroke: '#000', strokeThickness: 3,
@@ -5217,6 +5951,14 @@ export class GameScene extends Phaser.Scene {
     // weight: 普通命中 +1，爆擊 +2。公式可在此調整。
     const intensity = Math.min(0.006 + (weight - 2) * 0.0015, 0.015);
     this.cameras.main.shake(55, intensity);
+  }
+
+  private spawnHealText(x: number, y: number): void {
+    const label = this.add.text(x, y - P(20), '治療 +30%', {
+      fontSize: F(15), fontStyle: 'bold', color: '#88ff88', stroke: '#003300', strokeThickness: 3,
+    }).setOrigin(0.5, 1).setDepth(300);
+    this.tweens.add({ targets: label, y: label.y - P(36), alpha: 0, duration: 1400, ease: 'Sine.Out',
+      onComplete: () => label.destroy() });
   }
 
   private spawnEvadeText(x: number, y: number): void {
