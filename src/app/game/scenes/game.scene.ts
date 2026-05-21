@@ -189,6 +189,7 @@ export class GameScene extends Phaser.Scene {
   private _darkNightSafeGfx?:  Phaser.GameObjects.Graphics;
   private wallLayer!: Phaser.Tilemaps.TilemapLayer;
   private waypoints: Phaser.Math.Vector2[] = [];
+  private waypointRooms: { x: number; y: number; w: number; h: number }[][] = [];
   private corridorSegs: { x1: number; y1: number; x2: number; y2: number }[] = [];
   private cornerPts: { x: number; y: number }[] = [];
   private readonly BOSS_ARENA_RADIUS = P(400);
@@ -3182,8 +3183,8 @@ export class GameScene extends Phaser.Scene {
       }
       for (const c of this.cornerPts)
         g.fillRect(c.x - rw, c.y - rw, rw * 2, rw * 2);
-      for (const wp of this.waypoints)
-        g.fillRect(wp.x - rw, wp.y - rw, rw * 2, rw * 2);
+      for (const rects of this.waypointRooms)
+        for (const r of rects) g.fillRect(r.x, r.y, r.w, r.h);
     };
 
     // Helper: stroke all walkable rects
@@ -3197,8 +3198,8 @@ export class GameScene extends Phaser.Scene {
       }
       for (const c of this.cornerPts)
         g.strokeRect(c.x - rw, c.y - rw, rw * 2, rw * 2);
-      for (const wp of this.waypoints)
-        g.strokeRect(wp.x - rw, wp.y - rw, rw * 2, rw * 2);
+      for (const rects of this.waypointRooms)
+        for (const r of rects) g.strokeRect(r.x, r.y, r.w, r.h);
     };
 
     // ── Build shared mask ────────────────────────────────
@@ -3207,20 +3208,6 @@ export class GameScene extends Phaser.Scene {
     fillAll(maskGfx);
     const sharedMask = maskGfx.createGeometryMask();
 
-    // ── Layer -1: dark cliff wall face (below grass) ─────
-    const wallColorMap: Record<string, [number, number, number]> = {
-      grassland: [0x060e02, 0x0f2205, 0x1a3a08],
-      desert:    [0x3a2008, 0x5a3810, 0x7a5020],
-      snow:      [0x1a2a3a, 0x2a3a4e, 0x3a4e62],
-      lava:      [0x100404, 0x1e0808, 0x2a1008],
-      forest:    [0x080e04, 0x10180a, 0x1a2810],
-      dungeon:   [0x0a0a10, 0x141420, 0x1e1e2e],
-    };
-    const wallColors = wallColorMap[this._mapTheme];
-    const wallFace = this.add.graphics().setDepth(-0.5);
-    wallFace.lineStyle(P(28), wallColors[0], 1.0); strokeAll(wallFace);
-    wallFace.lineStyle(P(14), wallColors[1], 0.90); strokeAll(wallFace);
-    wallFace.lineStyle(P(6),  wallColors[2], 0.70); strokeAll(wallFace);
 
     // ── Layer 0: base floor (masked to corridor) ─────────
     const floorSrcKey = { grassland: 'grass', desert: 'desert_floor', snow: 'snow_floor', lava: 'lava_floor', forest: 'forest_floor', dungeon: 'dungeon_floor' }[this._mapTheme];
@@ -3249,8 +3236,18 @@ export class GameScene extends Phaser.Scene {
 
   private buildCorridorSegs(): void {
     this.corridorSegs = [];
-    this.cornerPts = [];
-    const crng = new SeededRNG(this._mapSeed + 3333);
+    this.cornerPts    = [];
+    this.waypointRooms = [];
+    const crng  = new SeededRNG(this._mapSeed + 3333);
+    const srng  = new SeededRNG(this._mapSeed + 7777);
+    const SHAPE_COUNT = 10;
+
+    this.waypointRooms = this.waypoints.map((wp, i) => {
+      // First and last waypoints stay as simple squares (spawn / boss-transition)
+      const type = (i === 0 || i === this.waypoints.length - 1) ? 0 : srng.between(0, SHAPE_COUNT - 1);
+      return this._makeWaypointRects(wp.x, wp.y, type);
+    });
+
     for (let i = 0; i < this.waypoints.length - 1; i++) {
       const p1 = this.waypoints[i];
       const p2 = this.waypoints[i + 1];
@@ -3258,9 +3255,44 @@ export class GameScene extends Phaser.Scene {
       const cx = hFirst ? p2.x : p1.x;
       const cy = hFirst ? p1.y : p2.y;
       this.cornerPts.push({ x: cx, y: cy });
-      this.corridorSegs.push({ x1: p1.x, y1: p1.y, x2: cx, y2: cy });
-      this.corridorSegs.push({ x1: cx, y1: cy, x2: p2.x, y2: p2.y });
+      this.corridorSegs.push({ x1: p1.x, y1: p1.y, x2: cx,   y2: cy   });
+      this.corridorSegs.push({ x1: cx,   y1: cy,   x2: p2.x, y2: p2.y });
     }
+  }
+
+  // Returns absolute rects for a waypoint's combat-zone shape.
+  // All shapes contain the waypoint center so corridors always connect.
+  private _makeWaypointRects(cx: number, cy: number, type: number): { x: number; y: number; w: number; h: number }[] {
+    const hw = this.CORR_HW;
+    const s  = hw * 2;                   // corridor/arm width
+    const a  = Math.round(hw * 2.2);     // arm extension length from center
+
+    // [dx, dy, w, h] offsets from (cx, cy)
+    const SHAPES: [number, number, number, number][][] = [
+      // 0: Square (classic)
+      [[-hw * 2, -hw * 2, s * 2, s * 2]],
+      // 1: L └  (arm up, arm right)
+      [[-hw, -(a + hw), s, a + s], [-hw, -hw, a + s, s]],
+      // 2: L ┘  (arm up, arm left)
+      [[-hw, -(a + hw), s, a + s], [-(a + hw), -hw, a + s, s]],
+      // 3: L ┌  (arm down, arm right)
+      [[-hw, -hw, s, a + s], [-hw, -hw, a + s, s]],
+      // 4: L ┐  (arm down, arm left)
+      [[-hw, -hw, s, a + s], [-(a + hw), -hw, a + s, s]],
+      // 5: Horizontal passage ─
+      [[-(a + hw), -hw, (a + hw) * 2, s]],
+      // 6: Vertical passage │
+      [[-hw, -(a + hw), s, (a + hw) * 2]],
+      // 7: T ⊤  (horizontal bar + stem down)
+      [[-(a + hw), -hw, (a + hw) * 2, s], [-hw, -hw, s, a + s]],
+      // 8: T ⊥  (horizontal bar + stem up)
+      [[-(a + hw), -hw, (a + hw) * 2, s], [-hw, -(a + hw), s, a + s]],
+      // 9: ∩  (wide bar at center + two legs extending down)
+      [[-(a + hw), -hw, (a + hw) * 2, s], [-(a + hw), -hw, s, a + s], [a - hw, -hw, s, a + s]],
+    ];
+
+    const idx = Math.max(0, Math.min(type, SHAPES.length - 1));
+    return SHAPES[idx].map(([dx, dy, w, h]) => ({ x: cx + dx, y: cy + dy, w, h }));
   }
 
   private isInOpenArea(px: number, py: number): boolean {
@@ -3275,8 +3307,9 @@ export class GameScene extends Phaser.Scene {
     }
     for (const c of this.cornerPts)
       if (Math.abs(px - c.x) <= rw && Math.abs(py - c.y) <= rw) return true;
-    for (const wp of this.waypoints)
-      if (Math.abs(px - wp.x) <= rw && Math.abs(py - wp.y) <= rw) return true;
+    for (const rects of this.waypointRooms)
+      for (const r of rects)
+        if (px >= r.x && px <= r.x + r.w && py >= r.y && py <= r.y + r.h) return true;
     if (this.isInBossArena(px, py)) return true;
     return false;
   }
@@ -5756,11 +5789,6 @@ export class GameScene extends Phaser.Scene {
     const fillShape = (g: Phaser.GameObjects.Graphics) => isCircle ? g.fillCircle(cx, cy, R) : g.fillPoints(pts, true);
     const strokeShape = (g: Phaser.GameObjects.Graphics) => isCircle ? g.strokeCircle(cx, cy, R) : g.strokePoints(pts, true);
 
-    // 崖壁邊緣（地板之下）
-    const wallFace = this.add.graphics().setDepth(-0.5);
-    wallFace.lineStyle(P(32), 0x080010, 1.0); strokeShape(wallFace);
-    wallFace.lineStyle(P(16), 0x1a0030, 0.9); strokeShape(wallFace);
-    wallFace.lineStyle(P(7), 0x380055, 0.7); strokeShape(wallFace);
 
     // 石板地板 + 遮罩
     const maskGfx = (this.make.graphics as any)({ x: 0, y: 0, add: false }) as Phaser.GameObjects.Graphics;
