@@ -275,10 +275,11 @@ export class TowerScene extends GameScene {
       this.meleeAttack(tx, ty);
     }
 
-    const SHOW_DIST = P(500);
+    const SHOW_DIST_SQ = P(500) * P(500);
     for (const m of this.allMinions) {
-      if (m.started && !m.visible && !m.isDead &&
-          Phaser.Math.Distance.Between(this.player.x, this.player.y, m.x, m.y) < SHOW_DIST) {
+      if (m.started && !m.visible && !m.isDead) {
+        const sdx = this.player.x - m.x, sdy = this.player.y - m.y;
+        if (sdx*sdx + sdy*sdy >= SHOW_DIST_SQ) continue;
         m.setVisible(true);
       }
     }

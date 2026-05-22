@@ -850,8 +850,9 @@ export class GameScene extends Phaser.Scene {
       if ((p as any).isAllyProj) return;  // 友軍發射的彈道不打玩家
       const blindDist = (p as any).blindDist as number | undefined;
       if (blindDist && blindDist > 0) {
-        const dist = Phaser.Math.Distance.Between((p as any).spawnX, (p as any).spawnY, p.x, p.y);
-        if (dist < blindDist) return;
+        const spx = (p as any).spawnX, spy = (p as any).spawnY;
+        const bdx = p.x - spx, bdy = p.y - spy;
+        if (bdx*bdx + bdy*bdy < blindDist*blindDist) return;
       }
       // 同批彈幕只算一發：100ms 內相同 batchId 不重複傷害
       const batchId = (p as any).batchId as number | undefined;
@@ -1058,7 +1059,7 @@ export class GameScene extends Phaser.Scene {
 
       for (const t of this.getHittableTargets()) {
         if ((b.lastHit.get(t) ?? 0) + HIT_CD > now) continue;
-        if (Phaser.Math.Distance.Between(bx, by, t.x, t.y) > HIT_RANGE) continue;
+        if ((bx-t.x)*(bx-t.x) + (by-t.y)*(by-t.y) > HIT_RANGE*HIT_RANGE) continue;
         b.lastHit.set(t, now);
         const s2 = CardStore.getTotalStats();
         const sharedBonus = s2.orbitBallDmgPct ?? 0;
@@ -1093,10 +1094,10 @@ export class GameScene extends Phaser.Scene {
           target = { x: this.player.x, y: this.player.y };
         } else {
           const targets = this.getHittableTargets();
-          let nearDist = Infinity;
+          let nearDistSq = Infinity;
           for (const t of targets) {
-            const d = Phaser.Math.Distance.Between(k.x, k.y, t.x, t.y);
-            if (d < nearDist) { nearDist = d; target = t; }
+            const dSq = (k.x-t.x)*(k.x-t.x) + (k.y-t.y)*(k.y-t.y);
+            if (dSq < nearDistSq) { nearDistSq = dSq; target = t; }
           }
         }
         if (target) {
@@ -1113,9 +1114,8 @@ export class GameScene extends Phaser.Scene {
 
       k.x += k.vx * dt;
       k.y += k.vy * dt;
-      const traveled = Phaser.Math.Distance.Between(k.spawnX, k.spawnY, k.x, k.y);
-
-      if (traveled >= k.maxDist) {
+      const tdx = k.x - k.spawnX, tdy = k.y - k.spawnY;
+      if (tdx*tdx + tdy*tdy >= k.maxDist*k.maxDist) {
         k.gfx.destroy();
         this._playerKnives.splice(i, 1);
         continue;
@@ -1126,7 +1126,7 @@ export class GameScene extends Phaser.Scene {
 
       for (const t of this.getHittableTargets()) {
         if (k.hitTargets.has(t)) continue;
-        if (Phaser.Math.Distance.Between(k.x, k.y, t.x, t.y) > P(14)) continue;
+        const khr = P(14); if ((k.x-t.x)*(k.x-t.x) + (k.y-t.y)*(k.y-t.y) > khr*khr) continue;
         k.hitTargets.add(t);
         this.dealDamage(t, 0.40 * (1 + knifeBaseDmgMult), k.x, k.y, 'down');
       }
@@ -1149,12 +1149,13 @@ export class GameScene extends Phaser.Scene {
     if (homing) {
       const targets = this.getHittableTargets();
       let nearest: typeof targets[0] | null = null;
-      let nearDist = Infinity;
+      let nearDistSq = Infinity;
+      const HOMING_RANGE_SQ = HOMING_RANGE * HOMING_RANGE;
       for (const t of targets) {
-        const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, t.x, t.y);
-        if (d < nearDist) { nearDist = d; nearest = t; }
+        const dSq = (this.player.x-t.x)*(this.player.x-t.x) + (this.player.y-t.y)*(this.player.y-t.y);
+        if (dSq < nearDistSq) { nearDistSq = dSq; nearest = t; }
       }
-      if (nearest && nearDist <= HOMING_RANGE) {
+      if (nearest && nearDistSq <= HOMING_RANGE_SQ) {
         baseAngle = Math.atan2(nearest.y - this.player.y, nearest.x - this.player.x);
       } else {
         returnToPlayer = true;
@@ -1218,9 +1219,11 @@ export class GameScene extends Phaser.Scene {
     const count   = (stats.lightningSingleTarget ?? 0) >= 1 ? 1 : (stats.lightningStrike ?? 1);
 
     // 從 200px 內隨機選不重複的 count 個目標
-    const pool = this.getHittableTargets().filter(t =>
-      Phaser.Math.Distance.Between(this.player.x, this.player.y, t.x, t.y) <= maxR
-    );
+    const maxRSq = maxR * maxR;
+    const pool = this.getHittableTargets().filter(t => {
+      const dx = this.player.x - t.x, dy = this.player.y - t.y;
+      return dx*dx + dy*dy <= maxRSq;
+    });
     if (pool.length === 0) return;
 
     // Fisher-Yates shuffle 取前 count 個
@@ -1299,8 +1302,9 @@ export class GameScene extends Phaser.Scene {
         this.dealDamage(target, dmgMult, tx, ty, 'down');
       } else {
         const splashR = P(12);
+        const splashRSq = splashR * splashR;
         for (const t of this.getHittableTargets()) {
-          if (Phaser.Math.Distance.Between(tx, ty, t.x, t.y) <= splashR) {
+          if ((tx-t.x)*(tx-t.x) + (ty-t.y)*(ty-t.y) <= splashRSq) {
             this.dealDamage(t, dmgMult, tx, ty, 'down');
           }
         }
@@ -1343,8 +1347,9 @@ export class GameScene extends Phaser.Scene {
     const stats = CardStore.getTotalStats();
     const canChain = (stats.overkillSplash ?? 0) >= 2 || (stats.overkillInfiniteChain ?? 0) >= 1;
 
+    const RSq = R * R;
     for (const t of this.getHittableTargets()) {
-      if (Phaser.Math.Distance.Between(ox, oy, t.x, t.y) > R) continue;
+      if ((ox-t.x)*(ox-t.x) + (oy-t.y)*(oy-t.y) > RSq) continue;
       this.dealDamage(t, 0, ox, oy, 'down');
       const boostedOverkill = Math.floor(overkill * (1 + (stats.overkillDmgPct ?? 0)));
       const chainOverkill = (t as MinionSlime).takeDamage(boostedOverkill);
@@ -1395,8 +1400,9 @@ export class GameScene extends Phaser.Scene {
     const stats = CardStore.getTotalStats();
     const R = P(100);
     let hitCount = 0;
+    const harvestRSq = R * R;
     for (const t of this.getHittableTargets()) {
-      if (Phaser.Math.Distance.Between(ox, oy, t.x, t.y) > R) continue;
+      if ((ox-t.x)*(ox-t.x) + (oy-t.y)*(oy-t.y) > harvestRSq) continue;
       const dmg = Math.round(stats.atk * 0.60);
       if (t === this.boss) t.takeDamage(dmg, 0);
       else (t as MinionSlime).takeDamage(dmg);

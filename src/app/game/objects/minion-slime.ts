@@ -34,6 +34,10 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
   private stateTimer?: Phaser.Time.TimerEvent;
   private hpBarGfx:   Phaser.GameObjects.Graphics;
   private debuffGfx:  Phaser.GameObjects.Graphics;
+  private _hpBarLastX  = -9999;
+  private _hpBarLastY  = -9999;
+  private _hpBarLastHp = -1;
+  private _hpBarDirty  = true;
   private debuffTexts: Map<string, Phaser.GameObjects.Text> = new Map();
   private dir: 'down' | 'left' | 'right' | 'up' = 'down';
   private atkX = 0;
@@ -139,6 +143,7 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
   applyBurn(gameTime: number, maxStacks = 15, duration = 4000): void {
     if (this.burnStacks < maxStacks) this.burnStacks++;
     this.burnExpiresAt = gameTime + duration;
+    this._hpBarDirty = true;
   }
 
   applyStun(duration = 2000): void {
@@ -146,6 +151,7 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
     this.pb.setVelocity(0, 0);
     this.stateTimer?.destroy();
     this.stateTimer = undefined;
+    this._hpBarDirty = true;
   }
 
   private readonly animPrefix: string;
@@ -1024,8 +1030,11 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
   }
 
   private drawHpBar(): void {
-    this.hpBarGfx.clear();
     if (!this.visible) return;
+    const rx = Math.round(this.x), ry = Math.round(this.y);
+    if (!this._hpBarDirty && rx === this._hpBarLastX && ry === this._hpBarLastY && this.hp === this._hpBarLastHp) return;
+    this._hpBarLastX = rx; this._hpBarLastY = ry; this._hpBarLastHp = this.hp; this._hpBarDirty = false;
+    this.hpBarGfx.clear();
     const pct = this.hp / this.maxHp;
 
     if (this.isAlly) {

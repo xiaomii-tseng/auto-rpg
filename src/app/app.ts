@@ -86,6 +86,7 @@ export class App implements AfterViewInit {
         powerPreference: isMobile ? 'low-power' : 'default',
       },
       dom: { createContainer: true },
+      fps: { target: 45, forceSetTimeOut: false },
       physics: {
         default: 'arcade',
         arcade: { gravity: { x: 0, y: 0 }, debug: false },
