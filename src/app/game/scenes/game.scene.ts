@@ -3165,8 +3165,16 @@ export class GameScene extends Phaser.Scene {
     // 牆體用暗石頭色填滿世界，讓整塊牆都有顏色而非純黑洞
     const BG = 0x0d0d1a;
     this.cameras.main.setBackgroundColor(BG);
-    this.add.rectangle(this.worldW / 2, this.worldH / 2, this.worldW, this.worldH, BG)
-      .setDepth(-1);
+    const wallTexKey: Partial<Record<GameScene['_mapTheme'], string>> = {
+      grassland: 'grassland_wall', desert: 'desert_wall', snow: 'snow_wall',
+      lava: 'lava_wall', forest: 'forest_wall', dungeon: 'dungeon_wall',
+    };
+    const wallTex = wallTexKey[this._mapTheme];
+    if (wallTex) {
+      this.add.tileSprite(0, 0, this.worldW, this.worldH, wallTex).setOrigin(0, 0).setDepth(-1);
+    } else {
+      this.add.rectangle(this.worldW / 2, this.worldH / 2, this.worldW, this.worldH, BG).setDepth(-1);
+    }
 
     this.buildCorridorSegs();
 
@@ -11177,6 +11185,228 @@ export class GameScene extends Phaser.Scene {
       gg.destroy();
     }
 
+    if (!this.textures.exists('grassland_wall')) {
+      const g = (this.make.graphics as any)({ x: 0, y: 0, add: false }) as Phaser.GameObjects.Graphics;
+      // Base dark damp soil
+      g.fillStyle(0x1e1208, 1); g.fillRect(0, 0, 64, 64);
+      // Mottled soil — multiple overlapping patches for organic variation
+      g.fillStyle(0x140c04, 0.40); g.fillRect(0, 0, 28, 24); g.fillRect(38, 40, 26, 24);
+      g.fillStyle(0x2a1a0c, 0.30); g.fillRect(26, 0, 38, 28); g.fillRect(0, 36, 30, 28);
+      g.fillStyle(0x261610, 0.25); g.fillRect(10, 10, 20, 20); g.fillRect(36, 30, 22, 20);
+      g.fillStyle(0x160e06, 0.35); g.fillRect(8, 40, 24, 18); g.fillRect(42, 8, 18, 22);
+      // Root network — diagonal branching lines
+      g.lineStyle(2, 0x5a3418, 0.65);
+      g.lineBetween(4, 12, 24, 20); g.lineBetween(24, 20, 32, 28);
+      g.lineStyle(1, 0x4a2c14, 0.55);
+      g.lineBetween(24, 20, 18, 30);
+      g.lineBetween(32, 28, 44, 24); g.lineBetween(44, 24, 58, 18);
+      g.lineStyle(2, 0x5a3418, 0.60);
+      g.lineBetween(8, 50, 22, 44); g.lineBetween(22, 44, 38, 48);
+      g.lineStyle(1, 0x4a2c14, 0.50);
+      g.lineBetween(38, 48, 46, 40); g.lineBetween(38, 48, 52, 54);
+      g.lineStyle(1, 0x4a2c14, 0.45);
+      g.lineBetween(50, 6, 58, 14); g.lineBetween(58, 14, 62, 24);
+      g.lineBetween(2, 36, 10, 42);
+      // Pebbles — ellipse base + highlight for 3D look
+      for (const [x, y, w, h] of [[10,8,10,7],[40,6,12,8],[22,38,9,6],[52,28,11,7],[14,54,10,6],[50,52,9,7],[28,18,8,5],[58,42,10,6]] as number[][]) {
+        g.fillStyle(0x2e2820, 1); g.fillEllipse(x, y, w, h);
+        g.fillStyle(0x4a3e30, 0.60); g.fillEllipse(x - w * 0.15, y - h * 0.2, w * 0.5, h * 0.45);
+      }
+      // Moss patches near some pebbles
+      g.fillStyle(0x2a4010, 0.55);
+      g.fillEllipse(12, 6, 5, 3); g.fillEllipse(53, 26, 4, 3); g.fillEllipse(15, 52, 5, 3);
+      // Tiny soil flecks
+      g.fillStyle(0x4a2e14, 0.40);
+      for (const [x, y] of [[4,44],[26,6],[44,36],[60,16],[6,28],[56,60],[34,50],[16,16],[62,36],[30,58]] as number[][])
+        g.fillRect(x, y, 2, 2);
+      // Hair-thin surface cracks
+      g.lineStyle(1, 0x0e0804, 0.40);
+      g.lineBetween(34, 4, 36, 14); g.lineBetween(36, 14, 38, 8);
+      g.lineBetween(6, 58, 12, 62);
+      g.generateTexture('grassland_wall', 64, 64); g.destroy();
+    }
+
+    if (!this.textures.exists('desert_wall')) {
+      const g = (this.make.graphics as any)({ x: 0, y: 0, add: false }) as Phaser.GameObjects.Graphics;
+      // Base — dark reddish sandstone
+      g.fillStyle(0x241408, 1); g.fillRect(0, 0, 64, 64);
+      // Sediment strata — horizontal layering bands
+      g.fillStyle(0x1c1006, 0.45); g.fillRect(0, 0, 64, 12); g.fillRect(0, 26, 64, 10); g.fillRect(0, 50, 64, 14);
+      g.fillStyle(0x301c0c, 0.30); g.fillRect(0, 12, 64, 8); g.fillRect(0, 40, 64, 8);
+      g.fillStyle(0x3a220e, 0.20); g.fillRect(0, 20, 64, 6); g.fillRect(0, 36, 64, 4);
+      // Wind erosion grooves — shallow diagonal scratches
+      g.lineStyle(1, 0x180e06, 0.55);
+      g.lineBetween(0, 8, 20, 10); g.lineBetween(20, 10, 44, 7); g.lineBetween(44, 7, 64, 9);
+      g.lineBetween(0, 30, 16, 33); g.lineBetween(16, 33, 40, 29); g.lineBetween(40, 29, 64, 31);
+      g.lineBetween(0, 52, 24, 55); g.lineBetween(24, 55, 50, 51); g.lineBetween(50, 51, 64, 53);
+      g.lineStyle(1, 0x180e06, 0.35);
+      g.lineBetween(8, 20, 30, 22); g.lineBetween(36, 44, 60, 46);
+      // Embedded rocks — rounded, warm-toned
+      for (const [x, y, w, h] of [[12,6,13,8],[44,4,11,7],[6,36,10,7],[50,30,13,8],[20,52,12,8],[52,56,10,6],[32,22,9,6],[58,18,8,5]] as number[][]) {
+        g.fillStyle(0x3a2810, 1); g.fillEllipse(x, y, w, h);
+        g.fillStyle(0x5a4020, 0.55); g.fillEllipse(x - w * 0.15, y - h * 0.2, w * 0.5, h * 0.45);
+        g.fillStyle(0x180e06, 0.40); g.fillEllipse(x + w * 0.15, y + h * 0.2, w * 0.4, h * 0.35);
+      }
+      // Sand grain flecks
+      g.fillStyle(0x5a3e1a, 0.35);
+      for (const [x, y] of [[6,14],[22,4],[48,18],[60,10],[14,42],[38,56],[4,58],[56,38],[28,34],[42,48]] as number[][])
+        g.fillRect(x, y, 2, 1);
+      g.generateTexture('desert_wall', 64, 64); g.destroy();
+    }
+
+    if (!this.textures.exists('snow_wall')) {
+      const g = (this.make.graphics as any)({ x: 0, y: 0, add: false }) as Phaser.GameObjects.Graphics;
+      // Base — deep dark blue-grey ice rock
+      g.fillStyle(0x161e28, 1); g.fillRect(0, 0, 64, 64);
+      // Ice layer variation
+      g.fillStyle(0x101820, 0.50); g.fillRect(0, 0, 30, 28); g.fillRect(36, 36, 28, 28);
+      g.fillStyle(0x1e2a38, 0.35); g.fillRect(28, 0, 36, 32); g.fillRect(0, 34, 32, 30);
+      g.fillStyle(0x0e1420, 0.30); g.fillRect(10, 14, 22, 18); g.fillRect(38, 34, 20, 18);
+      // Frost crack network — branching thin lines
+      g.lineStyle(1, 0x6080a0, 0.60);
+      g.lineBetween(8, 6, 22, 18); g.lineBetween(22, 18, 30, 14);
+      g.lineStyle(1, 0x4a6880, 0.45);
+      g.lineBetween(22, 18, 16, 28); g.lineBetween(16, 28, 10, 36);
+      g.lineBetween(30, 14, 46, 10); g.lineBetween(46, 10, 58, 16);
+      g.lineStyle(1, 0x6080a0, 0.55);
+      g.lineBetween(40, 40, 52, 32); g.lineBetween(52, 32, 60, 40);
+      g.lineStyle(1, 0x4a6880, 0.40);
+      g.lineBetween(40, 40, 34, 52); g.lineBetween(34, 52, 42, 60);
+      g.lineStyle(1, 0x3a5870, 0.35);
+      g.lineBetween(2, 48, 12, 44); g.lineBetween(56, 52, 62, 44);
+      // Ice chunks — strong specular highlight (ice reflects sharply)
+      for (const [x, y, w, h] of [[14,10,14,9],[46,8,12,8],[8,44,11,8],[50,42,13,9],[26,54,12,7],[56,26,10,7],[32,28,9,6],[4,24,8,6]] as number[][]) {
+        g.fillStyle(0x1e3048, 1); g.fillEllipse(x, y, w, h);
+        g.fillStyle(0x8ab0d0, 0.65); g.fillEllipse(x - w * 0.20, y - h * 0.25, w * 0.45, h * 0.40);
+        g.fillStyle(0xd0e8f8, 0.40); g.fillEllipse(x - w * 0.22, y - h * 0.28, w * 0.20, h * 0.18);
+      }
+      // Frost dust patches — faint white scatter
+      g.fillStyle(0x9ab8d0, 0.25);
+      for (const [x, y] of [[4,4],[20,2],[56,6],[60,56],[2,58],[36,2],[62,28],[0,34]] as number[][])
+        g.fillEllipse(x, y, 5, 3);
+      g.generateTexture('snow_wall', 64, 64); g.destroy();
+    }
+
+    if (!this.textures.exists('lava_wall')) {
+      const g = (this.make.graphics as any)({ x: 0, y: 0, add: false }) as Phaser.GameObjects.Graphics;
+      // Base — near-black scorched volcanic rock
+      g.fillStyle(0x0a0402, 1); g.fillRect(0, 0, 64, 64);
+      // Rock facet variation — angular patches
+      g.fillStyle(0x080302, 0.60); g.fillRect(0, 0, 26, 22); g.fillRect(40, 42, 24, 22);
+      g.fillStyle(0x100804, 0.45); g.fillRect(24, 0, 40, 26); g.fillRect(0, 38, 36, 26);
+      g.fillStyle(0x060202, 0.40); g.fillRect(12, 16, 20, 16); g.fillRect(38, 28, 18, 16);
+      // Lava seams — glowing cracks through rock
+      g.lineStyle(2, 0xff4400, 0.70);
+      g.lineBetween(6, 10, 18, 20); g.lineBetween(18, 20, 28, 16);
+      g.lineStyle(1, 0xff6600, 0.85);
+      g.lineBetween(18, 20, 14, 30); g.lineBetween(14, 30, 22, 38);
+      g.lineBetween(28, 16, 44, 12); g.lineBetween(44, 12, 56, 20);
+      g.lineStyle(2, 0xff4400, 0.65);
+      g.lineBetween(10, 50, 24, 44); g.lineBetween(24, 44, 38, 50);
+      g.lineStyle(1, 0xff6600, 0.80);
+      g.lineBetween(38, 50, 46, 42); g.lineBetween(38, 50, 52, 56);
+      g.lineStyle(1, 0xff3300, 0.50);
+      g.lineBetween(52, 8, 60, 18); g.lineBetween(4, 36, 12, 44);
+      // Seam glow — soft halo along cracks
+      g.fillStyle(0xff4400, 0.15); g.fillRect(16, 18, 14, 4); g.fillRect(22, 42, 18, 4);
+      g.fillStyle(0xff6600, 0.10); g.fillRect(40, 10, 18, 4); g.fillRect(10, 48, 16, 4);
+      // Obsidian facets — dark glossy angular patches
+      for (const [x, y, w, h] of [[10,8,12,8],[42,6,10,7],[6,42,11,7],[48,38,12,8],[24,52,10,6],[56,50,9,6]] as number[][]) {
+        g.fillStyle(0x0e0806, 1); g.fillEllipse(x, y, w, h);
+        g.fillStyle(0x3a2820, 0.50); g.fillEllipse(x - w * 0.18, y - h * 0.22, w * 0.40, h * 0.35);
+      }
+      // Ember glow dots
+      g.fillStyle(0xff8800, 0.60);
+      for (const [x, y] of [[20, 22],[46, 14],[16, 32],[40, 52],[54, 22],[28, 44]] as number[][])
+        g.fillRect(x, y, 2, 2);
+      g.fillStyle(0xffcc44, 0.35);
+      for (const [x, y] of [[21, 22],[47, 14],[17, 32]] as number[][])
+        g.fillRect(x, y, 1, 1);
+      g.generateTexture('lava_wall', 64, 64); g.destroy();
+    }
+
+    if (!this.textures.exists('forest_wall')) {
+      const g = (this.make.graphics as any)({ x: 0, y: 0, add: false }) as Phaser.GameObjects.Graphics;
+      // Base — very dark mossy earth
+      g.fillStyle(0x161008, 1); g.fillRect(0, 0, 64, 64);
+      // Earth patches
+      g.fillStyle(0x100c04, 0.50); g.fillRect(0, 0, 28, 26); g.fillRect(38, 38, 26, 26);
+      g.fillStyle(0x1e1610, 0.35); g.fillRect(26, 0, 38, 30); g.fillRect(0, 36, 30, 28);
+      g.fillStyle(0x0e0c06, 0.30); g.fillRect(12, 16, 18, 16); g.fillRect(38, 28, 18, 16);
+      // Major roots — thick, prominent
+      g.lineStyle(3, 0x4a2c10, 0.80);
+      g.lineBetween(2, 4, 20, 16); g.lineBetween(20, 16, 36, 12);
+      g.lineStyle(3, 0x3e2408, 0.75);
+      g.lineBetween(36, 12, 52, 20); g.lineBetween(52, 20, 62, 14);
+      g.lineStyle(3, 0x4a2c10, 0.75);
+      g.lineBetween(4, 52, 18, 44); g.lineBetween(18, 44, 34, 50);
+      g.lineStyle(3, 0x3e2408, 0.70);
+      g.lineBetween(34, 50, 50, 44); g.lineBetween(50, 44, 62, 52);
+      // Minor root branches
+      g.lineStyle(2, 0x5a3818, 0.65);
+      g.lineBetween(20, 16, 16, 28); g.lineBetween(16, 28, 8, 34);
+      g.lineBetween(36, 12, 32, 24); g.lineBetween(52, 20, 56, 32);
+      g.lineBetween(18, 44, 14, 36); g.lineBetween(34, 50, 30, 38);
+      g.lineStyle(1, 0x6a4422, 0.55);
+      g.lineBetween(8, 34, 14, 42); g.lineBetween(32, 24, 40, 30);
+      g.lineBetween(56, 32, 60, 42); g.lineBetween(30, 38, 22, 32);
+      // Bark texture patches
+      g.fillStyle(0x3a2008, 0.55);
+      for (const [x, y, w, h] of [[18, 14, 16, 5],[34, 10, 14, 4],[50, 18, 10, 4],[16, 42, 16, 5],[32, 48, 14, 4]] as number[][])
+        g.fillRect(x, y, w, h);
+      // Moss patches — prominent
+      g.fillStyle(0x243a0c, 0.70);
+      g.fillEllipse(22, 14, 8, 5); g.fillEllipse(54, 22, 7, 5); g.fillEllipse(20, 46, 8, 5);
+      g.fillEllipse(8, 30, 6, 4); g.fillEllipse(58, 44, 7, 4); g.fillEllipse(40, 56, 6, 4);
+      g.fillStyle(0x2e4e10, 0.45);
+      g.fillEllipse(24, 12, 4, 3); g.fillEllipse(56, 20, 4, 3); g.fillEllipse(22, 44, 4, 3);
+      // Mushroom hint — small cap near a root
+      g.fillStyle(0x6a3820, 0.90); g.fillEllipse(44, 34, 8, 5);
+      g.fillStyle(0x8a5030, 0.70); g.fillEllipse(43, 33, 4, 3);
+      g.fillStyle(0xf0e0c0, 0.60); g.fillRect(44, 34, 2, 4);
+      // Tiny soil flecks
+      g.fillStyle(0x4a3018, 0.40);
+      for (const [x, y] of [[4,44],[28,6],[46,36],[62,16],[6,26],[58,60],[36,52],[18,18],[62,38],[30,60]] as number[][])
+        g.fillRect(x, y, 2, 2);
+      g.generateTexture('forest_wall', 64, 64); g.destroy();
+    }
+
+    if (!this.textures.exists('dungeon_wall')) {
+      const g = (this.make.graphics as any)({ x: 0, y: 0, add: false }) as Phaser.GameObjects.Graphics;
+      // Base — dark mortar fill
+      g.fillStyle(0x0e0c1a, 1); g.fillRect(0, 0, 64, 64);
+      // Stone brick layout — 12px rows, alternating offset
+      const brickColors = [0x1c1a2e, 0x181628, 0x201e34, 0x161422];
+      const brickH = 10, mortarH = 2, brickW = 20, mortarW = 2;
+      for (let row = 0; row * (brickH + mortarH) < 64; row++) {
+        const by = row * (brickH + mortarH);
+        const offset = (row % 2) * (brickW / 2 + mortarW / 2);
+        for (let col = -1; col * (brickW + mortarW) - offset < 64; col++) {
+          const bx = col * (brickW + mortarW) - offset;
+          const color = brickColors[(row * 3 + col) % brickColors.length];
+          g.fillStyle(color, 1); g.fillRect(bx + mortarW, by + mortarH, brickW, brickH);
+          // Top highlight edge
+          g.fillStyle(0x2e2a44, 0.40); g.fillRect(bx + mortarW, by + mortarH, brickW, 2);
+          // Bottom shadow edge
+          g.fillStyle(0x08060e, 0.50); g.fillRect(bx + mortarW, by + mortarH + brickH - 2, brickW, 2);
+        }
+      }
+      // Cracks running across bricks
+      g.lineStyle(1, 0x080610, 0.70);
+      g.lineBetween(18, 4, 22, 16); g.lineBetween(22, 16, 26, 10);
+      g.lineBetween(44, 26, 48, 40); g.lineBetween(48, 40, 42, 52);
+      g.lineBetween(6, 38, 10, 50); g.lineBetween(56, 8, 60, 20);
+      // Damp stains / mould patches
+      g.fillStyle(0x1a2810, 0.45);
+      g.fillEllipse(14, 22, 12, 7); g.fillEllipse(50, 48, 10, 6); g.fillEllipse(30, 56, 8, 5);
+      g.fillStyle(0x141e0c, 0.30);
+      g.fillEllipse(16, 20, 6, 4); g.fillEllipse(52, 46, 5, 4);
+      // Torch soot smear — dark stain above an imaginary sconce
+      g.fillStyle(0x08060e, 0.55); g.fillEllipse(32, 8, 10, 14);
+      g.fillStyle(0x08060e, 0.30); g.fillEllipse(32, 4, 6, 8);
+      g.generateTexture('dungeon_wall', 64, 64); g.destroy();
+    }
+
     // ── 沙漠地板 ────────────────────────────────────────────
     if (!this.textures.exists('desert_floor')) {
       const g = (this.make.graphics as any)({ x: 0, y: 0, add: false }) as Phaser.GameObjects.Graphics;
@@ -11220,9 +11450,9 @@ export class GameScene extends Phaser.Scene {
     // ── 熔岩地板 ────────────────────────────────────────────
     if (!this.textures.exists('lava_floor')) {
       const g = (this.make.graphics as any)({ x: 0, y: 0, add: false }) as Phaser.GameObjects.Graphics;
-      g.fillStyle(0x2e1810, 1); g.fillRect(0, 0, 64, 64);
-      g.fillStyle(0x241008, 0.45); g.fillRect(0, 0, 32, 32); g.fillRect(32, 32, 32, 32);
-      g.fillStyle(0x3a1e0c, 0.35); g.fillRect(32, 0, 32, 32); g.fillRect(0, 32, 32, 32);
+      g.fillStyle(0x4a2414, 1); g.fillRect(0, 0, 64, 64);
+      g.fillStyle(0x3a1c0e, 0.45); g.fillRect(0, 0, 32, 32); g.fillRect(32, 32, 32, 32);
+      g.fillStyle(0x562a18, 0.35); g.fillRect(32, 0, 32, 32); g.fillRect(0, 32, 32, 32);
       // 稀疏裂縫（只留三條）
       g.fillStyle(0xff5500, 0.75);
       g.fillRect(10, 18, 1, 20);
