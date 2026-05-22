@@ -1,7 +1,9 @@
 export type EquipSlot     = 'hat' | 'outfit' | 'shoes' | 'ring1' | 'ring2' | 'sword';
 export type EquipCategory = 'hat' | 'outfit' | 'shoes' | 'ring'  | 'sword';
 export type EquipQuality  = 'normal' | 'good' | 'fine' | 'perfect';
-export type StatKey       = 'atk' | 'hp' | 'def' | 'crit' | 'speed' | 'atkSpeed' | 'lifesteal' | 'evasion' | 'critDmg' | 'hpRegen' | 'dotBonus' | 'penetration';
+export type StatKey       = 'atk' | 'hp' | 'def' | 'crit' | 'speed' | 'atkSpeed' | 'lifesteal' | 'evasion' | 'critDmg' | 'hpRegen' | 'dotBonus' | 'penetration'
+                          | 'potionHealPct' | 'onKillHeal' | 'eliteKillerPct' | 'dropRatePct' | 'rarityBonus'
+                          | 'killShieldPerKill' | 'executePct' | 'regenShieldMax' | 'allDmgPct' | 'maxHpPct';
 export type AttackBehavior = 'slash180' | 'whirlwind' | 'dashPierce' | 'projectile' | 'aura' | 'multiHit' | 'chargeSlam' | 'boomerang' | 'magicFire' | 'knifeThrow' | 'flowerMode';
 
 export type Element = 'none' | 'water' | 'fire' | 'grass';
@@ -241,9 +243,20 @@ export const STAT_NAMES: Record<StatKey, string> = {
   hpRegen:     'HP恢復',
   dotBonus:    '持續傷害',
   penetration: '穿甲',
+  potionHealPct:    '藥水回復量',
+  onKillHeal:       '擊殺回血',
+  eliteKillerPct:   '精英殺手',
+  dropRatePct:      '掉落率加成',
+  rarityBonus:      '稀有率加成',
+  killShieldPerKill:'擊殺護盾',
+  executePct:       '殘血斬殺',
+  regenShieldMax:   '再生護盾',
+  allDmgPct:        '全傷害加成',
+  maxHpPct:         '最大HP%',
 };
 
-const PCT_DISPLAY  = new Set(['crit', 'atkSpeed', 'lifesteal', 'evasion', 'critDmg', 'dotBonus']);
+const PCT_DISPLAY  = new Set(['crit', 'atkSpeed', 'lifesteal', 'evasion', 'critDmg', 'dotBonus',
+  'potionHealPct', 'eliteKillerPct', 'dropRatePct', 'rarityBonus', 'executePct', 'allDmgPct', 'maxHpPct']);
 const DEC2_DISPLAY = new Set(['hpRegen']);
 
 export function fmtAffixValue(stat: string, value: number): string {
@@ -377,12 +390,22 @@ export const STAT_BASE: Record<StatKey, number> = {
   crit:       0.05,
   speed:     15,
   atkSpeed:   0.10,
-  lifesteal:  0.003,
+  lifesteal:  0.005,
   evasion:    0.05,
   critDmg:     0.20,
   hpRegen:     0.36,
   dotBonus:    0.08,
   penetration: 10,
+  potionHealPct:    0.20,
+  onKillHeal:       8,
+  eliteKillerPct:   0.15,
+  dropRatePct:      0.20,
+  rarityBonus:      0.10,
+  killShieldPerKill:15,
+  executePct:       0.12,
+  regenShieldMax:   30,
+  allDmgPct:        0.10,
+  maxHpPct:         0.12,
 };
 
 export const ENHANCE_INCREMENT: Record<StatKey, number> = {
@@ -395,9 +418,19 @@ export const ENHANCE_INCREMENT: Record<StatKey, number> = {
   lifesteal: 0.00042,
   evasion:   0.0015,
   critDmg:   0.005,
-  hpRegen:   0.2,
+  hpRegen:   0.12,
   dotBonus:  0.010,
   penetration: 1,
+  potionHealPct:    0.005,
+  onKillHeal:       1,
+  eliteKillerPct:   0.006,
+  dropRatePct:      0.006,
+  rarityBonus:      0.004,
+  killShieldPerKill:2,
+  executePct:       0.004,
+  regenShieldMax:   3,
+  allDmgPct:        0.005,
+  maxHpPct:         0.005,
 };
 
 export const ENHANCE_LEVEL_MULT: Record<number, number> = {
@@ -407,11 +440,11 @@ export const ENHANCE_LEVEL_MULT: Record<number, number> = {
 // Affix pools per slot category
 // 武器固定有攻擊力+攻擊模式，此 pool 只用於剩餘 2 條隨機詞墜
 export const SLOT_AFFIX_POOL: Record<EquipCategory, StatKey[]> = {
-  sword:  ['hp', 'crit', 'critDmg', 'dotBonus', 'penetration', 'atkSpeed', 'lifesteal', 'evasion'],
-  hat:    ['hp', 'crit', 'atkSpeed', 'penetration', 'def', 'hpRegen'],
-  outfit: ['hp', 'def',  'lifesteal', 'dotBonus', 'evasion', 'hpRegen'],
-  shoes:  ['hp', 'def',  'speed',   'evasion',  'lifesteal', 'hpRegen'],
-  ring:   ['critDmg', 'dotBonus', 'penetration', 'crit', 'atkSpeed', 'lifesteal', 'evasion'],
+  sword:  ['crit', 'critDmg', 'atkSpeed', 'dotBonus', 'lifesteal', 'penetration', 'eliteKillerPct', 'executePct', 'allDmgPct'],
+  hat:    ['hp', 'def', 'hpRegen', 'crit', 'atkSpeed', 'evasion', 'onKillHeal', 'regenShieldMax', 'maxHpPct'],
+  outfit: ['hp', 'def', 'lifesteal', 'evasion', 'hpRegen', 'onKillHeal', 'killShieldPerKill', 'regenShieldMax', 'maxHpPct'],
+  shoes:  ['speed', 'hp', 'def', 'evasion', 'hpRegen', 'dropRatePct', 'rarityBonus', 'killShieldPerKill'],
+  ring:   ['critDmg', 'dotBonus', 'crit', 'atkSpeed', 'penetration', 'potionHealPct', 'dropRatePct', 'rarityBonus', 'allDmgPct', 'eliteKillerPct'],
 };
 
 export const ATTACK_BEHAVIORS: AttackBehavior[] = [
@@ -422,7 +455,8 @@ const TEXTURE_COUNT: Record<EquipCategory, number> = {
   hat: 5, outfit: 5, shoes: 5, ring: 5, sword: 70,
 };
 
-const PCT_STATS = new Set<StatKey>(['crit', 'atkSpeed', 'lifesteal', 'evasion', 'critDmg', 'dotBonus', 'hpRegen']);
+const PCT_STATS = new Set<StatKey>(['crit', 'atkSpeed', 'lifesteal', 'evasion', 'critDmg', 'dotBonus', 'hpRegen',
+  'potionHealPct', 'eliteKillerPct', 'dropRatePct', 'rarityBonus', 'executePct', 'allDmgPct', 'maxHpPct']);
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -473,8 +507,15 @@ export function generateEquipment(slot: EquipSlot, quality: EquipQuality): Equip
   };
 }
 
-export function randomQuality(weights?: Partial<Record<EquipQuality, number>>): EquipQuality {
+export function randomQuality(weights?: Partial<Record<EquipQuality, number>>, rarityBonus: number = 0): EquipQuality {
   const w = { normal: 0.50, good: 0.30, fine: 0.15, perfect: 0.05, ...weights };
+  if (rarityBonus > 0) {
+    const shift = w.normal * Math.min(rarityBonus, 0.8);
+    w.normal  -= shift;
+    w.good    += shift * 0.50;
+    w.fine    += shift * 0.35;
+    w.perfect += shift * 0.15;
+  }
   const total = (w.normal ?? 0) + (w.good ?? 0) + (w.fine ?? 0) + (w.perfect ?? 0);
   const roll = Math.random() * total;
   if (roll < w.normal!)                          return 'normal';
@@ -527,8 +568,8 @@ export function getItemStats(item: EquipmentItem): Partial<Record<StatKey, numbe
 export const ENHANCE_MAX = 10;
 
 export const ENHANCE_COST: Record<number, number> = {
-  0: 5, 1: 5, 2: 5, 3: 5, 4: 5,
-  5: 5, 6: 5, 7: 5, 8: 5, 9: 5,
+  0: 5, 1: 6, 2: 7, 3: 8, 4: 8,
+  5: 9, 6: 10, 7: 10, 8: 11, 9: 11,
 };
 
 // 失敗不退階，成功率略低於原版
@@ -553,6 +594,16 @@ export const REFINE_INCREMENT_RANGE: Record<StatKey, [number, number]> = {
   hpRegen:     [0.5,    1.2   ],
   dotBonus:    [0.025,  0.060 ],
   penetration: [2,      6     ],
+  potionHealPct:    [0.004, 0.010 ],
+  onKillHeal:       [0.5,   2.0   ],
+  eliteKillerPct:   [0.005, 0.012 ],
+  dropRatePct:      [0.005, 0.012 ],
+  rarityBonus:      [0.003, 0.008 ],
+  killShieldPerKill:[1,     4     ],
+  executePct:       [0.003, 0.008 ],
+  regenShieldMax:   [3,     8     ],
+  allDmgPct:        [0.004, 0.010 ],
+  maxHpPct:         [0.004, 0.010 ],
 };
 
 // 精煉成功：隨機命中 1~2 條詞綴，各自套用隨機增幅

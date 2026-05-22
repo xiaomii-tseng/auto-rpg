@@ -66,18 +66,18 @@ export const ITEM_STONE_BROKEN = 'stone_broken';    // 破損強化石
 export const ITEM_STONE_INTACT = 'stone_intact';    // 完整強化石
 export const ITEM_STONE_RECAST = 'stone_guard';    // 重鑄石（id 保持 stone_guard 避免存檔破壞）
 export const ITEM_QUEST_REROLL = 'quest_reroll';   // 任務重製石
-export const ITEM_POTION_HEALTH_S = 'potion_health_s'; // 小型回復藥水 HP+50
-export const ITEM_POTION_HEALTH_M = 'potion_health_m'; // 中型回復藥水 HP+100
-export const ITEM_POTION_HEALTH_L = 'potion_health_l'; // 大型回復藥水 HP+200
+export const ITEM_POTION_HEALTH_S = 'potion_health_s'; // 小型回復藥水 HP+100
+export const ITEM_POTION_HEALTH_M = 'potion_health_m'; // 中型回復藥水 HP+200
+export const ITEM_POTION_HEALTH_L = 'potion_health_l'; // 大型回復藥水 HP+300
 export const ITEM_POTION_REVIVE = 'potion_revive';   // 復活藥水
 export const ITEM_POTION_ATK   = 'potion_atk';      // 攻擊力藥水 ATK+20% 30秒
 export const ITEM_POTION_DEF   = 'potion_def';      // 防禦力藥水 DEF+20 30秒
 export const ITEM_POTION_SPEED = 'potion_speed';    // 速度藥水 Speed+20 30秒
 
 export function getHealthPotionForStar(questStar: number): { id: string; name: string; healAmt: number } {
-  if (questStar >= 5) return { id: ITEM_POTION_HEALTH_L, name: '大型回復藥水', healAmt: 200 };
-  if (questStar >= 3) return { id: ITEM_POTION_HEALTH_M, name: '中型回復藥水', healAmt: 100 };
-  return { id: ITEM_POTION_HEALTH_S, name: '小型回復藥水', healAmt: 50 };
+  if (questStar >= 5) return { id: ITEM_POTION_HEALTH_L, name: '大型回復藥水', healAmt: 300 };
+  if (questStar >= 3) return { id: ITEM_POTION_HEALTH_M, name: '中型回復藥水', healAmt: 200 };
+  return { id: ITEM_POTION_HEALTH_S, name: '小型回復藥水', healAmt: 100 };
 }
 
 // ── Card drop rates (per card, star multiplier applied separately) ─────────

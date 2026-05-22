@@ -65,6 +65,15 @@ export interface EffectiveStats {
   takenDmgPct?:  number;
   // ── 掉落 ──
   dropRateMult?: number;
+  // ── 新增詞墜 ──
+  potionHealPct?:    number;
+  onKillHeal?:       number;
+  eliteKillerPct?:   number;
+  dropRatePct?:      number;
+  rarityBonus?:      number;
+  killShieldPerKill?:number;
+  executePct?:       number;
+  regenShieldMax?:   number;
   // ── 條件 DoT ──
   condDotStackBonus?: number;
   // ── 特殊機制（卡片觸發效果）──
@@ -248,6 +257,16 @@ export const PlayerStore = {
     let hpRegen     = BASE_HP_REGEN + (level - 1) * LEVEL_HP_REGEN;
     let dotBonus    = 0;
     let penetration = 0;
+    let allDmgPct        = 0;
+    let maxHpPct         = 0;
+    let potionHealPct    = 0;
+    let onKillHeal       = 0;
+    let eliteKillerPct   = 0;
+    let dropRatePct      = 0;
+    let rarityBonus      = 0;
+    let killShieldPerKill= 0;
+    let executePct       = 0;
+    let regenShieldMax   = 0;
 
     for (const [, item] of Object.entries(equipped) as [EquipSlot, EquipmentItem | null][]) {
       if (!item) continue;
@@ -260,11 +279,23 @@ export const PlayerStore = {
       atkSpeed  += s.atkSpeed  ?? 0;
       lifesteal += s.lifesteal ?? 0;
       evasion   += s.evasion   ?? 0;
-      critDmg     += s.critDmg     ?? 0;
-      hpRegen     += s.hpRegen     ?? 0;
-      dotBonus    += s.dotBonus    ?? 0;
-      penetration += s.penetration ?? 0;
+      critDmg          += s.critDmg          ?? 0;
+      hpRegen          += s.hpRegen          ?? 0;
+      dotBonus         += s.dotBonus         ?? 0;
+      penetration      += s.penetration      ?? 0;
+      allDmgPct        += s.allDmgPct        ?? 0;
+      maxHpPct         += s.maxHpPct         ?? 0;
+      potionHealPct    += s.potionHealPct    ?? 0;
+      onKillHeal       += s.onKillHeal       ?? 0;
+      eliteKillerPct   += s.eliteKillerPct   ?? 0;
+      dropRatePct      += s.dropRatePct      ?? 0;
+      rarityBonus      += s.rarityBonus      ?? 0;
+      killShieldPerKill+= s.killShieldPerKill?? 0;
+      executePct       += s.executePct       ?? 0;
+      regenShieldMax   += s.regenShieldMax   ?? 0;
     }
+
+    if (maxHpPct > 0) maxHp = Math.round(maxHp * (1 + maxHpPct));
 
     return {
       atk, maxHp, speed, def,
@@ -277,6 +308,16 @@ export const PlayerStore = {
       hpRegen,
       dotBonus,
       penetration,
+      allDmgPct:        allDmgPct        || undefined,
+      maxHpPct:         maxHpPct         || undefined,
+      potionHealPct:    potionHealPct    || undefined,
+      onKillHeal:       onKillHeal       || undefined,
+      eliteKillerPct:   eliteKillerPct   || undefined,
+      dropRatePct:      dropRatePct      || undefined,
+      rarityBonus:      rarityBonus      || undefined,
+      killShieldPerKill:killShieldPerKill || undefined,
+      executePct:       executePct       || undefined,
+      regenShieldMax:   regenShieldMax   || undefined,
     };
   },
 

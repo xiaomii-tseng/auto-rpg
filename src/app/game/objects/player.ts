@@ -32,6 +32,12 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
   private _blazingCooldown = 0;
 
+  // ── Shield system ──
+  private _shield                  = 0;
+  private _lastKillTime            = -99999;
+  private _killShieldDecayStartTime= -1;
+  private _killShieldAtDecayStart  = 0;
+
   constructor(scene: Phaser.Scene, x: number, y: number) {
     super(scene, x, y, 'player_idle_shadow', 0);
     scene.add.existing(this);
@@ -43,15 +49,38 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.play('player_idle_down');
 
     const stats = CardStore.getTotalStats();
-    this.maxHp = stats.maxHp;
-    this.hp    = stats.maxHp;
+    this.maxHp  = stats.maxHp;
+    this.hp     = stats.maxHp;
+    this._shield = stats.regenShieldMax ?? 0;
 
     this.headGfx = scene.add.graphics().setDepth(9800);
   }
 
   override preUpdate(time: number, delta: number): void {
     super.preUpdate(time, delta);
+    this._updateShield(time, delta);
     this.refreshHeadDisplay();
+  }
+
+  private _updateShield(now: number, delta: number): void {
+    const stats    = CardStore.getTotalStats();
+    const regenMax = stats.regenShieldMax ?? 0;
+    if (this._shield > regenMax) {
+      // Kill shield decays to regenMax floor after 3s since last kill
+      if (now - this._lastKillTime >= 3000) {
+        if (this._killShieldDecayStartTime < 0) {
+          this._killShieldDecayStartTime = now;
+          this._killShieldAtDecayStart   = this._shield;
+        }
+        const t = Math.min((now - this._killShieldDecayStartTime) / 2000, 1);
+        this._shield = Math.max(regenMax, Math.round(
+          this._killShieldAtDecayStart * (1 - t) + regenMax * t
+        ));
+      }
+    } else if (regenMax > 0 && this._shield < regenMax) {
+      // Regen shield refills at 25% of regenMax per second
+      this._shield = Math.min(regenMax, this._shield + regenMax * 0.25 * delta / 1000);
+    }
   }
 
   private refreshHeadDisplay(): void {
@@ -60,12 +89,24 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     const bw = P(44), bh = P(5);
     const bx = this.x - bw / 2;
     const by = this.y - P(35);
-    this.headGfx.fillStyle(0x220000);
+
+    // HP bar background + fill
+    this.headGfx.fillStyle(0x220000, 1);
     this.headGfx.fillRect(bx - P(1), by - P(1), bw + P(2), bh + P(2));
     const pct   = this.hp / this.maxHp;
     const color = pct > 0.5 ? 0x00cc44 : pct > 0.25 ? 0xffaa00 : 0xff2222;
-    this.headGfx.fillStyle(color);
+    this.headGfx.fillStyle(color, 1);
     this.headGfx.fillRect(bx, by, bw * pct, bh);
+
+    // 護盾：藍色直接疊在血條上方
+    const shieldVal = Math.floor(this._shield);
+    if (shieldVal > 0) {
+      const cap = Math.max(Math.round(this.maxHp * 0.5), 1);
+      const shieldPct = Math.min(shieldVal / cap, 1);
+      const isKillShield = shieldVal > (CardStore.getTotalStats().regenShieldMax ?? 0);
+      this.headGfx.fillStyle(isKillShield ? 0x55bbff : 0x2266cc, 0.72);
+      this.headGfx.fillRect(bx, by, bw * shieldPct, bh);
+    }
   }
 
   lockAttack(ms: number): boolean {
@@ -172,6 +213,17 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     const takenMult = 1 + (stats.takenDmgPct ?? 0);
     let actual = Math.max(1, Math.round(amount * (1 - reduction) * takenMult));
     if (stats.damageCap) actual = Math.min(actual, Math.round(this.maxHp * stats.damageCap));
+    // Shield absorbs damage first
+    if (this._shield > 0) {
+      const absorbed = Math.min(Math.floor(this._shield), actual);
+      this._shield -= absorbed;
+      actual -= absorbed;
+      if (actual <= 0) {
+        this.onHpChanged?.(this.hp, this.maxHp);
+        this.startInvincibility(false);
+        return;
+      }
+    }
     this.hp = Math.max(0, this.hp - actual);
     this.onHpChanged?.(this.hp, this.maxHp);
     if (this.hp <= 0) {
@@ -236,6 +288,13 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   private playAnim(key: string): void {
     if (this.anims.currentAnim?.key === key && this.anims.isPlaying) return;
     this.play(key, true);
+  }
+
+  addKillShield(amount: number): void {
+    if (amount <= 0) return;
+    this._shield = Math.min(this._shield + amount, Math.round(this.maxHp * 0.5));
+    this._lastKillTime             = this.scene.time.now;
+    this._killShieldDecayStartTime = -1;
   }
 
   heal(amount: number): void {

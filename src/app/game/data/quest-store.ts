@@ -168,7 +168,7 @@ const _listeners: Array<() => void> = [];
 
 // 裝備獎勵選項 cache：同一張任務每次打開 modal 顯示相同三件裝備
 const _equipOptionsCache = new Map<string, EquipmentItem[]>();
-const EQUIP_SLOTS: EquipSlot[] = ['hat', 'outfit', 'shoes', 'ring1', 'ring2', 'sword'];
+const EQUIP_SLOTS: EquipSlot[] = ['hat', 'outfit', 'shoes', 'ring1', 'sword'];
 
 export const QuestStore = {
   getQuests(): Quest[] {

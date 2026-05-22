@@ -64,7 +64,7 @@ interface LootDrop {
 }
 
 // 品質權重 47/35/15/3（正規化）
-const EQUIP_ALL_SLOTS: EquipSlot[] = ['hat', 'outfit', 'shoes', 'ring1', 'ring2', 'sword'];
+const EQUIP_ALL_SLOTS: EquipSlot[] = ['hat', 'outfit', 'shoes', 'ring1', 'sword'];
 
 const ITEM_DESCS: Record<string, string> = {
   [ITEM_STONE_BROKEN]:    '強化裝備時消耗',
@@ -72,9 +72,9 @@ const ITEM_DESCS: Record<string, string> = {
   [ITEM_STONE_RECAST]:     '消耗1顆可重鑄裝備，回歸精煉前數值',
   [ITEM_QUEST_REROLL]:    '重置當前任務列表',
   [ITEM_BLANK_CARD]:      '10張可在商店抽一次卡片',
-  [ITEM_POTION_HEALTH_S]: '回復 50 HP',
-  [ITEM_POTION_HEALTH_M]: '回復 100 HP',
-  [ITEM_POTION_HEALTH_L]: '回復 200 HP',
+  [ITEM_POTION_HEALTH_S]: '回復 100 HP',
+  [ITEM_POTION_HEALTH_M]: '回復 200 HP',
+  [ITEM_POTION_HEALTH_L]: '回復 300 HP',
   [ITEM_POTION_REVIVE]:   '戰鬥中復活一次',
   [ITEM_POTION_ATK]:      '傷害 +20%，持續 30 秒',
   [ITEM_POTION_DEF]:      'DEF +20，持續 30 秒',
@@ -274,6 +274,8 @@ export class GameScene extends Phaser.Scene {
   private _flowerChargeTxt?: Phaser.GameObjects.Text;
   protected plantZones: { type: 'circle' | 'vine'; x: number; y: number; r: number; len?: number; ang?: number; dmg: number; lastTick: number; tickInterval: number; expiresAt: number; gfx: Phaser.GameObjects.Graphics }[] = [];
   protected _sessionQty: Map<string, number> = new Map();
+  protected _potionCdUntil: Map<string, number> = new Map();
+  protected _potionBarRedraw?: () => void;
   private _atkBuffActive = false;
   private _atkBuffTimer?: Phaser.Time.TimerEvent;
   protected _buffExpiry: Map<string, number> = new Map();
@@ -457,19 +459,20 @@ export class GameScene extends Phaser.Scene {
     this._buffExpiry.clear();
     this._buffHudTexts.forEach(t => t.destroy());
     this._buffHudTexts = [];
-    const HEAL_CAP  = 5;
-    const BUFF_CAP  = 3;
+    const BUFF_CAP   = 3;
     const REVIVE_CAP = 1;
+    // 恢復藥水不限攜帶量，功能藥水上限 3 瓶
     const capMap: Record<string, number> = {
-      [ITEM_POTION_HEALTH_S]: HEAL_CAP,
-      [ITEM_POTION_HEALTH_M]: HEAL_CAP,
-      [ITEM_POTION_HEALTH_L]: HEAL_CAP,
+      [ITEM_POTION_HEALTH_S]: Infinity,
+      [ITEM_POTION_HEALTH_M]: Infinity,
+      [ITEM_POTION_HEALTH_L]: Infinity,
       [ITEM_POTION_REVIVE]:   REVIVE_CAP,
       [ITEM_POTION_ATK]:      BUFF_CAP,
       [ITEM_POTION_DEF]:      BUFF_CAP,
       [ITEM_POTION_SPEED]:    BUFF_CAP,
     };
     this._sessionQty.clear();
+    this._potionCdUntil.clear();
     for (const [id, cap] of Object.entries(capMap)) {
       this._sessionQty.set(id, Math.min(InventoryStore.getItemQty(id), cap));
     }
@@ -2344,6 +2347,7 @@ export class GameScene extends Phaser.Scene {
     if (stats.dmgVsSlime && (target as any).race === 'slime') targetMult += stats.dmgVsSlime;
     if (stats.dmgVsPlant && (target as any).race === 'plant') targetMult += stats.dmgVsPlant;
     if (stats.dmgVsBoss && isBoss) targetMult += stats.dmgVsBoss;
+    if (stats.eliteKillerPct && tgtTier >= 3) targetMult += stats.eliteKillerPct;
     if (stats.burnedEnemyDmgAmp && (target as any).burnStacks > 0) targetMult += stats.burnedEnemyDmgAmp;
 
     // 暴徒本能：爆擊觸發，每次攻擊只計一次
@@ -2399,6 +2403,13 @@ export class GameScene extends Phaser.Scene {
     const bossHpBefore = isBoss ? this.boss.currentHp : 0;
     if (!isBoss) {
       overkill = (target as MinionSlime).takeDamage(dmg);
+      // 殘血斬殺：HP低於閾值且尚未死亡時直接擊殺
+      if (!(target as MinionSlime).isDead && (stats.executePct ?? 0) > 0) {
+        const m = target as MinionSlime;
+        if (m.currentHp / m.maxHpValue < stats.executePct!) {
+          overkill = m.takeDamage(m.currentHp + 1);
+        }
+      }
     } else {
       target.takeDamage(dmg, pen);
     }
@@ -2436,6 +2447,12 @@ export class GameScene extends Phaser.Scene {
     // 靈魂收割：擊殺觸發衝擊波+回血
     if ((stats.soulHarvest ?? 0) >= 1 && !isBoss && (target as MinionSlime).isDead) {
       this._soulHarvestProc(target.x, target.y);
+    }
+
+    // 擊殺回血 & 擊殺護盾
+    if (!isBoss && (target as MinionSlime).isDead) {
+      if ((stats.onKillHeal ?? 0) > 0) this.player.heal(Math.round(stats.onKillHeal!));
+      if ((stats.killShieldPerKill ?? 0) > 0) this.player.addKillShield(Math.round(stats.killShieldPerKill!));
     }
 
     // 傷害濺射
@@ -3098,7 +3115,10 @@ export class GameScene extends Phaser.Scene {
       ] : []),
     ];
     this.spawnLoot(x, y, [...def.drops, ...potionDrops]);
-    const cardDropMult = CardStore.getTotalStats().dropRateMult ?? 1;
+    const _pStats     = CardStore.getTotalStats();
+    const dropBonus   = 1 + (_pStats.dropRatePct ?? 0);
+    const rarityBonusVal = _pStats.rarityBonus ?? 0;
+    const cardDropMult = (_pStats.dropRateMult ?? 1) * dropBonus;
     for (const card of def.cards) {
       if (Math.random() < card.rate * cardDropMult) this.spawnCardDrop(x, y, card.cardId);
     }
@@ -3106,11 +3126,11 @@ export class GameScene extends Phaser.Scene {
     const monType: MonsterType = isElite ? 'elite' : 'small';
     const qualW = getDropQualityWeights(monType, this.questStar);
     let dropCount = 0;
-    if (Math.random() < Math.min(1, (isElite ? 0.33 : 0.05) * IQ)) dropCount++;
-    if (isElite && Math.random() < Math.min(1, 0.083 * IQ)) dropCount++;
+    if (Math.random() < Math.min(1, (isElite ? 0.33 : 0.05) * IQ * dropBonus)) dropCount++;
+    if (isElite && Math.random() < Math.min(1, 0.083 * IQ * dropBonus)) dropCount++;
     for (let i = 0; i < dropCount; i++) {
       const slot = EQUIP_ALL_SLOTS[Math.floor(Math.random() * EQUIP_ALL_SLOTS.length)];
-      this.spawnEquipDrop(x, y, generateEquipment(slot, randomQuality(qualW)));
+      this.spawnEquipDrop(x, y, generateEquipment(slot, randomQuality(qualW, rarityBonusVal)));
     }
     const expMult = STAR_EXP_MULT[this.questStar] ?? 1;
     const gained = PlayerStore.addExp(Math.round(def.exp * expMult));
@@ -6245,20 +6265,23 @@ export class GameScene extends Phaser.Scene {
       ];
       const scaledDrops = [...bossDef.drops, ...bossPotionDrops].map(d => ({ ...d, rate: Math.min(1, d.rate * dropMult) }));
       this.spawnLoot(this.boss.x, this.boss.y, scaledDrops, true);
-      const bossCardMult = CardStore.getTotalStats().dropRateMult ?? 1;
+      const _bossPS       = CardStore.getTotalStats();
+      const bossDropBonus = 1 + (_bossPS.dropRatePct ?? 0);
+      const bossRarityBonusVal = _bossPS.rarityBonus ?? 0;
+      const bossCardMult  = (_bossPS.dropRateMult ?? 1) * bossDropBonus;
       for (const card of bossDef.cards) {
         if (Math.random() < card.rate * bossCardMult) this.spawnCardDrop(this.boss.x, this.boss.y, card.cardId, true);
       }
       const bossIQ = Math.pow(1.50, this.questStar - 1);
       const bossQualW = getDropQualityWeights('boss', this.questStar);
       let bossDropCount = 4;
-      const bossBonusChance = 0.30 * bossIQ;
+      const bossBonusChance = 0.30 * bossIQ * bossDropBonus;
       for (let i = 0; i < 6; i++) {
         if (Math.random() < bossBonusChance) bossDropCount++;
       }
       for (let i = 0; i < bossDropCount; i++) {
         const slot = EQUIP_ALL_SLOTS[Math.floor(Math.random() * EQUIP_ALL_SLOTS.length)];
-        this.spawnEquipDrop(this.boss.x, this.boss.y, generateEquipment(slot, randomQuality(bossQualW)), true);
+        this.spawnEquipDrop(this.boss.x, this.boss.y, generateEquipment(slot, randomQuality(bossQualW, bossRarityBonusVal)), true);
       }
     }
 
@@ -6721,9 +6744,10 @@ export class GameScene extends Phaser.Scene {
 
   private showEquipRewardModalGuest(star: number): void {
     const weights = STAR_EQUIP_QUALITY[star] ?? {};
-    const ALL_SLOTS: EquipSlot[] = ['hat', 'outfit', 'shoes', 'ring1', 'ring2', 'sword'];
+    const ALL_SLOTS: EquipSlot[] = ['hat', 'outfit', 'shoes', 'ring1', 'sword'];
     const pickedSlots = [...ALL_SLOTS].sort(() => Math.random() - 0.5).slice(0, 3);
-    const items: EquipmentItem[] = pickedSlots.map(s => generateEquipment(s, randomQuality(weights)));
+    const _rBonusGuest = CardStore.getTotalStats().rarityBonus ?? 0;
+    const items: EquipmentItem[] = pickedSlots.map(s => generateEquipment(s, randomQuality(weights, _rBonusGuest)));
     this.showEquipRewardModalItems(items, () => { SaveStore.save(); this.exitToLobby(); });
   }
 
@@ -6974,13 +6998,14 @@ export class GameScene extends Phaser.Scene {
       const qty = Phaser.Math.Between(drop.qtyMin, drop.qtyMax);
       const iconKey = `icon_${drop.itemId}`;
 
+      const iconSz = drop.itemId.startsWith('stone_') ? P(26) : P(17);
       if (burst) {
         const angle = Math.random() * Math.PI * 2;
         const dist  = Phaser.Math.Between(P(50), P(110));
         const tx = Phaser.Math.Clamp(cx + Math.cos(angle) * dist, P(32), this.worldW - P(32));
         const ty = Phaser.Math.Clamp(cy + Math.sin(angle) * dist * 0.4, P(32), this.worldH - P(32));
         const img = this.add.image(cx, cy, iconKey)
-          .setDisplaySize(P(17), P(17)).setDepth(ty + 4);
+          .setDisplaySize(iconSz, iconSz).setDepth(ty + 4);
         const delay = bi++ * 25;
         const arcX = cx + Math.cos(angle) * dist * 0.3;
         const arcY = cy - P(55);
@@ -7002,7 +7027,7 @@ export class GameScene extends Phaser.Scene {
         const tx = cx + ox;
         const ty = cy + oy + P(18);
         const img = this.add.image(tx, cy - P(24), iconKey)
-          .setDisplaySize(P(17), P(17)).setDepth(ty + 4);
+          .setDisplaySize(iconSz, iconSz).setDepth(ty + 4);
         this.tweens.add({
           targets: img, y: ty, duration: 420, ease: 'Bounce.Out',
           onComplete: () => {
@@ -7214,25 +7239,28 @@ export class GameScene extends Phaser.Scene {
         const cy = H2 - P(164);
         const bx = cx - SZ / 2, by = cy - SZ / 2;
         const itemId = PotionBarStore.getSlot(idx as 0 | 1);
-        const qty = itemId ? (this._sessionQty.get(itemId) ?? 0) : 0;
-        const color = itemId ? (POTION_COLORS[itemId] ?? 0x888888) : 0x554422;
+        const qty    = itemId ? (this._sessionQty.get(itemId) ?? 0) : 0;
+        const cdMs   = itemId ? Math.max(0, (this._potionCdUntil.get(itemId) ?? 0) - this.time.now) : 0;
+        const onCd   = cdMs > 0;
+        const color  = itemId ? (POTION_COLORS[itemId] ?? 0x888888) : 0x554422;
         const { bg, icon, qtyTxt } = slotObjs[idx];
 
         bg.clear();
         bg.fillStyle(0x1a1200, 0.85);
         bg.fillRoundedRect(bx, by, SZ, SZ, P(6));
-        bg.lineStyle(P(2), color, itemId ? 0.75 : 0.35);
+        bg.lineStyle(P(2), onCd ? 0x888888 : color, itemId ? 0.75 : 0.35);
         bg.strokeRoundedRect(bx, by, SZ, SZ, P(6));
 
         if (itemId) {
-          icon.setTexture(`icon_${itemId}`).setVisible(true).setAlpha(qty > 0 ? 1 : 0.3);
-          qtyTxt.setText(qty > 0 ? `×${qty}` : '');
+          icon.setTexture(`icon_${itemId}`).setVisible(true).setAlpha(onCd ? 0.35 : qty > 0 ? 1 : 0.3);
+          qtyTxt.setText(onCd ? `${Math.ceil(cdMs / 1000)}s` : qty > 0 ? `×${qty}` : '');
         } else {
           icon.setVisible(false);
           qtyTxt.setText('');
         }
       });
     };
+    this._potionBarRedraw = redraw;
 
     redraw();
     InventoryStore.onChange(redraw);
@@ -7245,6 +7273,7 @@ export class GameScene extends Phaser.Scene {
 
   private usePotionSlot(itemId: string, rangeColor: number): void {
     if (this.gameOver && itemId !== ITEM_POTION_REVIVE) return;
+    if (this.time.now < (this._potionCdUntil.get(itemId) ?? 0)) return;
     const sessionQty = this._sessionQty.get(itemId) ?? 0;
     if (sessionQty <= 0) return;
     this._sessionQty.set(itemId, sessionQty - 1);  // 先遞減，才不會讓 onChange→redraw 讀到舊值
@@ -7253,11 +7282,16 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
+    // 每種藥水獨立 20 秒 CD
+    this._potionCdUntil.set(itemId, this.time.now + 20000);
+    this.time.addEvent({ delay: 500, repeat: 39, callback: () => this._potionBarRedraw?.() });
+
     const range = P(this.POTION_RANGE);
     const sealType = itemId === ITEM_POTION_REVIVE ? 'revive' : 'heal';
     this.showMagicSeal(this.player.x, this.player.y + P(13), range, rangeColor, sealType);
 
-    const healAmt = itemId === ITEM_POTION_HEALTH_L ? 150 : itemId === ITEM_POTION_HEALTH_M ? 80 : 40;
+    const baseHeal = itemId === ITEM_POTION_HEALTH_L ? 300 : itemId === ITEM_POTION_HEALTH_M ? 200 : 100;
+    const healAmt  = Math.round(baseHeal * (1 + (CardStore.getTotalStats().potionHealPct ?? 0)));
     if (itemId === ITEM_POTION_HEALTH_S || itemId === ITEM_POTION_HEALTH_M || itemId === ITEM_POTION_HEALTH_L) {
       this.player.heal(healAmt);
       if (NetworkService.connected) {
