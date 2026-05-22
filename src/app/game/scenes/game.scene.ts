@@ -5724,6 +5724,12 @@ export class GameScene extends Phaser.Scene {
       if (!this.bossActive) return;
       if (b.currentState === 'DASHING') this.player.takeDamage(b.scaleDmg(75));
     });
+    this.physics.add.overlap(bg, this._allyGroup, (_b, allyObj) => {
+      if (!this.bossActive) return;
+      const ally = allyObj as MinionSlime;
+      if (b.currentState !== 'DASHING' || ally.isDead) return;
+      ally.takeDamage(b.scaleDmg(75));
+    });
     return b;
   }
 
