@@ -412,7 +412,7 @@ export class PrepScene extends Phaser.Scene {
       // 新玩家：隨機送一把普通品質武器
       const startSword = generateEquipment('sword', 'normal');
       PlayerStore.equipDirect('sword', startSword);
-      InventoryStore.addGold(200000);
+      InventoryStore.addGold(10000);
       InventoryStore.addItem('quest_reroll', '任務重製石', 10);
     }
 
@@ -3656,8 +3656,10 @@ export class PrepScene extends Phaser.Scene {
 
         const iconKey = `icon_${item.id}`;
         if (this.textures.exists(iconKey)) {
+          const isStone = item.id.startsWith('stone_') || item.id === 'quest_reroll';
+          const iconSz = isStone ? P(48) : P(26);
           gridContainer.add(
-            this.add.image(cx2 + cellSz / 2, cy2 + P(34), iconKey).setDisplaySize(P(26), P(26)),
+            this.add.image(cx2 + cellSz / 2, cy2 + P(34), iconKey).setDisplaySize(iconSz, iconSz),
           );
         }
 
@@ -4951,7 +4953,7 @@ export class PrepScene extends Phaser.Scene {
     const STONE_ITEMS: ShopItem[] = [
       { id: ITEM_STONE_BROKEN, name: '破碎強化石', price: 100, desc: '強化裝備時消耗', color: 0x88ccff },
       { id: ITEM_STONE_INTACT, name: '完整強化石', price: 300, desc: '強化成功率 +8%', color: 0x66ffcc },
-      { id: 'stone_guard', name: '重鑄石', price: 3000, desc: '消耗1顆可重鑄裝備，回歸精煉前數值', color: 0xbb66ff },
+      { id: 'stone_guard', name: '重鑄石', price: 3000, desc: '消耗1顆可重鑄裝備 回歸精煉前數值', color: 0xbb66ff },
       { id: ITEM_QUEST_REROLL, name: '任務重製石', price: 100, desc: '重置當前任務列表', color: 0xffcc44 },
     ];
     const TAB_DEFS: { label: string; items: ShopItem[] | null }[] = [
@@ -5112,7 +5114,7 @@ export class PrepScene extends Phaser.Scene {
         scrollCont.add(iconBg);
         const iconKey = `icon_${item.id}`;
         if (this.textures.exists(iconKey))
-          scrollCont.add(this.add.image(iconCX, iconCY, iconKey).setDisplaySize(P(12), P(12)));
+          scrollCont.add(this.add.image(iconCX, iconCY, iconKey).setDisplaySize(P(24), P(24)));
 
         const tx = cx + P(7) + ICON_SZ + P(5);
         const txtMaxW = CELL_W - ICON_SZ - P(18);

@@ -374,8 +374,8 @@ export const BEHAVIOR_INFO: Record<AttackBehavior, BehaviorInfo> = {
     ],
   },
   flowerMode: {
-    desc:    '消耗充能召喚不死花友軍（ATK×35%、HP×100%、存活15秒），朝指定方向生成。',
-    formula: ['不死花傷害：攻擊力 × 35%', '不死花血量：最大HP × 100%', '充能冷卻：3秒 / 格'],
+    desc:    '消耗充能召喚不死花友軍（ATK×35%、HP×180%、存活15秒），朝指定方向生成。',
+    formula: ['不死花傷害：攻擊力 × 35%', '不死花血量：最大HP × 180%', '充能冷卻：3秒 / 格'],
     relatedStats: [
       { stat: 'atk',   note: '決定不死花傷害' },
       { stat: 'hp',    note: '決定不死花血量' },

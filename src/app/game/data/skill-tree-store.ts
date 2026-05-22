@@ -132,7 +132,7 @@ export const SKILL_NODES: SkillNode[] = [
   { id: '7-2-2', label: '嗜血極限', desc: '嗜血層數上限 +5',              x: -370, y:   80, parentId: '7-2-1' },
 
   // ── Cluster 9: 不死花召喚 (TOP CENTER, arc shape) ────────────────────────
-  { id: '9',           label: '不死花召喚',  desc: '攻擊低機率召喚不死花 (ATKx35%、HPx100%、15秒) 上限1朵',  x: -140, y: -250, isRoot: true       },
+  { id: '9',           label: '不死花召喚',  desc: '攻擊低機率召喚不死花 (ATKx35%、HPx180%、15秒) 上限1朵',  x: -140, y: -250, isRoot: true       },
   { id: '9-1',         label: '不死花強化',  desc: '不死花傷害 +30%',                                         x:  -95, y: -295, parentId: '9'         },
   { id: '9-1-1',       label: '不死花增援',  desc: '不死花上限 +1',                                           x:  -30, y: -320, parentId: '9-1'       },
   { id: '9-1-1-1',     label: '召喚植物',    desc: '解鎖攻擊模式：召喚植物，不死花傷害 +50%',                 x:   30, y: -320, parentId: '9-1-1'     },
@@ -298,7 +298,7 @@ export const SkillTreeStore = {
       orbitFireBallDmgPct:  (L('3-1') ? 0.30 : 0),
       orbitIceBallDmgPct:   (L('4-1') ? 0.30 : 0),
       // ── 不死花召喚 ────────────────────────────────────
-      skillFlowerChance:    (L('9') ? 0.065 : 0),
+      skillFlowerChance:    (L('9') && !L('9-1-1-1') ? 0.065 : 0),
       skillFlowerCap:       (L('9') ? 1 : 0) + (L('9-1-1') ? 1 : 0) + (L('9-1-1-1-1-1') ? 1 : 0),
       skillFlowerHpPct:     (L('9-1-1-1-1') ? 1.50 : 0),
       summonFlowerDmgPct:   (L('9-1') ? 0.30 : 0) + (L('9-1-1-1') ? 0.50 : 0),

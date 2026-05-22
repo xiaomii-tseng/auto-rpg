@@ -1686,7 +1686,7 @@ export class GameScene extends Phaser.Scene {
 
     const ps = CardStore.getTotalStats();
     ally.isAlly = true;
-    ally.setAllyStats(Math.max(1, Math.round(ps.maxHp * (1 + (ps.skillFlowerHpPct ?? 0)))), Math.max(1, Math.round(ps.atk * 0.35 * (1 + (ps.summonFlowerDmgPct ?? 0)))));
+    ally.setAllyStats(Math.max(1, Math.round(ps.maxHp * (1.80 + (ps.skillFlowerHpPct ?? 0)))), Math.max(1, Math.round(ps.atk * 0.35 * (1 + (ps.summonFlowerDmgPct ?? 0)))));
     ally.attackCooldownMs = 800;
     ally.rangedRange = P(400);
     this._allyMinions.push(ally);
@@ -1712,26 +1712,28 @@ export class GameScene extends Phaser.Scene {
     ally.onFire = (type, mx, my, tx, ty) => {
       this.spawnMinionAttack(type, mx, my, tx, ty, ally.atk, ally.isElite);
       const wx = mx * DPR, wy = my * DPR;
-      const hitTargets = new Set<object>(); // 同一波所有子彈共用，每個目標只打一次
+      const hitTargets = new Set<object>();
       for (const c of this.minionProjGroup.getChildren()) {
         const img = c as Phaser.Physics.Arcade.Image;
         if (!(img as any).isAllyProj && img.active &&
             Phaser.Math.Distance.Between(img.x, img.y, wx, wy) < P(8)) {
           (img as any).isAllyProj = true;
           img.setTint(0x44ff88);
-          (img as any).dmg = ally.atk; // 覆寫 spawnMinionAttack 附加的倍率，直接用 ally.atk
-          const dmg = ally.atk;
+          // 速度 +50%
+          const projBody = img.body as Phaser.Physics.Arcade.Body;
+          projBody.velocity.x *= 1.5;
+          projBody.velocity.y *= 1.5;
           const hitTimer = this.time.addEvent({
             delay: 30, loop: true,
             callback: () => {
               if (!img.active) { hitTimer.destroy(); return; }
               for (const t of this.getHittableTargets()) {
                 if (!hitTargets.has(t) && Phaser.Math.Distance.Between(img.x, img.y, t.x, t.y) < P(18)) {
-                  const isBoss = (t as any) === this.boss;
-                  const actualDmg = isBoss ? Math.round(dmg * 0.775) : dmg;
-                  (t as any).takeDamage?.(actualDmg);
-                  this.spawnDamageNumber(t.x, t.y, actualDmg, false, 1);
                   hitTargets.add(t);
+                  const dmgPct = CardStore.getTotalStats().summonFlowerDmgPct ?? 0;
+                  this._bloodlustSwingHandled = false;
+                  this._sanguineSwingHandled = false;
+                  this.dealDamage(t, 0.35 * (1 + dmgPct), img.x, img.y, 'down');
                   this.time.delayedCall(600, () => hitTargets.delete(t));
                 }
               }
