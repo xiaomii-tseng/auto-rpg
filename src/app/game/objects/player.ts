@@ -37,6 +37,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   private _lastKillTime            = -99999;
   private _killShieldDecayStartTime= -1;
   private _killShieldAtDecayStart  = 0;
+  private _lastDamageTakenTime     = -99999;
 
   constructor(scene: Phaser.Scene, x: number, y: number) {
     super(scene, x, y, 'player_idle_shadow', 0);
@@ -78,8 +79,10 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
         ));
       }
     } else if (regenMax > 0 && this._shield < regenMax) {
-      // Regen shield refills at 25% of regenMax per second
-      this._shield = Math.min(regenMax, this._shield + regenMax * 0.25 * delta / 1000);
+      // 受傷後 2.5 秒才開始回填，每秒 25%
+      if (now - this._lastDamageTakenTime >= 2500) {
+        this._shield = Math.min(regenMax, this._shield + regenMax * 0.25 * delta / 1000);
+      }
     }
   }
 
@@ -104,7 +107,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       const cap = Math.max(Math.round(this.maxHp * 0.5), 1);
       const shieldPct = Math.min(shieldVal / cap, 1);
       const isKillShield = shieldVal > (CardStore.getTotalStats().regenShieldMax ?? 0);
-      this.headGfx.fillStyle(isKillShield ? 0x55bbff : 0x2266cc, 0.72);
+      this.headGfx.fillStyle(isKillShield ? 0xffcc00 : 0x2266cc, isKillShield ? 0.85 : 1.0);
       this.headGfx.fillRect(bx, by, bw * shieldPct, bh);
     }
   }
@@ -214,6 +217,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     let actual = Math.max(1, Math.round(amount * (1 - reduction) * takenMult));
     if (stats.damageCap) actual = Math.min(actual, Math.round(this.maxHp * stats.damageCap));
     // Shield absorbs damage first
+    this._lastDamageTakenTime = this.scene.time.now;
     if (this._shield > 0) {
       const absorbed = Math.min(Math.floor(this._shield), actual);
       this._shield -= absorbed;

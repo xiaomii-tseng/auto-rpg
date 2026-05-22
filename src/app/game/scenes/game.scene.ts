@@ -2998,7 +2998,7 @@ export class GameScene extends Phaser.Scene {
       if (Phaser.Math.Distance.Between(px, py, m.x, m.y) > RANGE) continue;
       const isCrit = Math.random() < stats.crit;
       const dmg = Math.round(baseDmg * Phaser.Math.FloatBetween(0.9, 1.1) * (isCrit ? (1 + stats.critDmg) : 1));
-      m.takeDamage(dmg);
+      const overkill = m.takeDamage(dmg);
       if (stats.lifesteal > 0) {
         const leech = Math.round(dmg * stats.lifesteal);
         if (stats.lifestealInstant) this.player.heal(leech); else this._leechPool += leech;
@@ -3006,6 +3006,13 @@ export class GameScene extends Phaser.Scene {
       this.spawnDamageNumber(m.x, m.y, dmg, isCrit, 1);
       if (isCrit) this._pendingHitWeight += 2;
       if (NetworkService.connected) NetworkService.sendMinionHit(m.minionId, dmg);
+      // 擊殺類詞墜
+      if (m.isDead) {
+        if ((stats.overkillSplash ?? 0) > 0 && overkill > 0) this.overkillSplash(m.x, m.y, overkill);
+        if ((stats.soulHarvest ?? 0) >= 1) this._soulHarvestProc(m.x, m.y);
+        if ((stats.onKillHeal ?? 0) > 0) this.player.heal(Math.round(stats.onKillHeal!));
+        if ((stats.killShieldPerKill ?? 0) > 0) this.player.addKillShield(Math.round(stats.killShieldPerKill!));
+      }
     }
     if (this.bossActive && this.boss.active &&
       Phaser.Math.Distance.Between(px, py, this.boss.x, this.boss.y) <= RANGE) {
@@ -6341,6 +6348,10 @@ export class GameScene extends Phaser.Scene {
     this.player.setActive(false);
     this.player.stop();
     this.player.setTexture('player_death_shadow', 6);
+    // 玩家死亡 → 所有友軍花朵立即死亡
+    for (const ally of [...this._allyMinions]) {
+      if (!ally.isDead) ally.takeDamage(999999);
+    }
 
     if (this._towerFloor > 0) {
       // Tower: save best floor, then return to PrepScene after delay
