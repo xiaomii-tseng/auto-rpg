@@ -198,8 +198,6 @@ export class BossLavaSlime extends Boss {
 
   protected override pickNextAttack(): void {
     if (this.guestMode) return;
-    const bc = this.barrageChance();
-    if (bc > 0 && Math.random() < bc) { this.stateTimer = this.scene.time.delayedCall(this.getNextAttackDelay(), () => this.enterBarrageWarn()); return; }
     const roll = Math.random();
     let fn: () => void;
     if      (roll < 0.20) fn = () => this.enterAoeWarn();

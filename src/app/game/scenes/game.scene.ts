@@ -11187,7 +11187,7 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
-  private _initPotionTextures(): void {
+  protected _initPotionTextures(): void {
     if (this.textures.exists('icon_potion_health_s')) return;
     const POTION_FRAMES: Record<string, number> = {
       icon_potion_health_s: 89,

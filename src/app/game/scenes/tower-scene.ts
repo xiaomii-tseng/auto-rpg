@@ -101,15 +101,18 @@ export class TowerScene extends GameScene {
   }
 
   override create(): void {
+    this._initPotionTextures();          // 確保 dungeon_floor 等程序紋理已生成
+    this.cameras.main.setBackgroundColor(0x0d0d1a);
+
     const W = this.scale.width;
     const H = this.scale.height;
 
-    this._CW  = P(160);   // arm corridor width
+    this._CW  = P(200);   // arm corridor width（對齊 game-scene 走廊寬 400px）
     this._BCH = P(200);   // bottom corridor height
 
-    // Canvas is 2× the screen; U-shape / boss room sit centred inside it
-    this.worldW = Math.round(W * 2);
-    this.worldH = Math.round(H * 2);
+    // Canvas is 2.5× the screen；走廊加寬後需要更大世界避免 islandW 為負
+    this.worldW = Math.round(W * 2.5);
+    this.worldH = Math.round(H * 2.5);
 
     // Margins: space between canvas edge and the U-shape boundary
     this._MX = Math.round(this.worldW * 0.12);
@@ -233,6 +236,9 @@ export class TowerScene extends GameScene {
     } else {
       this._spawnUFloorEnemies();
     }
+
+    // ── 螢幕邊緣暗化漸層（外圍背景效果）────────────────────
+    this._buildScreenVignette();
   }
 
   override update(): void {
@@ -285,6 +291,13 @@ export class TowerScene extends GameScene {
     }
 
     if (this.bossActive && this.boss) this.refreshBossBar();
+
+    // Y-sort：與 game.scene 對齊，確保 depth 依 Y 座標排列
+    this.player.setDepth(this.player.y + 30);
+    if (this.bossActive && this.boss?.active) this.boss.setDepth(this.boss.y + 20);
+    for (const m of this.allMinions) {
+      if (!m.isDead) m.setDepth(m.y + 16);
+    }
 
     this._updateTimer();
     this._updateFloorLabel();
@@ -357,6 +370,31 @@ export class TowerScene extends GameScene {
 
     // 底部終端橫條（y = BOTTOM_Y + BCH），全寬無缺口
     this._drawWallRect(wg, 0, BOTTOM_Y + BCH - WW, W, WW * 2);
+
+    // ── 走廊內壁陰影（depth 2，模擬 game-scene 牆邊陰影）──────
+    const SW = P(20);
+    const sh = this.add.graphics().setDepth(2);
+    // 左臂：外牆右側陰影（暗左→透右）
+    sh.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0.45, 0, 0.45, 0);
+    sh.fillRect(LEFT_X, MY, SW, ARM_H);
+    // 左臂：內島左側陰影（透左→暗右）
+    sh.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0, 0.45, 0, 0.45);
+    sh.fillRect(LEFT_X + CW - SW, MY, SW, ARM_H);
+    // 右臂：內島右側陰影（暗左→透右）
+    sh.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0.45, 0, 0.45, 0);
+    sh.fillRect(RIGHT_X, MY, SW, ARM_H);
+    // 右臂：外牆左側陰影（透左→暗右）
+    sh.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0, 0.45, 0, 0.45);
+    sh.fillRect(RIGHT_X + CW - SW, MY, SW, ARM_H);
+    // 底部走廊：左側陰影
+    sh.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0.45, 0, 0.45, 0);
+    sh.fillRect(LEFT_X, BOTTOM_Y, SW, BCH);
+    // 底部走廊：右側陰影
+    sh.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0, 0.45, 0, 0.45);
+    sh.fillRect(LEFT_X + BOT_W - SW, BOTTOM_Y, SW, BCH);
+    // 底部走廊：頂部陰影（暗上→透下）
+    sh.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0.45, 0.45, 0, 0);
+    sh.fillRect(LEFT_X, BOTTOM_Y, BOT_W, SW);
 
     // ── Physics walls ─────────────────────────────────────────
     this._addWall(0,           0,      W,              MY);
@@ -436,6 +474,18 @@ export class TowerScene extends GameScene {
     this._addWall(0,  RY, gapL,          WALL);                // room top-left
     this._addWall(gapL + PW, RY, W - gapL - PW, WALL);        // room top-right
 
+    // ── Boss room 內壁陰影 ────────────────────────────────────
+    const SW2 = P(20);
+    const sh2 = this.add.graphics().setDepth(3);
+    sh2.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0.45, 0, 0.45, 0);
+    sh2.fillRect(RX + WALL, RY + WALL, SW2, RH - WALL * 2);          // 左牆右側
+    sh2.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0, 0.45, 0, 0.45);
+    sh2.fillRect(RX + RW - WALL - SW2, RY + WALL, SW2, RH - WALL * 2); // 右牆左側
+    sh2.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0.45, 0.45, 0, 0);
+    sh2.fillRect(RX + WALL, RY + WALL, RW - WALL * 2, SW2);             // 頂牆下側
+    sh2.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0, 0, 0.45, 0.45);
+    sh2.fillRect(RX + WALL, RY + RH - WALL - SW2, RW - WALL * 2, SW2); // 底牆上側
+
     // Locked portal
     const pg = this.add.graphics().setDepth(4);
     this._slot.portalGfx = pg;
@@ -462,6 +512,26 @@ export class TowerScene extends GameScene {
     if (w < 1 || h < 1) return;
     const r = this.add.rectangle(x + w / 2, y + h / 2, w, h).setVisible(false);
     this._towerWalls!.add(r);
+  }
+
+  /** 螢幕四邊暗化漸層（setScrollFactor(0)，模擬 game-scene 外圍背景感） */
+  private _buildScreenVignette(): void {
+    const W = this.scale.width;
+    const H = this.scale.height;
+    const E = P(72);   // 邊緣寬度
+    const v = this.add.graphics().setScrollFactor(0).setDepth(4990);
+    // 頂
+    v.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0.65, 0.65, 0, 0);
+    v.fillRect(0, 0, W, E);
+    // 底
+    v.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0, 0, 0.65, 0.65);
+    v.fillRect(0, H - E, W, E);
+    // 左
+    v.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0.65, 0, 0.65, 0);
+    v.fillRect(0, 0, E, H);
+    // 右
+    v.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0, 0.65, 0, 0.65);
+    v.fillRect(W - E, 0, E, H);
   }
 
   // ════════════════════════════════════════════════════════════

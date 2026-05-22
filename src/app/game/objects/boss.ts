@@ -478,7 +478,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
       },
     });
 
-    this.stateTimer = this.scene.time.delayedCall(1500, () => this.enterAoeExplode());
+    this.stateTimer = this.scene.time.delayedCall(1150, () => this.enterAoeExplode());
   }
 
   private enterAoeExplode(): void {
