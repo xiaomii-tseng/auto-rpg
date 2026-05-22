@@ -390,6 +390,10 @@ export class PrepScene extends Phaser.Scene {
     this._sceneW = W;
     this._sceneH = H;
 
+    this.add.text(P(6), H - P(6), VERSION, {
+      fontSize: F(11), fontStyle: 'bold', color: '#ffffff', stroke: '#000000', strokeThickness: 2,
+    }).setOrigin(0, 1).setDepth(10);
+
     // 防止前一個 scene 的 pointerdown 穿透到本場景的按鈕
     this.input.enabled = false;
     this.time.delayedCall(300, () => { this.input.enabled = true; });
@@ -679,14 +683,27 @@ export class PrepScene extends Phaser.Scene {
     const onTowerStoreChange = () => towerKeyTxt.setText(`${TowerStore.getKeys()}`);
     TowerStore.onChange(onTowerStoreChange);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => TowerStore.offChange(onTowerStoreChange));
+    let towerHoldTimer: Phaser.Time.TimerEvent | null = null;
+    let towerActivated = false;
     this.add.rectangle(SET_X + SET_S / 2, TWR_Y + SET_S / 2, SET_S, SET_S)
       .setInteractive({ useHandCursor: true }).setDepth(35).setAlpha(0.001)
       .on('pointerdown', () => {
-        this.scene.start('TowerScene', {
-          globalFloor: 1,
-          runStartTime: Date.now(),
-          ownSkinId: SkinStore.get(),
+        towerActivated = false;
+        towerHoldTimer = this.time.delayedCall(3000, () => {
+          towerActivated = true;
+          this.scene.start('TowerScene', {
+            globalFloor: 1,
+            runStartTime: Date.now(),
+            ownSkinId: SkinStore.get(),
+          });
         });
+      })
+      .on('pointerup', () => {
+        if (towerHoldTimer) { towerHoldTimer.remove(); towerHoldTimer = null; }
+        if (!towerActivated) this._showToast('功能待開發');
+      })
+      .on('pointerout', () => {
+        if (towerHoldTimer) { towerHoldTimer.remove(); towerHoldTimer = null; }
       });
 
     // ── Quick-access buttons (horizontal, bottom-right) ───

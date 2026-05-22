@@ -335,69 +335,27 @@ export class TowerScene extends GameScene {
     this.add.tileSprite(RIGHT_X, MY,       CW,    ARM_H, 'dungeon_floor').setOrigin(0, 0).setDepth(-1);
     this.add.tileSprite(LEFT_X,  BOTTOM_Y, BOT_W, BCH,   'dungeon_floor').setOrigin(0, 0).setDepth(-1);
 
-    // ── 2.5D 牆頂面 (depth -1.5，插在 bg 和地板之間) ──────────
-    const WALL_TOP_H = P(20);
-    const CORNER_R   = P(6);
-    const topG = this.add.graphics().setDepth(-1.5);
-    const drawWallTop = (xLeft: number, northY: number, width: number) => {
-      if (width < P(4)) return;
-      const r = Math.min(CORNER_R, width / 2, WALL_TOP_H / 2);
-      topG.fillStyle(0x2a2a3e, 1);
-      topG.fillRoundedRect(xLeft, northY - WALL_TOP_H, width, WALL_TOP_H, { tl: r, tr: r, bl: 0, br: 0 });
-      topG.fillStyle(0x34344e, 1);
-      topG.fillRect(xLeft, northY - P(3), width, P(3));
-      topG.lineStyle(P(1), 0x3d3d5a, 0.45);
-      for (let ly = northY - WALL_TOP_H + P(5); ly < northY - P(4); ly += P(5))
-        topG.lineBetween(xLeft + r * 0.4, ly, xLeft + width - r * 0.4, ly);
-    };
-    drawWallTop(LEFT_X, MY, CW);                               // 左臂頂
-    drawWallTop(RIGHT_X, MY, CW);                              // 右臂頂
-    if (islandW > 0) drawWallTop(LEFT_X + CW, BOTTOM_Y, islandW); // 內島底面（底部走廊北邊）
-
-    // ── 石牆 (depth 1) ────────────────────────────────────────
+    // ── 石牆條（與 _buildTowerCorridor 相同的 hWall/vWall 模式）──
+    const WW = P(24);
     const wg = this.add.graphics().setDepth(1);
-    const WW = P(20);  // 外圍花紋邊條寬度
 
-    // 內島
-    this._drawWallRect(wg, LEFT_X + CW, MY, islandW, ARM_H);
-    // U 底部以下
-    const belowH = H - MY - (BOTTOM_Y + BCH);
-    if (belowH > 0) this._drawWallRect(wg, LEFT_X, BOTTOM_Y + BCH, BOT_W, belowH);
-    // 外圍花紋邊條
-    this._drawWallRect(wg, LEFT_X,       MY - WW,        BOT_W, WW);                  // 頂蓋（全寬）
-    this._drawWallRect(wg, LEFT_X - WW,  MY - WW,        WW, ARM_H + BCH + WW * 2);  // 左邊條
-    this._drawWallRect(wg, RIGHT_X + CW, MY - WW,        WW, ARM_H + BCH + WW * 2);  // 右邊條
-    this._drawWallRect(wg, LEFT_X - WW,  BOTTOM_Y + BCH, BOT_W + WW * 2, WW);        // 底蓋
+    // 頂部接點橫條（y = MY）：左臂缺口 + 內島頂蓋 + 右臂缺口
+    this._drawWallRect(wg, 0,            MY - WW, LEFT_X,           WW * 2);
+    this._drawWallRect(wg, LEFT_X + CW,  MY - WW, islandW,          WW * 2);
+    this._drawWallRect(wg, RIGHT_X + CW, MY - WW, W - RIGHT_X - CW, WW * 2);
 
-    // 地板邊界 accent 線
-    wg.lineStyle(P(2), 0x3a3a5e, 0.85);
-    wg.lineBetween(LEFT_X,       MY,           LEFT_X,       BOTTOM_Y + BCH);
-    wg.lineBetween(RIGHT_X + CW, MY,           RIGHT_X + CW, BOTTOM_Y + BCH);
-    wg.lineBetween(LEFT_X,       BOTTOM_Y + BCH, RIGHT_X + CW, BOTTOM_Y + BCH);
-    wg.lineBetween(LEFT_X + CW,  MY,           LEFT_X + CW,  BOTTOM_Y);
-    wg.lineBetween(RIGHT_X,      MY,           RIGHT_X,      BOTTOM_Y);
-    wg.lineBetween(LEFT_X,       MY,           LEFT_X + CW,  MY);
-    wg.lineBetween(RIGHT_X,      MY,           RIGHT_X + CW, MY);
-    wg.lineBetween(LEFT_X,       BOTTOM_Y,     LEFT_X,       BOTTOM_Y + BCH);
-    wg.lineBetween(RIGHT_X + CW, BOTTOM_Y,     RIGHT_X + CW, BOTTOM_Y + BCH);
+    // 外側縱向條（貫穿臂高 + 底部走廊高，接點之間）
+    this._drawWallRect(wg, 0,            MY + WW, LEFT_X,           ARM_H + BCH - WW * 2);
+    this._drawWallRect(wg, RIGHT_X + CW, MY + WW, W - RIGHT_X - CW, ARM_H + BCH - WW * 2);
 
-    // ── 西側陰影漸層 (depth 1，geometry mask 限制在地板內) ────
-    const SHADOW_W = P(22);
-    const maskGfx = (this.make.graphics as any)({ x: 0, y: 0, add: false }) as Phaser.GameObjects.Graphics;
-    maskGfx.fillStyle(0xffffff, 1);
-    maskGfx.fillRect(LEFT_X, MY, CW, ARM_H);
-    maskGfx.fillRect(RIGHT_X, MY, CW, ARM_H);
-    maskGfx.fillRect(LEFT_X, BOTTOM_Y, BOT_W, BCH);
-    const shadowG = this.add.graphics().setDepth(1).setMask(maskGfx.createGeometryMask());
-    // 左臂：左側牆投影向右
-    shadowG.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0.40, 0, 0.40, 0);
-    shadowG.fillRect(LEFT_X, MY, Math.min(SHADOW_W, CW), ARM_H);
-    // 右臂：內島東面投影向右
-    shadowG.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0.40, 0, 0.40, 0);
-    shadowG.fillRect(RIGHT_X, MY, Math.min(SHADOW_W, CW), ARM_H);
-    // 底部走廊：左側牆投影向右
-    shadowG.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0.40, 0, 0.40, 0);
-    shadowG.fillRect(LEFT_X, BOTTOM_Y, Math.min(SHADOW_W, BOT_W), BCH);
+    // 內島本體（兩接點中間）
+    this._drawWallRect(wg, LEFT_X + CW, MY + WW, islandW, ARM_H - WW * 2);
+
+    // 內島底部接點橫條（y = BOTTOM_Y）
+    this._drawWallRect(wg, LEFT_X + CW, BOTTOM_Y - WW, islandW, WW * 2);
+
+    // 底部終端橫條（y = BOTTOM_Y + BCH），全寬無缺口
+    this._drawWallRect(wg, 0, BOTTOM_Y + BCH - WW, W, WW * 2);
 
     // ── Physics walls ─────────────────────────────────────────
     this._addWall(0,           0,      W,              MY);
@@ -405,6 +363,7 @@ export class TowerScene extends GameScene {
     this._addWall(0,          MY,    LEFT_X,      H - MY * 2);
     this._addWall(RIGHT_X + CW, MY, W - (RIGHT_X + CW), H - MY * 2);
     this._addWall(LEFT_X + CW, MY, islandW, ARM_H);
+    const belowH = H - MY - (BOTTOM_Y + BCH);
     if (belowH > 0) this._addWall(LEFT_X, BOTTOM_Y + BCH, BOT_W, belowH);
 
     // ── Locked portal placeholder ─────────────────────────────

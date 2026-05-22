@@ -8,7 +8,7 @@ import { SkillTreeStore } from './skill-tree-store';
 import { TowerStore } from './tower-store';
 
 const SAVE_KEY = 'auto_rpg_save';
-const VERSION  = '12.1.0';
+const VERSION  = '14.0.0';
 let   _loaded  = false;
 
 interface SaveData {
