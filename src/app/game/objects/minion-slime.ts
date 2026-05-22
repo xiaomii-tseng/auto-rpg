@@ -49,6 +49,8 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
   private readonly deaggroRange  = Math.round(800 * DPR);
   private readonly leashRange    = Math.round(620 * DPR);
 
+  public noLeash = false;
+
   static readonly CHASE_SPEED     = Math.round(90 * DPR);
   static readonly STOP_RANGE      = Math.round(55 * DPR);
   static readonly DASH_SPEED      = Math.round(310 * DPR);
@@ -806,7 +808,7 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
       const dist     = Phaser.Math.Distance.Between(this.x, this.y, tx, ty);
 
       const distFromHome = Phaser.Math.Distance.Between(this.patrolCenter.x, this.patrolCenter.y, tx, ty);
-      if (dist > this.deaggroRange || distFromHome > this.leashRange) { this.enterPatrol(); return; }
+      if (!this.noLeash && (dist > this.deaggroRange || distFromHome > this.leashRange)) { this.enterPatrol(); return; }
 
       const body    = this.pb;
       const prevDir = this.dir;

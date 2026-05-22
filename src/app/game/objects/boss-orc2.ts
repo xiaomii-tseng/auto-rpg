@@ -13,13 +13,13 @@ const JUMP_TRACK_MS_MIN = 1500;
 const JUMP_TRACK_MS_MAX = 2500;
 const JUMP_LOCK_MS  = 800;  // 定住後延遲落下
 const JUMP_HIT_R    = Math.round(72 * DPR);
-const JUMP_DMG      = 80;
+const JUMP_DMG      = 90;
 
 // 三道地裂
 const FISSURE_WARN_MS = 700;
 const FISSURE_SPREAD  = Math.PI * 30 / 180;
 const FISSURE_LEN     = Math.round(200 * DPR);
-const FISSURE_DMG     = 60;
+const FISSURE_DMG     = 75;
 
 // 戰場碎裂
 const FRACTURE_WARN_MS    = 700;
@@ -27,14 +27,14 @@ const FRACTURE_SAFE_COUNT = 3;
 const FRACTURE_SAFE_R     = Math.round(45 * DPR);  // 小一點
 const FRACTURE_DURATION   = 4000;
 const FRACTURE_TICK_MS    = 400;
-const FRACTURE_DMG        = 18;
+const FRACTURE_DMG        = 22;
 const FRACTURE_SWING_MS   = 450;
 
 // 滾石
 const ROLL_WARN_MS = 500;
 const ROLL_SPEED   = Math.round(260 * DPR);
 const ROLL_R       = Math.round(22 * DPR);
-const ROLL_DMG     = 65;
+const ROLL_DMG     = 75;
 
 export class BossOrc2 extends BossOrcBase {
   onJumpLand?:      (x: number, y: number, r: number, dmg: number) => void;

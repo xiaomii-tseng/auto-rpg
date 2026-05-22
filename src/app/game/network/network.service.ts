@@ -29,6 +29,7 @@ export interface GameStartPayload {
   guestSkinId:    number;
   guestNicknames?: string[];
   guestSkinIds?:   number[];
+  mapTheme?:       string;
 }
 
 // ── Town callbacks ─────────────────────────────────────────────────────────
@@ -217,8 +218,8 @@ class NetworkServiceClass {
   // ── Send ──────────────────────────────────────────────────
 
   /** Host calls this after selecting a quest; triggers gameStart on server */
-  sendReady(nickname: string, level: number, questId: string, questStar: number, bossMonsterId: string): void {
-    this.room?.send('ready', { nickname, level, questId, questStar, bossMonsterId });
+  sendReady(nickname: string, level: number, questId: string, questStar: number, bossMonsterId: string, mapTheme?: string): void {
+    this.room?.send('ready', { nickname, level, questId, questStar, bossMonsterId, mapTheme });
   }
 
   sendMove(x: number, y: number, lastDir: string, hp: number, maxHp: number): void {

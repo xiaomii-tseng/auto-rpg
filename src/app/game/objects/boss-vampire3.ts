@@ -14,13 +14,13 @@ const SCYTHE_ARC_DEG   = 155;
 const SCYTHE_SWEEP_MS  = 500;
 const SCYTHE_TRAIL_DUR = 2800;
 const SCYTHE_DMG       = 90;
-const SCYTHE_TRAIL_DMG = 42;
+const SCYTHE_TRAIL_DMG = 28;
 
 // ── 血液爆星 ────────────────────────────────────────────────
 const BURST_WARN_MS  = 650;
 const BURST_COUNT    = 10;
 const BURST_HIT_R    = 22;
-const BURST_DMG      = 72;
+const BURST_DMG      = 75;
 
 // ── 血刺地獄 ────────────────────────────────────────────────
 const SPIKE_WARN_MS  = 380;
@@ -28,18 +28,18 @@ const SPIKE_WAVES    = 3;
 const SPIKE_PER_WAVE = 25;
 const SPIKE_WAVE_GAP = 550;
 const SPIKE_HIT_R    = 30;
-const SPIKE_DMG      = 88;
+const SPIKE_DMG      = 85;
 
 // ── 血液分裂 ────────────────────────────────────────────────
 const SPLIT_MOVE_MS   = 700;
 const SPLIT_CHARGE_MS = 1200;
 const SPLIT_CORNER_R  = 210;
-const CLONE_SCYTHE_DMG = 55;
+const CLONE_SCYTHE_DMG = 65;
 
 // ── 鮮血長河 ────────────────────────────────────────────────
 const RIVER_WARN_MS  = 700;
 const RIVER_HALF_W   = 52;
-const RIVER_DMG      = 65;
+const RIVER_DMG      = 75;
 const RIVER_TICK_MS  = 200;
 const RIVER_DUR      = 2250;
 

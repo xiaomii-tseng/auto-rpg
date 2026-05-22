@@ -123,7 +123,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
   private static readonly BARRAGE_SPREAD     = 0.22;   // radians between shots
   private static readonly BARRAGE_TRAIL_W    = Math.round(28 * DPR);
   private static readonly BARRAGE_TRAIL_HIT_R = Math.round(28 * DPR);
-  private static readonly BARRAGE_TRAIL_DMG  = 30;
+  private static readonly BARRAGE_TRAIL_DMG  = 25;
   private static readonly BARRAGE_TRAIL_TICK = 600;
   private static readonly BARRAGE_TRAIL_DUR  = 3500;
   private static readonly MAX_TRAILS         = 99;
@@ -188,6 +188,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
   onDead?: () => void;
   onAoeExplode?: (x: number, y: number) => void;
   onRangedBarrageTrailTick?: (x1: number, y1: number, x2: number, y2: number, radius: number, dmg: number) => void;
+  onBarrageOrbHit?: (x: number, y: number, dmg: number) => void;
 
   constructor(scene: Phaser.Scene, x: number, y: number, totalHp = 500, element: Element = 'none', spriteKey = 'slime', tint = 0xffffff) {
     super(scene, x, y, `${spriteKey}_idle`, 0);
@@ -836,6 +837,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     const trailGfx = this.scene.add.graphics().setDepth(8);
     const orb = this.scene.add.graphics().setDepth(15).setPosition(startX, startY);
     const prog = { t: 0 };
+    let orbHit = false;
 
     // 飛行中的粒子尾跡（短命綠色水滴）
     const orbTrail = this.scene.add.particles(startX, startY, 'pxl2', {
@@ -872,6 +874,13 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
         orb.lineStyle(P(2), 0x88ff44, 0.9);
         orb.strokeCircle(0, 0, P(11));
         this.drawSlimeTrail(trailGfx, startX, startY, cx, cy, 1);
+        if (!orbHit) {
+          const [px, py] = this.getTargetPos();
+          if (Phaser.Math.Distance.Between(cx, cy, px, py) <= P(20)) {
+            orbHit = true;
+            this.onBarrageOrbHit?.(cx, cy, this.scaleDmg(65));
+          }
+        }
       },
       onComplete: () => {
         orb.destroy();
@@ -937,7 +946,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
       delay: Boss.BARRAGE_TRAIL_TICK,
       repeat: Math.floor(Boss.BARRAGE_TRAIL_DUR / Boss.BARRAGE_TRAIL_TICK) - 1,
       callback: () => {
-        this.onRangedBarrageTrailTick?.(x1, y1, x2, y2, Boss.BARRAGE_TRAIL_HIT_R, Boss.BARRAGE_TRAIL_DMG);
+        this.onRangedBarrageTrailTick?.(x1, y1, x2, y2, Boss.BARRAGE_TRAIL_HIT_R, this.scaleDmg(Boss.BARRAGE_TRAIL_DMG));
       },
     });
 

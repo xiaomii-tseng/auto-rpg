@@ -29,7 +29,7 @@ export const STAR_REWARD_MULT: Record<number, number> = {
 };
 
 export const STAR_STAT_MULT: Record<number, number> = {
-  1: 1.0, 2: 1.5, 3: 2.2, 4: 3.2, 5: 4.5,
+  1: 1.2, 2: 1.8, 3: 2.64, 4: 3.84, 5: 5.4,
 };
 
 export const STAR_BOSS_DMG_MULT: Record<number, number> = {
@@ -37,7 +37,7 @@ export const STAR_BOSS_DMG_MULT: Record<number, number> = {
 };
 
 export const STAR_HP_MULT: Record<number, number> = {
-  1: 1.0, 2: 2.5, 3: 6.0, 4: 10.5, 5: 16.0,
+  1: 1.0, 2: 2.5, 3: 6.0, 4: 10.5, 5: 18.5,
 };
 
 export const STAR_DROP_MULT: Record<number, number> = {

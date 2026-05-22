@@ -6,8 +6,8 @@ const P = (n: number): number => Math.round(n * DPR);
 const MOB = !!(window as any).__gameMobile;
 const mf  = (ms: number) => MOB ? Math.round(ms * 2.0) : ms;
 
-const CROWN_DMG   = 55;
-const SPIKE_DMG   = 60;
+const CROWN_DMG   = 90;
+const SPIKE_DMG   = 75;
 const CROWN_SPEED = Math.round(165 * DPR);
 const MAX_MINIONS = 4;
 const ORBIT_R     = Math.round(30 * DPR);

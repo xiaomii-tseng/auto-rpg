@@ -13,7 +13,7 @@ const WHIRL_STEP_MS  = 400;
 const WHIRL_TOTAL_MS = 3000;
 const WHIRL_SPEED    = Math.round(70 * DPR);
 const WHIRL_HIT_R    = Math.round(52 * DPR);
-const WHIRL_DMG      = 55;
+const WHIRL_DMG      = 65;
 
 // 召喚增援
 const SUMMON_WARN_MS = 900;
@@ -24,7 +24,7 @@ const FAN_WARN_MS   = 550;
 const FAN_INTERVAL  = 400;
 const FAN_RANGE     = Math.round(115 * DPR);
 const FAN_HALF      = Math.PI * 48 / 180;
-const FAN_DMG       = 50;
+const FAN_DMG       = 65;
 
 // 投擲巨石
 const BOULDER_WARN_MS  = 800;

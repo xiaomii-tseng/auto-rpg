@@ -7,10 +7,10 @@ const P = (n: number): number => Math.round(n * DPR);
 const REPEL_RANGE    = Math.round(70 * DPR);
 const BLIND_DIST     = Math.round(55 * DPR);
 
-const STORM_DMG      = 45;
-const TRACKING_DMG   = 65;
-const FAN_DMG        = 55;
-const SPIRAL_DMG     = 40;
+const STORM_DMG      = 65;
+const TRACKING_DMG   = 75;
+const FAN_DMG        = 65;
+const SPIRAL_DMG     = 65;
 
 const STORM_SPEED    = Math.round(160 * DPR);
 const TRACKING_SPEED = Math.round(49 * DPR);  // 70 * 0.7

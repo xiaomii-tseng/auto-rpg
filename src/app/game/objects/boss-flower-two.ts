@@ -4,9 +4,9 @@ import { Boss, BossState } from './boss';
 const DPR = (window as any).__gameDpr as number;
 const P = (n: number): number => Math.round(n * DPR);
 
-const BLOSSOM_DMG = 85;
-const MIST_DMG    = 90;  // per hit (350ms check)
-const VINE_DMG    = 70;  // per 500ms tick
+const BLOSSOM_DMG = 75;
+const MIST_DMG    = 30;  // per hit (350ms check)
+const VINE_DMG    = 25;  // per 500ms tick
 const BURST_DMG   = 75;  // on projectile hit
 
 const BLOSSOM_R  = Math.round(65 * DPR);

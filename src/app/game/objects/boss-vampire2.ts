@@ -13,7 +13,7 @@ const MRAIN_COUNT    = 24;    // total meteors
 const MRAIN_STAGGER  = 140;   // ms between each meteor launch
 const MRAIN_R        = P(55); // radius (2.5× original P(22))
 const MRAIN_FALL_MS  = 580;
-const MRAIN_BASE_DMG = 75;
+const MRAIN_BASE_DMG = 65;
 
 // ── 彗星術 ────────────────────────────────────────────────
 const COMET_CHARGE_MS = 3000;
@@ -21,8 +21,8 @@ const COMET_FALL_MS   = 420;
 const COMET_R1        = P(130); // inner ring   0–130px
 const COMET_R2        = P(260); // mid  ring  131–260px
 const COMET_R3        = P(390); // outer ring 261–390px
-const COMET_DMG_INNER = 100;
-const COMET_DMG_MID   = 80;
+const COMET_DMG_INNER = 90;
+const COMET_DMG_MID   = 75;
 const COMET_DMG_OUTER = 65;
 
 // ── 禁咒：元素崩解 ────────────────────────────────────────
@@ -1223,7 +1223,7 @@ export class BossVampire2 extends Boss {
         for (let i = 0; i < 4; i++) {
           const a = pos[i], b = pos[(i + 1) % 4];
           if (this._distToSegment(px, py, a.x, a.y, b.x, b.y) <= P(24)) {
-            this.onLightningArcHit?.(this.scaleDmg(55));
+            this.onLightningArcHit?.(this.scaleDmg(75));
             break;
           }
         }
@@ -1447,7 +1447,7 @@ export class BossVampire2 extends Boss {
         if (this.currentState === BossState.DEAD) { bigHitTimer.destroy(); return; }
         const [px, py] = this.getTargetPos();
         if (Phaser.Math.Distance.Between(px, py, bx, by) <= P(36))
-          this.onTornadoHit?.(this.scaleDmg(65));
+          this.onTornadoHit?.(this.scaleDmg(75));
       },
     });
 
@@ -1483,7 +1483,7 @@ export class BossVampire2 extends Boss {
               if (!sg.active) { smHitTimer.destroy(); return; }
               const [px, py] = this.getTargetPos();
               if (Phaser.Math.Distance.Between(px, py, sx, sy) <= P(18))
-                this.onTornadoHit?.(this.scaleDmg(38));
+                this.onTornadoHit?.(this.scaleDmg(65));
             },
           });
           this.scene.time.delayedCall(2000, () => {

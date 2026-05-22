@@ -24,6 +24,11 @@ const P = (n: number): number => Math.round(n * DPR);
 const TOP_H    = 0;
 const BOTTOM_H = 0;
 
+const QUEST_MAP_THEMES = ['grassland', 'desert', 'snow', 'lava', 'forest', 'dungeon'] as const;
+function randomQuestTheme(): string {
+  return QUEST_MAP_THEMES[Math.floor(Math.random() * QUEST_MAP_THEMES.length)];
+}
+
 // Wood palette
 const WB   = 0x2e1a0a; // panel bg (dark base)
 const WBD  = 0x1a0e06; // panel bg deeper / shadow fill
@@ -479,7 +484,7 @@ export class PrepScene extends Phaser.Scene {
               seed: p.seed, questStar: p.questStar, bossMonsterId: p.bossMonsterId,
               mapParams: p.mapParams, partnerNickname: p.guestNickname,
               ownSkinId: p.hostSkinId, partnerSkinId: p.guestSkinId,
-              playerCount: p.playerCount ?? 2,
+              playerCount: p.playerCount ?? 2, mapTheme: p.mapTheme,
             });
           } else {
             try { if (p.questId) QuestStore.acceptQuest(p.questId); } catch { /* guest */ }
@@ -487,7 +492,7 @@ export class PrepScene extends Phaser.Scene {
               seed: p.seed, questStar: p.questStar, bossMonsterId: p.bossMonsterId,
               mapParams: p.mapParams, partnerNickname: p.hostNickname,
               ownSkinId: p.guestSkinId, partnerSkinId: p.hostSkinId,
-              playerCount: p.playerCount ?? 2,
+              playerCount: p.playerCount ?? 2, mapTheme: p.mapTheme,
             });
           }
         });
@@ -677,7 +682,11 @@ export class PrepScene extends Phaser.Scene {
     this.add.rectangle(SET_X + SET_S / 2, TWR_Y + SET_S / 2, SET_S, SET_S)
       .setInteractive({ useHandCursor: true }).setDepth(35).setAlpha(0.001)
       .on('pointerdown', () => {
-        this.scene.start('GameScene', { towerFloor: 1 });
+        this.scene.start('TowerScene', {
+          globalFloor: 1,
+          runStartTime: Date.now(),
+          ownSkinId: SkinStore.get(),
+        });
       });
 
     // ── Quick-access buttons (horizontal, bottom-right) ───
@@ -1293,10 +1302,11 @@ export class PrepScene extends Phaser.Scene {
       yHit.on('pointerdown', () => {
         QuestStore.acceptQuest(quest.id);
         closeCo(); closeAll();
+        const mapTheme = randomQuestTheme();
         if (NetworkService.connected && NetworkService.isHost) {
-          NetworkService.sendReady(getPlayerName(), PlayerStore.getLevel(), quest.id, quest.star, quest.bossId);
+          NetworkService.sendReady(getPlayerName(), PlayerStore.getLevel(), quest.id, quest.star, quest.bossId, mapTheme);
         } else {
-          this.scene.start('BattleLoadScene', { ownSkinId: SkinStore.get(), questStar: quest.star, bossMonsterId: quest.bossId });
+          this.scene.start('BattleLoadScene', { ownSkinId: SkinStore.get(), questStar: quest.star, bossMonsterId: quest.bossId, mapTheme });
         }
       });
 
@@ -5593,7 +5603,7 @@ export class PrepScene extends Phaser.Scene {
             seed: p.seed, questStar: p.questStar, bossMonsterId: p.bossMonsterId,
             mapParams: p.mapParams, partnerNickname: p.guestNickname,
             ownSkinId: p.hostSkinId, partnerSkinId: p.guestSkinId,
-            playerCount: p.playerCount ?? 2,
+            playerCount: p.playerCount ?? 2, mapTheme: p.mapTheme,
           });
         });
         this.refreshRoomOverlay();
@@ -5690,7 +5700,7 @@ export class PrepScene extends Phaser.Scene {
             seed: payload.seed, questStar: payload.questStar, bossMonsterId: payload.bossMonsterId,
             mapParams: payload.mapParams, partnerNickname: payload.hostNickname,
             ownSkinId: payload.guestSkinId, partnerSkinId: payload.hostSkinId,
-            playerCount: payload.playerCount ?? 2,
+            playerCount: payload.playerCount ?? 2, mapTheme: payload.mapTheme,
           });
         });
         NetworkService.sendPlayerInfo(nick, PlayerStore.getLevel(), SkinStore.get());
@@ -6700,7 +6710,7 @@ export class PrepScene extends Phaser.Scene {
           seed: p.seed, questStar: p.questStar, bossMonsterId: p.bossMonsterId,
           mapParams: p.mapParams, partnerNickname: p.guestNickname,
           ownSkinId: p.hostSkinId, partnerSkinId: p.guestSkinId,
-          playerCount: p.playerCount ?? 2,
+          playerCount: p.playerCount ?? 2, mapTheme: p.mapTheme,
         });
       } else {
         try { if (p.questId) QuestStore.acceptQuest(p.questId); } catch { /* guest */ }
@@ -6708,7 +6718,7 @@ export class PrepScene extends Phaser.Scene {
           seed: p.seed, questStar: p.questStar, bossMonsterId: p.bossMonsterId,
           mapParams: p.mapParams, partnerNickname: p.hostNickname,
           ownSkinId: p.guestSkinId, partnerSkinId: p.hostSkinId,
-          playerCount: p.playerCount ?? 2,
+          playerCount: p.playerCount ?? 2, mapTheme: p.mapTheme,
         });
       }
     });

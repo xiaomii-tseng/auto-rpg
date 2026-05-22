@@ -85,7 +85,7 @@ export const SKILL_NODES: SkillNode[] = [
   // ── 瞬步斬 branch (190°) ──────────────────────────────────────────────────
   { id: '1-8',     label: '瞬步延伸', desc: '瞬步斬距離 +30%',                          x:  -69, y:  -12, parentId: '1',     attackMode: 'dashPierce' },
   { id: '1-8-1',   label: '瞬步強化', desc: '瞬步斬傷害 +30%',                          x: -133, y:  -23, parentId: '1-8',   attackMode: 'dashPierce' },
-  { id: '1-8-1-1', label: '瞬步二連', desc: '升級為瞬步二連斬，造成兩次傷害（各65%）',  x: -197, y:  -35, parentId: '1-8-1', attackMode: 'dashPierce' },
+  { id: '1-8-1-1', label: '瞬步二連', desc: '升級為瞬步二連斬，造成兩次傷害（各55%）',  x: -197, y:  -35, parentId: '1-8-1', attackMode: 'dashPierce' },
 
   // ── 五連斬 branch (230°) ──────────────────────────────────────────────────
   { id: '1-9',     label: '五連強化',   desc: '五連斬傷害 +10%', x:  -45, y:  -54, parentId: '1',     attackMode: 'multiHit' },

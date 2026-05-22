@@ -12,7 +12,7 @@ const STORM_WARN_MS  = 500;
 const STORM_COUNT    = 12;
 const STORM_DURATION = 2000;
 const STORM_INTERVAL = Math.round(STORM_DURATION / STORM_COUNT);
-const STORM_DMG      = mq(30);
+const STORM_DMG      = mq(65);
 const STORM_ANIM_DIRS = ['up', 'down', 'left', 'right'] as const;
 
 // 武士道
@@ -21,17 +21,17 @@ const BUSHIDO_GUARD_MS      = 1800;
 const BUSHIDO_HIT_ROUNDS    = 5;   // rounds of scatter if guard is broken
 const BUSHIDO_NOHIT_ROUNDS  = 1;   // rounds if player waits
 const BUSHIDO_ROUND_DELAY   = 350; // ms between scatter rounds
-const BUSHIDO_DMG           = mq(38);
+const BUSHIDO_DMG           = mq(75);
 
 // 武士葬
 const BURIAL_WARN_MS  = 700;
 const BURIAL_COUNT    = 15;
 const BURIAL_TRAVEL   = 480;  // logical px, larger than normal
-const BURIAL_DMG      = mq(42);
+const BURIAL_DMG      = mq(75);
 
 // 斬鐵
 const IRON_WARN_MS = 900;
-const IRON_DMG     = mq(58);
+const IRON_DMG     = mq(90);
 
 // 隱
 const VANISH_HOLD_MS   = 350;  // pause before fading

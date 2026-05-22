@@ -9,10 +9,10 @@ const mq  = (n: number) => MOB ? Math.max(1, Math.ceil(n * 0.5)) : n;
 const mf  = (ms: number) => MOB ? Math.round(ms * 2.0) : ms;
 
 const JUMP_RADIUS = Math.round(85 * DPR);
-const JUMP_DMG    = 63;
+const JUMP_DMG    = 75;
 const FAN_RANGE   = Math.round(220 * DPR);
 const FAN_HALF    = 35 * (Math.PI / 180);  // ±35°
-const FAN_DMG     = 58;
+const FAN_DMG     = 85;
 const FAN_STEPS   = 14;
 
 export class BossRedSlime extends Boss {

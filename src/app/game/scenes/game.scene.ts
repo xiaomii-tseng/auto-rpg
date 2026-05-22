@@ -119,30 +119,30 @@ interface MazeRoom {
 }
 
 export class GameScene extends Phaser.Scene {
-  private player!: Player;
-  private boss!: Boss;
-  private joystick!: VirtualJoystick;
-  private keys!: Phaser.Types.Input.Keyboard.CursorKeys & {
+  protected player!: Player;
+  protected boss!: Boss;
+  protected joystick!: VirtualJoystick;
+  protected keys!: Phaser.Types.Input.Keyboard.CursorKeys & {
     w: Phaser.Input.Keyboard.Key;
     a: Phaser.Input.Keyboard.Key;
     s: Phaser.Input.Keyboard.Key;
     d: Phaser.Input.Keyboard.Key;
     space: Phaser.Input.Keyboard.Key;
   };
-  private bossHpGfx!: Phaser.GameObjects.Graphics;
-  private bossHpLabel!: Phaser.GameObjects.Text;
-  private bossDebuffGfx!: Phaser.GameObjects.Graphics;
-  private bossDebuffTexts: Map<string, Phaser.GameObjects.Text> = new Map();
-  private gameOver = false;
-  private teleporting = false;
-  private _hostReconnecting = false;
+  protected bossHpGfx!: Phaser.GameObjects.Graphics;
+  protected bossHpLabel!: Phaser.GameObjects.Text;
+  protected bossDebuffGfx!: Phaser.GameObjects.Graphics;
+  protected bossDebuffTexts: Map<string, Phaser.GameObjects.Text> = new Map();
+  protected gameOver = false;
+  protected teleporting = false;
+  protected _hostReconnecting = false;
 
   // 瞬步斬瞄準模式
   private dashAimAngle = 0;
-  private worldW = 0;
-  private worldH = 0;
+  protected worldW = 0;
+  protected worldH = 0;
 
-  private allMinions: MinionSlime[] = [];
+  protected allMinions: MinionSlime[] = [];
   private _flowerThreeMinions = new Set<MinionSlime>();
   private _pendingFlowerSeeds = 0;
   // ── Special card effect state ──
@@ -163,7 +163,7 @@ export class GameScene extends Phaser.Scene {
   private _fearAuraGfx?: Phaser.GameObjects.Graphics;
   // 蓄勁一閃
   private _impaleHitCount = 0;
-  private _reviveDialogActive = false;
+  protected _reviveDialogActive = false;
   private _atkDragPointerId = -1;
   private _atkDragStartX = 0;
   private _atkDragStartY = 0;
@@ -172,8 +172,8 @@ export class GameScene extends Phaser.Scene {
   private _holdAttackTimer?: Phaser.Time.TimerEvent;
   private _forceAttackAngle: number | null = null;  // 手動拖動攻擊方向（rad），null = 自動
   private _atkDragAngle: number | null = null;       // 目前正在拖動的角度，null = 未拖動
-  private _allyMinions: MinionSlime[] = [];          // 有序陣列，上限 3，最舊的先移除
-  private _allyGroup!: Phaser.Physics.Arcade.Group;  // 用於 projectile overlap 偵測
+  protected _allyMinions: MinionSlime[] = [];          // 有序陣列，上限 3，最舊的先移除
+  protected _allyGroup!: Phaser.Physics.Arcade.Group;  // 用於 projectile overlap 偵測
   private _slowZones: { x: number; y: number; r: number; expires: number; gfx: Phaser.GameObjects.Graphics }[] = [];
   private _rainPuddles: { x: number; y: number; r: number; dmg: number; expires: number }[] = [];
   private _v3IceDomainActive = false;
@@ -196,12 +196,12 @@ export class GameScene extends Phaser.Scene {
   private bossArenaCenter = new Phaser.Math.Vector2(0, 0);
   private bossArenaShape = 0;   // 0=圓, 1=八角, 2=菱形, 3=圓角矩形
   private bossMonsterId = 'boss_orc1';
-  private questStar = 1;
+  protected questStar = 1;
   private _mapSeed = 0;
   // ── Tower mode ──────────────────────────────────────────
-  private _towerFloor    = 0;
-  private _towerWalls?: Phaser.Physics.Arcade.StaticGroup;
-  private _towerBoss2?: Boss;
+  protected _towerFloor    = 0;
+  protected _towerWalls?: Phaser.Physics.Arcade.StaticGroup;
+  protected _towerBoss2?: Boss;
   private _towerEnemyAlive = 0;
   private _towerPortalGfx?: Phaser.GameObjects.Graphics;
   private _towerPortalHit?: Phaser.GameObjects.Zone;
@@ -225,13 +225,13 @@ export class GameScene extends Phaser.Scene {
   private _initQuestStar?: number;
   private _mapParams?: MapParams;
   private _partners = new Map<string, PartnerData>();
-  private _partnerNickname = '';
-  private _playerCount = 1;
-  private _ownSkinId = 0;
-  private _partnerSkinId = 0;
-  private _minionTargets = new Map<string, { x: number; y: number; isDashing: boolean }>();
-  private bossActive = false;
-  private lootDrops: LootDrop[] = [];
+  protected _partnerNickname = '';
+  protected _playerCount = 1;
+  protected _ownSkinId = 0;
+  protected _partnerSkinId = 0;
+  protected _minionTargets = new Map<string, { x: number; y: number; isDashing: boolean }>();
+  protected bossActive = false;
+  protected lootDrops: LootDrop[] = [];
   private exitBtnGfx!: Phaser.GameObjects.Graphics;
   private exitBtnTxt!: Phaser.GameObjects.Text;
   private exitBtnHit!: Phaser.GameObjects.Rectangle;
@@ -243,15 +243,15 @@ export class GameScene extends Phaser.Scene {
   private levelText!: Phaser.GameObjects.Text;
   private expBarGfx!: Phaser.GameObjects.Graphics;
   private pickupLog: Phaser.GameObjects.Text[] = [];
-  private playerStartX = 0;
-  private playerStartY = 0;
+  protected playerStartX = 0;
+  protected playerStartY = 0;
   private lastSafeX = 0;
   private lastSafeY = 0;
   private readonly CORR_HW = P(100);
   private auraTimer?: Phaser.Time.TimerEvent;
   private auraRing?: Phaser.GameObjects.Graphics;
   private activeFires: { x: number; y: number; r: number; expiresAt: number }[] = [];
-  private _leechPool = 0;
+  protected _leechPool = 0;
   private _bloodlustStacks = 0;
   private _bloodlustTimer: Phaser.Time.TimerEvent | null = null;
   private _bloodlustExpiry = 0;
@@ -262,9 +262,9 @@ export class GameScene extends Phaser.Scene {
   private _sanguineExpiry = 0;
   private _sanguineTickTimer: Phaser.Time.TimerEvent | null = null;
   private _sanguineSwingHandled = false;
-  private minionProjGroup!: Phaser.Physics.Arcade.Group;
-  private homingProjs: Phaser.Physics.Arcade.Image[] = [];
-  private hitBatches = new Map<number, number>(); // batchId → hitTimestamp
+  protected minionProjGroup!: Phaser.Physics.Arcade.Group;
+  protected homingProjs: Phaser.Physics.Arcade.Image[] = [];
+  protected hitBatches = new Map<number, number>(); // batchId → hitTimestamp
   // ── 花怪召喚充能 ──────────────────────────────────────────
   private _flowerCharges = 3;
   private _flowerMaxCharges = 3;
@@ -272,18 +272,18 @@ export class GameScene extends Phaser.Scene {
   private readonly _FLOWER_CHARGE_MS = 3000;
   private _flowerChargeGfx?: Phaser.GameObjects.Graphics;
   private _flowerChargeTxt?: Phaser.GameObjects.Text;
-  private plantZones: { type: 'circle' | 'vine'; x: number; y: number; r: number; len?: number; ang?: number; dmg: number; lastTick: number; tickInterval: number; expiresAt: number; gfx: Phaser.GameObjects.Graphics }[] = [];
-  private _sessionQty: Map<string, number> = new Map();
+  protected plantZones: { type: 'circle' | 'vine'; x: number; y: number; r: number; len?: number; ang?: number; dmg: number; lastTick: number; tickInterval: number; expiresAt: number; gfx: Phaser.GameObjects.Graphics }[] = [];
+  protected _sessionQty: Map<string, number> = new Map();
   private _atkBuffActive = false;
   private _atkBuffTimer?: Phaser.Time.TimerEvent;
-  private _buffExpiry: Map<string, number> = new Map();
+  protected _buffExpiry: Map<string, number> = new Map();
   private _buffHudTexts: Phaser.GameObjects.Text[] = [];
-  private _lastBuffHudRefresh = 0;
+  protected _lastBuffHudRefresh = 0;
   private _pendingHitWeight = 0;
   private _hitShakePending  = false;
 
-  constructor() {
-    super({ key: 'GameScene' });
+  constructor(key = 'GameScene') {
+    super({ key });
   }
 
   preload(): void {
@@ -786,8 +786,8 @@ export class GameScene extends Phaser.Scene {
       this.boss.onAoeExplode = (x, y) => {
         if (!this.bossActive) return;
         const dSq = Phaser.Math.Distance.BetweenPointsSquared({ x, y }, this.player);
-        if (dSq <= Boss.AOE_RADIUS ** 2) this.player.takeDamage(this.boss.scaleDmg(50));
-        this.damageAlliesNear(x, y, Boss.AOE_RADIUS, this.boss.scaleDmg(50));
+        if (dSq <= Boss.AOE_RADIUS ** 2) this.player.takeDamage(this.boss.scaleDmg(75));
+        this.damageAlliesNear(x, y, Boss.AOE_RADIUS, this.boss.scaleDmg(75));
       };
       this.boss.onRangedBarrageTrailTick = (x1, y1, x2, y2, radius, dmg) => {
         if (!this.bossActive) return;
@@ -806,13 +806,19 @@ export class GameScene extends Phaser.Scene {
         }
       };
 
+      this.boss.onBarrageOrbHit = (x, y, dmg) => {
+        if (!this.bossActive) return;
+        this.player.takeDamage(dmg);
+        this.damageAlliesNear(x, y, P(20), dmg);
+      };
+
       const bossGroup = this.physics.add.group();
       bossGroup.add(this.boss, false);
       (this.boss.body as Phaser.Physics.Arcade.Body).setCollideWorldBounds(true);
 
       this.physics.add.overlap(bossGroup, this.player, () => {
         if (!this.bossActive) return;
-        if (this.boss.currentState === 'DASHING') this.player.takeDamage(this.boss.scaleDmg(45));
+        if (this.boss.currentState === 'DASHING') this.player.takeDamage(this.boss.scaleDmg(75));
       });
       this.physics.add.overlap(bossGroup, this._allyGroup, (_b, allyObj) => {
         if (!this.bossActive) return;
@@ -821,7 +827,7 @@ export class GameScene extends Phaser.Scene {
         const now = this.time.now;
         if (now - ((ally as any)._lastDashHit ?? 0) < 300) return;
         (ally as any)._lastDashHit = now;
-        ally.takeDamage(this.boss.scaleDmg(45));
+        ally.takeDamage(this.boss.scaleDmg(75));
       });
     }
 
@@ -888,15 +894,7 @@ export class GameScene extends Phaser.Scene {
       });
     }
 
-    this.bossHpGfx = this.add.graphics().setScrollFactor(0).setDepth(5).setVisible(false);
-    this.bossHpLabel = this.add.text(W / 2, P(6), '', {
-      fontSize: F(15), fontStyle: 'bold', color: '#ffcccc', stroke: '#000', strokeThickness: 2,
-    }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(6).setVisible(false);
-    this.bossDebuffGfx = this.add.graphics().setScrollFactor(0).setDepth(7).setVisible(false);
-    // Pre-create debuff stack labels (lazy creation inside physics callbacks causes canvas null errors)
-    this.bossDebuffTexts.set('burn', this.add.text(0, 0, '', {
-      fontSize: F(15), color: '#ffffff', stroke: '#000000', strokeThickness: 2, fontStyle: 'bold',
-    }).setScrollFactor(0).setDepth(8).setOrigin(0.5, 0.5).setVisible(false));
+    this._initBossBar();
 
     const kb = this.input.keyboard!;
     this.keys = {
@@ -1507,7 +1505,7 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  private showFreeReviveDialog(): void {
+  protected showFreeReviveDialog(): void {
     this._reviveDialogActive = true;
     (this.player as any).invincible = true;  // 等候期間玩家無敵，防止重複觸發 onDead
 
@@ -1767,7 +1765,7 @@ export class GameScene extends Phaser.Scene {
     this.spawnAllyFlower('plant3_s', 15000);
   }
 
-  private tryFlowerSummonModeAttack(): void {
+  protected tryFlowerSummonModeAttack(): void {
     if (this._flowerCharges <= 0) return;
 
     // 手動拖曳方向優先，否則用玩家面向
@@ -1877,7 +1875,7 @@ export class GameScene extends Phaser.Scene {
 
   // ══════════════════════════════════════════════════════════════
 
-  private getAttackTarget(): { x: number; y: number } {
+  protected getAttackTarget(): { x: number; y: number } {
     let nearest: { x: number; y: number } | null = null;
     let minDist = Infinity;
     for (const m of this.allMinions) {
@@ -2278,7 +2276,7 @@ export class GameScene extends Phaser.Scene {
     return stats.atkSpeed + this._sanguineStacks * (stats.bloodlustAtkSpeedPerStack ?? 0);
   }
 
-  private meleeAttack(tx: number, ty: number): void {
+  protected meleeAttack(tx: number, ty: number): void {
     this._bloodlustSwingHandled = false;
     this._sanguineSwingHandled = false;
     const behavior = SkillTreeStore.getAttackMode();
@@ -2586,7 +2584,7 @@ export class GameScene extends Phaser.Scene {
     return { x: safeX, y: safeY };
   }
 
-  private attackDashPierce(_tx: number, _ty: number): void {
+  protected attackDashPierce(_tx: number, _ty: number): void {
     const cd = Math.round(650 / (1 + this.getEffectiveAtkSpeed()));
     if (!this.player.lockCooldown(cd)) return;
     if (this._forceAttackAngle !== null) {
@@ -3079,7 +3077,7 @@ export class GameScene extends Phaser.Scene {
 
   // ── Map / Monster Setup ───────────────────────────────
 
-  private handleMinionDrop(monsterId: string, x: number, y: number): void {
+  protected handleMinionDrop(monsterId: string, x: number, y: number): void {
     const def = getMonsterDef(monsterId);
     if (!def) return;
     const isElite = def.tier >= 3 && def.tier < 5;
@@ -3686,7 +3684,7 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  private damageAlliesNear(x: number, y: number, radius: number, dmg: number): void {
+  protected damageAlliesNear(x: number, y: number, radius: number, dmg: number): void {
     for (const ally of this._allyMinions) {
       if (ally.isDead) continue;
       if (Phaser.Math.Distance.Between(x, y, ally.x, ally.y) <= radius) ally.takeDamage(dmg);
@@ -3694,14 +3692,14 @@ export class GameScene extends Phaser.Scene {
   }
 
   // 範圍傷害：同時打 player 和範圍內所有友軍
-  private hitInRadius(x: number, y: number, r: number, dmg: number): void {
+  protected hitInRadius(x: number, y: number, r: number, dmg: number): void {
     const dSq = Phaser.Math.Distance.BetweenPointsSquared({ x, y }, this.player);
     if (dSq <= r * r) this.player.takeDamage(dmg);
     this.damageAlliesNear(x, y, r, dmg);
   }
 
   // 全場傷害：打 player 和所有友軍（不依位置）
-  private hitGlobal(dmg: number): void {
+  protected hitGlobal(dmg: number): void {
     this.player.takeDamage(dmg);
     for (const ally of this._allyMinions) {
       if (!ally.isDead) ally.takeDamage(dmg);
@@ -3803,7 +3801,7 @@ export class GameScene extends Phaser.Scene {
     return targets[Math.floor(Math.random() * targets.length)];
   }
 
-  private nearestTargetPos(fromX: number, fromY: number): [number, number] {
+  protected nearestTargetPos(fromX: number, fromY: number): [number, number] {
     let best: [number, number] = [this.player.x, this.player.y];
     let bestDist = Phaser.Math.Distance.Between(fromX, fromY, this.player.x, this.player.y);
 
@@ -3825,7 +3823,7 @@ export class GameScene extends Phaser.Scene {
     return best;
   }
 
-  private createBoss(bossDef: MonsterDef, totalHp: number): Boss {
+  protected createBoss(bossDef: MonsterDef, totalHp: number): Boss {
     const cx = this.bossArenaCenter.x, cy = this.bossArenaCenter.y;
     if (bossDef.id === 'boss_slime_green') {
       const b = new BossGreenSlime(this, cx, cy, totalHp, bossDef.element, bossDef.spriteKey, bossDef.tint);
@@ -4469,7 +4467,7 @@ export class GameScene extends Phaser.Scene {
     return new Boss(this, cx, cy, totalHp, bossDef.element, bossDef.spriteKey, bossDef.tint);
   }
 
-  private spawnMinionAt(defId: string, wx: number, wy: number, isElite: boolean, hpOverride?: number, atkOverride?: number): void {
+  protected spawnMinionAt(defId: string, wx: number, wy: number, isElite: boolean, hpOverride?: number, atkOverride?: number): void {
     const def = getMonsterDef(defId);
     if (!def) return;
     const hpMult = STAR_HP_MULT[this.questStar] ?? 1;
@@ -4688,13 +4686,19 @@ export class GameScene extends Phaser.Scene {
       }
     };
 
-    const spawnAt = (wx: number, wy: number) => {
-      // 花怪群聚錨點：1~2 個，距 waypoint 中心 60~140px
+    const spawnAt = (wx: number, wy: number, waypointIdx?: number) => {
+      // 花怪群聚錨點：以所在房間最小半寬的 20~80% 為半徑，避免生成在邊界外
+      const rooms = waypointIdx != null ? (this.waypointRooms[waypointIdx] ?? []) : [];
+      let minHalfW = P(100); // fallback for corner-point spawns
+      if (rooms.length > 0) {
+        minHalfW = rooms.reduce((best, r) => Math.min(best, r.w / 2, r.h / 2), Infinity);
+      }
       const numClusters = srng.between(1, 2);
       const plantClusters: { x: number; y: number }[] = [];
       for (let c = 0; c < numClusters; c++) {
         const ca = srng.float(0, Math.PI * 2);
-        const cr = srng.float(P(60), P(140));
+        const plantSpawnMaxOffset = P(50);
+        const cr = srng.float(minHalfW * 0.20, Math.max(minHalfW * 0.20, minHalfW * 0.80 - plantSpawnMaxOffset));
         plantClusters.push({ x: wx + Math.cos(ca) * cr, y: wy + Math.sin(ca) * cr });
       }
 
@@ -4718,7 +4722,7 @@ export class GameScene extends Phaser.Scene {
     };
 
     for (let i = 1; i < this.waypoints.length - 1; i++) {
-      spawnAt(this.waypoints[i].x, this.waypoints[i].y);
+      spawnAt(this.waypoints[i].x, this.waypoints[i].y, i);
     }
 
     for (let i = 1; i < this.cornerPts.length - 1; i++) {
@@ -5497,7 +5501,7 @@ export class GameScene extends Phaser.Scene {
     this._drawTowerPortalLocked();
   }
 
-  private _drawTowerPortalLocked(): void {
+  protected _drawTowerPortalLocked(): void {
     if (!this._towerPortalGfx) return;
     const px = this._towerPortalX;
     const py = this._towerPortalY;
@@ -5511,18 +5515,18 @@ export class GameScene extends Phaser.Scene {
     this._towerPortalGfx.strokeEllipse(px, py, pw, ph);
   }
 
-  private readonly TOWER_SLIMES    = ['boss_slime_green','boss_slime_red','boss_slime_blue','boss_slime_white','boss_zombie_slime','boss_lava_slime'];
-  private readonly TOWER_FLOWERS   = ['boss_flower_one','boss_flower_two','boss_flower_three'];
-  private readonly TOWER_ORCS      = ['boss_orc1','boss_orc2','boss_orc3'];
-  private readonly TOWER_VAMPIRES  = ['boss_vampire1','boss_vampire2','boss_vampire3'];
+  protected readonly TOWER_SLIMES    = ['boss_slime_green','boss_slime_red','boss_slime_blue','boss_slime_white','boss_zombie_slime','boss_lava_slime'];
+  protected readonly TOWER_FLOWERS   = ['boss_flower_one','boss_flower_two','boss_flower_three'];
+  protected readonly TOWER_ORCS      = ['boss_orc1','boss_orc2','boss_orc3'];
+  protected readonly TOWER_VAMPIRES  = ['boss_vampire1','boss_vampire2','boss_vampire3'];
 
-  private readonly TOWER_MINION_SLIMES   = ['slime_green_s','slime_red_s','slime_blue_s','slime_white_s','slime_zombie_s','slime_lava_s'];
-  private readonly TOWER_MINION_FLOWERS  = ['plant1_s','plant2_s','plant3_s'];
-  private readonly TOWER_MINION_ORCS     = ['orc1_s','orc2_s','orc3_s'];
-  private readonly TOWER_MINION_VAMPIRES = ['vampire1_s','vampire2_s','vampire3_s'];
+  protected readonly TOWER_MINION_SLIMES   = ['slime_green_s','slime_red_s','slime_blue_s','slime_white_s','slime_zombie_s','slime_lava_s'];
+  protected readonly TOWER_MINION_FLOWERS  = ['plant1_s','plant2_s','plant3_s'];
+  protected readonly TOWER_MINION_ORCS     = ['orc1_s','orc2_s','orc3_s'];
+  protected readonly TOWER_MINION_VAMPIRES = ['vampire1_s','vampire2_s','vampire3_s'];
 
-  private _towerPick(arr: string[]): string { return arr[Math.floor(Math.random() * arr.length)]; }
-  private _towerElitePick(pool: string[]): string {
+  protected _towerPick(arr: string[]): string { return arr[Math.floor(Math.random() * arr.length)]; }
+  protected _towerElitePick(pool: string[]): string {
     const eliteMap: Record<string, string> = {
       slime_green_s:'elite_slime_green', slime_red_s:'elite_slime_red', slime_blue_s:'elite_slime_blue',
       slime_white_s:'elite_slime_white', slime_zombie_s:'elite_slime_zombie', slime_lava_s:'elite_slime_lava',
@@ -5534,7 +5538,7 @@ export class GameScene extends Phaser.Scene {
     return eliteMap[base] ?? base;
   }
 
-  private _towerMinionPool(floor: number): string[] {
+  protected _towerMinionPool(floor: number): string[] {
     if      (floor <= 4)  return this.TOWER_MINION_SLIMES;
     else if (floor <= 9)  return this.TOWER_MINION_FLOWERS;
     else if (floor <= 14) return this.TOWER_MINION_ORCS;
@@ -5591,14 +5595,14 @@ export class GameScene extends Phaser.Scene {
 
   private _towerEnemyCountTxt?: Phaser.GameObjects.Text;
 
-  private _towerShowEnemyCounter(): void {
+  protected _towerShowEnemyCounter(): void {
     if (this._towerEnemyCountTxt) this._towerEnemyCountTxt.destroy();
     this._towerEnemyCountTxt = this.add.text(P(8), P(8), `剩餘：${this._towerEnemyAlive}`, {
       fontSize: F(13), fontStyle: 'bold', color: '#ffcc88', stroke: '#000', strokeThickness: 2,
     }).setScrollFactor(0).setDepth(9790);
   }
 
-  private _spawnTowerBossFloor(f: number, hpMult: number, atkMult: number): void {
+  protected _spawnTowerBossFloor(f: number, hpMult: number, atkMult: number): void {
     this.bossActive = true;
     this._towerEnemyAlive = 0;
     const CX = this.worldW / 2;
@@ -5630,7 +5634,7 @@ export class GameScene extends Phaser.Scene {
       (this._towerBoss2.body as Phaser.Physics.Arcade.Body).setCollideWorldBounds(true);
       this.physics.add.overlap(bg2, this.player, () => {
         if (!this.bossActive || !this._towerBoss2) return;
-        if (this._towerBoss2.currentState === 'DASHING') this.player.takeDamage(this._towerBoss2.scaleDmg(45));
+        if (this._towerBoss2.currentState === 'DASHING') this.player.takeDamage(this._towerBoss2.scaleDmg(75));
       });
     }
 
@@ -5644,7 +5648,7 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
-  private _createTowerBoss(id: string, x: number, y: number, hpMult: number, atkMult: number): Boss {
+  protected _createTowerBoss(id: string, x: number, y: number, hpMult: number, atkMult: number): Boss {
     const def = getMonsterDef(id)!;
     const hp  = Math.round(def.hp  * hpMult);
     const b   = this.createBoss(def, hp);
@@ -5658,8 +5662,8 @@ export class GameScene extends Phaser.Scene {
     b.onAoeExplode = (bx, by) => {
       if (!this.bossActive) return;
       const dSq = Phaser.Math.Distance.BetweenPointsSquared({ x: bx, y: by }, this.player);
-      if (dSq <= Boss.AOE_RADIUS ** 2) this.player.takeDamage(b.scaleDmg(50));
-      this.damageAlliesNear(bx, by, Boss.AOE_RADIUS, b.scaleDmg(50));
+      if (dSq <= Boss.AOE_RADIUS ** 2) this.player.takeDamage(b.scaleDmg(75));
+      this.damageAlliesNear(bx, by, Boss.AOE_RADIUS, b.scaleDmg(75));
     };
     b.onRangedBarrageTrailTick = (x1, y1, x2, y2, radius, dmg) => {
       if (!this.bossActive) return;
@@ -5668,6 +5672,11 @@ export class GameScene extends Phaser.Scene {
       const t = Math.max(0, Math.min(1, (apx * abx + apy * aby) / (abx * abx + aby * aby || 1)));
       const nx = x1 + t * abx - this.player.x, ny = y1 + t * aby - this.player.y;
       if (nx * nx + ny * ny <= radius * radius) this.player.takeDamage(dmg);
+    };
+    b.onBarrageOrbHit = (x, y, dmg) => {
+      if (!this.bossActive) return;
+      this.player.takeDamage(dmg);
+      this.damageAlliesNear(x, y, P(20), dmg);
     };
     // scale atk via questStar proxy (we set questStar=5 baseline then override scaleDmg)
     b.questStar = 5;
@@ -5680,12 +5689,12 @@ export class GameScene extends Phaser.Scene {
     bg.add(b, false);
     this.physics.add.overlap(bg, this.player, () => {
       if (!this.bossActive) return;
-      if (b.currentState === 'DASHING') this.player.takeDamage(b.scaleDmg(45));
+      if (b.currentState === 'DASHING') this.player.takeDamage(b.scaleDmg(75));
     });
     return b;
   }
 
-  private handleTowerFloorComplete(): void {
+  protected handleTowerFloorComplete(): void {
     if (this.gameOver) return;
     TowerStore.recordFloor(this._towerFloor);
     SaveStore.save();
@@ -5707,7 +5716,7 @@ export class GameScene extends Phaser.Scene {
     this._activateTowerPortal();
   }
 
-  private _activateTowerPortal(): void {
+  protected _activateTowerPortal(): void {
     const px = this._towerPortalX;
     const py = this._towerPortalY;
     const pw = P(72); const ph = P(26);
@@ -6035,7 +6044,7 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  private refreshBossBar(): void {
+  protected refreshBossBar(): void {
     const W = this.scale.width;
     const bw = W * 0.60;
     const bx = (W - bw) / 2;
@@ -6164,7 +6173,7 @@ export class GameScene extends Phaser.Scene {
       onComplete: () => label.destroy() });
   }
 
-  private spawnEvadeText(x: number, y: number): void {
+  protected spawnEvadeText(x: number, y: number): void {
     const label = this.add.text(x, y - P(24), '閃避', {
       fontSize: F(16), fontStyle: 'bold',
       color: '#aaddff', stroke: '#001133', strokeThickness: 3,
@@ -6180,7 +6189,7 @@ export class GameScene extends Phaser.Scene {
 
   // ── Game-end handlers ─────────────────────────────────
 
-  private handleBossDefeated(): void {
+  protected handleBossDefeated(): void {
     // Tower mode: wait for both bosses to die before completing floor
     if (this._towerFloor > 0) {
       const boss1Dead = !this.boss?.active;
@@ -6278,7 +6287,7 @@ export class GameScene extends Phaser.Scene {
     this.activateRewardButton();
   }
 
-  private handlePlayerDead(): void {
+  protected handlePlayerDead(): void {
     this._endDarkNight();
     if (this._reviveDialogActive) return;  // 視窗已開啟，忽略重複呼叫
     const stats = CardStore.getTotalStats();
@@ -6312,7 +6321,7 @@ export class GameScene extends Phaser.Scene {
 
   // ── Exit button ───────────────────────────────────────
 
-  private createExitButton(): void {
+  protected createExitButton(): void {
     const W = this.scale.width;
     const bw = P(72), bh = P(28), pad = P(8);
     const bx = W - pad - bw;
@@ -6353,7 +6362,7 @@ export class GameScene extends Phaser.Scene {
       .on('pointerdown', () => this.showLootPanel());
   }
 
-  private showLootPanel(): void {
+  protected showLootPanel(): void {
     const W = this.scale.width, H = this.scale.height;
     const PW = Math.min(P(340), W - P(20));
     const PH = Math.min(P(480), H - P(20));
@@ -6889,7 +6898,7 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
-  private exitToLobby(): void {
+  protected exitToLobby(): void {
     SaveStore.save();
     const wasMulti = NetworkService.connected;
     if (wasMulti) {
@@ -6901,7 +6910,7 @@ export class GameScene extends Phaser.Scene {
 
   // ── Loot drop system ──────────────────────────────────
 
-  private spawnCardDrop(cx: number, cy: number, cardId: string, burst = false): void {
+  protected spawnCardDrop(cx: number, cy: number, cardId: string, burst = false): void {
     const cardDef = getCardDef(cardId);
     const monDef = cardDef ? getMonsterDef(cardDef.monsterId) : null;
     const isBoss = (monDef?.tier ?? 0) >= 5;
@@ -6951,7 +6960,7 @@ export class GameScene extends Phaser.Scene {
     this.lootDrops.push({ obj: cnt, itemId: '__card__', itemName: cardName, qty: 1, cardId, readyAt: Date.now() + 600 });
   }
 
-  private spawnLoot(cx: number, cy: number, drops: DropEntry[], burst = false): void {
+  protected spawnLoot(cx: number, cy: number, drops: DropEntry[], burst = false): void {
     const dropMult = CardStore.getTotalStats().dropRateMult ?? 1;
     let bi = 0;
     for (const drop of drops) {
@@ -6999,7 +7008,7 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  private spawnEquipDrop(cx: number, cy: number, equip: EquipmentItem, burst = false): void {
+  protected spawnEquipDrop(cx: number, cy: number, equip: EquipmentItem, burst = false): void {
     const imgKey = this.textures.exists(equip.texture) ? equip.texture : 'icon_equip_drop';
     const qColor = QUALITY_COLORS[equip.quality];
     const imgSz  = P(26);
@@ -7052,7 +7061,7 @@ export class GameScene extends Phaser.Scene {
     this.lootDrops.push({ obj: img, itemId: '__equip__', itemName: name, qty: 1, readyAt: Date.now() + 600, equip, badge });
   }
 
-  private checkLootPickup(): void {
+  protected checkLootPickup(): void {
     if (this.lootDrops.length === 0) return;
     this.lootDrops = this.lootDrops.filter(loot => {
       if (!loot.obj.active) return false;
@@ -7131,7 +7140,7 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
-  private showLevelUp(newLevel: number): void {
+  protected showLevelUp(newLevel: number): void {
     const W = this.scale.width;
     const H = this.scale.height;
     const bg = this.add.graphics().setScrollFactor(0).setDepth(10000);
@@ -7321,7 +7330,7 @@ export class GameScene extends Phaser.Scene {
     SaveStore.save();
   }
 
-  private refreshBuffHud(): void {
+  protected refreshBuffHud(): void {
     this._buffHudTexts.forEach(t => t.destroy());
     this._buffHudTexts = [];
 
@@ -7495,13 +7504,25 @@ export class GameScene extends Phaser.Scene {
 
   // ── Scene helpers ─────────────────────────────────────
 
-  private addHUD(): void {
+  protected _initBossBar(): void {
+    const W = this.scale.width;
+    this.bossHpGfx    = this.add.graphics().setScrollFactor(0).setDepth(5).setVisible(false);
+    this.bossHpLabel  = this.add.text(W / 2, P(6), '', {
+      fontSize: F(15), fontStyle: 'bold', color: '#ffcccc', stroke: '#000', strokeThickness: 2,
+    }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(6).setVisible(false);
+    this.bossDebuffGfx = this.add.graphics().setScrollFactor(0).setDepth(7).setVisible(false);
+    this.bossDebuffTexts.set('burn', this.add.text(0, 0, '', {
+      fontSize: F(15), color: '#ffffff', stroke: '#000000', strokeThickness: 2, fontStyle: 'bold',
+    }).setScrollFactor(0).setDepth(8).setOrigin(0.5, 0.5).setVisible(false));
+  }
+
+  protected addHUD(): void {
     this.addAttackButton();
     this.addLevelHUD();
     this.createPotionSlots();
   }
 
-  private addLevelHUD(): void {
+  protected addLevelHUD(): void {
     const STRIP_H = P(22), EXP_H = P(4);
 
     this.levelText = this.add.text(P(10), 0, '', {
@@ -7547,7 +7568,7 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
-  private addAttackButton(): void {
+  protected addAttackButton(): void {
     if ((SkillTreeStore.getAttackMode()) === 'aura') return;
     const isFlower = (CardStore.getTotalStats().flowerSummonMode ?? 0) > 0 || SkillTreeStore.getAttackMode() === 'flowerMode';
     const r = P(52);
@@ -8580,7 +8601,7 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  private createPlayerAnims(): void {
+  protected createPlayerAnims(): void {
     if (!this.anims.exists('player_idle_down'))
       this.anims.create({ key: 'player_idle_down', frames: this.anims.generateFrameNumbers('player_idle_shadow', { start: 0, end: 3 }), frameRate: 8, repeat: -1 });
     if (!this.anims.exists('player_idle_left'))
@@ -8644,7 +8665,7 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  private createPartnerAnims(): void {
+  protected createPartnerAnims(): void {
     const mk = (key: string, tex: string, start: number, end: number, fps: number, repeat: number) => {
       if (!this.anims.exists(key))
         this.anims.create({ key, frames: this.anims.generateFrameNumbers(tex, { start, end }), frameRate: fps, repeat });
@@ -8690,7 +8711,7 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  private createSlimeAnims(): void {
+  protected createSlimeAnims(): void {
     const dirs: Array<'down' | 'up' | 'left' | 'right'> = ['down', 'up', 'left', 'right'];
     // cols × rows: idle=6×4, walk=8×4, run=8×4, attack=varies×4, hurt=5×4, death=10×4
     const buildAnims = (prefix: string, attackCols = 10) => {
@@ -8812,7 +8833,7 @@ export class GameScene extends Phaser.Scene {
 
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private spawnMinionAttack(type: import('../../../../shared/types').MsgMinionAttack['type'], mx: number, my: number, tx: number, ty: number, atk: number, isElite = false): void {
+  protected spawnMinionAttack(type: import('../../../../shared/types').MsgMinionAttack['type'], mx: number, my: number, tx: number, ty: number, atk: number, isElite = false): void {
     const wx = mx * DPR, wy = my * DPR, wtx = tx * DPR, wty = ty * DPR;
     if (type === 'shoot') {
       this.fireProjectile(wx, wy, wtx, wty, isElite ? 'proj_fast_elite' : 'proj_fast', Math.round(atk * 4.0), Math.round(150 * DPR));
@@ -8871,7 +8892,7 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  private whirlSlashAt(wx: number, wy: number, wtx: number, wty: number, atk: number, isElite: boolean, hitROverride?: number, dmgOverride?: number, vfxDurationMs = 900): void {
+  protected whirlSlashAt(wx: number, wy: number, wtx: number, wty: number, atk: number, isElite: boolean, hitROverride?: number, dmgOverride?: number, vfxDurationMs = 900): void {
     const dmg   = dmgOverride ?? Math.round(atk * 4.5);
     const hitR  = hitROverride ?? Math.round((isElite ? 36 : 28) * DPR);
     const angle      = Phaser.Math.Angle.Between(wx, wy, wtx, wty);
@@ -8920,7 +8941,7 @@ export class GameScene extends Phaser.Scene {
     for (const ally of this._allyMinions) { if (!ally.isDead && capsuleCheck(ally.x, ally.y)) ally.takeDamage(dmg); }
   }
 
-  private bladeWaveAt(wx: number, wy: number, wtx: number, wty: number, atk: number, isElite: boolean, speedMult = 1): void {
+  protected bladeWaveAt(wx: number, wy: number, wtx: number, wty: number, atk: number, isElite: boolean, speedMult = 1): void {
     const dmg  = Math.round(atk * 5.0);
     const ang  = Phaser.Math.Angle.Between(wx, wy, wtx, wty);
     // 眉月形狀：兩個等半徑圓錯開，裁切出薄月牙。
@@ -9042,7 +9063,7 @@ export class GameScene extends Phaser.Scene {
     this.tweens.add({ targets: flash, scaleX: 1.9, scaleY: 1.9, alpha: 0, duration: 220, ease: 'Quad.Out', onComplete: () => flash.destroy() });
   }
 
-  private arcSlashAt(wx: number, wy: number, wtx: number, wty: number, atk: number, isElite: boolean): void {
+  protected arcSlashAt(wx: number, wy: number, wtx: number, wty: number, atk: number, isElite: boolean): void {
     const angle = Phaser.Math.Angle.Between(wx, wy, wtx, wty);
     const R  = Math.round((isElite ? 72 : 56) * DPR);
     const Ri = Math.round(R * 0.42);  // inner radius of crescent
@@ -9099,7 +9120,7 @@ export class GameScene extends Phaser.Scene {
     for (const ally of this._allyMinions) { if (!ally.isDead && check(ally.x, ally.y)) ally.takeDamage(dmg); }
   }
 
-  private leapLandVfx(wx: number, wy: number): void {
+  protected leapLandVfx(wx: number, wy: number): void {
     const ring = this.add.graphics({ x: wx, y: wy }).setDepth(50);
     ring.lineStyle(P(5), 0xff8800, 1);
     ring.strokeCircle(0, 0, P(20));
@@ -9109,7 +9130,7 @@ export class GameScene extends Phaser.Scene {
     this.tweens.add({ targets: flash, scaleX: 0.1, scaleY: 0.1, alpha: 0, duration: 200, ease: 'Quad.In', onComplete: () => flash.destroy() });
   }
 
-  private spinSlashAt(wx: number, wy: number, atk: number, isElite: boolean): void {
+  protected spinSlashAt(wx: number, wy: number, atk: number, isElite: boolean): void {
     const R = Math.round((isElite ? 80 : 65) * DPR);
     const dmg = Math.round(atk * 4.5);
     const gfx = this.add.graphics({ x: wx, y: wy }).setDepth(50);
@@ -9129,7 +9150,7 @@ export class GameScene extends Phaser.Scene {
     this.hitInRadius(wx, wy, R, dmg);
   }
 
-  private groundCrackAt(wx: number, wy: number, wtx: number, wty: number, atk: number, isElite: boolean): void {
+  protected groundCrackAt(wx: number, wy: number, wtx: number, wty: number, atk: number, isElite: boolean): void {
     const baseAngle = Phaser.Math.Angle.Between(wx, wy, wtx, wty);
     const dmg    = Math.round(atk * (isElite ? 4.0 : 3.5));
     const len    = Math.round((isElite ? 240 : 200) * DPR);
@@ -9244,11 +9265,11 @@ export class GameScene extends Phaser.Scene {
 
   // ── 吸血鬼小怪 VFX ───────────────────────────────────────
 
-  private bloodNeedleAt(wx: number, wy: number, wtx: number, wty: number, atk: number, isElite: boolean): void {
+  protected bloodNeedleAt(wx: number, wy: number, wtx: number, wty: number, atk: number, isElite: boolean): void {
     this._fireBloodNeedle(wx, wy, wtx, wty, Math.round(atk * (isElite ? 5.5 : 4.5)), isElite);
   }
 
-  private tripleNeedleAt(wx: number, wy: number, wtx: number, wty: number, atk: number): void {
+  protected tripleNeedleAt(wx: number, wy: number, wtx: number, wty: number, atk: number): void {
     const baseAngle  = Phaser.Math.Angle.Between(wx, wy, wtx, wty);
     const travelDist = (Phaser.Math.Distance.Between(wx, wy, wtx, wty) || P(190)) + P(70);
     const dmg        = Math.round(atk * 4.2);
@@ -9339,7 +9360,7 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
-  private meteorAt(wtx: number, wty: number, atk: number, isElite: boolean): void {
+  protected meteorAt(wtx: number, wty: number, atk: number, isElite: boolean): void {
     const dmg    = Math.round(atk * (isElite ? 7.0 : 5.5));
     const R      = Math.round((isElite ? 30 : 22) * DPR);
     const fallMs = 520;
@@ -9467,7 +9488,7 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
-  private bloodBurstAt(wx: number, wy: number, wtx: number, wty: number, atk: number, isElite: boolean): void {
+  protected bloodBurstAt(wx: number, wy: number, wtx: number, wty: number, atk: number, isElite: boolean): void {
     const dmg       = Math.round(atk * (isElite ? 3.0 : 2.5));
     const count     = 1;
     const tDist     = P(isElite ? 175 : 140);
@@ -9530,7 +9551,7 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  private lightningRingAt(wx: number, wy: number, _wtx: number, _wty: number, atk: number, isElite: boolean): void {
+  protected lightningRingAt(wx: number, wy: number, _wtx: number, _wty: number, atk: number, isElite: boolean): void {
     const dmg      = Math.round(atk * (isElite ? 2.8 : 2.2));
     const minR     = P(18);
     const maxR     = P(isElite ? 47 : 37); // 縮小40%，同時發射兩個
@@ -9682,7 +9703,7 @@ export class GameScene extends Phaser.Scene {
     gfx.strokePath();
   }
 
-  private orbitBurstAt(wx: number, wy: number, atk: number, isElite: boolean): void {
+  protected orbitBurstAt(wx: number, wy: number, atk: number, isElite: boolean): void {
     const dmg       = Math.round(atk * (isElite ? 3.5 : 2.8));
     const startR    = P(26);
     const endR      = P(isElite ? 168 : 132);
@@ -9749,7 +9770,7 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  private bloodChannelFloorWarn(wx: number, wy: number, wtx: number, wty: number, isElite: boolean, warnMs: number): void {
+  protected bloodChannelFloorWarn(wx: number, wy: number, wtx: number, wty: number, isElite: boolean, warnMs: number): void {
     const HW       = P(isElite ? 18 : 14);
     const CHAN_LEN = P(280);
     const angle    = Phaser.Math.Angle.Between(wx * DPR, wy * DPR, wtx * DPR, wty * DPR);
@@ -9779,7 +9800,7 @@ export class GameScene extends Phaser.Scene {
     this.time.delayedCall(warnMs, () => { tw.stop(); floorG.destroy(); });
   }
 
-  private bloodChannelAt(wx: number, wy: number, wtx: number, wty: number, atk: number, isElite: boolean): void {
+  protected bloodChannelAt(wx: number, wy: number, wtx: number, wty: number, atk: number, isElite: boolean): void {
     const HW       = P(isElite ? 18 : 14);
     const CHAN_LEN = P(280);
     const DUR_MS   = 1500;
@@ -10680,7 +10701,7 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
-  private spawnMinionAtForBoss(defId: string, wx: number, wy: number, isElite = false): MinionSlime | null {
+  protected spawnMinionAtForBoss(defId: string, wx: number, wy: number, isElite = false): MinionSlime | null {
     const before = this.allMinions.length;
     this.spawnMinionAt(defId, wx, wy, isElite);
     return this.allMinions.length > before ? this.allMinions[this.allMinions.length - 1] : null;
@@ -10930,7 +10951,7 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  private fireProjectile(fromX: number, fromY: number, toX: number, toY: number, texKey: string, dmg: number, speed: number, batchId?: number): void {
+  protected fireProjectile(fromX: number, fromY: number, toX: number, toY: number, texKey: string, dmg: number, speed: number, batchId?: number): void {
     const proj = this.minionProjGroup.create(fromX, fromY, texKey) as Phaser.Physics.Arcade.Image;
     proj.setDepth(20);
     (proj as any).dmg = dmg;
@@ -10943,7 +10964,7 @@ export class GameScene extends Phaser.Scene {
     this.time.delayedCall(3500, () => { if (proj.active) proj.destroy(); });
   }
 
-  private explodeAt(wx: number, wy: number, atk: number, radiusMult = 1.0): void {
+  protected explodeAt(wx: number, wy: number, atk: number, radiusMult = 1.0): void {
     const R = Math.round(MinionSlime.EXPLODE_RADIUS * radiusMult);
     const dmg = Math.round(atk * 4.0);
 
@@ -10985,7 +11006,7 @@ export class GameScene extends Phaser.Scene {
     this.hitInRadius(wx, wy, R, dmg);
   }
 
-  private spikeAt(tx: number, ty: number, atk: number, isElite = false, sizeMult = 1): void {
+  protected spikeAt(tx: number, ty: number, atk: number, isElite = false, sizeMult = 1): void {
     const R = Math.round(MinionSlime.SPIKE_RADIUS * (isElite ? 1.4 : 1.0) * sizeMult);
     const dmg = Math.round(atk * 3.5);
     const spCount = isElite ? 10 : 7;
@@ -11146,7 +11167,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private generateTextures(): void {
+  protected generateTextures(): void {
     if (!this.textures.exists('grass')) {
       const gg = (this.make.graphics as any)({ x: 0, y: 0, add: false }) as Phaser.GameObjects.Graphics;
       // Base – mid-green

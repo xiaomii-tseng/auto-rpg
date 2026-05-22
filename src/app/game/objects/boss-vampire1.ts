@@ -25,13 +25,13 @@ const RAIN_WAVES    = 12;     // 6 × 2
 const RAIN_WAVE_MS  = 300;
 const RAIN_FALL_MS  = 320;
 const RAIN_HIT_R    = P(18);
-const RAIN_DMG      = 65;
+const RAIN_DMG      = 75;
 
 // 魅惑凝視（追蹤線→鎖定→300ms後超寬光束）
 const GAZE_TRACK_MS  = 1000;  // 追蹤持續
 const GAZE_LOCK_DELAY = 300;  // 鎖定後延遲
 const GAZE_BEAM_R    = P(15); // 對齊主光束視覺寬度
-const GAZE_DMG       = 100;
+const GAZE_DMG       = 90;
 
 // 黑夜降靈
 const DARK_SHOW_MS   = 1200; // 安全區顯示時間
