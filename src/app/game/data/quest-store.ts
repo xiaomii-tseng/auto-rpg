@@ -49,7 +49,7 @@ export const STAR_DEF_MULT: Record<number, number> = {
 };
 
 export const STAR_EXP_MULT: Record<number, number> = {
-  1: 1.0, 2: 1.4, 3: 2.0, 4: 2.8, 5: 3.8,
+  1: 0.2, 2: 0.8, 3: 2.0, 4: 3.0, 5: 5.0,
 };
 
 // Equipment quality weights by star (for quest equip rewards)

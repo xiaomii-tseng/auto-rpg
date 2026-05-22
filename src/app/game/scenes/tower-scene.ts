@@ -328,39 +328,84 @@ export class TowerScene extends GameScene {
     bg.fillStyle(0x0a0a10, 1);
     bg.fillRect(0, 0, W, H);
 
-    // ── Dungeon floor tiles (three walkable sections) ─────────
+    const islandW = RIGHT_X - LEFT_X - CW;
+
+    // ── Dungeon floor tiles ───────────────────────────────────
     this.add.tileSprite(LEFT_X,  MY,       CW,    ARM_H, 'dungeon_floor').setOrigin(0, 0).setDepth(-1);
     this.add.tileSprite(RIGHT_X, MY,       CW,    ARM_H, 'dungeon_floor').setOrigin(0, 0).setDepth(-1);
     this.add.tileSprite(LEFT_X,  BOTTOM_Y, BOT_W, BCH,   'dungeon_floor').setOrigin(0, 0).setDepth(-1);
 
-    // ── Walls ─────────────────────────────────────────────────
-    const wg = this.add.graphics().setDepth(1);
+    // ── 2.5D 牆頂面 (depth -1.5，插在 bg 和地板之間) ──────────
+    const WALL_TOP_H = P(20);
+    const CORNER_R   = P(6);
+    const topG = this.add.graphics().setDepth(-1.5);
+    const drawWallTop = (xLeft: number, northY: number, width: number) => {
+      if (width < P(4)) return;
+      const r = Math.min(CORNER_R, width / 2, WALL_TOP_H / 2);
+      topG.fillStyle(0x2a2a3e, 1);
+      topG.fillRoundedRect(xLeft, northY - WALL_TOP_H, width, WALL_TOP_H, { tl: r, tr: r, bl: 0, br: 0 });
+      topG.fillStyle(0x34344e, 1);
+      topG.fillRect(xLeft, northY - P(3), width, P(3));
+      topG.lineStyle(P(1), 0x3d3d5a, 0.45);
+      for (let ly = northY - WALL_TOP_H + P(5); ly < northY - P(4); ly += P(5))
+        topG.lineBetween(xLeft + r * 0.4, ly, xLeft + width - r * 0.4, ly);
+    };
+    drawWallTop(LEFT_X, MY, CW);                               // 左臂頂
+    drawWallTop(RIGHT_X, MY, CW);                              // 右臂頂
+    if (islandW > 0) drawWallTop(LEFT_X + CW, BOTTOM_Y, islandW); // 內島底面（底部走廊北邊）
 
-    // Inner island (between the two arms)
-    this._drawWallRect(wg, LEFT_X + CW, MY, RIGHT_X - LEFT_X - CW, ARM_H);
-    // Wall below the U
+    // ── 石牆 (depth 1) ────────────────────────────────────────
+    const wg = this.add.graphics().setDepth(1);
+    const WW = P(20);  // 外圍花紋邊條寬度
+
+    // 內島
+    this._drawWallRect(wg, LEFT_X + CW, MY, islandW, ARM_H);
+    // U 底部以下
     const belowH = H - MY - (BOTTOM_Y + BCH);
     if (belowH > 0) this._drawWallRect(wg, LEFT_X, BOTTOM_Y + BCH, BOT_W, belowH);
+    // 外圍花紋邊條
+    this._drawWallRect(wg, LEFT_X,       MY - WW,        BOT_W, WW);                  // 頂蓋（全寬）
+    this._drawWallRect(wg, LEFT_X - WW,  MY - WW,        WW, ARM_H + BCH + WW * 2);  // 左邊條
+    this._drawWallRect(wg, RIGHT_X + CW, MY - WW,        WW, ARM_H + BCH + WW * 2);  // 右邊條
+    this._drawWallRect(wg, LEFT_X - WW,  BOTTOM_Y + BCH, BOT_W + WW * 2, WW);        // 底蓋
 
-    // Accent lines tracing the U perimeter
+    // 地板邊界 accent 線
     wg.lineStyle(P(2), 0x3a3a5e, 0.85);
-    wg.lineBetween(LEFT_X,        MY,           LEFT_X,         BOTTOM_Y + BCH);  // left outer
-    wg.lineBetween(RIGHT_X + CW,  MY,           RIGHT_X + CW,   BOTTOM_Y + BCH);  // right outer
-    wg.lineBetween(LEFT_X,        BOTTOM_Y + BCH, RIGHT_X + CW, BOTTOM_Y + BCH);  // bottom of corridor
-    wg.lineBetween(LEFT_X + CW,   MY,           LEFT_X + CW,    BOTTOM_Y);        // left inner
-    wg.lineBetween(RIGHT_X,       MY,           RIGHT_X,         BOTTOM_Y);        // right inner
-    wg.lineBetween(LEFT_X,        MY,           LEFT_X + CW,    MY);              // left arm top
-    wg.lineBetween(RIGHT_X,       MY,           RIGHT_X + CW,   MY);              // right arm top
-    wg.lineBetween(LEFT_X,        BOTTOM_Y,     LEFT_X,         BOTTOM_Y + BCH);  // corridor left wall
-    wg.lineBetween(RIGHT_X + CW,  BOTTOM_Y,     RIGHT_X + CW,   BOTTOM_Y + BCH);  // corridor right wall
+    wg.lineBetween(LEFT_X,       MY,           LEFT_X,       BOTTOM_Y + BCH);
+    wg.lineBetween(RIGHT_X + CW, MY,           RIGHT_X + CW, BOTTOM_Y + BCH);
+    wg.lineBetween(LEFT_X,       BOTTOM_Y + BCH, RIGHT_X + CW, BOTTOM_Y + BCH);
+    wg.lineBetween(LEFT_X + CW,  MY,           LEFT_X + CW,  BOTTOM_Y);
+    wg.lineBetween(RIGHT_X,      MY,           RIGHT_X,      BOTTOM_Y);
+    wg.lineBetween(LEFT_X,       MY,           LEFT_X + CW,  MY);
+    wg.lineBetween(RIGHT_X,      MY,           RIGHT_X + CW, MY);
+    wg.lineBetween(LEFT_X,       BOTTOM_Y,     LEFT_X,       BOTTOM_Y + BCH);
+    wg.lineBetween(RIGHT_X + CW, BOTTOM_Y,     RIGHT_X + CW, BOTTOM_Y + BCH);
+
+    // ── 西側陰影漸層 (depth 1，geometry mask 限制在地板內) ────
+    const SHADOW_W = P(22);
+    const maskGfx = (this.make.graphics as any)({ x: 0, y: 0, add: false }) as Phaser.GameObjects.Graphics;
+    maskGfx.fillStyle(0xffffff, 1);
+    maskGfx.fillRect(LEFT_X, MY, CW, ARM_H);
+    maskGfx.fillRect(RIGHT_X, MY, CW, ARM_H);
+    maskGfx.fillRect(LEFT_X, BOTTOM_Y, BOT_W, BCH);
+    const shadowG = this.add.graphics().setDepth(1).setMask(maskGfx.createGeometryMask());
+    // 左臂：左側牆投影向右
+    shadowG.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0.40, 0, 0.40, 0);
+    shadowG.fillRect(LEFT_X, MY, Math.min(SHADOW_W, CW), ARM_H);
+    // 右臂：內島東面投影向右
+    shadowG.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0.40, 0, 0.40, 0);
+    shadowG.fillRect(RIGHT_X, MY, Math.min(SHADOW_W, CW), ARM_H);
+    // 底部走廊：左側牆投影向右
+    shadowG.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0.40, 0, 0.40, 0);
+    shadowG.fillRect(LEFT_X, BOTTOM_Y, Math.min(SHADOW_W, BOT_W), BCH);
 
     // ── Physics walls ─────────────────────────────────────────
-    this._addWall(0,           0,      W,              MY);          // top margin
-    this._addWall(0,      H - MY,      W,              MY);          // bottom margin
-    this._addWall(0,          MY,    LEFT_X,      H - MY * 2);       // left expanded margin
-    this._addWall(RIGHT_X + CW, MY, W - (RIGHT_X + CW), H - MY * 2); // right expanded margin
-    this._addWall(LEFT_X + CW, MY, RIGHT_X - LEFT_X - CW, ARM_H);   // inner island
-    if (belowH > 0) this._addWall(LEFT_X, BOTTOM_Y + BCH, BOT_W, belowH); // below U
+    this._addWall(0,           0,      W,              MY);
+    this._addWall(0,      H - MY,      W,              MY);
+    this._addWall(0,          MY,    LEFT_X,      H - MY * 2);
+    this._addWall(RIGHT_X + CW, MY, W - (RIGHT_X + CW), H - MY * 2);
+    this._addWall(LEFT_X + CW, MY, islandW, ARM_H);
+    if (belowH > 0) this._addWall(LEFT_X, BOTTOM_Y + BCH, BOT_W, belowH);
 
     // ── Locked portal placeholder ─────────────────────────────
     const pg = this.add.graphics().setDepth(4);
@@ -437,14 +482,20 @@ export class TowerScene extends GameScene {
     this._drawLockedPortal(pg, portalX, portalY);
   }
 
-  // Dungeon-style wall rect: dark stone base + inner offset + accent stroke
+  // 4-layer dungeon stone wall rect
   private _drawWallRect(g: Phaser.GameObjects.Graphics, rx: number, ry: number, rw: number, rh: number): void {
     if (rw < 1 || rh < 1) return;
-    g.fillStyle(0x0a0a10, 1);  g.fillRect(rx, ry, rw, rh);
+    g.fillStyle(0x0a0a10, 1); g.fillRect(rx, ry, rw, rh);
     if (rw > P(6) && rh > P(6)) {
       g.fillStyle(0x141420, 1); g.fillRect(rx + P(3), ry + P(3), rw - P(6), rh - P(6));
     }
-    g.lineStyle(P(1), 0x3a3a5e, 0.5); g.strokeRect(rx, ry, rw, rh);
+    if (rw > P(12) && rh > P(12)) {
+      g.fillStyle(0x1e1e2e, 0.6); g.fillRect(rx + P(6), ry + P(6), rw - P(12), rh - P(12));
+    }
+    g.lineStyle(P(1), 0x3a3a5e, 0.55); g.strokeRect(rx, ry, rw, rh);
+    if (rw > P(6) && rh > P(6)) {
+      g.lineStyle(P(1), 0x5a5a8e, 0.20); g.strokeRect(rx + P(3), ry + P(3), rw - P(6), rh - P(6));
+    }
   }
 
   private _addWall(x: number, y: number, w: number, h: number): void {

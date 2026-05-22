@@ -149,7 +149,7 @@ export const PlayerStore = {
   getLevel(): number { return level; },
   getExp():   number { return exp; },
 
-  expToNext(lv = level): number { return Math.round(500 * Math.pow(1.08, lv - 1)); },
+  expToNext(lv = level): number { return Math.round(250 * Math.pow(1.1625, lv - 1)); },
 
   MAX_LEVEL: 50,
 
