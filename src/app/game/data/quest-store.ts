@@ -48,6 +48,10 @@ export const STAR_DEF_MULT: Record<number, number> = {
   1: 0.6, 2: 1.2, 3: 2.2, 4: 3.5, 5: 4.5,
 };
 
+export const MINION_DEF_MULT: Record<number, number> = {
+  1: 1.0, 2: 1.2, 3: 1.4, 4: 1.7, 5: 2.0,
+};
+
 export const STAR_EXP_MULT: Record<number, number> = {
   1: 0.2, 2: 0.8, 3: 2.0, 4: 3.0, 5: 5.0,
 };

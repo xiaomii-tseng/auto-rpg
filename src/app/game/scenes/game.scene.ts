@@ -27,7 +27,7 @@ import { CardStore } from '../data/card-store';
 import { SkillTreeStore } from '../data/skill-tree-store';
 import { getMonsterDef, getCardDef, DropEntry, MonsterDef } from '../data/monster-data';
 import { getElementMultiplier, ELEMENT_NAMES, ELEMENT_COLORS, QUALITY_NAMES, QUALITY_COLORS, SLOT_NAMES, STAT_NAMES, generateEquipment, randomQuality, getDropQualityWeights, getItemStats, fmtAffixValue, EquipSlot, EquipmentItem, MonsterType } from '../data/equipment-data';
-import { QuestStore, STAR_HP_MULT, STAR_STAT_MULT, STAR_DROP_MULT, STAR_DEF_MULT, STAR_EXP_MULT, STAR_EQUIP_QUALITY } from '../data/quest-store';
+import { QuestStore, STAR_HP_MULT, STAR_STAT_MULT, STAR_DROP_MULT, STAR_DEF_MULT, STAR_EXP_MULT, STAR_EQUIP_QUALITY, MINION_DEF_MULT } from '../data/quest-store';
 import { ELITE_HP_MULT, ELITE_SCALE_MOD } from '../data/monster-data';
 import { NetworkService } from '../network/network.service';
 import { PotionBarStore } from '../data/potion-bar-store';
@@ -2391,7 +2391,7 @@ export class GameScene extends Phaser.Scene {
       bloodRageLeech = 0.005 + 0.025 * t;
     }
     const dmg = Math.round((stats.atk + lowHpAtk) * Phaser.Math.FloatBetween(0.85, 1.15) * dmgMult * (isCrit ? (1 + stats.critDmg) : 1) * elemMult * targetMult * allMult * atkBuffMult * blazingMult * bloodlustDmgMult * impaleMult * bloodRageMult);
-    const pen = isBoss ? stats.penetration : 0;
+    const pen = stats.penetration ?? 0;
 
     if (isBoss && (this.boss as any).isGuarding) {
       (this.boss as any).onGuardBreak?.();
@@ -2402,12 +2402,12 @@ export class GameScene extends Phaser.Scene {
     let overkill = 0;
     const bossHpBefore = isBoss ? this.boss.currentHp : 0;
     if (!isBoss) {
-      overkill = (target as MinionSlime).takeDamage(dmg);
+      overkill = (target as MinionSlime).takeDamage(dmg, pen);
       // 殘血斬殺：HP低於閾值且尚未死亡時直接擊殺
       if (!(target as MinionSlime).isDead && (stats.executePct ?? 0) > 0) {
         const m = target as MinionSlime;
         if (m.currentHp / m.maxHpValue < stats.executePct!) {
-          overkill = m.takeDamage(m.currentHp + 1);
+          overkill = m.takeDamage(m.currentHp + 1, pen);
         }
       }
     } else {
@@ -4505,6 +4505,7 @@ export class GameScene extends Phaser.Scene {
     const r = Phaser.Math.FloatBetween(20, 60);
     const m = new MinionSlime(this, wx + Math.cos(a) * r, wy + Math.sin(a) * r, hp, def.spriteKey, def.tint);
     m.atk = atk;
+    m.def = Math.round((def.def ?? 0) * (MINION_DEF_MULT[this.questStar] ?? 1) * (isElite ? 1.4 : 1));
     m.element = def.element;
     m.tier = isElite ? 3 : def.tier;
     if (isElite) {
@@ -4534,6 +4535,8 @@ export class GameScene extends Phaser.Scene {
     if (defId === 'vampire3_s')     { m.attackMode = 'blood_burst';   m.rangedRange = Math.round(90  * DPR); }
     if (defId === 'elite_vampire3') { m.attackMode = 'blood_channel'; m.rangedRange = Math.round(110 * DPR); }
     if (defId.startsWith('vampire') || defId.startsWith('elite_vampire')) { m.race = 'vampire'; m.walkAnim = 'run'; }
+    if (defId.startsWith('plant') || defId.startsWith('elite_plant')) m.race = 'plant';
+    m.attackCooldownMult = m.race === 'orc' ? 1.3 : m.race === 'plant' ? 1.2 : m.race === 'vampire' ? 0.85 : 1.0;
     m.setPatrolCenter(wx, wy);
     m.getTargetPos = () => this.nearestTargetPos(m.x, m.y);
     m.onDead = () => {
@@ -4643,6 +4646,7 @@ export class GameScene extends Phaser.Scene {
       const m = new MinionSlime(this, spawnX, spawnY, hp, def.spriteKey, def.tint);
       m.minionId = `m${this.allMinions.length}`;
       m.atk = atk;
+      m.def = Math.round((def.def ?? 0) * (MINION_DEF_MULT[this.questStar] ?? 1) * (isElite ? 1.4 : 1));
       if (isElite) {
         m.isElite = true;
         m.dashWarnMs = Math.round(650 * 0.8);
@@ -4683,6 +4687,7 @@ export class GameScene extends Phaser.Scene {
       if (defId === 'vampire3_s')     { m.attackMode = 'blood_burst';   m.rangedRange = Math.round(90  * DPR); }
       if (defId === 'elite_vampire3') { m.attackMode = 'blood_channel'; m.rangedRange = Math.round(110 * DPR); }
       if (defId.startsWith('vampire') || defId.startsWith('elite_vampire')) { m.race = 'vampire'; m.walkAnim = 'run'; }
+      m.attackCooldownMult = m.race === 'orc' ? 1.3 : m.race === 'plant' ? 1.2 : m.race === 'vampire' ? 0.85 : 1.0;
       m.setPatrolCenter(isPlant ? spawnX : wx, isPlant ? spawnY : wy);
       m.getTargetPos = () => this.nearestTargetPos(m.x, m.y);
       m.onDead = () => this.handleMinionDrop(defId, m.x, m.y);

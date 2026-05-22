@@ -116,7 +116,8 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
   attackMode: 'dash' | 'shoot' | 'triple' | 'explode' | 'spike' | 'arc_slash' | 'leap_slam' | 'blade_wave' | 'triple_wave' | 'spin_slash' | 'ground_crack' | 'whirl_slash' | 'blood_needle' | 'meteor' | 'blood_burst' | 'triple_needle' | 'lightning_ring' | 'orbit_burst' | 'blood_channel' = 'dash';
   stationary       = false;
   isAlly           = false;
-  attackCooldownMs?: number;  // 若設定則覆蓋各攻擊模式的預設冷卻時間
+  attackCooldownMs?:   number;  // 若設定則覆蓋各攻擊模式的預設冷卻時間
+  attackCooldownMult = 1.0;    // 種族攻速乘數（<1.0=較快，>1.0=較慢）
   rangedRange      = MinionSlime.RANGED_RANGE;
   dashWarnMs       = 650;
   explodeRadiusMult = 1.0;
@@ -131,6 +132,7 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
   private meteorTargetY = 0;
   isElite       = false;
   atk           = 10;
+  def           = 0;
   guestDashing  = false;
   burnStacks    = 0;
   burnExpiresAt = 0;
@@ -214,10 +216,12 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
     this.patrolTargetY = y;
   }
 
-  takeDamage(amount: number): number {
+  takeDamage(amount: number, penetration = 0): number {
     if (this.mState === MinionState.DEAD) return 0;
+    const reduction = this.def / (this.def + 50 + penetration);
+    const actual = this.def > 0 ? Math.max(1, Math.round(amount * (1 - reduction))) : amount;
     const prevHp = this.hp;
-    this.hp = Math.max(0, this.hp - amount);
+    this.hp = Math.max(0, this.hp - actual);
     this.flashWhite();
     if (this.hp <= 0) {
       this.die();
@@ -311,6 +315,10 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
     });
   }
 
+  private calcCd(base: number, jitter = 0): number {
+    return Math.round((base + Phaser.Math.Between(0, jitter)) * this.attackCooldownMult);
+  }
+
   private enterIdle(): void {
     this.mState = MinionState.IDLE;
     this.pb.setVelocity(0, 0);
@@ -321,7 +329,7 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
     const walkKey = `${this.animPrefix}_${this.walkAnim}_${this.dir}`;
     this.playDir(this.scene.anims.exists(walkKey) ? `${this.animPrefix}_${this.walkAnim}` : `${this.animPrefix}_idle`);
     if (this.attackMode === 'dash') {
-      const delay = Phaser.Math.Between(1500, 2500);
+      const delay = this.calcCd(1500, 1000);
       this.stateTimer = this.scene.time.delayedCall(delay, () => this.enterDashWarn());
     }
     // Ranged modes: attack triggered by distance check in preUpdate
@@ -371,7 +379,7 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
         this.attackMode === 'blood_needle'  ? MinionSlime.COOLDOWN_NEEDLE        :
         this.attackMode === 'triple_needle' ? MinionSlime.COOLDOWN_TRIPLE_NEEDLE :
         MinionSlime.COOLDOWN_SHOOT;
-      this.attackCooldownUntil = this.scene.time.now + (this.attackCooldownMs ?? cd + Phaser.Math.Between(0, 800));
+      this.attackCooldownUntil = this.scene.time.now + (this.attackCooldownMs ?? this.calcCd(cd, 800));
       this.enterIdle();
     });
   }
@@ -395,7 +403,7 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
         this.warnCircleGfx?.clear();
         this.applyBaseTint();
         this.onFire?.('triple_wave', this.x / DPR, this.y / DPR, this.atkX / DPR, this.atkY / DPR);
-        this.attackCooldownUntil = this.scene.time.now + (this.attackCooldownMs ?? MinionSlime.COOLDOWN_TRIPLE_WAVE + Phaser.Math.Between(0, 800));
+        this.attackCooldownUntil = this.scene.time.now + (this.attackCooldownMs ?? this.calcCd(MinionSlime.COOLDOWN_TRIPLE_WAVE, 800));
         this.enterIdle();
       });
     } else {
@@ -428,7 +436,7 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
           this.attackMode === 'orbit_burst'   ? MinionSlime.COOLDOWN_ORBIT_BURST    :
           this.attackMode === 'blood_channel' ? MinionSlime.COOLDOWN_BLOOD_CHANNEL  :
           MinionSlime.COOLDOWN_TRIPLE;
-        this.attackCooldownUntil = this.scene.time.now + (this.attackCooldownMs ?? cd + Phaser.Math.Between(0, 800));
+        this.attackCooldownUntil = this.scene.time.now + (this.attackCooldownMs ?? this.calcCd(cd, 800));
         this.enterIdle();
       });
     }
@@ -447,7 +455,7 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
       this.warnCircleGfx?.clear();
       this.applyBaseTint();
       this.onFire?.('explode', this.x / DPR, this.y / DPR, this.x / DPR, this.y / DPR);
-      this.attackCooldownUntil = this.scene.time.now + MinionSlime.COOLDOWN_EXPLODE + Phaser.Math.Between(0, 800);
+      this.attackCooldownUntil = this.scene.time.now + this.calcCd(MinionSlime.COOLDOWN_EXPLODE, 800);
       this.enterIdle();
     });
   }
@@ -463,7 +471,7 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
     this.stateTimer?.destroy();
     this.stateTimer = this.scene.time.delayedCall(MinionSlime.SPIKE_WARN_MS, () => {
       this.applyBaseTint();
-      this.attackCooldownUntil = this.scene.time.now + (this.attackCooldownMs ?? MinionSlime.COOLDOWN_SPIKE + Phaser.Math.Between(0, 800));
+      this.attackCooldownUntil = this.scene.time.now + (this.attackCooldownMs ?? this.calcCd(MinionSlime.COOLDOWN_SPIKE, 800));
       this.enterIdle();
     });
   }
@@ -486,7 +494,7 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
       this.warnCircleGfx?.clear();
       this.applyBaseTint();
       this.onFire?.('arc_slash', this.x / DPR, this.y / DPR, this.atkX / DPR, this.atkY / DPR);
-      this.attackCooldownUntil = this.scene.time.now + (this.attackCooldownMs ?? MinionSlime.COOLDOWN_ARC + Phaser.Math.Between(0, 600));
+      this.attackCooldownUntil = this.scene.time.now + (this.attackCooldownMs ?? this.calcCd(MinionSlime.COOLDOWN_ARC, 600));
       const onDone = () => { if (this.mState === MinionState.ARC_WARN) this.enterIdle(); };
       this.once(Phaser.Animations.Events.ANIMATION_COMPLETE, onDone);
       this.stateTimer = this.scene.time.delayedCall(750, () => { this.off(Phaser.Animations.Events.ANIMATION_COMPLETE, onDone); if (this.mState === MinionState.ARC_WARN) this.enterIdle(); });
@@ -538,7 +546,7 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
           this.warnCircleGfx?.clear();
           this.applyBaseTint();
           this.onFire?.('leap_slam', endX / DPR, endY / DPR, endX / DPR, endY / DPR);
-          this.attackCooldownUntil = this.scene.time.now + (this.attackCooldownMs ?? MinionSlime.COOLDOWN_LEAP + Phaser.Math.Between(0, 600));
+          this.attackCooldownUntil = this.scene.time.now + (this.attackCooldownMs ?? this.calcCd(MinionSlime.COOLDOWN_LEAP, 600));
           const onDone = () => { if (this.mState === MinionState.LEAP_WARN) this.enterIdle(); };
           this.once(Phaser.Animations.Events.ANIMATION_COMPLETE, onDone);
           this.stateTimer = this.scene.time.delayedCall(750, () => { this.off(Phaser.Animations.Events.ANIMATION_COMPLETE, onDone); if (this.mState === MinionState.LEAP_WARN) this.enterIdle(); });
@@ -565,7 +573,7 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
       this.warnCircleGfx?.clear();
       this.applyBaseTint();
       this.onFire?.('spin_slash', this.x / DPR, this.y / DPR, this.x / DPR, this.y / DPR);
-      this.attackCooldownUntil = this.scene.time.now + (this.attackCooldownMs ?? MinionSlime.COOLDOWN_SPIN + Phaser.Math.Between(0, 600));
+      this.attackCooldownUntil = this.scene.time.now + (this.attackCooldownMs ?? this.calcCd(MinionSlime.COOLDOWN_SPIN, 600));
       const onDone = () => { if (this.mState === MinionState.SPIN_WARN) this.enterIdle(); };
       this.once(Phaser.Animations.Events.ANIMATION_COMPLETE, onDone);
       this.stateTimer = this.scene.time.delayedCall(750, () => { this.off(Phaser.Animations.Events.ANIMATION_COMPLETE, onDone); onDone(); });
@@ -588,7 +596,7 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
     this.stateTimer = this.scene.time.delayedCall(MinionSlime.CRACK_WARN_MS, () => {
       this.applyBaseTint();
       this.onFire?.('ground_crack', this.x / DPR, this.y / DPR, this.atkX / DPR, this.atkY / DPR);
-      this.attackCooldownUntil = this.scene.time.now + (this.attackCooldownMs ?? MinionSlime.COOLDOWN_CRACK + Phaser.Math.Between(0, 600));
+      this.attackCooldownUntil = this.scene.time.now + (this.attackCooldownMs ?? this.calcCd(MinionSlime.COOLDOWN_CRACK, 600));
       const onDone = () => { if (this.mState === MinionState.CRACK_WARN) this.enterIdle(); };
       this.once(Phaser.Animations.Events.ANIMATION_COMPLETE, onDone);
       this.stateTimer = this.scene.time.delayedCall(750, () => { this.off(Phaser.Animations.Events.ANIMATION_COMPLETE, onDone); onDone(); });
@@ -626,7 +634,7 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
     this.stateTimer?.destroy();
     this.stateTimer = this.scene.time.delayedCall(MinionSlime.WHIRL_DURATION, () => {
       this.pb.setVelocity(0, 0);
-      this.attackCooldownUntil = this.scene.time.now + (this.attackCooldownMs ?? MinionSlime.COOLDOWN_WHIRL);
+      this.attackCooldownUntil = this.scene.time.now + (this.attackCooldownMs ?? this.calcCd(MinionSlime.COOLDOWN_WHIRL));
       this.enterIdle();
     });
   }
@@ -649,7 +657,7 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
       this.warnCircleGfx?.clear();
       this.applyBaseTint();
       this.onFire?.('meteor', this.x / DPR, this.y / DPR, this.meteorTargetX / DPR, this.meteorTargetY / DPR);
-      this.attackCooldownUntil = this.scene.time.now + (this.attackCooldownMs ?? MinionSlime.COOLDOWN_METEOR + Phaser.Math.Between(0, 800));
+      this.attackCooldownUntil = this.scene.time.now + (this.attackCooldownMs ?? this.calcCd(MinionSlime.COOLDOWN_METEOR, 800));
       this.enterIdle();
     });
   }
@@ -677,7 +685,7 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
       this.warnCircleGfx?.clear();
       this.applyBaseTint();
       this.onFire?.('lightning_ring', this.x / DPR, this.y / DPR, this.atkX / DPR, this.atkY / DPR);
-      this.attackCooldownUntil = this.scene.time.now + (this.attackCooldownMs ?? MinionSlime.COOLDOWN_LIGHTNING_RING + Phaser.Math.Between(0, 800));
+      this.attackCooldownUntil = this.scene.time.now + (this.attackCooldownMs ?? this.calcCd(MinionSlime.COOLDOWN_LIGHTNING_RING, 800));
       this.enterIdle();
     });
   }

@@ -266,7 +266,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
 
   takeDamage(amount: number, penetration = 0): void {
     if (this.bossState === BossState.DEAD) return;
-    const reduction = this.def / (this.def + 100 + penetration);
+    const reduction = this.def / (this.def + 80 + penetration);
     this.hp = Math.max(0, this.hp - Math.max(1, Math.round(amount * (1 - reduction))));
     this.onHpChanged?.(this.hp, this.maxHp);
 
