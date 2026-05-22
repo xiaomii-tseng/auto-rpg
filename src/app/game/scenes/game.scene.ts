@@ -220,7 +220,7 @@ export class GameScene extends Phaser.Scene {
   private _mazeRoomSealedActive = false;
   private _stairsGfx?: Phaser.GameObjects.Graphics;
   private _stairsZone?: Phaser.GameObjects.Zone;
-  private _mapTheme: 'grassland' | 'desert' | 'snow' | 'lava' | 'forest' | 'dungeon' = 'grassland';
+  private _mapTheme: 'grassland' | 'desert' | 'snow' | 'lava' | 'forest' | 'dungeon' = 'desert';
   private _initBossId?: string;
   private _initQuestStar?: number;
   private _mapParams?: MapParams;
@@ -361,7 +361,7 @@ export class GameScene extends Phaser.Scene {
   init(data: { seed?: number; questStar?: number; bossMonsterId?: string; mapParams?: MapParams; partnerNickname?: string; playerCount?: number; ownSkinId?: number; partnerSkinId?: number; mapTheme?: GameScene['_mapTheme']; towerFloor?: number }): void {
     this._towerFloor = data?.towerFloor ?? 0;
     this._mapSeed = data?.seed ?? Math.floor(Math.random() * 1_000_000);
-    this._mapTheme = data?.mapTheme ?? 'dungeon';
+    this._mapTheme = data?.mapTheme ?? 'lava';
     this._initQuestStar = data?.questStar;
     this._initBossId = data?.bossMonsterId;
     this._mapParams = data?.mapParams;
@@ -3388,17 +3388,32 @@ export class GameScene extends Phaser.Scene {
     // ── 繪製：牆頂面 ─────────────────────────────────────────
     // depth -0.5：插在背景(-1)和地板(0)之間
     // 地板(depth 0)有 sharedMask，會蓋住 topG 在地板區的部分，所以直接畫全段即可
+    const wallTopColors: Record<string, [number, number, number]> = {
+      grassland: [0x3a2e1e, 0x4a3a28, 0x524432],
+      desert:    [0x5a4220, 0x6a5030, 0x7a5e38],
+      snow:      [0x2a3a4a, 0x3a4e62, 0x445870],
+      lava:      [0x4a1810, 0x6a2418, 0x7a2e20],
+      forest:    [0x2a1e10, 0x3a2a18, 0x443220],
+      dungeon:   [0x2a2a3e, 0x34344e, 0x3d3d5a],
+    };
+    const [wc0, wc1, wc2] = wallTopColors[this._mapTheme];
     const topG = this.add.graphics().setDepth(-0.5);
+
+    const CORNER_R = P(6); // rounded corner radius on the top (away from floor)
 
     for (const { xLeft, northY, width } of candidates) {
       if (width < P(4)) continue;
-      topG.fillStyle(0x2a2a3e, 1);
-      topG.fillRect(xLeft, northY - WALL_TOP_H, width, WALL_TOP_H);
-      topG.fillStyle(0x34344e, 1);
+      const r = Math.min(CORNER_R, width / 2, WALL_TOP_H / 2);
+      // Main wall body — round top corners only, bottom stays flush with floor edge
+      topG.fillStyle(wc0, 1);
+      topG.fillRoundedRect(xLeft, northY - WALL_TOP_H, width, WALL_TOP_H, { tl: r, tr: r, bl: 0, br: 0 });
+      // Bright edge strip at floor boundary — stays flat
+      topG.fillStyle(wc1, 1);
       topG.fillRect(xLeft, northY - P(3), width, P(3));
-      topG.lineStyle(P(1), 0x3d3d5a, 0.45);
+      // Horizontal texture lines (clipped to avoid the rounded top caps)
+      topG.lineStyle(P(1), wc2, 0.45);
       for (let ly = northY - WALL_TOP_H + P(5); ly < northY - P(4); ly += P(5))
-        topG.lineBetween(xLeft, ly, xLeft + width, ly);
+        topG.lineBetween(xLeft + r * 0.4, ly, xLeft + width - r * 0.4, ly);
     }
 
     // ── 西邊界陰影（往東漸層）────────────────────────────────
@@ -11205,11 +11220,11 @@ export class GameScene extends Phaser.Scene {
     // ── 熔岩地板 ────────────────────────────────────────────
     if (!this.textures.exists('lava_floor')) {
       const g = (this.make.graphics as any)({ x: 0, y: 0, add: false }) as Phaser.GameObjects.Graphics;
-      g.fillStyle(0x1c1008, 1); g.fillRect(0, 0, 64, 64);
-      g.fillStyle(0x160c06, 0.45); g.fillRect(0, 0, 32, 32); g.fillRect(32, 32, 32, 32);
-      g.fillStyle(0x241408, 0.35); g.fillRect(32, 0, 32, 32); g.fillRect(0, 32, 32, 32);
+      g.fillStyle(0x2e1810, 1); g.fillRect(0, 0, 64, 64);
+      g.fillStyle(0x241008, 0.45); g.fillRect(0, 0, 32, 32); g.fillRect(32, 32, 32, 32);
+      g.fillStyle(0x3a1e0c, 0.35); g.fillRect(32, 0, 32, 32); g.fillRect(0, 32, 32, 32);
       // 稀疏裂縫（只留三條）
-      g.fillStyle(0xcc4400, 0.50);
+      g.fillStyle(0xff5500, 0.75);
       g.fillRect(10, 18, 1, 20);
       g.fillRect(30, 8, 22, 1);
       g.fillRect(44, 40, 1, 18);
