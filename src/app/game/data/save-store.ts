@@ -8,7 +8,7 @@ import { SkillTreeStore } from './skill-tree-store';
 import { TowerStore } from './tower-store';
 
 const SAVE_KEY = 'auto_rpg_save';
-const VERSION  = '14.0.1';
+const VERSION  = '15.0.0';
 let   _loaded  = false;
 
 interface SaveData {
@@ -73,7 +73,8 @@ export const SaveStore = {
       const raw = localStorage.getItem(SAVE_KEY);
       if (!raw) return false;
       const data: SaveData = JSON.parse(raw);
-      if (data.version !== VERSION) return false;
+      const majorVer = parseInt(String(data.version).split('.')[0], 10);
+      if (isNaN(majorVer) || majorVer < 15) return false;
 
       // Restore consolidated fields so existing getPlayerName() / SkinStore.get() still work
       if (data.playerName) localStorage.setItem('playerName',    data.playerName);

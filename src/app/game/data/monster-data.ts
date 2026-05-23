@@ -760,6 +760,10 @@ export function getCardDef(id: string): CardDef | undefined {
   return CARD_DEFS.find(c => c.id === id);
 }
 
+export function getAllCardIdsByTier(tier: CardType): string[] {
+  return CARD_DEFS.filter(c => c.cardType === tier).map(c => c.id);
+}
+
 /** 根據卡片在同 monsterId 群組中的排序位置，返回正確 A/B/C 結尾的顯示名稱 */
 export function getCardDisplayName(cardId: string): string {
   const def = CARD_DEFS.find(c => c.id === cardId);

@@ -25,7 +25,7 @@ import { InventoryStore } from '../data/inventory-store';
 import { SaveStore } from '../data/save-store';
 import { CardStore } from '../data/card-store';
 import { SkillTreeStore } from '../data/skill-tree-store';
-import { getMonsterDef, getCardDef, DropEntry, MonsterDef } from '../data/monster-data';
+import { getMonsterDef, getCardDef, getAllCardIdsByTier, DropEntry, MonsterDef } from '../data/monster-data';
 import { getElementMultiplier, ELEMENT_NAMES, ELEMENT_COLORS, QUALITY_NAMES, QUALITY_COLORS, SLOT_NAMES, STAT_NAMES, generateEquipment, randomQuality, getDropQualityWeights, getItemStats, fmtAffixValue, EquipSlot, EquipmentItem, MonsterType } from '../data/equipment-data';
 import { QuestStore, STAR_HP_MULT, STAR_STAT_MULT, STAR_DROP_MULT, STAR_DEF_MULT, STAR_EXP_MULT, STAR_EQUIP_QUALITY, MINION_DEF_MULT } from '../data/quest-store';
 import { ELITE_HP_MULT, ELITE_SCALE_MOD } from '../data/monster-data';
@@ -59,8 +59,22 @@ interface LootDrop {
   qty: number;
   cardId?: string;
   equip?: EquipmentItem;
+  gold?: number;
   readyAt: number;
   badge?: Phaser.GameObjects.Graphics | Phaser.GameObjects.Container;
+}
+
+type ChestType = 'equip' | 'gold' | 'stone' | 'potion' | 'card';
+interface ChestEntry {
+  zoneIdx: number;
+  x: number; y: number;
+  type: ChestType;
+  sprite: Phaser.GameObjects.Sprite;
+  shadow: Phaser.GameObjects.Ellipse;
+  zone?: Phaser.GameObjects.Zone;
+  unlocked: boolean;
+  opening: boolean;
+  big?: boolean;
 }
 
 // 品質權重 47/35/15/3（正規化）
@@ -233,6 +247,8 @@ export class GameScene extends Phaser.Scene {
   protected _minionTargets = new Map<string, { x: number; y: number; isDashing: boolean }>();
   protected bossActive = false;
   protected lootDrops: LootDrop[] = [];
+  private _chests: ChestEntry[] = [];
+  private _zoneAlive: Map<number, number> = new Map();
   private exitBtnGfx!: Phaser.GameObjects.Graphics;
   private exitBtnTxt!: Phaser.GameObjects.Text;
   private exitBtnHit!: Phaser.GameObjects.Rectangle;
@@ -358,6 +374,7 @@ export class GameScene extends Phaser.Scene {
     }
     if (!this.textures.exists('icon_gold')) this.load.image('icon_gold', 'other/coin.webp');
     if (!this.textures.exists('potions_sheet')) this.load.spritesheet('potions_sheet', 'items/potions.png', { frameWidth: 16, frameHeight: 16 });
+    if (!this.textures.exists('chests')) this.load.spritesheet('chests', 'items/RPG Chests.png', { frameWidth: 32, frameHeight: 32 });
     this.generateTextures();
   }
 
@@ -418,6 +435,8 @@ export class GameScene extends Phaser.Scene {
     this._stairsZone  = undefined;
     this.allMinions = [];
     this.lootDrops = [];
+    this._chests = [];
+    this._zoneAlive.clear();
     this._sessionLoot = [];
     this._flowerThreeMinions.clear();
     this._pendingFlowerSeeds = 0;
@@ -503,6 +522,7 @@ export class GameScene extends Phaser.Scene {
     this.createPlayerAnims();
     if (NetworkService.connected) this.createPartnerAnims();
     this.createSlimeAnims();
+    this._createChestAnims();
     this.player = new Player(this, this.playerStartX, this.playerStartY);
     this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
     this.player.onDead = () => this.handlePlayerDead();
@@ -4777,15 +4797,22 @@ export class GameScene extends Phaser.Scene {
     };
 
     for (let i = 1; i < this.waypoints.length - 1; i++) {
+      const zBefore = this.allMinions.length;
       spawnAt(this.waypoints[i].x, this.waypoints[i].y, i);
+      this._registerZone(i, this.waypoints[i].x, this.waypoints[i].y, zBefore, this.waypointRooms[i]);
     }
 
     for (let i = 1; i < this.cornerPts.length - 1; i++) {
       if (srng.float(0, 1) < 0.4) {
         const c = this.cornerPts[i];
+        const zBefore = this.allMinions.length;
+        const zoneIdx = -(i + 1);
         spawnAt(c.x, c.y);
+        this._registerZone(zoneIdx, c.x, c.y, zBefore);
       }
     }
+
+    this._spawnCorridorChests();
 
     this.time.delayedCall(400, () => {
       if (!NetworkService.connected || NetworkService.isHost) {
@@ -7045,8 +7072,8 @@ export class GameScene extends Phaser.Scene {
         const img = this.add.image(cx, cy, iconKey)
           .setDisplaySize(iconSz, iconSz).setDepth(ty + 4);
         const delay = bi++ * 25;
-        const arcX = cx + Math.cos(angle) * dist * 0.3;
-        const arcY = cy - P(55);
+        const arcX = Phaser.Math.Clamp(cx + Math.cos(angle) * dist * 0.3, P(32), this.worldW - P(32));
+        const arcY = Phaser.Math.Clamp(cy - P(55), P(32), this.worldH - P(32));
         this.tweens.add({
           targets: img, x: arcX, y: arcY, duration: 170, ease: 'Quad.Out', delay,
           onComplete: () => {
@@ -7105,8 +7132,8 @@ export class GameScene extends Phaser.Scene {
       .setDisplaySize(imgSz, imgSz).setDepth(ty + 4);
 
     if (burst) {
-      const arcX = cx + Math.cos(angle) * dist * 0.3;
-      const arcY = cy - P(55);
+      const arcX = Phaser.Math.Clamp(cx + Math.cos(angle) * dist * 0.3, P(32), this.worldW - P(32));
+      const arcY = Phaser.Math.Clamp(cy - P(55), P(32), this.worldH - P(32));
       this.tweens.add({
         targets: [badge, img], x: arcX, y: arcY, duration: 170, ease: 'Quad.Out',
         onComplete: () => {
@@ -7130,6 +7157,253 @@ export class GameScene extends Phaser.Scene {
     this.lootDrops.push({ obj: img, itemId: '__equip__', itemName: name, qty: 1, readyAt: Date.now() + 600, equip, badge });
   }
 
+  // ── Chest System ──────────────────────────────────────────────────────────
+
+  private _createChestAnims(): void {
+    const CHEST_TYPE_IDX: Record<ChestType, number> = { equip: 4, gold: 7, stone: 1, potion: 2, card: 8 };
+    for (const [type, idx] of Object.entries(CHEST_TYPE_IDX) as [ChestType, number][]) {
+      const key = `chest_open_${type}`;
+      if (!this.anims.exists(key)) {
+        this.anims.create({
+          key,
+          frames: [
+            { key: 'chests', frame: 9  + idx },
+            { key: 'chests', frame: 18 + idx },
+            { key: 'chests', frame: 27 + idx },
+          ],
+          frameRate: 8,
+          repeat: 0,
+        });
+      }
+    }
+  }
+
+  private _registerZone(zoneIdx: number, wx: number, wy: number, countBefore: number, rooms?: { x: number; y: number; w: number; h: number }[]): void {
+    const added = this.allMinions.slice(countBefore);
+    if (added.length === 0) return;
+    this._zoneAlive.set(zoneIdx, added.length);
+    for (const m of added) {
+      const origOnDead = m.onDead;
+      m.onDead = () => {
+        origOnDead?.();
+        const alive = (this._zoneAlive.get(zoneIdx) ?? 1) - 1;
+        this._zoneAlive.set(zoneIdx, alive);
+        if (alive <= 0) {
+          const chest = this._chests.find(c => c.zoneIdx === zoneIdx);
+          if (chest && !chest.unlocked) this._unlockChest(chest);
+        }
+      };
+    }
+    this._spawnChest(zoneIdx, wx, wy, rooms);
+  }
+
+  private _pickChestType(): ChestType {
+    const roll = Math.random();
+    if      (roll < 0.26)  return 'equip';
+    else if (roll < 0.52)  return 'gold';
+    else if (roll < 0.70)  return 'stone';
+    else if (roll < 0.875) return 'potion';
+    else                   return 'card';
+  }
+
+  private _makeChestSprite(cx: number, cy: number, type: ChestType): Phaser.GameObjects.Sprite {
+    const CHEST_TYPE_IDX: Record<ChestType, number> = { equip: 4, gold: 7, stone: 1, potion: 2, card: 8 };
+    return this.add.sprite(cx, cy, 'chests', CHEST_TYPE_IDX[type])
+      .setDisplaySize(P(40), P(40)).setDepth(cy + 2);
+  }
+
+  private _makeChestShadow(cx: number, cy: number, big: boolean): Phaser.GameObjects.Ellipse {
+    const w = big ? P(52) : P(34);
+    const h = big ? P(14) : P(10);
+    return this.add.ellipse(cx, cy + (big ? P(15) : P(8)), w, h, 0x000000, 0.35).setDepth(cy + 1);
+  }
+
+  private _setupChestInteraction(chest: ChestEntry): void {
+    const zone = this.add.zone(chest.x, chest.y, P(52), P(52));
+    this.physics.world.enable(zone, Phaser.Physics.Arcade.STATIC_BODY);
+    chest.zone = zone;
+    this.physics.add.overlap(this.player, zone, () => {
+      if (!chest.unlocked || chest.opening) return;
+      this._openChest(chest);
+    });
+  }
+
+  private _spawnChest(zoneIdx: number, wx: number, wy: number, rooms?: { x: number; y: number; w: number; h: number }[]): void {
+    if (Math.random() >= 0.12) return;
+
+    // ── 位置：區域角落，距邊緣一點距離 ──
+    let cx = wx, cy = wy;
+    if (rooms && rooms.length > 0) {
+      const room = rooms[Math.floor(Math.random() * rooms.length)];
+      const PAD  = P(55);
+      cx = Math.random() < 0.5 ? room.x + PAD : room.x + room.w - PAD;
+      cy = Math.random() < 0.5 ? room.y + PAD : room.y + room.h - PAD;
+      cx = Phaser.Math.Clamp(cx, P(32), this.worldW - P(32));
+      cy = Phaser.Math.Clamp(cy, P(32), this.worldH - P(32));
+    }
+
+    const type   = this._pickChestType();
+    const big    = Math.random() < 0.10;
+    const sprite = this._makeChestSprite(cx, cy, type);
+    if (big) sprite.setDisplaySize(P(65), P(65));
+    sprite.setTint(0x444444);
+    const shadow = this._makeChestShadow(cx, cy, big);
+    this._chests.push({ zoneIdx, x: cx, y: cy, type, sprite, shadow, unlocked: false, opening: false, big });
+  }
+
+  private _spawnCorridorChests(): void {
+    for (const seg of this.corridorSegs) {
+      if (Math.random() >= 0.12) continue;
+      const isH  = Math.abs(seg.y1 - seg.y2) < 1;
+      const len  = isH ? Math.abs(seg.x2 - seg.x1) : Math.abs(seg.y2 - seg.y1);
+      if (len < P(160)) continue; // 走廊太短就跳過
+      const cx = Math.round((seg.x1 + seg.x2) / 2);
+      const cy = Math.round((seg.y1 + seg.y2) / 2);
+      const type   = this._pickChestType();
+      const big    = Math.random() < 0.10;
+      const sprite = this._makeChestSprite(cx, cy, type);
+      if (big) sprite.setDisplaySize(P(65), P(65));
+      const shadow = this._makeChestShadow(cx, cy, big);
+      const entry: ChestEntry = { zoneIdx: -9999, x: cx, y: cy, type, sprite, shadow, unlocked: true, opening: false, big };
+      this._chests.push(entry);
+      this._setupChestInteraction(entry);
+    }
+  }
+
+  private _unlockChest(chest: ChestEntry): void {
+    chest.unlocked = true;
+    chest.sprite.clearTint();
+    const bx = chest.sprite.scaleX, by = chest.sprite.scaleY;
+    this.tweens.add({ targets: chest.sprite, scaleX: bx * 1.06, scaleY: by * 1.06, duration: 500, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+    this._setupChestInteraction(chest);
+  }
+
+  private _openChest(chest: ChestEntry): void {
+    chest.opening = true;
+    chest.zone?.destroy();
+    const animKey = `chest_open_${chest.type}`;
+    chest.sprite.play(animKey);
+    chest.sprite.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => {
+      this._spawnChestLoot(chest);
+      this.time.delayedCall(800, () => { chest.sprite.destroy(); chest.shadow.destroy(); });
+    });
+  }
+
+  private _bellCurve(min: number, max: number, mult = 1.0): number {
+    const avg = (Phaser.Math.Between(min, max) + Phaser.Math.Between(min, max) + Phaser.Math.Between(min, max)) / 3;
+    return Math.max(min, Math.round(avg * mult));
+  }
+
+  private _spawnBurstItem(cx: number, cy: number, itemId: string, itemName: string): void {
+    const iconKey = `icon_${itemId}`;
+    const iconSz  = itemId.startsWith('stone_') ? P(26) : P(17);
+    const angle   = Math.random() * Math.PI * 2;
+    const dist    = Phaser.Math.Between(P(20), P(60));
+    const tx = Phaser.Math.Clamp(cx + Math.cos(angle) * dist,       P(32), this.worldW - P(32));
+    const ty = Phaser.Math.Clamp(cy + Math.sin(angle) * dist * 0.4, P(32), this.worldH - P(32));
+    const arcX = Phaser.Math.Clamp(cx + Math.cos(angle) * dist * 0.3, P(32), this.worldW - P(32));
+    const arcY = Phaser.Math.Clamp(cy - P(55), P(32), this.worldH - P(32));
+    const img = this.add.image(cx, cy, iconKey).setDisplaySize(iconSz, iconSz).setDepth(ty + 4);
+    this.tweens.add({
+      targets: img, x: arcX, y: arcY, duration: 170, ease: 'Quad.Out',
+      onComplete: () => {
+        this.tweens.add({
+          targets: img, x: tx, y: ty, duration: 310, ease: 'Bounce.Out',
+          onComplete: () => {
+            this.tweens.add({ targets: img, y: ty - P(4), duration: 700, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+          },
+        });
+      },
+    });
+    this.lootDrops.push({ obj: img, itemId, itemName, qty: 1, readyAt: Date.now() + 600 });
+  }
+
+  private _spawnChestLoot(chest: ChestEntry): void {
+    const { x: cx, y: cy, type } = chest;
+    const starMult = 1 + 0.15 * (this.questStar - 1);
+    const bigMult  = chest.big ? 2 : 1;
+
+    switch (type) {
+      case 'equip': {
+        const count    = this._bellCurve(3, 6, starMult) * bigMult;
+        const qualW    = getDropQualityWeights('elite', this.questStar);
+        const rarityBV = (CardStore.getTotalStats().rarityBonus ?? 0);
+        for (let i = 0; i < count; i++) {
+          const slot = EQUIP_ALL_SLOTS[Math.floor(Math.random() * EQUIP_ALL_SLOTS.length)];
+          this.spawnEquipDrop(cx, cy, generateEquipment(slot, randomQuality(qualW, rarityBV)), true);
+        }
+        break;
+      }
+      case 'gold': {
+        const count = this._bellCurve(5, 15, starMult) * bigMult;
+        for (let i = 0; i < count; i++) {
+          const angle = Math.random() * Math.PI * 2;
+          const dist  = Phaser.Math.Between(P(20), P(60));
+          const tx = Phaser.Math.Clamp(cx + Math.cos(angle) * dist,       P(32), this.worldW - P(32));
+          const ty = Phaser.Math.Clamp(cy + Math.sin(angle) * dist * 0.4, P(32), this.worldH - P(32));
+          const arcX = Phaser.Math.Clamp(cx + Math.cos(angle) * dist * 0.3, P(32), this.worldW - P(32));
+          const arcY = Phaser.Math.Clamp(cy - P(55), P(32), this.worldH - P(32));
+          const coin = this.add.image(cx, cy, 'icon_coin').setDisplaySize(P(18), P(18)).setDepth(ty + 4);
+          const delay = i * 30;
+          this.tweens.add({
+            targets: coin, x: arcX, y: arcY, duration: 170, ease: 'Quad.Out', delay,
+            onComplete: () => {
+              this.tweens.add({
+                targets: coin, x: tx, y: ty, duration: 310, ease: 'Bounce.Out',
+                onComplete: () => {
+                  this.tweens.add({ targets: coin, y: ty - P(4), duration: 700, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+                },
+              });
+            },
+          });
+          this.lootDrops.push({ obj: coin, itemId: '__gold__', itemName: '金幣', qty: 1, gold: 50, readyAt: Date.now() + 600 + delay });
+        }
+        break;
+      }
+      case 'stone': {
+        const count = this._bellCurve(1, 5, starMult) * bigMult;
+        for (let i = 0; i < count; i++) {
+          const r = Math.random();
+          if      (r < 0.75) this._spawnBurstItem(cx, cy, ITEM_STONE_BROKEN, '破損強化石');
+          else if (r < 0.95) this._spawnBurstItem(cx, cy, ITEM_STONE_INTACT, '完整強化石');
+          else               this._spawnBurstItem(cx, cy, ITEM_STONE_RECAST,  '重鑄石');
+        }
+        break;
+      }
+      case 'potion': {
+        const count = this._bellCurve(2, 4, starMult) * bigMult;
+        const table = [
+          { id: ITEM_POTION_HEALTH_S, name: '小型回復藥水', w: 35 },
+          { id: ITEM_POTION_HEALTH_M, name: '中型回復藥水', w: 25 },
+          { id: ITEM_POTION_HEALTH_L, name: '大型回復藥水', w: 15 },
+          { id: ITEM_POTION_ATK,      name: '攻擊力藥水',   w: 8  },
+          { id: ITEM_POTION_DEF,      name: '防禦力藥水',   w: 7  },
+          { id: ITEM_POTION_SPEED,    name: '速度藥水',     w: 7  },
+          { id: ITEM_POTION_REVIVE,   name: '復活藥水',     w: 3  },
+        ];
+        const totalW = table.reduce((s, p) => s + p.w, 0);
+        for (let i = 0; i < count; i++) {
+          let r = Math.random() * totalW;
+          for (const p of table) { r -= p.w; if (r <= 0) { this._spawnBurstItem(cx, cy, p.id, p.name); break; } }
+        }
+        break;
+      }
+      case 'card': {
+        const cardCount = bigMult;
+        for (let i = 0; i < cardCount; i++) {
+          const r = Math.random();
+          const tier = r < 0.85 ? 'n' : r < 0.98 ? 'e' : 'b';
+          const pool = getAllCardIdsByTier(tier);
+          if (pool.length > 0) {
+            const cardId = pool[Math.floor(Math.random() * pool.length)];
+            this.spawnCardDrop(cx, cy, cardId, true);
+          }
+        }
+        break;
+      }
+    }
+  }
+
   protected checkLootPickup(): void {
     if (this.lootDrops.length === 0) return;
     this.lootDrops = this.lootDrops.filter(loot => {
@@ -7137,7 +7411,7 @@ export class GameScene extends Phaser.Scene {
       const d = Phaser.Math.Distance.Between(
         this.player.x, this.player.y, loot.obj.x, loot.obj.y,
       );
-      if (d > P(48) || Date.now() < loot.readyAt) return true;
+      if (d > P(60) || Date.now() < loot.readyAt) return true;
       if (loot.cardId) {
         CardStore.addCard(loot.cardId);
         this._sessionLoot.push({ type: 'card', cardId: loot.cardId, itemName: loot.itemName });
@@ -7147,6 +7421,10 @@ export class GameScene extends Phaser.Scene {
         SaveStore.save();
         this._sessionLoot.push({ type: 'equip', equip: loot.equip, itemName: loot.itemName });
         this.showPickupText(loot.obj.x, loot.obj.y, loot.itemName, 1);
+      } else if (loot.gold) {
+        InventoryStore.addGold(loot.gold);
+        SaveStore.save();
+        this.showPickupText(loot.obj.x, loot.obj.y, `金幣 ×${loot.gold}`, 1);
       } else {
         InventoryStore.addItem(loot.itemId, loot.itemName, loot.qty);
         const existing = this._sessionLoot.find(e => e.type === 'item' && e.itemId === loot.itemId);
