@@ -51,6 +51,8 @@ export interface MsgBossSync     {
 }
 export interface MsgRewardSync   { isEquipReward: boolean; gold: number; star: number }
 export interface MsgRunEnd       { won: boolean }
+export interface MsgAllySpawn    { minionId: string; defId: string; lifetimeMs: number }
+export interface MsgAllyKill     { minionId: string }
 export interface MsgMinionAttack {
   minionId: string;
   type:     'shoot' | 'triple' | 'explode' | 'spike' | 'blade_wave' | 'triple_wave' | 'arc_slash' | 'leap_slam' | 'spin_slash' | 'ground_crack' | 'whirl_slash' | 'blood_needle' | 'meteor' | 'blood_burst' | 'triple_needle' | 'lightning_ring' | 'orbit_burst' | 'blood_channel';
@@ -60,4 +62,5 @@ export interface MsgMinionAttack {
   ty:       number;  // target y (DPR-normalised)
   atk:      number;  // raw atk value for damage calculation
   isElite?: boolean;
+  isAlly?:  boolean; // true = ally flower projectile (visual only on receiver side)
 }

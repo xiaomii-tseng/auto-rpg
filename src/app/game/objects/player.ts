@@ -132,8 +132,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   // 播放攻擊動畫並自動管理 isAttacking，完成後自動恢復移動動畫
-  startAttackAnim(key: string): void {
-    this.onAttackAnim?.(key);
+  startAttackAnim(key: string, targetAngle?: number): void {
+    this.onAttackAnim?.(key, targetAngle);
     this.isAttacking = true;
     this.play(key, true);
     this.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => {

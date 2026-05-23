@@ -15,6 +15,7 @@ import { codeMap, generateCode } from '../codeRegistry';
 import {
   MsgReady, MsgMove, MsgHpUpdate,
   MsgMinionSync, MsgMinionHit, MsgBossHit, MsgBossSync, MsgRewardSync, MsgRunEnd, MsgMinionAttack,
+  MsgAllySpawn, MsgAllyKill,
 } from '../../../shared/types';
 
 export class GameRoom extends Room<GameRoomState> {
@@ -172,6 +173,20 @@ export class GameRoom extends Room<GameRoomState> {
 
     this.onMessage<{ type: string; amount: number }>('potionEffect', (client, msg) => {
       this.broadcast('potionEffect', msg, { except: client });
+    });
+
+    this.onMessage('partyExit', (client) => {
+      this.broadcast('partyExit', {}, { except: client });
+    });
+
+    this.onMessage<MsgAllySpawn>('allySpawn', (client, msg) => {
+      if (client.sessionId !== this.state.hostId) return;
+      this.broadcast('allySpawn', msg, { except: client });
+    });
+
+    this.onMessage<MsgAllyKill>('allyKill', (client, msg) => {
+      if (client.sessionId !== this.state.hostId) return;
+      this.broadcast('allyKill', msg, { except: client });
     });
   }
 

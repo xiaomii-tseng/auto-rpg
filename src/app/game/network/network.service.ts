@@ -1,5 +1,5 @@
 import { Client, Room } from 'colyseus.js';
-import { GameRoomState, PlayerState, MapParams, MsgMove, MsgHpUpdate, MsgMinionSync, MsgMinionHit, MsgBossHit, MsgBossSync, MsgRewardSync, MsgMinionAttack } from '../../../../shared/types';
+import { GameRoomState, PlayerState, MapParams, MsgMove, MsgHpUpdate, MsgMinionSync, MsgMinionHit, MsgBossHit, MsgBossSync, MsgRewardSync, MsgMinionAttack, MsgAllySpawn, MsgAllyKill } from '../../../../shared/types';
 
 const isLocal  = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
 const WS_URL   = isLocal ? 'ws://localhost:3001' : 'wss://minirpg-q1zq.onrender.com';
@@ -71,6 +71,9 @@ interface Callbacks {
   reconnectFailed?:  () => void;
   hostDisconnected?: () => void;
   hostReconnected?:  () => void;
+  partyExit?:        () => void;
+  allySpawn?:        (data: MsgAllySpawn) => void;
+  allyKill?:         (data: MsgAllyKill)  => void;
 }
 
 class NetworkServiceClass {
@@ -144,6 +147,9 @@ class NetworkServiceClass {
     r.onMessage('potionEffect',   (d: any)        => this._cbs.potionEffect?.(d));
     r.onMessage('hostDisconnected', ()            => this._cbs.hostDisconnected?.());
     r.onMessage('hostReconnected',  ()            => this._cbs.hostReconnected?.());
+    r.onMessage('partyExit',        ()            => this._cbs.partyExit?.());
+    r.onMessage<MsgAllySpawn>('allySpawn',      d  => this._cbs.allySpawn?.(d));
+    r.onMessage<MsgAllyKill>('allyKill',        d  => this._cbs.allyKill?.(d));
 
     // Single onStateChange forwarder for both partnerInfoReady and partnerMove
     r.onStateChange(state => {
@@ -223,7 +229,7 @@ class NetworkServiceClass {
   }
 
   sendMove(x: number, y: number, lastDir: string, hp: number, maxHp: number): void {
-    this.room?.send('move', { x, y, lastDir, hp, maxHp } satisfies MsgMove);
+    try { this.room?.send('move', { x, y, lastDir, hp, maxHp } satisfies MsgMove); } catch { /* WebSocket closing */ }
   }
 
   sendAttack(animKey: string, x: number, y: number, dir: string, behavior: string): void {
@@ -436,7 +442,23 @@ class NetworkServiceClass {
     this._cbs.potionEffect     = undefined;
     this._cbs.hostDisconnected = undefined;
     this._cbs.hostReconnected  = undefined;
+    this._cbs.partyExit        = undefined;
+    this._cbs.allySpawn        = undefined;
+    this._cbs.allyKill         = undefined;
   }
+
+  sendPartyExit(): void { try { this.room?.send('partyExit', {}); } catch { /* WebSocket closing */ } }
+
+  onPartyExit(cb: () => void): void { this._cbs.partyExit = cb; }
+
+  sendAllySpawn(minionId: string, defId: string, lifetimeMs: number): void {
+    this.room?.send('allySpawn', { minionId, defId, lifetimeMs } satisfies MsgAllySpawn);
+  }
+  sendAllyKill(minionId: string): void {
+    this.room?.send('allyKill', { minionId } satisfies MsgAllyKill);
+  }
+  onAllySpawn(cb: (data: MsgAllySpawn) => void): void { this._cbs.allySpawn = cb; }
+  onAllyKill(cb: (data: MsgAllyKill) => void): void  { this._cbs.allyKill  = cb; }
 
   // ── Town room ─────────────────────────────────────────────
 

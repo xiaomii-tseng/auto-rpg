@@ -655,6 +655,17 @@ export class GameScene extends Phaser.Scene {
         this._hideHostReconnectOverlay();
       });
 
+      NetworkService.onPartyExit(() => {
+        const W = this.scale.width, H = this.scale.height;
+        this.add.text(W / 2, H * 0.45, '隊友退出，遊戲結束', {
+          fontSize: F(18), fontStyle: 'bold', color: '#ffddaa',
+          stroke: '#1a0800', strokeThickness: 3,
+          backgroundColor: '#00000099',
+          padding: { x: P(12), y: P(6) },
+        }).setOrigin(0.5).setScrollFactor(0).setDepth(9999);
+        this.time.delayedCall(1500, () => this.exitToLobby());
+      });
+
       NetworkService.onRunEnd(() => {
         // Host failed to reconnect within timeout
         this._hostReconnecting = false;
@@ -774,6 +785,17 @@ export class GameScene extends Phaser.Scene {
           for (const data of minions) {
             this._minionTargets.set(data.id, { x: data.x * DPR, y: data.y * DPR, isDashing: data.isDashing ?? false });
           }
+        });
+
+        NetworkService.onAllySpawn(({ minionId, defId }) => {
+          if (!this.allMinions.some(m => m.minionId === minionId)) {
+            this._spawnGuestAllyFlower(minionId, defId);
+          }
+        });
+
+        NetworkService.onAllyKill(({ minionId }) => {
+          const ally = this.allMinions.find(m => m.minionId === minionId);
+          if (ally && !ally.isDead) ally.forceKill();
         });
       }
 
@@ -929,7 +951,15 @@ export class GameScene extends Phaser.Scene {
 
     if (NetworkService.connected && !NetworkService.isHost) {
       NetworkService.onMinionAttack(data => {
+        const before = this.minionProjGroup.getLength();
         this.spawnMinionAttack(data.type, data.mx, data.my, data.tx, data.ty, data.atk, data.isElite);
+        if (data.isAlly) {
+          const projs = this.minionProjGroup.getChildren();
+          for (let i = before; i < projs.length; i++) {
+            (projs[i] as any).isAllyProj = true;
+            (projs[i] as Phaser.Physics.Arcade.Image).setTint(0x44ff88);
+          }
+        }
       });
     }
 
@@ -1732,6 +1762,10 @@ export class GameScene extends Phaser.Scene {
     const ally  = this.spawnMinionAtForBoss(defId, ax, ay, defId.startsWith('elite_'));
     if (!ally) return;
 
+    if (NetworkService.connected && NetworkService.isHost) {
+      NetworkService.sendAllySpawn(ally.minionId, defId, lifetimeMs);
+    }
+
     const ps = CardStore.getTotalStats();
     ally.isAlly = true;
     ally.setAllyStats(Math.max(1, Math.round(ps.maxHp * (1.80 + (ps.skillFlowerHpPct ?? 0)))), Math.max(1, Math.round(ps.atk * 0.35 * (1 + (ps.summonFlowerDmgPct ?? 0)))));
@@ -1759,6 +1793,8 @@ export class GameScene extends Phaser.Scene {
 
     ally.onFire = (type, mx, my, tx, ty) => {
       this.spawnMinionAttack(type, mx, my, tx, ty, ally.atk, ally.isElite);
+      if (NetworkService.connected && NetworkService.isHost)
+        NetworkService.sendMinionAttack({ minionId: ally.minionId, type, mx, my, tx, ty, atk: ally.atk, isElite: ally.isElite ?? false, isAlly: true });
       const wx = mx * DPR, wy = my * DPR;
       const hitTargets = new Set<object>();
       for (const c of this.minionProjGroup.getChildren()) {
@@ -1797,6 +1833,7 @@ export class GameScene extends Phaser.Scene {
       if (i !== -1) this._allyMinions.splice(i, 1);
       this._allyGroup.remove(ally, false, false);
       ally.onDead = undefined;
+      if (NetworkService.connected && NetworkService.isHost) NetworkService.sendAllyKill(ally.minionId);
       ally.forceKill();
     };
     this.time.delayedCall(lifetimeMs, removeAlly);
@@ -1806,7 +1843,29 @@ export class GameScene extends Phaser.Scene {
       const i = this._allyMinions.indexOf(ally);
       if (i !== -1) this._allyMinions.splice(i, 1);
       this._allyGroup.remove(ally, false, false);
+      if (NetworkService.connected && NetworkService.isHost) NetworkService.sendAllyKill(ally.minionId);
       origOnDead?.();
+    };
+  }
+
+  private _spawnGuestAllyFlower(minionId: string, defId: string): void {
+    // Use the already-known minionSync position so the flower appears at the correct spot
+    // immediately — important when update() is skipped (e.g. player is dead).
+    const target = this._minionTargets.get(minionId);
+    const spawnX = target ? target.x : this.player.x;
+    const spawnY = target ? target.y : this.player.y;
+    const ally = this.spawnMinionAtForBoss(defId, spawnX, spawnY, defId.startsWith('elite_'));
+    if (!ally) return;
+    ally.minionId = minionId;
+    ally.isAlly = true;
+    ally.started = true;
+    this._allyMinions.push(ally);
+    this._allyGroup.add(ally);
+    ally.setTint(0x88ffcc);
+    ally.onDead = () => {
+      const i = this._allyMinions.indexOf(ally);
+      if (i !== -1) this._allyMinions.splice(i, 1);
+      this._allyGroup.remove(ally, false, false);
     };
   }
 
@@ -1818,6 +1877,7 @@ export class GameScene extends Phaser.Scene {
       const oldest = this._allyMinions.shift()!;
       this._allyGroup.remove(oldest, false, false);
       oldest.onDead = undefined;
+      if (NetworkService.connected && NetworkService.isHost) NetworkService.sendAllyKill(oldest.minionId);
       oldest.forceKill();
     }
 
@@ -1846,6 +1906,7 @@ export class GameScene extends Phaser.Scene {
         const oldest = this._allyMinions.shift()!;
         this._allyGroup.remove(oldest, false, false);
         oldest.onDead = undefined;
+        if (NetworkService.connected && NetworkService.isHost) NetworkService.sendAllyKill(oldest.minionId);
         oldest.forceKill();
       }
 
@@ -1950,6 +2011,23 @@ export class GameScene extends Phaser.Scene {
   }
 
   override update(): void {
+    // Always lerp minion positions on GUEST — continues even when player is dead so
+    // the spectator can see enemies still moving while the partner fights on.
+    if (NetworkService.connected && !NetworkService.isHost) {
+      for (const m of this.allMinions) {
+        if (m.isDead) continue;
+        const t = this._minionTargets.get(m.minionId);
+        if (!t) continue;
+        const prevX = m.x, prevY = m.y;
+        m.setPosition(m.x + (t.x - m.x) * 0.2, m.y + (t.y - m.y) * 0.2);
+        const dx = m.x - prevX, dy = m.y - prevY;
+        const moving = Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5;
+        const dir: 'down' | 'left' | 'right' | 'up' = Math.abs(dx) >= Math.abs(dy)
+          ? (dx < 0 ? 'left' : 'right') : (dy < 0 ? 'up' : 'down');
+        m.applyGuestState(t.isDashing, dir, moving);
+      }
+    }
+
     if (this.gameOver || this.teleporting || this._hostReconnecting) return;
 
     this._updateDarkNight();
@@ -1966,22 +2044,6 @@ export class GameScene extends Phaser.Scene {
     if (this._buffExpiry.size > 0 && this.time.now - this._lastBuffHudRefresh > 500) {
       this._lastBuffHudRefresh = this.time.now;
       this.refreshBuffHud();
-    }
-
-    // Guest: lerp all minions toward host-provided positions
-    if (NetworkService.connected && !NetworkService.isHost) {
-      for (const m of this.allMinions) {
-        if (m.isDead) continue;
-        const t = this._minionTargets.get(m.minionId);
-        if (!t) continue;
-        const prevX = m.x, prevY = m.y;
-        m.setPosition(m.x + (t.x - m.x) * 0.2, m.y + (t.y - m.y) * 0.2);
-        const dx = m.x - prevX, dy = m.y - prevY;
-        const moving = Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5;
-        const dir: 'down' | 'left' | 'right' | 'up' = Math.abs(dx) >= Math.abs(dy)
-          ? (dx < 0 ? 'left' : 'right') : (dy < 0 ? 'up' : 'down');
-        m.applyGuestState(t.isDashing, dir, moving);
-      }
     }
 
     this.checkLootPickup();
@@ -2724,7 +2786,7 @@ export class GameScene extends Phaser.Scene {
     const cd = Math.round(650 / (1 + this.getEffectiveAtkSpeed()));
     if (!this.player.lockCooldown(cd)) return;
 
-    this.player.startAttackAnim(`player_attack_${dir}`);
+    this.player.startAttackAnim(`player_attack_${dir}`, rad);
     const isFan  = (stats0.projectileFan ?? 0) >= 1;
     const HIT_R  = P(18) * (isFan ? 0.6 : 1);
     const dmgMult = isFan ? 0.80 : 0.55;
@@ -6451,7 +6513,14 @@ export class GameScene extends Phaser.Scene {
 
     this.exitBtnHit = this.add.rectangle(cx, cy, bw, bh)
       .setScrollFactor(0).setDepth(9802).setInteractive({ useHandCursor: true });
-    this.exitBtnHit.on('pointerdown', () => this.exitToLobby());
+    this.exitBtnHit.on('pointerdown', () => {
+      if (NetworkService.connected) {
+        NetworkService.sendPartyExit();
+        this.time.delayedCall(150, () => this.exitToLobby());
+      } else {
+        this.exitToLobby();
+      }
+    });
 
     // ── 戰利品按鈕（左上角）──
     const lbw = bw;
