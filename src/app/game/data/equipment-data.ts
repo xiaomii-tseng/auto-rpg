@@ -630,29 +630,19 @@ export const REFINE_INCREMENT_RANGE: Record<StatKey, [number, number]> = {
   maxHpPct:         [0.008, 0.012 ],
 };
 
-// 精煉成功：隨機命中 1~2 條詞綴，各自套用隨機增幅
-export function applyEnhancement(item: EquipmentItem): number[] {
+// 精煉成功：提升指定詞綴，若未指定則隨機抽一條
+export function applyEnhancement(item: EquipmentItem, forcedIndex?: number): number[] {
   if (item.enhancement >= ENHANCE_MAX) return [];
   if (!item.baseAffixes) item.baseAffixes = item.affixes.map(a => ({ ...a }));
 
   const indices: number[] = [];
 
-  if (item.slot === 'sword' && item.affixes[0]?.stat === 'atk') {
-    // 武器 ATK 固定必提升，其餘詞綴再隨機抽 1 條（25% 機率抽 2 條）
-    indices.push(0);
-    const rest = item.affixes.map((_, i) => i).slice(1);
-    const extra = item.affixes.length <= 1 ? 0 : (Math.random() < 0.25 ? 2 : 1);
-    while (indices.length - 1 < extra && rest.length > 0) {
-      const pick = Math.floor(Math.random() * rest.length);
-      indices.push(rest.splice(pick, 1)[0]);
-    }
+  if (forcedIndex !== undefined && forcedIndex < item.affixes.length) {
+    indices.push(forcedIndex);
   } else {
-    const count = item.affixes.length <= 1 ? 1 : (Math.random() < 0.25 ? 2 : 1);
-    const pool  = item.affixes.map((_, i) => i);
-    while (indices.length < count && pool.length > 0) {
-      const pick = Math.floor(Math.random() * pool.length);
-      indices.push(pool.splice(pick, 1)[0]);
-    }
+    const pool = item.affixes.map((_, i) => i);
+    const pick = Math.floor(Math.random() * pool.length);
+    indices.push(pool[pick]);
   }
 
   for (const idx of indices) {
