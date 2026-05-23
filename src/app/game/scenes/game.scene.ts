@@ -170,6 +170,7 @@ export class GameScene extends Phaser.Scene {
   private _atkDirGfx?: Phaser.GameObjects.Graphics;
   private _atkDragThreshold = 0;  // 初始化後設為 P(15)
   private _holdAttackTimer?: Phaser.Time.TimerEvent;
+  private _spaceHoldTimer?: Phaser.Time.TimerEvent;
   private _forceAttackAngle: number | null = null;  // 手動拖動攻擊方向（rad），null = 自動
   private _atkDragAngle: number | null = null;       // 目前正在拖動的角度，null = 未拖動
   protected _allyMinions: MinionSlime[] = [];          // 有序陣列，上限 3，最舊的先移除
@@ -909,6 +910,18 @@ export class GameScene extends Phaser.Scene {
       d: kb.addKey(Phaser.Input.Keyboard.KeyCodes.D),
       space: kb.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE),
     };
+
+    // ── 空白鍵持續攻擊（同攻擊鍵按住行為）──────────────────────────────
+    this.keys.space.on('down', () => {
+      this._fireHoldAttack();
+      this._spaceHoldTimer = this.time.addEvent({
+        delay: 100, loop: true, callback: () => this._fireHoldAttack(),
+      });
+    });
+    this.keys.space.on('up', () => {
+      this._spaceHoldTimer?.destroy();
+      this._spaceHoldTimer = undefined;
+    });
 
     // ── 測試快捷鍵：按 ` 直接傳送至 BOSS 戰（請在準備場選吸血鬼伯爵）──
     kb.on('keydown-BACKTICK', () => {
@@ -1950,17 +1963,6 @@ export class GameScene extends Phaser.Scene {
     const isDashBehavior = (SkillTreeStore.getAttackMode()) === 'dashPierce';
     const isFlowerMode = (CardStore.getTotalStats().flowerSummonMode ?? 0) > 0 || SkillTreeStore.getAttackMode() === 'flowerMode';
 
-    if (Phaser.Input.Keyboard.JustDown(this.keys.space)) {
-      if (isFlowerMode) {
-        this.tryFlowerSummonModeAttack();
-      } else if (isDashBehavior) {
-        this.attackDashPierce(0, 0);
-      } else {
-        const { x: tx, y: ty } = this.getAttackTarget();
-        this.meleeAttack(tx, ty);
-      }
-    }
-
     this.player.move(vx, vy);
 
 
@@ -2285,6 +2287,20 @@ export class GameScene extends Phaser.Scene {
   private getEffectiveAtkSpeed(): number {
     const stats = CardStore.getTotalStats();
     return stats.atkSpeed + this._sanguineStacks * (stats.bloodlustAtkSpeedPerStack ?? 0);
+  }
+
+  protected _fireHoldAttack(): void {
+    if (this.gameOver || !this.player.active) return;
+    const isDash = SkillTreeStore.getAttackMode() === 'dashPierce';
+    const isFlowerMode = (CardStore.getTotalStats().flowerSummonMode ?? 0) > 0 || SkillTreeStore.getAttackMode() === 'flowerMode';
+    if (isFlowerMode) {
+      this.tryFlowerSummonModeAttack();
+    } else if (isDash) {
+      this.attackDashPierce(0, 0);
+    } else {
+      const { x: tx, y: ty } = this.getAttackTarget();
+      this.meleeAttack(tx, ty);
+    }
   }
 
   protected meleeAttack(tx: number, ty: number): void {
@@ -7732,20 +7748,6 @@ export class GameScene extends Phaser.Scene {
     const activeIds = new Set<number>();
     this._atkDragThreshold = P(15);
 
-    const fireHoldAttack = () => {
-      if (this.gameOver || !this.player.active) return;
-      const isDash = (SkillTreeStore.getAttackMode()) === 'dashPierce';
-      const isFlowerMode = (CardStore.getTotalStats().flowerSummonMode ?? 0) > 0 || SkillTreeStore.getAttackMode() === 'flowerMode';
-      if (isFlowerMode) {
-        this.tryFlowerSummonModeAttack();
-      } else if (isDash) {
-        this.attackDashPierce(0, 0);
-      } else {
-        const { x: tx, y: ty } = this.getAttackTarget();
-        this.meleeAttack(tx, ty);
-      }
-    };
-
     const onDown = (ptr: Phaser.Input.Pointer) => {
       const { x: cx, y: cy } = getBtnCenter();
       if (Phaser.Math.Distance.Between(ptr.x, ptr.y, cx, cy) > r) return;
@@ -7757,11 +7759,11 @@ export class GameScene extends Phaser.Scene {
       this._atkDragStartX = ptr.x;
       this._atkDragStartY = ptr.y;
       // 按下立即攻擊一次，再啟動持續攻擊 timer
-      fireHoldAttack();
+      this._fireHoldAttack();
       this._holdAttackTimer = this.time.addEvent({
         delay: 100,
         loop: true,
-        callback: fireHoldAttack,
+        callback: () => this._fireHoldAttack(),
       });
     };
 

@@ -3,7 +3,7 @@ import { InventoryStore } from '../data/inventory-store';
 import { PlayerStore } from '../data/player-store';
 import { PotionBarStore } from '../data/potion-bar-store';
 import { ITEM_POTION_HEALTH_S, ITEM_POTION_HEALTH_M, ITEM_POTION_HEALTH_L, ITEM_POTION_REVIVE, ITEM_POTION_ATK, ITEM_POTION_DEF, ITEM_POTION_SPEED, ITEM_STONE_BROKEN, ITEM_STONE_INTACT, ITEM_BLANK_CARD, ITEM_QUEST_REROLL } from '../data/monster-data';
-import { generateEquipment, randomQuality, QUALITY_NAMES, QUALITY_COLORS, SLOT_NAMES, STAT_NAMES, BEHAVIOR_INFO, BEHAVIOR_NAMES, EquipSlot, EquipmentItem, applyEnhancement, recastItem, ENHANCE_COST, ENHANCE_RATE, ENHANCE_COMPLETE_BONUS, ENHANCE_MAX, fmtAffixValue, StatBonus, REFINE_INCREMENT_RANGE } from '../data/equipment-data';
+import { generateEquipment, randomQuality, QUALITY_NAMES, QUALITY_COLORS, SLOT_NAMES, STAT_NAMES, BEHAVIOR_INFO, BEHAVIOR_NAMES, EquipSlot, EquipmentItem, applyEnhancement, recastItem, ENHANCE_COST, ENHANCE_RATE, ENHANCE_COMPLETE_BONUS, ENHANCE_MAX, fmtAffixValue, StatBonus, REFINE_INCREMENT_RANGE, calcEquipSellPrice } from '../data/equipment-data';
 import { SaveStore } from '../data/save-store';
 import { CardStore, CARD_SLOT_COUNT } from '../data/card-store';
 
@@ -412,7 +412,6 @@ export class PrepScene extends Phaser.Scene {
       // 新玩家：隨機送一把普通品質武器
       const startSword = generateEquipment('sword', 'normal');
       PlayerStore.equipDirect('sword', startSword);
-      InventoryStore.addGold(10000);
       InventoryStore.addItem('quest_reroll', '任務重製石', 10);
     }
 
@@ -1594,6 +1593,33 @@ export class PrepScene extends Phaser.Scene {
       det.add(hit);
     };
 
+    const drawSellBtn = (
+      det: Phaser.GameObjects.Container,
+      cx: number, cy: number, bw: number, bh: number,
+      price: number,
+      onClick: () => void,
+    ) => {
+      const g = this.add.graphics();
+      g.fillStyle(0x2a1a0a, 1); g.fillRect(cx - bw / 2, cy - bh / 2, bw, bh);
+      g.fillStyle(0x996633, 0.12); g.fillRect(cx - bw / 2, cy - bh / 2, bw, bh);
+      g.lineStyle(2, 0x996633, 0.85); g.strokeRect(cx - bw / 2, cy - bh / 2, bw, bh);
+      g.fillStyle(0x996633, 0.35); g.fillRect(cx - bw / 2, cy - bh / 2, bw, 2);
+      det.add(g);
+      det.add(this.add.text(cx - P(30), cy, '販  售', {
+        fontSize: F(15), fontStyle: 'bold', color: '#cc9955', stroke: '#1a0800', strokeThickness: 2,
+      }).setOrigin(0.5));
+      det.add(this.add.text(cx + P(6), cy, '+', {
+        fontSize: F(14), fontStyle: 'bold', color: '#ffcc44', stroke: '#1a0800', strokeThickness: 1,
+      }).setOrigin(0.5, 0.5));
+      det.add(this.add.image(cx + P(18), cy, 'icon_coin').setDisplaySize(P(14), P(14)));
+      det.add(this.add.text(cx + P(28), cy, `${price}`, {
+        fontSize: F(14), fontStyle: 'bold', color: '#ffcc44', stroke: '#1a0800', strokeThickness: 1,
+      }).setOrigin(0, 0.5));
+      const hit = this.add.rectangle(cx, cy, bw, bh).setInteractive({ useHandCursor: true });
+      hit.on('pointerdown', onClick);
+      det.add(hit);
+    };
+
     const showRefineChoiceModal = (item: EquipmentItem, onClose: () => void) => {
       const { width: W, height: H } = this.scale;
       const D = 970;
@@ -2163,7 +2189,7 @@ export class PrepScene extends Phaser.Scene {
       dg.fillStyle(WH, 0.3); dg.fillRect(rightColX, areaTop + P(51) + statBlockH, rightColW, 1);
       det.add(dg);
 
-      // 脫下 | 強化 | 分解
+      // 脫下 | 精煉 | 販售
       const btnH = P(38), btnW = P(136), btnGap = P(8);
       const btnY = areaTop + areaH - P(28);
       drawBtn(det, rcx - btnW / 2 - btnGap / 2, btnY - P(46), btnW, btnH,
@@ -2172,12 +2198,11 @@ export class PrepScene extends Phaser.Scene {
       drawBtn(det, rcx + btnW / 2 + btnGap / 2, btnY - P(46), btnW, btnH,
         '精  煉', 0x3a2800, 0xf0c040, '#ffe066',
         () => showRefineChoiceModal(item, () => { closeEquipped(); showEquippedDetail(item, equipSlot); }));
-      drawBtn(det, rcx, btnY, P(200), btnH,
-        '分  解  (+1 破損強化石)', 0x2a1a0a, 0x996633, '#cc9955',
+      drawSellBtn(det, rcx, btnY, P(200), btnH, calcEquipSellPrice(item),
         () => {
           PlayerStore.unequip(equipSlot);
           PlayerStore.removeOwned(item);
-          InventoryStore.addItem(ITEM_STONE_BROKEN, '破損強化石', 1);
+          InventoryStore.addGold(calcEquipSellPrice(item));
           SaveStore.save();
           closeEquipped();
         });
@@ -2319,7 +2344,7 @@ export class PrepScene extends Phaser.Scene {
       bg.fillStyle(WB, 1); bg.fillRect(mx, my, mw, TITLE_H);
       bg.lineStyle(1, GOLD, 0.4); bg.lineBetween(mx, my + TITLE_H, mx + mw, my + TITLE_H);
 
-      o(this.add.text(W / 2, my + TITLE_H / 2, '批 量 分 解', {
+      o(this.add.text(W / 2, my + TITLE_H / 2, '批 量 販 售', {
         fontSize: F(16), fontStyle: 'bold', color: '#e8c070', stroke: '#1a0800', strokeThickness: 2,
       }).setOrigin(0.5).setDepth(BD + 2));
 
@@ -2391,9 +2416,15 @@ export class PrepScene extends Phaser.Scene {
 
       // ── Preview count ─────────────────────────────────────
       const prevY = slotLabelY + LABEL_H + ROW_H + PAD;
-      const previewTxt = o(this.add.text(W / 2, prevY + PREV_H / 2, '', {
+      const previewCY = prevY + PREV_H / 2;
+      const previewTxt = o(this.add.text(W / 2, previewCY, '', {
         fontSize: F(15), fontStyle: 'bold', color: '#ffcc66', stroke: '#1a0800', strokeThickness: 2,
       }).setOrigin(0.5).setDepth(BD + 2));
+      const previewCoinImg = o(this.add.image(0, previewCY, 'icon_coin')
+        .setDisplaySize(P(14), P(14)).setDepth(BD + 3).setVisible(false));
+      const previewGoldTxt = o(this.add.text(0, previewCY, '', {
+        fontSize: F(15), fontStyle: 'bold', color: '#ffcc44', stroke: '#1a0800', strokeThickness: 2,
+      }).setOrigin(0, 0.5).setDepth(BD + 2).setVisible(false));
 
       // ── Confirm / Cancel ──────────────────────────────────
       const btnBaseY = prevY + PREV_H + PAD;
@@ -2412,7 +2443,7 @@ export class PrepScene extends Phaser.Scene {
       const confirmG = o(this.add.graphics().setDepth(BD + 2));
       confirmG.fillStyle(0x3a1008, 1); confirmG.fillRect(W / 2 + P(8), btnBaseY, BW, BTN_H);
       confirmG.lineStyle(P(2), 0xcc4422, 0.85); confirmG.strokeRect(W / 2 + P(8), btnBaseY, BW, BTN_H);
-      o(this.add.text(W / 2 + BW / 2 + P(8), btnBaseY + BTN_H / 2, '確認分解', {
+      o(this.add.text(W / 2 + BW / 2 + P(8), btnBaseY + BTN_H / 2, '確認販售', {
         fontSize: F(14), fontStyle: 'bold', color: '#ff8855', stroke: '#1a0800', strokeThickness: 2,
       }).setOrigin(0.5).setDepth(BD + 3));
       o(this.add.rectangle(W / 2 + BW / 2 + P(8), btnBaseY + BTN_H / 2, BW, BTN_H)
@@ -2435,7 +2466,7 @@ export class PrepScene extends Phaser.Scene {
         slotItems.forEach(si => drawChk(si, _dismantlePrefs.slots.has(si.key)));
       };
 
-      const countItems = (): number => {
+      const getEligibleItems = () => {
         const equippedIds = new Set(
           (Object.values(PlayerStore.getEquipped()) as (import('../data/equipment-data').EquipmentItem | null)[])
             .filter((e): e is import('../data/equipment-data').EquipmentItem => e !== null)
@@ -2445,29 +2476,33 @@ export class PrepScene extends Phaser.Scene {
           const inSlot = _dismantlePrefs.slots.has(item.slot) ||
             ((item.slot === 'ring1' || item.slot === 'ring2') && _dismantlePrefs.slots.has('ring'));
           return _dismantlePrefs.qualities.has(item.quality) && inSlot && !equippedIds.has(item.id);
-        }).length;
+        });
       };
 
       const updatePreview = () => {
-        const n = countItems();
-        previewTxt.setText(n > 0 ? `將分解 ${n} 件  (+${n} 破損強化石)` : '尚無符合條件的裝備');
-        previewTxt.setColor(n > 0 ? '#ffcc66' : '#887766');
+        const items = getEligibleItems();
+        const gold = items.reduce((s, i) => s + calcEquipSellPrice(i), 0);
+        if (items.length > 0) {
+          previewTxt.setText(`將販售 ${items.length} 件  +`).setColor('#ffcc66').setOrigin(0, 0.5);
+          previewGoldTxt.setText(`${gold}`).setVisible(true);
+          const coinSz = P(14), gap = P(4);
+          const total = previewTxt.width + gap + coinSz + gap + previewGoldTxt.width;
+          const sx = W / 2 - total / 2;
+          previewTxt.setX(sx);
+          previewCoinImg.setX(sx + previewTxt.width + gap + coinSz / 2).setVisible(true);
+          previewGoldTxt.setX(sx + previewTxt.width + gap + coinSz + gap);
+        } else {
+          previewTxt.setText('尚無符合條件的裝備').setColor('#887766').setOrigin(0.5, 0.5).setX(W / 2);
+          previewCoinImg.setVisible(false);
+          previewGoldTxt.setVisible(false);
+        }
       };
 
       const executeBatchDismantle = () => {
-        const equippedIds = new Set(
-          (Object.values(PlayerStore.getEquipped()) as (import('../data/equipment-data').EquipmentItem | null)[])
-            .filter((e): e is import('../data/equipment-data').EquipmentItem => e !== null)
-            .map(e => e.id),
-        );
-        const toDismantle = PlayerStore.getOwned().filter(item => {
-          const inSlot = _dismantlePrefs.slots.has(item.slot) ||
-            ((item.slot === 'ring1' || item.slot === 'ring2') && _dismantlePrefs.slots.has('ring'));
-          return _dismantlePrefs.qualities.has(item.quality) && inSlot && !equippedIds.has(item.id);
-        });
+        const toDismantle = getEligibleItems();
         if (toDismantle.length === 0) { closeModal(); return; }
 
-        // ── 分解中提示 ────────────────────────────────────────
+        // ── 販售中提示 ────────────────────────────────────────
         const LD = BD + 20;
         const loadObjs: Phaser.GameObjects.GameObject[] = [];
         const loadBg = this.add.graphics().setDepth(LD);
@@ -2478,15 +2513,16 @@ export class PrepScene extends Phaser.Scene {
         loadBg.fillStyle(0x1a1008, 0.97); loadBg.fillRoundedRect(bx, by, boxW, boxH, P(8));
         loadBg.lineStyle(P(2), 0x997733, 0.85); loadBg.strokeRoundedRect(bx, by, boxW, boxH, P(8));
         loadObjs.push(loadBg);
-        const loadTxt = this.add.text(W / 2, H / 2, '分解中…', {
+        const loadTxt = this.add.text(W / 2, H / 2, '販售中…', {
           fontSize: F(16), fontStyle: 'bold', color: '#e8c070', stroke: '#1a0800', strokeThickness: 2,
         }).setOrigin(0.5).setDepth(LD + 1);
         loadObjs.push(loadTxt);
 
-        // 讓瀏覽器先繪製提示框，再執行分解
+        // 讓瀏覽器先繪製提示框，再執行販售
         this.time.delayedCall(50, () => {
+          const totalGold = toDismantle.reduce((s, i) => s + calcEquipSellPrice(i), 0);
           toDismantle.forEach(item => PlayerStore.removeOwned(item));
-          InventoryStore.addItem(ITEM_STONE_BROKEN, '破損強化石', toDismantle.length);
+          InventoryStore.addGold(totalGold);
           SaveStore.save();
           loadObjs.forEach(x => x.destroy());
           closeModal();
@@ -2543,7 +2579,7 @@ export class PrepScene extends Phaser.Scene {
     batchBtnG.fillRect(rightColX, batchBtnCY - batchBtnH / 2, rightColW, batchBtnH);
     batchBtnG.lineStyle(P(1), 0x7a4a22, 0.6);
     batchBtnG.strokeRect(rightColX, batchBtnCY - batchBtnH / 2, rightColW, batchBtnH);
-    const batchBtnTxt = this.add.text(rightColX + rightColW / 2, batchBtnCY, '批量分解', {
+    const batchBtnTxt = this.add.text(rightColX + rightColW / 2, batchBtnCY, '批量販售', {
       fontSize: F(14), fontStyle: 'bold', color: '#aa7744', stroke: '#1a0800', strokeThickness: 1,
     }).setOrigin(0.5);
     const batchBtnHit = this.add.rectangle(rightColX + rightColW / 2, batchBtnCY, rightColW, batchBtnH)
@@ -2742,11 +2778,10 @@ export class PrepScene extends Phaser.Scene {
 
       const btnH = P(38), btnW = P(136), btnGap = P(8);
       const btnY = areaTop + areaH - P(28);
-      const dismantleBtn = () => drawBtn(det, rcx, btnY, P(200), btnH,
-        '分  解  (+1 破損強化石)', 0x2a1a0a, 0x996633, '#cc9955',
+      const dismantleBtn = () => drawSellBtn(det, rcx, btnY, P(200), btnH, calcEquipSellPrice(item),
         () => {
           PlayerStore.removeOwned(item);
-          InventoryStore.addItem(ITEM_STONE_BROKEN, '破損強化石', 1);
+          InventoryStore.addGold(calcEquipSellPrice(item));
           SaveStore.save();
           closeItem();
         });
@@ -5040,19 +5075,19 @@ export class PrepScene extends Phaser.Scene {
     // ── Tab definitions ────────────────────────────────────
     type ShopItem = { id: string; name: string; price: number; desc: string; color: number };
     const POTION_ITEMS: ShopItem[] = [
-      { id: ITEM_POTION_HEALTH_S, name: '小型回復藥水', price: 150, desc: '回復 100 HP', color: 0x44ff88 },
-      { id: ITEM_POTION_HEALTH_M, name: '中型回復藥水', price: 330, desc: '回復 200 HP', color: 0x44ddff },
-      { id: ITEM_POTION_HEALTH_L, name: '大型回復藥水', price: 700, desc: '回復 300 HP', color: 0xff88ff },
-      { id: ITEM_POTION_ATK, name: '攻擊力藥水', price: 1500, desc: '傷害+20%，持續30秒', color: 0xff6644 },
-      { id: ITEM_POTION_DEF, name: '防禦力藥水', price: 1500, desc: 'DEF+20，持續30秒', color: 0x44aaff },
-      { id: ITEM_POTION_SPEED, name: '速度藥水', price: 1500, desc: '移動速度+20，持續30秒', color: 0xffdd22 },
-      { id: ITEM_POTION_REVIVE, name: '復活藥水', price: 3000, desc: '戰鬥中自動復活一次', color: 0xffee44 },
+      { id: ITEM_POTION_HEALTH_S, name: '小型回復藥水', price: 450,  desc: '回復 100 HP', color: 0x44ff88 },
+      { id: ITEM_POTION_HEALTH_M, name: '中型回復藥水', price: 990,  desc: '回復 200 HP', color: 0x44ddff },
+      { id: ITEM_POTION_HEALTH_L, name: '大型回復藥水', price: 2100, desc: '回復 300 HP', color: 0xff88ff },
+      { id: ITEM_POTION_ATK, name: '攻擊力藥水', price: 3000, desc: '傷害+20%，持續30秒', color: 0xff6644 },
+      { id: ITEM_POTION_DEF, name: '防禦力藥水', price: 3000, desc: 'DEF+20，持續30秒', color: 0x44aaff },
+      { id: ITEM_POTION_SPEED, name: '速度藥水', price: 3000, desc: '移動速度+20，持續30秒', color: 0xffdd22 },
+      { id: ITEM_POTION_REVIVE, name: '復活藥水', price: 6000, desc: '戰鬥中自動復活一次', color: 0xffee44 },
     ];
     const STONE_ITEMS: ShopItem[] = [
-      { id: ITEM_STONE_BROKEN, name: '破碎強化石', price: 100, desc: '強化裝備時消耗', color: 0x88ccff },
-      { id: ITEM_STONE_INTACT, name: '完整強化石', price: 300, desc: '強化成功率 +8%', color: 0x66ffcc },
-      { id: 'stone_guard', name: '重鑄石', price: 3000, desc: '消耗1顆可重鑄裝備 回歸精煉前數值', color: 0xbb66ff },
-      { id: ITEM_QUEST_REROLL, name: '任務重製石', price: 100, desc: '重置當前任務列表', color: 0xffcc44 },
+      { id: ITEM_STONE_BROKEN, name: '破損強化石', price: 1000, desc: '強化裝備時消耗', color: 0x88ccff },
+      { id: ITEM_STONE_INTACT, name: '完整強化石', price: 1800, desc: '強化成功率 +8%', color: 0x66ffcc },
+      { id: 'stone_guard', name: '重鑄石', price: 4500, desc: '消耗1顆可重鑄裝備 回歸精煉前數值', color: 0xbb66ff },
+      { id: ITEM_QUEST_REROLL, name: '任務重製石', price: 250, desc: '重置當前任務列表', color: 0xffcc44 },
     ];
     const TAB_DEFS: { label: string; items: ShopItem[] | null }[] = [
       { label: '藥水', items: POTION_ITEMS },

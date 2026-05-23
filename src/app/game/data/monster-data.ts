@@ -112,15 +112,15 @@ const smallDrops: DropEntry[] = [
 ];
 
 const eliteDrops: DropEntry[] = [
-  { itemId: ITEM_STONE_BROKEN, itemName: '破損強化石', rate: 0.10, qtyMin: 1, qtyMax: 1 },
-  { itemId: ITEM_STONE_INTACT, itemName: '完整強化石', rate: 0.02, qtyMin: 1, qtyMax: 1 },
-  { itemId: ITEM_STONE_RECAST, itemName: '重鑄石', rate: 0.02, qtyMin: 1, qtyMax: 1 },
+  { itemId: ITEM_STONE_BROKEN, itemName: '破損強化石', rate: 0.075, qtyMin: 1, qtyMax: 1 },
+  { itemId: ITEM_STONE_INTACT, itemName: '完整強化石', rate: 0.015, qtyMin: 1, qtyMax: 1 },
+  { itemId: ITEM_STONE_RECAST, itemName: '重鑄石',     rate: 0.005, qtyMin: 1, qtyMax: 1 },
 ];
 
 const bossDrops: DropEntry[] = [
-  { itemId: ITEM_STONE_BROKEN, itemName: '破損強化石', rate: 1.00, qtyMin: 1, qtyMax: 1 },
-  { itemId: ITEM_STONE_INTACT, itemName: '完整強化石', rate: 0.30, qtyMin: 1, qtyMax: 1 },
-  { itemId: ITEM_STONE_RECAST, itemName: '重鑄石', rate: 0.10, qtyMin: 1, qtyMax: 1 },
+  { itemId: ITEM_STONE_BROKEN, itemName: '破損強化石', rate: 0.60, qtyMin: 1, qtyMax: 1 },
+  { itemId: ITEM_STONE_INTACT, itemName: '完整強化石', rate: 0.15, qtyMin: 1, qtyMax: 1 },
+  { itemId: ITEM_STONE_RECAST, itemName: '重鑄石',     rate: 0.05, qtyMin: 1, qtyMax: 1 },
 ];
 
 // ── Monster definitions ────────────────────────────────────────────────────

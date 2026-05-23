@@ -592,9 +592,20 @@ export function getItemStats(item: EquipmentItem): Partial<Record<StatKey, numbe
 export const ENHANCE_MAX = 10;
 
 export const ENHANCE_COST: Record<number, number> = {
-  0: 5, 1: 5, 2: 5, 3: 5, 4: 5,
-  5: 7, 6: 7, 7: 7, 8: 7, 9: 7,
+  0: 1, 1: 1, 2: 1, 3: 1, 4: 1,
+  5: 2, 6: 2, 7: 2, 8: 3, 9: 3,
 };
+
+export const EQUIP_SELL_BASE: Record<EquipQuality, number> = {
+  normal:  20,
+  good:    65,
+  fine:    180,
+  perfect: 450,
+};
+
+export function calcEquipSellPrice(item: EquipmentItem): number {
+  return Math.round((EQUIP_SELL_BASE[item.quality] ?? 20) * (1 + 0.15 * (item.enhancement ?? 0)));
+}
 
 // 失敗不退階，成功率略低於原版
 export const ENHANCE_RATE: Record<number, number> = {
