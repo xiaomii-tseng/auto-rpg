@@ -93,8 +93,6 @@ export interface StatBonus {
   // ── 玻璃砲 ──
   allDmgPct?:           number;  // 所有主動攻擊傷害 ×(1+X)（不含 burn tick）
   takenDmgPct?:         number;  // 受到傷害 ×(1+X)
-  // ── 掉落加成 ──
-  dropRateMult?:        number;  // 掉落率倍率
   // ── 條件 DoT ──
   condDotStackBonus?:   number;  // dotBonus≥30% 時每層 burn +X（加入 1+dotBonus 後的乘數）
   // ── 特殊機制（卡片觸發效果）──
@@ -192,10 +190,38 @@ export const QUALITY_AFFIX_COUNT: Record<EquipQuality, number> = {
 };
 
 // 所有品質共用同一數值範圍，鐘型分布（3次均值）
-export const UNIFIED_ROLL_RANGE: [number, number] = [0.4, 1.6];
+// 依詞墜類型分三級浮動範圍
+const ROLL_COMBAT:  [number, number] = [0.50, 1.50]; // 戰鬥核心 ±50%
+const ROLL_DEFENSE: [number, number] = [0.70, 1.30]; // 防禦生存 ±30%
+const ROLL_UTILITY: [number, number] = [0.85, 1.15]; // 功能輔助 ±15%
 
-function rollBell(): number {
-  const [lo, hi] = UNIFIED_ROLL_RANGE;
+export const STAT_ROLL_RANGE: Record<StatKey, [number, number]> = {
+  atk:              ROLL_COMBAT,
+  crit:             ROLL_COMBAT,
+  critDmg:          ROLL_COMBAT,
+  atkSpeed:         ROLL_COMBAT,
+  dotBonus:         ROLL_COMBAT,
+  lifesteal:        ROLL_COMBAT,
+  penetration:      ROLL_COMBAT,
+  eliteKillerPct:   ROLL_COMBAT,
+  executePct:       ROLL_COMBAT,
+  allDmgPct:        ROLL_COMBAT,
+  hp:               ROLL_DEFENSE,
+  def:              ROLL_DEFENSE,
+  evasion:          ROLL_DEFENSE,
+  onKillHeal:       ROLL_DEFENSE,
+  regenShieldMax:   ROLL_DEFENSE,
+  killShieldPerKill:ROLL_DEFENSE,
+  maxHpPct:         ROLL_DEFENSE,
+  speed:            ROLL_UTILITY,
+  hpRegen:          ROLL_UTILITY,
+  dropRatePct:      ROLL_UTILITY,
+  rarityBonus:      ROLL_UTILITY,
+  potionHealPct:    ROLL_UTILITY,
+};
+
+function rollBell(range: [number, number]): number {
+  const [lo, hi] = range;
   const r = (Math.random() + Math.random() + Math.random()) / 3;
   return lo + r * (hi - lo);
 }
@@ -385,27 +411,27 @@ export const BEHAVIOR_INFO: Record<AttackBehavior, BehaviorInfo> = {
 
 export const STAT_BASE: Record<StatKey, number> = {
   atk:       20,
-  hp:        25,
-  def:        4,
-  crit:       0.05,
-  speed:     15,
-  atkSpeed:   0.10,
-  lifesteal:  0.005,
-  evasion:    0.05,
-  critDmg:     0.20,
-  hpRegen:     0.36,
-  dotBonus:    0.08,
-  penetration: 10,
-  potionHealPct:    0.20,
-  onKillHeal:       8,
-  eliteKillerPct:   0.15,
-  dropRatePct:      0.20,
-  rarityBonus:      0.10,
-  killShieldPerKill:15,
-  executePct:       0.075,
-  regenShieldMax:   30,
-  allDmgPct:        0.10,
-  maxHpPct:         0.12,
+  hp:        18,
+  def:         5,
+  crit:       0.025,
+  speed:     12,
+  atkSpeed:   0.03,
+  lifesteal:  0.003,
+  evasion:    0.02,
+  critDmg:     0.05,
+  hpRegen:     1.0,
+  dotBonus:    0.075,
+  penetration:  7,
+  potionHealPct:    0.025,
+  onKillHeal:       4,
+  eliteKillerPct:   0.04,
+  dropRatePct:      0.025,
+  rarityBonus:      0.03,
+  killShieldPerKill: 5,
+  executePct:       0.025,
+  regenShieldMax:   12,
+  allDmgPct:        0.035,
+  maxHpPct:         0.025,
 };
 
 export const ENHANCE_INCREMENT: Record<StatKey, number> = {
@@ -441,9 +467,9 @@ export const ENHANCE_LEVEL_MULT: Record<number, number> = {
 // 武器固定有攻擊力+攻擊模式，此 pool 只用於剩餘 2 條隨機詞墜
 export const SLOT_AFFIX_POOL: Record<EquipCategory, StatKey[]> = {
   sword:  ['crit', 'critDmg', 'atkSpeed', 'dotBonus', 'lifesteal', 'penetration', 'eliteKillerPct', 'executePct', 'allDmgPct'],
-  hat:    ['hp', 'def', 'hpRegen', 'crit', 'atkSpeed', 'evasion', 'onKillHeal', 'regenShieldMax', 'maxHpPct'],
+  hat:    ['hp', 'def', 'hpRegen', 'crit', 'atkSpeed', 'evasion', 'onKillHeal', 'regenShieldMax', 'maxHpPct', 'killShieldPerKill'],
   outfit: ['hp', 'def', 'lifesteal', 'evasion', 'hpRegen', 'onKillHeal', 'killShieldPerKill', 'regenShieldMax', 'maxHpPct'],
-  shoes:  ['speed', 'hp', 'def', 'evasion', 'hpRegen', 'dropRatePct', 'rarityBonus', 'killShieldPerKill'],
+  shoes:  ['speed', 'hp', 'def', 'evasion', 'hpRegen', 'dropRatePct', 'rarityBonus', 'killShieldPerKill', 'onKillHeal', 'regenShieldMax', 'maxHpPct'],
   ring:   ['critDmg', 'dotBonus', 'crit', 'atkSpeed', 'penetration', 'potionHealPct', 'dropRatePct', 'rarityBonus', 'allDmgPct', 'eliteKillerPct'],
 };
 
@@ -472,7 +498,7 @@ function pickAffixes(category: EquipCategory, count: number): Affix[] {
     chosen.push(pool.splice(i, 1)[0]);
   }
   return chosen.map(stat => {
-    const raw = STAT_BASE[stat] * rollBell();
+    const raw = STAT_BASE[stat] * rollBell(STAT_ROLL_RANGE[stat]);
     const value = PCT_STATS.has(stat)
       ? Math.round(raw * 1000) / 1000
       : Math.round(raw);
@@ -510,11 +536,9 @@ export function generateEquipment(slot: EquipSlot, quality: EquipQuality): Equip
 export function randomQuality(weights?: Partial<Record<EquipQuality, number>>, rarityBonus: number = 0): EquipQuality {
   const w = { normal: 0.50, good: 0.30, fine: 0.15, perfect: 0.05, ...weights };
   if (rarityBonus > 0) {
-    const shift = w.normal * Math.min(rarityBonus, 0.8);
-    w.normal  -= shift;
-    w.good    += shift * 0.50;
-    w.fine    += shift * 0.35;
-    w.perfect += shift * 0.15;
+    w.good    *= (1 + rarityBonus * 0.5);
+    w.fine    *= (1 + rarityBonus * 1.0);
+    w.perfect *= (1 + rarityBonus * 2.0);
   }
   const total = (w.normal ?? 0) + (w.good ?? 0) + (w.fine ?? 0) + (w.perfect ?? 0);
   const roll = Math.random() * total;
@@ -568,8 +592,8 @@ export function getItemStats(item: EquipmentItem): Partial<Record<StatKey, numbe
 export const ENHANCE_MAX = 10;
 
 export const ENHANCE_COST: Record<number, number> = {
-  0: 5, 1: 6, 2: 7, 3: 8, 4: 8,
-  5: 9, 6: 10, 7: 10, 8: 11, 9: 11,
+  0: 5, 1: 5, 2: 5, 3: 5, 4: 5,
+  5: 7, 6: 7, 7: 7, 8: 7, 9: 7,
 };
 
 // 失敗不退階，成功率略低於原版
@@ -583,27 +607,27 @@ export const ENHANCE_COMPLETE_BONUS = 0.08;
 // 每次精煉各詞綴的隨機增幅範圍（線性，套用於基底值，對標現行 +10 水準）
 export const REFINE_INCREMENT_RANGE: Record<StatKey, [number, number]> = {
   atk:         [5,      10    ],
-  hp:          [4,      12    ],
-  def:         [2,      6     ],
-  crit:        [0.007,  0.017 ],
-  speed:       [2,      6     ],
-  atkSpeed:    [0.007,  0.017 ],
-  lifesteal:   [0.0009, 0.0024],
-  evasion:     [0.003,  0.010 ],
-  critDmg:     [0.012,  0.028 ],
-  hpRegen:     [0.5,    1.2   ],
-  dotBonus:    [0.025,  0.060 ],
-  penetration: [2,      6     ],
-  potionHealPct:    [0.004, 0.010 ],
-  onKillHeal:       [0.5,   2.0   ],
-  eliteKillerPct:   [0.005, 0.012 ],
-  dropRatePct:      [0.005, 0.012 ],
-  rarityBonus:      [0.003, 0.008 ],
-  killShieldPerKill:[1,     4     ],
-  executePct:       [0.002, 0.006 ],
-  regenShieldMax:   [3,     8     ],
-  allDmgPct:        [0.004, 0.010 ],
-  maxHpPct:         [0.004, 0.010 ],
+  hp:          [6,      9     ],
+  def:         [2,      3     ],
+  crit:        [0.008,  0.012 ],
+  speed:       [4,      6     ],
+  atkSpeed:    [0.008,  0.012 ],
+  lifesteal:   [0.0014, 0.0021],
+  evasion:     [0.006,  0.009 ],
+  critDmg:     [0.013,  0.020 ],
+  hpRegen:     [0.4,    0.6   ],
+  dotBonus:    [0.030,  0.045 ],
+  penetration: [2.5,    3.5   ],
+  potionHealPct:    [0.008, 0.012 ],
+  onKillHeal:       [1.2,   1.8   ],
+  eliteKillerPct:   [0.012, 0.018 ],
+  dropRatePct:      [0.008, 0.012 ],
+  rarityBonus:      [0.008, 0.012 ],
+  killShieldPerKill:[1,     2     ],
+  executePct:       [0.008, 0.012 ],
+  regenShieldMax:   [3,     5     ],
+  allDmgPct:        [0.012, 0.018 ],
+  maxHpPct:         [0.008, 0.012 ],
 };
 
 // 精煉成功：隨機命中 1~2 條詞綴，各自套用隨機增幅

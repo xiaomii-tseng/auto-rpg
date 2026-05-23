@@ -63,8 +63,6 @@ export interface EffectiveStats {
   // ── 玻璃砲 ──
   allDmgPct?:    number;
   takenDmgPct?:  number;
-  // ── 掉落 ──
-  dropRateMult?: number;
   // ── 新增詞墜 ──
   potionHealPct?:    number;
   onKillHeal?:       number;

@@ -297,7 +297,6 @@ export const CardStore = {
       b.condHpPct            = (b.condHpPct            ?? 0) + (e.condHpPct            ?? 0);
       b.allDmgPct            = (b.allDmgPct            ?? 0) + (e.allDmgPct            ?? 0);
       b.takenDmgPct          = (b.takenDmgPct          ?? 0) + (e.takenDmgPct          ?? 0);
-      b.dropRateMult         = (b.dropRateMult         ?? 0) + (e.dropRateMult         ?? 0);
       b.condDotStackBonus    = (b.condDotStackBonus    ?? 0) + (e.condDotStackBonus    ?? 0);
       b.orbitFireBalls       = (b.orbitFireBalls       ?? 0) + (e.orbitFireBalls       ?? 0);
       b.orbitIceBalls        = (b.orbitIceBalls        ?? 0) + (e.orbitIceBalls        ?? 0);
@@ -473,7 +472,6 @@ export const CardStore = {
       projectileFan:        bonus.projectileFan,
       allDmgPct:            (base.allDmgPct ?? 0) + (bonus.allDmgPct ?? 0) || undefined,
       takenDmgPct:          bonus.takenDmgPct,
-      dropRateMult:         bonus.dropRateMult || 1,
       potionHealPct:        base.potionHealPct,
       onKillHeal:           base.onKillHeal,
       eliteKillerPct:       base.eliteKillerPct,

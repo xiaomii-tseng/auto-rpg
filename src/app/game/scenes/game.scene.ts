@@ -3127,9 +3127,8 @@ export class GameScene extends Phaser.Scene {
     const _pStats     = CardStore.getTotalStats();
     const dropBonus   = 1 + (_pStats.dropRatePct ?? 0);
     const rarityBonusVal = _pStats.rarityBonus ?? 0;
-    const cardDropMult = (_pStats.dropRateMult ?? 1) * dropBonus;
     for (const card of def.cards) {
-      if (Math.random() < card.rate * cardDropMult) this.spawnCardDrop(x, y, card.cardId);
+      if (Math.random() < card.rate * dropBonus) this.spawnCardDrop(x, y, card.cardId);
     }
     const IQ = Math.pow(1.50, this.questStar - 1);
     const monType: MonsterType = isElite ? 'elite' : 'small';
@@ -6288,9 +6287,8 @@ export class GameScene extends Phaser.Scene {
       const _bossPS       = CardStore.getTotalStats();
       const bossDropBonus = 1 + (_bossPS.dropRatePct ?? 0);
       const bossRarityBonusVal = _bossPS.rarityBonus ?? 0;
-      const bossCardMult  = (_bossPS.dropRateMult ?? 1) * bossDropBonus;
       for (const card of bossDef.cards) {
-        if (Math.random() < card.rate * bossCardMult) this.spawnCardDrop(this.boss.x, this.boss.y, card.cardId, true);
+        if (Math.random() < card.rate * bossDropBonus) this.spawnCardDrop(this.boss.x, this.boss.y, card.cardId, true);
       }
       const bossIQ = Math.pow(1.50, this.questStar - 1);
       const bossQualW = getDropQualityWeights('boss', this.questStar);
@@ -7015,10 +7013,10 @@ export class GameScene extends Phaser.Scene {
   }
 
   protected spawnLoot(cx: number, cy: number, drops: DropEntry[], burst = false): void {
-    const dropMult = CardStore.getTotalStats().dropRateMult ?? 1;
+    const dropBonus = 1 + (CardStore.getTotalStats().dropRatePct ?? 0);
     let bi = 0;
     for (const drop of drops) {
-      if (Math.random() >= drop.rate * dropMult) continue;
+      if (Math.random() >= drop.rate * dropBonus) continue;
       const qty = Phaser.Math.Between(drop.qtyMin, drop.qtyMax);
       const iconKey = `icon_${drop.itemId}`;
 
