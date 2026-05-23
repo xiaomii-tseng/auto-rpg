@@ -471,6 +471,10 @@ export class GameScene extends Phaser.Scene {
     this.plantZones = [];
     this.pickupLog.forEach(t => t.destroy());
     this.pickupLog = [];
+    this._partners.forEach(pd => {
+      pd.sprite.destroy(); pd.label.destroy(); pd.hpBar.destroy(); pd.auraRing.destroy();
+    });
+    this._partners.clear();
 
     // ── 每場藥水使用上限 ─────────────────────────────────────
     this._atkBuffActive = false;
@@ -557,6 +561,11 @@ export class GameScene extends Phaser.Scene {
         if (hp !== undefined) pd.hp = hp;
         if (maxHp !== undefined) pd.maxHp = maxHp;
         this._drawPartnerHpBarFor(pd);
+        // Auto-revive: partner sent positive HP after being marked dead
+        if (pd.isDead && hp !== undefined && hp > 0) {
+          pd.isDead = false;
+          pd.sprite.play(`partner_idle_${pd.prevDir}`, true);
+        }
         // Don't update position or animation while partner is dead
         if (pd.isDead) return;
         const moved = Math.abs(wx - pd.prevX) > 0.5 || Math.abs(wy - pd.prevY) > 0.5;
@@ -614,7 +623,12 @@ export class GameScene extends Phaser.Scene {
 
       // Send local attack info to partner (DPR-normalised)
       this.player.onAttackAnim = (key, targetAngle?) => {
-        const behavior = SkillTreeStore.getAttackMode();
+        let behavior: string = SkillTreeStore.getAttackMode();
+        // Encode visual variants so partner can render the correct FX
+        if (behavior === 'projectile') {
+          const pStats = CardStore.getTotalStats();
+          if ((pStats.projectileFan ?? 0) >= 1) behavior = 'projectile_fan';
+        }
         // Prefer exact radian angle; fall back to cardinal dir extracted from animKey
         const dir = targetAngle !== undefined ? String(targetAngle) : (key.split('_').pop() ?? this.player.lastDir);
         NetworkService.sendAttack(key, this.player.x / DPR, this.player.y / DPR, dir, behavior);
@@ -1608,6 +1622,7 @@ export class GameScene extends Phaser.Scene {
         this.player.play(`player_idle_${this.player.lastDir}`);
         this.player.divineShieldDef = 0;
         (this.player as any).invincible = true;
+        if (NetworkService.connected) NetworkService.sendPotionEffect('revive', 100);
         this.time.delayedCall(2500, () => { (this.player as any).invincible = false; });
         this.spawnDamageNumber(this.player.x, this.player.y - P(20), 0, false, 1);
       } else {
@@ -7500,7 +7515,8 @@ export class GameScene extends Phaser.Scene {
       fontSize: F(20), fontStyle: 'bold', color: '#f0c040', stroke: '#000', strokeThickness: 4,
     }).setOrigin(0.5).setScrollFactor(0).setDepth(10001);
 
-    const line2 = this.add.text(W / 2, H / 2 + P(16), `Lv. ${newLevel}   ATK +2   HP +15`, {
+    const skillPt = newLevel % 5 === 0 ? '   技能點 +1' : '';
+    const line2 = this.add.text(W / 2, H / 2 + P(16), `Lv. ${newLevel}   ATK +2   HP +10${skillPt}`, {
       fontSize: F(15), fontStyle: 'bold', color: '#ffffff', stroke: '#000', strokeThickness: 3,
     }).setOrigin(0.5).setScrollFactor(0).setDepth(10001);
 
@@ -8919,6 +8935,22 @@ export class GameScene extends Phaser.Scene {
       case 'projectile':
         this.fxProjectile(x, y, dirRad, D, P(380), P(155));
         break;
+      case 'projectile_fan': {
+        const FAN_RAD = 11 * (Math.PI / 180);
+        this.fxProjectile(x, y, dirRad - FAN_RAD, D, P(380), P(155));
+        this.fxProjectile(x, y, dirRad,            D, P(380), P(155));
+        this.fxProjectile(x, y, dirRad + FAN_RAD, D, P(380), P(155));
+        break;
+      }
+      case 'knifeThrow':
+      case 'flowerMode': {
+        // Fallback: show a slash arc so the partner's attack isn't invisible
+        const arc = 180;
+        const sa = Phaser.Math.DegToRad(deg - arc / 2);
+        const ea = Phaser.Math.DegToRad(deg + arc / 2);
+        this.fxSlash180(x, y, sa, ea, MELEE_RANGE, D);
+        break;
+      }
       case 'multiHit': {
         const DELAYS = [55, 115, 175, 235, 310];
         DELAYS.forEach((delay, hitIdx) => {
