@@ -162,7 +162,9 @@ export class GameScene extends Phaser.Scene {
   // ── Special card effect state ──
   private _orbitBalls: Array<{ gfx: Phaser.GameObjects.Graphics; angle: number; type: 'fire'|'ice'; lastHit: Map<object, number> }> = [];
   private _orbitAngle = 0;
+  private _partnerOrbitBalls: Map<string, Array<{ gfx: Phaser.GameObjects.Graphics; angle: number; type: 'fire'|'ice' }>> = new Map();
   private _playerKnives: Array<{ gfx: Phaser.GameObjects.Graphics; x: number; y: number; vx: number; vy: number; spawnX: number; spawnY: number; maxDist: number; hitTargets: Set<object>; homing?: boolean; returnToPlayer?: boolean }> = [];
+  private _partnerKnives: Array<{ gfx: Phaser.GameObjects.Graphics; x: number; y: number; vx: number; vy: number; spawnX: number; spawnY: number; maxDist: number }> = [];
   private _divineShieldTimer?: Phaser.Time.TimerEvent;
   private _divineShieldGfx?: Phaser.GameObjects.Graphics;
   private _divineShieldRollUntil = 0;  // 每次攻擊動作只判定一次（300ms 鎖）
@@ -446,8 +448,12 @@ export class GameScene extends Phaser.Scene {
     this._orbitBalls.forEach(b => b.gfx.destroy());
     this._orbitBalls = [];
     this._orbitAngle = 0;
+    this._partnerOrbitBalls.forEach(arr => arr.forEach(b => b.gfx.destroy()));
+    this._partnerOrbitBalls.clear();
     this._playerKnives.forEach(k => k.gfx.destroy());
     this._playerKnives = [];
+    this._partnerKnives.forEach(k => k.gfx.destroy());
+    this._partnerKnives = [];
     this._divineShieldTimer?.destroy();
     this._divineShieldTimer = undefined;
     this._freeRevivesUsed = 0;
@@ -656,27 +662,16 @@ export class GameScene extends Phaser.Scene {
       });
 
       NetworkService.onPartyExit(() => {
-        const W = this.scale.width, H = this.scale.height;
-        this.add.text(W / 2, H * 0.45, '隊友退出，遊戲結束', {
-          fontSize: F(18), fontStyle: 'bold', color: '#ffddaa',
-          stroke: '#1a0800', strokeThickness: 3,
-          backgroundColor: '#00000099',
-          padding: { x: P(12), y: P(6) },
-        }).setOrigin(0.5).setScrollFactor(0).setDepth(9999);
-        this.time.delayedCall(1500, () => this.exitToLobby());
+        this._showMissionAbortOverlay('隊友離開了', '任務就此中止');
+        this.time.delayedCall(1800, () => this.exitToLobby());
       });
 
       NetworkService.onRunEnd(() => {
         // Host failed to reconnect within timeout
         this._hostReconnecting = false;
         this._hideHostReconnectOverlay();
-        this.time.delayedCall(2000, () => this.exitToLobby());
-        const W = this.scale.width, H = this.scale.height;
-        this.add.text(W / 2, H / 2, '隊長斷線，戰鬥結束', {
-          fontSize: `${Math.round(18 * DPR)}px`, color: '#ffddaa',
-          stroke: '#1a0800', strokeThickness: 3,
-          backgroundColor: '#00000099', padding: { x: Math.round(12 * DPR), y: Math.round(6 * DPR) },
-        }).setOrigin(0.5).setDepth(200);
+        this._showMissionAbortOverlay('隊長斷線', '戰鬥就此中止');
+        this.time.delayedCall(2200, () => this.exitToLobby());
       });
 
       NetworkService.onPartnerDead((data) => {
@@ -796,6 +791,30 @@ export class GameScene extends Phaser.Scene {
         NetworkService.onAllyKill(({ minionId }) => {
           const ally = this.allMinions.find(m => m.minionId === minionId);
           if (ally && !ally.isDead) ally.forceKill();
+        });
+
+        NetworkService.onChestSync(({ chests }) => {
+          for (const data of chests) {
+            const cx = data.x * DPR, cy = data.y * DPR;
+            const type = data.type as ChestType;
+            const sprite = this._makeChestSprite(cx, cy, type);
+            if (data.big) sprite.setDisplaySize(P(65), P(65));
+            if (!data.unlocked) sprite.setTint(0x444444);
+            const shadow = this._makeChestShadow(cx, cy, !!data.big);
+            const entry: ChestEntry = { zoneIdx: data.zoneIdx, x: cx, y: cy, type, sprite, shadow, unlocked: data.unlocked, opening: false, big: !!data.big };
+            this._chests.push(entry);
+            if (data.unlocked) this._setupChestInteraction(entry);
+          }
+        });
+
+        NetworkService.onChestUnlock(({ id }) => {
+          const chest = this._chests[id];
+          if (chest && !chest.unlocked) this._unlockChest(chest);
+        });
+
+        NetworkService.onChestOpen(({ id }) => {
+          const chest = this._chests[id];
+          if (chest) this._openChest(chest, true);
         });
       }
 
@@ -1106,18 +1125,68 @@ export class GameScene extends Phaser.Scene {
     if ((stats.fearAura ?? 0) >= 1) {
       this._startFearAura();
     }
+
+    // Multiplayer: broadcast own orbit ball config so partner can render them
+    if (NetworkService.connected && this._orbitBalls.length > 0) {
+      NetworkService.sendOrbitBallsConfig(
+        NetworkService.sessionId,
+        this._orbitBalls.map(b => ({ type: b.type })),
+      );
+    }
+
+    // Receive partner ball config
+    if (NetworkService.connected) {
+      NetworkService.onOrbitBallsConfig(({ sessionId, balls }) => {
+        // Destroy old balls for this partner
+        this._partnerOrbitBalls.get(sessionId)?.forEach(b => b.gfx.destroy());
+        const arr = balls.map((b, i) => ({
+          gfx: this.add.graphics().setDepth(25),
+          angle: (i / Math.max(balls.length, 1)) * Math.PI * 2,
+          type: b.type as 'fire' | 'ice',
+        }));
+        this._partnerOrbitBalls.set(sessionId, arr);
+      });
+
+      NetworkService.onLightningFx(({ targets, isSingle }) => {
+        for (const t of targets) this._fxLightningBolt(t.x * DPR, t.y * DPR, isSingle);
+      });
+    }
+  }
+
+  private updatePartnerOrbitBalls(delta: number): void {
+    if (this._partnerOrbitBalls.size === 0) return;
+    const ORBIT_SPEED = 0.0022;
+    const ORBIT_R     = P(48);
+    const BALL_R      = P(7);
+    this._partnerOrbitBalls.forEach((balls, sessionId) => {
+      const pd = this._partners.get(sessionId);
+      if (!pd || !pd.sprite.active) return;
+      const px = pd.sprite.x, py = pd.sprite.y;
+      for (let i = 0; i < balls.length; i++) {
+        const b = balls[i];
+        const a = this._orbitAngle + (i / balls.length) * Math.PI * 2;
+        const bx = px + Math.cos(a) * ORBIT_R;
+        const by = py + Math.sin(a) * ORBIT_R;
+        const col  = b.type === 'fire' ? 0xff6600 : 0x44bbff;
+        const glow = b.type === 'fire' ? 0xffaa00 : 0x88eeff;
+        b.gfx.clear().setPosition(bx, by);
+        b.gfx.fillStyle(glow, 0.30); b.gfx.fillCircle(0, 0, BALL_R * 1.6);
+        b.gfx.fillStyle(col,  0.90); b.gfx.fillCircle(0, 0, BALL_R);
+        b.gfx.fillStyle(0xffffff, 0.50); b.gfx.fillCircle(-BALL_R * 0.28, -BALL_R * 0.28, BALL_R * 0.32);
+      }
+    });
   }
 
   private updateOrbitBalls(delta: number): void {
-    if (this._orbitBalls.length === 0) return;
     const ORBIT_SPEED = 0.0022;   // rad/ms ≈ 一圈約 2.8 秒
+    this._orbitAngle += delta * ORBIT_SPEED;  // always advance so partner balls also rotate
+
+    if (this._orbitBalls.length === 0) return;
     const ORBIT_R     = P(48);
     const BALL_R      = P(6);
     const HIT_RANGE   = P(16);
     const HIT_CD      = 1000;
     const now         = this.time.now;
-
-    this._orbitAngle += delta * ORBIT_SPEED;
     const isAlive = this.player.active && !this.gameOver;
 
     const nTotal = Math.min(Math.max(this._orbitBalls.length, 2), 8);
@@ -1210,6 +1279,42 @@ export class GameScene extends Phaser.Scene {
         k.hitTargets.add(t);
         this.dealDamage(t, 0.40 * (1 + knifeBaseDmgMult), k.x, k.y, 'down');
       }
+    }
+  }
+
+  private updatePartnerKnives(delta: number): void {
+    if (this._partnerKnives.length === 0) return;
+    const KNIFE_SPEED = P(468);
+    const HOMING_TURN = 4.5;
+    const dt = delta / 1000;
+    for (let i = this._partnerKnives.length - 1; i >= 0; i--) {
+      const k = this._partnerKnives[i];
+      const targets = this.getHittableTargets();
+      let target: { x: number; y: number } | null = null;
+      let nearDistSq = Infinity;
+      for (const t of targets) {
+        const dSq = (k.x - t.x) * (k.x - t.x) + (k.y - t.y) * (k.y - t.y);
+        if (dSq < nearDistSq) { nearDistSq = dSq; target = t; }
+      }
+      if (target) {
+        const desiredAngle = Math.atan2(target.y - k.y, target.x - k.x);
+        const currentAngle = Math.atan2(k.vy, k.vx);
+        let diff = Phaser.Math.Angle.Wrap(desiredAngle - currentAngle);
+        const maxTurn = HOMING_TURN * dt;
+        diff = Math.max(-maxTurn, Math.min(maxTurn, diff));
+        const newAngle = currentAngle + diff;
+        k.vx = Math.cos(newAngle) * KNIFE_SPEED;
+        k.vy = Math.sin(newAngle) * KNIFE_SPEED;
+      }
+      k.x += k.vx * dt;
+      k.y += k.vy * dt;
+      const tdx = k.x - k.spawnX, tdy = k.y - k.spawnY;
+      if (tdx * tdx + tdy * tdy >= k.maxDist * k.maxDist) {
+        k.gfx.destroy();
+        this._partnerKnives.splice(i, 1);
+        continue;
+      }
+      k.gfx.setPosition(k.x, k.y).setRotation(Math.atan2(k.vy, k.vx));
     }
   }
 
@@ -1317,66 +1422,7 @@ export class GameScene extends Phaser.Scene {
 
     for (const target of targets) {
       const tx = target.x, ty = target.y;
-
-      // VFX：閃電線
-      const bolt = this.add.graphics().setDepth(60);
-      if (isSingle) {
-        // 天罰雷霆：寬大落雷 + 多條分支 + 強光暈
-        const drawBolt = (alpha: number) => {
-          bolt.clear();
-          // 外層大光暈
-          bolt.lineStyle(P(22), 0x8866ff, alpha * 0.15); bolt.beginPath(); bolt.moveTo(tx, ty - P(140)); bolt.lineTo(tx, ty); bolt.strokePath();
-          bolt.lineStyle(P(14), 0xaaddff, alpha * 0.25); bolt.beginPath(); bolt.moveTo(tx, ty - P(140)); bolt.lineTo(tx, ty); bolt.strokePath();
-          // 主幹（粗白芯）
-          bolt.lineStyle(P(7), 0xffffff, alpha);
-          bolt.beginPath(); bolt.moveTo(tx, ty - P(140));
-          bolt.lineTo(tx + P(10), ty - P(100)); bolt.lineTo(tx - P(8), ty - P(70));
-          bolt.lineTo(tx + P(6), ty - P(40)); bolt.lineTo(tx - P(4), ty - P(15)); bolt.lineTo(tx, ty);
-          bolt.strokePath();
-          // 分支 1
-          bolt.lineStyle(P(3), 0xffffff, alpha * 0.8);
-          bolt.beginPath(); bolt.moveTo(tx - P(8), ty - P(70)); bolt.lineTo(tx - P(22), ty - P(48)); bolt.lineTo(tx - P(18), ty - P(30)); bolt.strokePath();
-          // 分支 2
-          bolt.beginPath(); bolt.moveTo(tx + P(6), ty - P(40)); bolt.lineTo(tx + P(20), ty - P(22)); bolt.lineTo(tx + P(14), ty - P(8)); bolt.strokePath();
-          // 藍色中層
-          bolt.lineStyle(P(4), 0x88ccff, alpha * 0.6);
-          bolt.beginPath(); bolt.moveTo(tx, ty - P(140));
-          bolt.lineTo(tx + P(10), ty - P(100)); bolt.lineTo(tx - P(8), ty - P(70));
-          bolt.lineTo(tx + P(6), ty - P(40)); bolt.lineTo(tx - P(4), ty - P(15)); bolt.lineTo(tx, ty);
-          bolt.strokePath();
-        };
-        drawBolt(1);
-        this.tweens.add({ targets: bolt, alpha: 0, duration: 500, ease: 'Quad.In', onComplete: () => bolt.destroy() });
-        // 大衝擊圈
-        const ring = this.add.graphics({ x: tx, y: ty }).setDepth(59);
-        ring.lineStyle(P(4), 0xaaddff, 1); ring.strokeCircle(0, 0, P(18));
-        ring.lineStyle(P(2), 0xffffff, 0.7); ring.strokeCircle(0, 0, P(8));
-        this.tweens.add({ targets: ring, scaleX: 3.5, scaleY: 3.5, alpha: 0, duration: 450, onComplete: () => ring.destroy() });
-        // 落點閃光
-        const flash = this.add.graphics({ x: tx, y: ty }).setDepth(61);
-        flash.fillStyle(0xffffff, 0.9); flash.fillCircle(0, 0, P(10));
-        flash.fillStyle(0xaaddff, 0.6); flash.fillCircle(0, 0, P(18));
-        this.tweens.add({ targets: flash, alpha: 0, scaleX: 2, scaleY: 2, duration: 200, onComplete: () => flash.destroy() });
-      } else {
-        // 普通落雷
-        const drawBolt = (alpha: number) => {
-          bolt.clear();
-          bolt.lineStyle(P(3), 0xffffff, alpha);
-          bolt.beginPath(); bolt.moveTo(tx, ty - P(80));
-          bolt.lineTo(tx + P(4), ty - P(50)); bolt.lineTo(tx - P(3), ty - P(30));
-          bolt.lineTo(tx + P(2), ty - P(10)); bolt.lineTo(tx, ty);
-          bolt.strokePath();
-          bolt.lineStyle(P(6), 0xaaddff, alpha * 0.4);
-          bolt.beginPath(); bolt.moveTo(tx, ty - P(80)); bolt.lineTo(tx, ty);
-          bolt.strokePath();
-        };
-        drawBolt(1);
-        this.tweens.add({ targets: bolt, alpha: 0, duration: 350, ease: 'Quad.In', onComplete: () => bolt.destroy() });
-        // 普通衝擊圈
-        const ring = this.add.graphics({ x: tx, y: ty }).setDepth(59);
-        ring.lineStyle(P(2), 0xaaddff, 1); ring.strokeCircle(0, 0, P(12));
-        this.tweens.add({ targets: ring, scaleX: 2.5, scaleY: 2.5, alpha: 0, duration: 300, onComplete: () => ring.destroy() });
-      }
+      this._fxLightningBolt(tx, ty, isSingle);
 
       if (isSingle) {
         this.dealDamage(target, dmgMult, tx, ty, 'down');
@@ -1389,6 +1435,64 @@ export class GameScene extends Phaser.Scene {
           }
         }
       }
+    }
+
+    // Sync VFX to partner
+    if (NetworkService.connected) {
+      NetworkService.sendLightningFx(targets.map(t => ({ x: t.x / DPR, y: t.y / DPR })), isSingle);
+    }
+  }
+
+  private _fxLightningBolt(tx: number, ty: number, isSingle: boolean): void {
+    const bolt = this.add.graphics().setDepth(60);
+    if (isSingle) {
+      // 天罰雷霆：寬大落雷 + 多條分支 + 強光暈
+      const drawBolt = (alpha: number) => {
+        bolt.clear();
+        bolt.lineStyle(P(22), 0x8866ff, alpha * 0.15); bolt.beginPath(); bolt.moveTo(tx, ty - P(140)); bolt.lineTo(tx, ty); bolt.strokePath();
+        bolt.lineStyle(P(14), 0xaaddff, alpha * 0.25); bolt.beginPath(); bolt.moveTo(tx, ty - P(140)); bolt.lineTo(tx, ty); bolt.strokePath();
+        bolt.lineStyle(P(7), 0xffffff, alpha);
+        bolt.beginPath(); bolt.moveTo(tx, ty - P(140));
+        bolt.lineTo(tx + P(10), ty - P(100)); bolt.lineTo(tx - P(8), ty - P(70));
+        bolt.lineTo(tx + P(6), ty - P(40)); bolt.lineTo(tx - P(4), ty - P(15)); bolt.lineTo(tx, ty);
+        bolt.strokePath();
+        bolt.lineStyle(P(3), 0xffffff, alpha * 0.8);
+        bolt.beginPath(); bolt.moveTo(tx - P(8), ty - P(70)); bolt.lineTo(tx - P(22), ty - P(48)); bolt.lineTo(tx - P(18), ty - P(30)); bolt.strokePath();
+        bolt.beginPath(); bolt.moveTo(tx + P(6), ty - P(40)); bolt.lineTo(tx + P(20), ty - P(22)); bolt.lineTo(tx + P(14), ty - P(8)); bolt.strokePath();
+        bolt.lineStyle(P(4), 0x88ccff, alpha * 0.6);
+        bolt.beginPath(); bolt.moveTo(tx, ty - P(140));
+        bolt.lineTo(tx + P(10), ty - P(100)); bolt.lineTo(tx - P(8), ty - P(70));
+        bolt.lineTo(tx + P(6), ty - P(40)); bolt.lineTo(tx - P(4), ty - P(15)); bolt.lineTo(tx, ty);
+        bolt.strokePath();
+      };
+      drawBolt(1);
+      this.tweens.add({ targets: bolt, alpha: 0, duration: 500, ease: 'Quad.In', onComplete: () => bolt.destroy() });
+      const ring = this.add.graphics({ x: tx, y: ty }).setDepth(59);
+      ring.lineStyle(P(4), 0xaaddff, 1); ring.strokeCircle(0, 0, P(18));
+      ring.lineStyle(P(2), 0xffffff, 0.7); ring.strokeCircle(0, 0, P(8));
+      this.tweens.add({ targets: ring, scaleX: 3.5, scaleY: 3.5, alpha: 0, duration: 450, onComplete: () => ring.destroy() });
+      const flash = this.add.graphics({ x: tx, y: ty }).setDepth(61);
+      flash.fillStyle(0xffffff, 0.9); flash.fillCircle(0, 0, P(10));
+      flash.fillStyle(0xaaddff, 0.6); flash.fillCircle(0, 0, P(18));
+      this.tweens.add({ targets: flash, alpha: 0, scaleX: 2, scaleY: 2, duration: 200, onComplete: () => flash.destroy() });
+    } else {
+      // 普通落雷
+      const drawBolt = (alpha: number) => {
+        bolt.clear();
+        bolt.lineStyle(P(3), 0xffffff, alpha);
+        bolt.beginPath(); bolt.moveTo(tx, ty - P(80));
+        bolt.lineTo(tx + P(4), ty - P(50)); bolt.lineTo(tx - P(3), ty - P(30));
+        bolt.lineTo(tx + P(2), ty - P(10)); bolt.lineTo(tx, ty);
+        bolt.strokePath();
+        bolt.lineStyle(P(6), 0xaaddff, alpha * 0.4);
+        bolt.beginPath(); bolt.moveTo(tx, ty - P(80)); bolt.lineTo(tx, ty);
+        bolt.strokePath();
+      };
+      drawBolt(1);
+      this.tweens.add({ targets: bolt, alpha: 0, duration: 350, ease: 'Quad.In', onComplete: () => bolt.destroy() });
+      const ring = this.add.graphics({ x: tx, y: ty }).setDepth(59);
+      ring.lineStyle(P(2), 0xaaddff, 1); ring.strokeCircle(0, 0, P(12));
+      this.tweens.add({ targets: ring, scaleX: 2.5, scaleY: 2.5, alpha: 0, duration: 300, onComplete: () => ring.destroy() });
     }
   }
 
@@ -2275,7 +2379,9 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.updateOrbitBalls(this.game.loop.delta);
+    this.updatePartnerOrbitBalls(this.game.loop.delta);
     this.updatePlayerKnives(this.game.loop.delta);
+    this.updatePartnerKnives(this.game.loop.delta);
 
     if (this._divineShieldGfx && this.player.active) {
       const g = this._divineShieldGfx;
@@ -2892,8 +2998,8 @@ export class GameScene extends Phaser.Scene {
     const spd = 1 + this.getEffectiveAtkSpeed();
     const cd  = Math.round(650 / spd);
     if (!this.player.lockCooldown(cd)) return;
-    const { dir } = this.resolveAttackDir(P(240));
-    this.player.startAttackAnim(`player_attack_${dir}`);
+    const { dir, rad } = this.resolveAttackDir(P(240));
+    this.player.startAttackAnim(`player_attack_${dir}`, rad);
     this.time.delayedCall(150, () => this.firePeriodicKnives());
   }
 
@@ -4890,6 +4996,13 @@ export class GameScene extends Phaser.Scene {
     }
 
     this._spawnCorridorChests();
+
+    if (NetworkService.connected && NetworkService.isHost && this._chests.length > 0) {
+      NetworkService.sendChestSync(this._chests.map((c, i) => ({
+        id: i, zoneIdx: c.zoneIdx, x: c.x / DPR, y: c.y / DPR,
+        type: c.type, big: !!c.big, unlocked: c.unlocked,
+      })));
+    }
 
     this.time.delayedCall(400, () => {
       if (!NetworkService.connected || NetworkService.isHost) {
@@ -6997,6 +7110,57 @@ export class GameScene extends Phaser.Scene {
   private _reconnectOverlay?: Phaser.GameObjects.Container;
   private _hostReconnectOverlay?: Phaser.GameObjects.Container;
 
+  private _showMissionAbortOverlay(title: string, subtitle: string): void {
+    const W = this.scale.width, H = this.scale.height;
+    const c = this.add.container(0, 0).setScrollFactor(0).setDepth(19999).setAlpha(0);
+
+    // Full dark vignette
+    c.add(this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.80));
+
+    // Panel: warm brown border + very dark brown body
+    const panelW = Math.min(W * 0.80, P(280));
+    const panelH = P(148);
+    const cx = W / 2, cy = H / 2;
+    c.add(this.add.rectangle(cx, cy, panelW + P(3), panelH + P(3), 0x7a4a1a, 1).setScrollFactor(0));
+    c.add(this.add.rectangle(cx, cy, panelW,        panelH,        0x100500, 1).setScrollFactor(0));
+
+    // Icon (warm amber ✕)
+    c.add(this.add.text(cx, cy - P(50), '✕', {
+      fontSize: F(26), fontStyle: 'bold', color: '#f0d090',
+      stroke: '#1a0800', strokeThickness: P(2),
+      shadow: { offsetX: 0, offsetY: 0, color: '#c88030', blur: P(12), fill: true },
+    }).setOrigin(0.5).setScrollFactor(0));
+
+    // Title
+    c.add(this.add.text(cx, cy - P(16), title, {
+      fontSize: F(20), fontStyle: 'bold', color: '#f0d090',
+      stroke: '#1a0800', strokeThickness: P(3),
+    }).setOrigin(0.5).setScrollFactor(0));
+
+    // Thin separator (warm brown)
+    const sep = this.add.graphics().setScrollFactor(0);
+    sep.lineStyle(P(1), 0x7a4a1a, 0.8);
+    sep.beginPath();
+    sep.moveTo(cx - panelW * 0.32, cy + P(4));
+    sep.lineTo(cx + panelW * 0.32, cy + P(4));
+    sep.strokePath();
+    c.add(sep);
+
+    // Subtitle
+    c.add(this.add.text(cx, cy + P(18), subtitle, {
+      fontSize: F(15), fontStyle: 'bold', color: '#d4aa88',
+      stroke: '#1a0800', strokeThickness: P(2),
+    }).setOrigin(0.5).setScrollFactor(0));
+
+    // Footer hint
+    c.add(this.add.text(cx, cy + P(46), '即將返回大廳…', {
+      fontSize: F(15), fontStyle: 'bold', color: '#886655',
+    }).setOrigin(0.5).setScrollFactor(0));
+
+    // Fade in
+    this.tweens.add({ targets: c, alpha: 1, duration: 380, ease: 'Quad.Out' });
+  }
+
   private _showHostReconnectOverlay(): void {
     if (this._hostReconnectOverlay) return;
     const W = this.scale.width, H = this.scale.height;
@@ -7274,7 +7438,13 @@ export class GameScene extends Phaser.Scene {
         this._zoneAlive.set(zoneIdx, alive);
         if (alive <= 0) {
           const chest = this._chests.find(c => c.zoneIdx === zoneIdx);
-          if (chest && !chest.unlocked) this._unlockChest(chest);
+          if (chest && !chest.unlocked) {
+            this._unlockChest(chest);
+            if (NetworkService.connected && NetworkService.isHost) {
+              const id = this._chests.indexOf(chest);
+              if (id !== -1) NetworkService.sendChestUnlock(id);
+            }
+          }
         }
       };
     }
@@ -7313,6 +7483,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private _spawnChest(zoneIdx: number, wx: number, wy: number, rooms?: { x: number; y: number; w: number; h: number }[]): void {
+    if (NetworkService.connected && !NetworkService.isHost) return;
     if (Math.random() >= 0.12) return;
 
     // ── 位置：區域角落，距邊緣一點距離 ──
@@ -7336,6 +7507,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private _spawnCorridorChests(): void {
+    if (NetworkService.connected && !NetworkService.isHost) return;
     for (const seg of this.corridorSegs) {
       if (Math.random() >= 0.12) continue;
       const isH  = Math.abs(seg.y1 - seg.y2) < 1;
@@ -7362,9 +7534,14 @@ export class GameScene extends Phaser.Scene {
     this._setupChestInteraction(chest);
   }
 
-  private _openChest(chest: ChestEntry): void {
+  private _openChest(chest: ChestEntry, fromNetwork = false): void {
+    if (chest.opening) return;
     chest.opening = true;
     chest.zone?.destroy();
+    if (!fromNetwork && NetworkService.connected) {
+      const id = this._chests.indexOf(chest);
+      if (id !== -1) NetworkService.sendChestOpen(id);
+    }
     const animKey = `chest_open_${chest.type}`;
     chest.sprite.play(animKey);
     chest.sprite.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => {
@@ -8975,6 +9152,38 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  private fxKnifeThrow(x: number, y: number, dirRad: number): void {
+    const count    = 6;
+    const SPEED    = P(468);
+    const MAX_DIST = P(200);
+    const D        = 26;
+    for (let i = 0; i < count; i++) {
+      const angle = dirRad + (i / (count - 1) - 0.5) * Math.PI; // ±90° fan
+      const vx = Math.cos(angle) * SPEED;
+      const vy = Math.sin(angle) * SPEED;
+
+      const gfx = this.add.graphics({ x, y }).setDepth(D);
+      gfx.setRotation(angle);
+      gfx.fillStyle(0xe8e8ff, 1);
+      gfx.fillTriangle(P(8), 0, -P(5), -P(1.5), -P(5), P(1.5));
+      gfx.lineStyle(P(0.8), 0xffffff, 0.7);
+      gfx.beginPath(); gfx.moveTo(-P(4), -P(0.8)); gfx.lineTo(P(7), 0); gfx.strokePath();
+      gfx.fillStyle(0x886644, 1);
+      gfx.fillRect(-P(7), -P(1.2), P(3), P(2.4));
+      gfx.fillStyle(0xaaaaaa, 1);
+      gfx.fillRect(-P(5), -P(2.5), P(1.5), P(5));
+
+      const spark = this.add.graphics({ x, y }).setDepth(D - 1);
+      spark.fillStyle(0xffffff, 0.6);
+      spark.fillCircle(0, 0, P(3));
+      this.tweens.add({ targets: spark, alpha: 0, scaleX: 0.1, scaleY: 0.1,
+        x: x - Math.cos(angle) * P(8), y: y - Math.sin(angle) * P(8),
+        duration: 180, ease: 'Quad.Out', onComplete: () => spark.destroy() });
+
+      this._partnerKnives.push({ gfx, x, y, vx, vy, spawnX: x, spawnY: y, maxDist: MAX_DIST });
+    }
+  }
+
   // ── Partner attack VFX ───────────────────────────────────────
   private showPartnerAttackFX(behavior: string, x: number, y: number, dir: string): void {
     const D = 20;
@@ -9012,8 +9221,9 @@ export class GameScene extends Phaser.Scene {
         break;
       }
       case 'knifeThrow':
+        this.time.delayedCall(150, () => this.fxKnifeThrow(x, y, dirRad));
+        break;
       case 'flowerMode': {
-        // Fallback: show a slash arc so the partner's attack isn't invisible
         const arc = 180;
         const sa = Phaser.Math.DegToRad(deg - arc / 2);
         const ea = Phaser.Math.DegToRad(deg + arc / 2);

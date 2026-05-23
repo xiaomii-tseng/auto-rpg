@@ -51,8 +51,13 @@ export interface MsgBossSync     {
 }
 export interface MsgRewardSync   { isEquipReward: boolean; gold: number; star: number }
 export interface MsgRunEnd       { won: boolean }
-export interface MsgAllySpawn    { minionId: string; defId: string; lifetimeMs: number }
-export interface MsgAllyKill     { minionId: string }
+export interface MsgChestSync    { chests: Array<{ id: number; zoneIdx: number; x: number; y: number; type: string; big: boolean; unlocked: boolean }> }
+export interface MsgChestUnlock  { id: number }
+export interface MsgChestOpen    { id: number }
+export interface MsgAllySpawn        { minionId: string; defId: string; lifetimeMs: number }
+export interface MsgAllyKill         { minionId: string }
+export interface MsgOrbitBallsConfig { sessionId: string; balls: Array<{ type: 'fire' | 'ice' }> }
+export interface MsgLightningFx      { targets: Array<{ x: number; y: number }>; isSingle: boolean }
 export interface MsgMinionAttack {
   minionId: string;
   type:     'shoot' | 'triple' | 'explode' | 'spike' | 'blade_wave' | 'triple_wave' | 'arc_slash' | 'leap_slam' | 'spin_slash' | 'ground_crack' | 'whirl_slash' | 'blood_needle' | 'meteor' | 'blood_burst' | 'triple_needle' | 'lightning_ring' | 'orbit_burst' | 'blood_channel';

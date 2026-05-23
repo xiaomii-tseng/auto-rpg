@@ -1,5 +1,5 @@
 import { Client, Room } from 'colyseus.js';
-import { GameRoomState, PlayerState, MapParams, MsgMove, MsgHpUpdate, MsgMinionSync, MsgMinionHit, MsgBossHit, MsgBossSync, MsgRewardSync, MsgMinionAttack, MsgAllySpawn, MsgAllyKill } from '../../../../shared/types';
+import { GameRoomState, PlayerState, MapParams, MsgMove, MsgHpUpdate, MsgMinionSync, MsgMinionHit, MsgBossHit, MsgBossSync, MsgRewardSync, MsgMinionAttack, MsgAllySpawn, MsgAllyKill, MsgChestSync, MsgChestUnlock, MsgChestOpen, MsgOrbitBallsConfig, MsgLightningFx } from '../../../../shared/types';
 
 const isLocal  = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
 const WS_URL   = isLocal ? 'ws://localhost:3001' : 'wss://minirpg-q1zq.onrender.com';
@@ -72,8 +72,13 @@ interface Callbacks {
   hostDisconnected?: () => void;
   hostReconnected?:  () => void;
   partyExit?:        () => void;
-  allySpawn?:        (data: MsgAllySpawn) => void;
-  allyKill?:         (data: MsgAllyKill)  => void;
+  allySpawn?:        (data: MsgAllySpawn)   => void;
+  allyKill?:         (data: MsgAllyKill)    => void;
+  chestSync?:        (data: MsgChestSync)        => void;
+  chestUnlock?:      (data: MsgChestUnlock)      => void;
+  chestOpen?:        (data: MsgChestOpen)        => void;
+  orbitBallsConfig?: (data: MsgOrbitBallsConfig) => void;
+  lightningFx?:      (data: MsgLightningFx)      => void;
 }
 
 class NetworkServiceClass {
@@ -150,6 +155,11 @@ class NetworkServiceClass {
     r.onMessage('partyExit',        ()            => this._cbs.partyExit?.());
     r.onMessage<MsgAllySpawn>('allySpawn',      d  => this._cbs.allySpawn?.(d));
     r.onMessage<MsgAllyKill>('allyKill',        d  => this._cbs.allyKill?.(d));
+    r.onMessage<MsgChestSync>('chestSync',               d  => this._cbs.chestSync?.(d));
+    r.onMessage<MsgChestUnlock>('chestUnlock',           d  => this._cbs.chestUnlock?.(d));
+    r.onMessage<MsgChestOpen>('chestOpen',               d  => this._cbs.chestOpen?.(d));
+    r.onMessage<MsgOrbitBallsConfig>('orbitBallsConfig', d  => this._cbs.orbitBallsConfig?.(d));
+    r.onMessage<MsgLightningFx>('lightningFx',           d  => this._cbs.lightningFx?.(d));
 
     // Single onStateChange forwarder for both partnerInfoReady and partnerMove
     r.onStateChange(state => {
@@ -445,6 +455,11 @@ class NetworkServiceClass {
     this._cbs.partyExit        = undefined;
     this._cbs.allySpawn        = undefined;
     this._cbs.allyKill         = undefined;
+    this._cbs.chestSync        = undefined;
+    this._cbs.chestUnlock      = undefined;
+    this._cbs.chestOpen        = undefined;
+    this._cbs.orbitBallsConfig = undefined;
+    this._cbs.lightningFx      = undefined;
   }
 
   sendPartyExit(): void { try { this.room?.send('partyExit', {}); } catch { /* WebSocket closing */ } }
@@ -459,6 +474,28 @@ class NetworkServiceClass {
   }
   onAllySpawn(cb: (data: MsgAllySpawn) => void): void { this._cbs.allySpawn = cb; }
   onAllyKill(cb: (data: MsgAllyKill) => void): void  { this._cbs.allyKill  = cb; }
+
+  sendChestSync(chests: MsgChestSync['chests']): void {
+    this.room?.send('chestSync', { chests } satisfies MsgChestSync);
+  }
+  sendChestUnlock(id: number): void {
+    this.room?.send('chestUnlock', { id } satisfies MsgChestUnlock);
+  }
+  sendChestOpen(id: number): void {
+    this.room?.send('chestOpen', { id } satisfies MsgChestOpen);
+  }
+  onChestSync(cb: (data: MsgChestSync) => void): void    { this._cbs.chestSync   = cb; }
+  onChestUnlock(cb: (data: MsgChestUnlock) => void): void { this._cbs.chestUnlock = cb; }
+  onChestOpen(cb: (data: MsgChestOpen) => void): void    { this._cbs.chestOpen   = cb; }
+
+  sendOrbitBallsConfig(sessionId: string, balls: MsgOrbitBallsConfig['balls']): void {
+    this.room?.send('orbitBallsConfig', { sessionId, balls } satisfies MsgOrbitBallsConfig);
+  }
+  sendLightningFx(targets: MsgLightningFx['targets'], isSingle: boolean): void {
+    this.room?.send('lightningFx', { targets, isSingle } satisfies MsgLightningFx);
+  }
+  onOrbitBallsConfig(cb: (data: MsgOrbitBallsConfig) => void): void { this._cbs.orbitBallsConfig = cb; }
+  onLightningFx(cb: (data: MsgLightningFx) => void): void           { this._cbs.lightningFx      = cb; }
 
   // ── Town room ─────────────────────────────────────────────
 

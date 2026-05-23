@@ -5075,9 +5075,9 @@ export class PrepScene extends Phaser.Scene {
     // ── Tab definitions ────────────────────────────────────
     type ShopItem = { id: string; name: string; price: number; desc: string; color: number };
     const POTION_ITEMS: ShopItem[] = [
-      { id: ITEM_POTION_HEALTH_S, name: '小型回復藥水', price: 450,  desc: '回復 100 HP', color: 0x44ff88 },
-      { id: ITEM_POTION_HEALTH_M, name: '中型回復藥水', price: 990,  desc: '回復 200 HP', color: 0x44ddff },
-      { id: ITEM_POTION_HEALTH_L, name: '大型回復藥水', price: 2100, desc: '回復 300 HP', color: 0xff88ff },
+      { id: ITEM_POTION_HEALTH_S, name: '小型回復藥水', price: 225,  desc: '回復 100 HP', color: 0x44ff88 },
+      { id: ITEM_POTION_HEALTH_M, name: '中型回復藥水', price: 495,  desc: '回復 200 HP', color: 0x44ddff },
+      { id: ITEM_POTION_HEALTH_L, name: '大型回復藥水', price: 1050, desc: '回復 300 HP', color: 0xff88ff },
       { id: ITEM_POTION_ATK, name: '攻擊力藥水', price: 3000, desc: '傷害+20%，持續30秒', color: 0xff6644 },
       { id: ITEM_POTION_DEF, name: '防禦力藥水', price: 3000, desc: 'DEF+20，持續30秒', color: 0x44aaff },
       { id: ITEM_POTION_SPEED, name: '速度藥水', price: 3000, desc: '移動速度+20，持續30秒', color: 0xffdd22 },

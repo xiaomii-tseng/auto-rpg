@@ -16,6 +16,8 @@ import {
   MsgReady, MsgMove, MsgHpUpdate,
   MsgMinionSync, MsgMinionHit, MsgBossHit, MsgBossSync, MsgRewardSync, MsgRunEnd, MsgMinionAttack,
   MsgAllySpawn, MsgAllyKill,
+  MsgChestSync, MsgChestUnlock, MsgChestOpen,
+  MsgOrbitBallsConfig, MsgLightningFx,
 } from '../../../shared/types';
 
 export class GameRoom extends Room<GameRoomState> {
@@ -179,6 +181,20 @@ export class GameRoom extends Room<GameRoomState> {
       this.broadcast('partyExit', {}, { except: client });
     });
 
+    this.onMessage<MsgChestSync>('chestSync', (client, msg) => {
+      if (client.sessionId !== this.state.hostId) return;
+      this.broadcast('chestSync', msg, { except: client });
+    });
+
+    this.onMessage<MsgChestUnlock>('chestUnlock', (client, msg) => {
+      if (client.sessionId !== this.state.hostId) return;
+      this.broadcast('chestUnlock', msg, { except: client });
+    });
+
+    this.onMessage<MsgChestOpen>('chestOpen', (client, msg) => {
+      this.broadcast('chestOpen', msg, { except: client });
+    });
+
     this.onMessage<MsgAllySpawn>('allySpawn', (client, msg) => {
       if (client.sessionId !== this.state.hostId) return;
       this.broadcast('allySpawn', msg, { except: client });
@@ -187,6 +203,14 @@ export class GameRoom extends Room<GameRoomState> {
     this.onMessage<MsgAllyKill>('allyKill', (client, msg) => {
       if (client.sessionId !== this.state.hostId) return;
       this.broadcast('allyKill', msg, { except: client });
+    });
+
+    this.onMessage<MsgOrbitBallsConfig>('orbitBallsConfig', (client, msg) => {
+      this.broadcast('orbitBallsConfig', msg, { except: client });
+    });
+
+    this.onMessage<MsgLightningFx>('lightningFx', (client, msg) => {
+      this.broadcast('lightningFx', msg, { except: client });
     });
   }
 
