@@ -35,18 +35,27 @@ export class AudioService {
   // 需要全局節流的 key → 下次可播的時間戳（ms）
   private static _sfxGlobalCooldown: Map<string, number> = new Map();
 
-  /** factor: 相對音量乘數（預設 1.0）。throttleMs: 全局同 key 冷卻時間（0 = 不限）。 */
+  /** factor: 相對音量乘數（預設 1.0）。throttleMs: 全局同 key 冷卻時間（0 = 不限）。
+   *  播放非點擊音效時自動抑制 sfx_ui_click，避免兩個聲音疊加。 */
   static playSfx(scene: Phaser.Scene, key: string, factor = 1.0, throttleMs = 0): void {
     if (!scene.cache.audio.exists(key)) return;
+    const now = performance.now();
     if (throttleMs > 0) {
-      const now = performance.now();
       if (now < (this._sfxGlobalCooldown.get(key) ?? 0)) return;
       this._sfxGlobalCooldown.set(key, now + throttleMs);
+    }
+    if (key !== 'sfx_ui_click') {
+      this._sfxGlobalCooldown.set('sfx_ui_click', now + 300);
     }
     scene.sound.play(key, { volume: this.sfxVolume * factor });
   }
 
   static setSfxVolume(v: number): void {
     this.sfxVolume = Math.max(0, Math.min(1, v));
+  }
+
+  /** 預先抑制下一次 sfx_ui_click（供有自己音效的按鈕在 pointerdown 呼叫）。 */
+  static suppressClickSfx(ms = 500): void {
+    this._sfxGlobalCooldown.set('sfx_ui_click', performance.now() + ms);
   }
 }

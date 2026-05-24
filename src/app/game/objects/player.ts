@@ -254,6 +254,16 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.hp = Math.max(1, Math.ceil(this.maxHp * hpPercent));
     this.setActive(true).setVisible(true);
     this.onHpChanged?.(this.hp, this.maxHp);
+    this.invincible = true;
+    this.flashTween?.stop();
+    this.flashTween = this.scene.tweens.add({
+      targets: this, alpha: 0.25, duration: 120, yoyo: true, repeat: -1,
+    });
+    this.scene.time.delayedCall(1500, () => {
+      this.invincible = false;
+      this.flashTween?.stop();
+      this.setAlpha(1);
+    });
   }
 
   // 黑夜降靈懲罰：強制把 HP 壓到 1%（不觸發死亡，只播受傷動畫）
@@ -294,7 +304,13 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     });
   }
 
+  override play(key: string | Phaser.Animations.Animation | Phaser.Types.Animations.PlayAnimationConfig, ignoreIfPlaying?: boolean): this {
+    if (!this.active) return this;
+    return super.play(key, ignoreIfPlaying);
+  }
+
   private playAnim(key: string): void {
+    if (!this.active) return;
     if (this.anims.currentAnim?.key === key && this.anims.isPlaying) return;
     this.play(key, true);
   }

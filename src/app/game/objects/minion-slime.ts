@@ -105,7 +105,8 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
   static readonly COOLDOWN_BLOOD_CHANNEL    = 3500;
   static readonly BLOOD_CHANNEL_WARN_MS     = 1000;
 
-  getTargetPos: () => [number, number] = () => [0, 0];
+  getTargetPos:   () => [number, number] = () => [0, 0];
+  hasValidTarget?: () => boolean;
   onDead?: () => void;
   onFire?: (type: 'shoot' | 'triple' | 'explode' | 'spike' | 'blade_wave' | 'triple_wave' | 'arc_slash' | 'leap_slam' | 'spin_slash' | 'ground_crack' | 'whirl_slash' | 'blood_needle' | 'meteor' | 'blood_burst' | 'triple_needle' | 'lightning_ring' | 'orbit_burst' | 'blood_channel', mx: number, my: number, tx: number, ty: number) => void;
   onBloodChannelWarn?: (mx: number, my: number, tx: number, ty: number, warnMs: number) => void;
@@ -784,6 +785,12 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
     if (time < this.stunUntil) {
       this.pb.setVelocity(0, 0);
       this.drawHpBar();
+      return;
+    }
+
+    // 沒有任何有效目標（玩家全滅）→ 停止 AI
+    if (this.hasValidTarget && !this.hasValidTarget()) {
+      this.pb.setVelocity(0, 0);
       return;
     }
 

@@ -371,6 +371,9 @@ export class PrepScene extends Phaser.Scene {
     if (!this.cache.audio.exists('sfx_ui_click'))   this.load.audio('sfx_ui_click',    'sound/plus.mp3');
     if (!this.cache.audio.exists('sfx_enhance_ok')) this.load.audio('sfx_enhance_ok',  'sound/test-success.mp3');
     if (!this.cache.audio.exists('sfx_enhance_ng')) this.load.audio('sfx_enhance_ng',  'sound/test-fail.mp3');
+    if (!this.cache.audio.exists('sfx_purchase'))     this.load.audio('sfx_purchase',     'sound/openChest.mp3');
+    if (!this.cache.audio.exists('sfx_battle_start')) this.load.audio('sfx_battle_start', 'sound/openMap.mp3');
+    if (!this.cache.audio.exists('sfx_shop_open'))    this.load.audio('sfx_shop_open',    'sound/opendoor.mp3');
   }
 
   create(): void {
@@ -403,9 +406,10 @@ export class PrepScene extends Phaser.Scene {
     this.input.enabled = false;
     this.time.delayedCall(300, () => { this.input.enabled = true; });
 
-    let _ptrDownAt = 0;
-    this.input.on('pointerdown', () => { _ptrDownAt = this.time.now; });
-    this.input.on('pointerup',   () => { if (this.time.now - _ptrDownAt < 200) AudioService.playSfx(this, 'sfx_ui_click', 0.5); });
+    this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
+      if (this._townJoystick?.isInZone(p.x, p.y)) return;
+      AudioService.playSfx(this, 'sfx_ui_click', 0.5, 100);
+    });
 
     // 瀏覽器執行時嘗試觸控觸發全螢幕；PWA 已由 manifest 處理，失敗時靜默忽略
     if (!this.scale.isFullscreen) {
@@ -492,7 +496,8 @@ export class PrepScene extends Phaser.Scene {
         NetworkService.onRoomClosed(() => { NetworkService.disconnect(); this._partnerIn = false; this.refreshRoomOverlay(); this._showToast('房主已離開，房間關閉'); });
         NetworkService.onGameStart(p => {
           if (NetworkService.isHost) {
-            this.scene.start('BattleLoadScene', {
+            AudioService.playSfx(this, 'sfx_battle_start');
+          this.scene.start('BattleLoadScene', {
               seed: p.seed, questStar: p.questStar, bossMonsterId: p.bossMonsterId,
               mapParams: p.mapParams, partnerNickname: p.guestNickname,
               ownSkinId: p.hostSkinId, partnerSkinId: p.guestSkinId,
@@ -500,7 +505,8 @@ export class PrepScene extends Phaser.Scene {
             });
           } else {
             try { if (p.questId) QuestStore.acceptQuest(p.questId); } catch { /* guest */ }
-            this.scene.start('BattleLoadScene', {
+            AudioService.playSfx(this, 'sfx_battle_start');
+          this.scene.start('BattleLoadScene', {
               seed: p.seed, questStar: p.questStar, bossMonsterId: p.bossMonsterId,
               mapParams: p.mapParams, partnerNickname: p.hostNickname,
               ownSkinId: p.guestSkinId, partnerSkinId: p.hostSkinId,
@@ -1515,6 +1521,7 @@ export class PrepScene extends Phaser.Scene {
         if (NetworkService.connected && NetworkService.isHost) {
           NetworkService.sendReady(getPlayerName(), PlayerStore.getLevel(), quest.id, quest.star, quest.bossId, mapTheme);
         } else {
+          AudioService.playSfx(this, 'sfx_battle_start');
           this.scene.start('BattleLoadScene', { ownSkinId: SkinStore.get(), questStar: quest.star, bossMonsterId: quest.bossId, mapTheme });
         }
       });
@@ -3345,7 +3352,8 @@ export class PrepScene extends Phaser.Scene {
 
     // ── Tooltip popup ─────────────────────────────────────────────────────
     const TW = PW - P(20), TH = P(110);
-    const tipG  = s(this.add.graphics().setDepth(D + 5));
+    const tipG      = s(this.add.graphics().setDepth(D + 5));
+    const tipBlocker = s(this.add.rectangle(0, 0, TW, TH).setDepth(D + 5).setVisible(false));
     const tipT1 = s(this.add.text(0, 0, '', { fontSize: F(15), fontStyle: 'bold', color: '#ffe8a0', stroke: '#000', strokeThickness: 2 }).setDepth(D + 6));
     const tipT2 = s(this.add.text(0, 0, '', { fontSize: F(15), fontStyle: 'bold', color: '#aaccdd', stroke: '#000', strokeThickness: 1, wordWrap: { width: TW - P(20) } }).setDepth(D + 6));
     const tipBtnG = s(this.add.graphics().setDepth(D + 6));
@@ -3354,6 +3362,7 @@ export class PrepScene extends Phaser.Scene {
     const showTip = (node: import('../data/skill-tree-store').SkillNode) => {
       _tipNodeId = node.id;
       const tx = px + P(10), ty = py + PH - TH - P(8);
+      tipBlocker.setPosition(tx + TW / 2, ty + TH / 2).setVisible(true).setInteractive();
       tipG.clear();
       tipG.fillStyle(0x0a0a14, 0.97); tipG.fillRoundedRect(tx, ty, TW, TH, P(6));
       tipG.lineStyle(P(1.5), 0x44aaff, 0.6); tipG.strokeRoundedRect(tx, ty, TW, TH, P(6));
@@ -3384,6 +3393,7 @@ export class PrepScene extends Phaser.Scene {
     const hideTip = () => {
       _tipNodeId = '';
       tipG.clear(); tipBtnG.clear(); tipT1.setText(''); tipT2.setText(''); tipBtn.setText('');
+      tipBlocker.setVisible(false).removeInteractive();
     };
     hideTip();
 
@@ -5273,10 +5283,10 @@ export class PrepScene extends Phaser.Scene {
       { id: ITEM_POTION_HEALTH_S, name: '小型回復藥水', price: 225,  desc: '回復 100 HP', color: 0x44ff88 },
       { id: ITEM_POTION_HEALTH_M, name: '中型回復藥水', price: 495,  desc: '回復 200 HP', color: 0x44ddff },
       { id: ITEM_POTION_HEALTH_L, name: '大型回復藥水', price: 1050, desc: '回復 300 HP', color: 0xff88ff },
-      { id: ITEM_POTION_ATK, name: '攻擊力藥水', price: 3000, desc: '傷害+20%，持續30秒', color: 0xff6644 },
-      { id: ITEM_POTION_DEF, name: '防禦力藥水', price: 3000, desc: 'DEF+20，持續30秒', color: 0x44aaff },
-      { id: ITEM_POTION_SPEED, name: '速度藥水', price: 3000, desc: '移動速度+20，持續30秒', color: 0xffdd22 },
-      { id: ITEM_POTION_REVIVE, name: '復活藥水', price: 6000, desc: '戰鬥中自動復活一次', color: 0xffee44 },
+      { id: ITEM_POTION_ATK, name: '攻擊力藥水', price: 2000, desc: '傷害+20%，持續30秒', color: 0xff6644 },
+      { id: ITEM_POTION_DEF, name: '防禦力藥水', price: 2000, desc: 'DEF+20，持續30秒', color: 0x44aaff },
+      { id: ITEM_POTION_SPEED, name: '速度藥水', price: 2000, desc: '移動速度+20，持續30秒', color: 0xffdd22 },
+      { id: ITEM_POTION_REVIVE, name: '復活藥水', price: 1, desc: '戰鬥中自動復活一次', color: 0xffee44 },
     ];
     const STONE_ITEMS: ShopItem[] = [
       { id: ITEM_STONE_BROKEN, name: '破損強化石', price: 1000, desc: '強化裝備時消耗', color: 0x88ccff },
@@ -5494,6 +5504,7 @@ export class PrepScene extends Phaser.Scene {
             InventoryStore.addItem(item.id, item.name, qty);
             SaveStore.save();
             refreshGold();
+            AudioService.playSfx(this, 'sfx_purchase');
             showToast(`購買成功：${item.name} ×${qty}`, true);
           });
         });
@@ -5650,6 +5661,7 @@ export class PrepScene extends Phaser.Scene {
             SaveStore.save();
             refreshOwned();
             drawBtn(false);
+            AudioService.playSfx(this, 'sfx_purchase');
             showToast(`兌換成功：${getCardDisplayName(card.id)}`, true);
           });
           scrollCont.add(hit);
@@ -5797,6 +5809,7 @@ export class PrepScene extends Phaser.Scene {
     makeBtn(-P(68), cbY, '取消', CBW, CBH, '#cc6666', 0x883333, () => pop.destroy());
     makeBtn(P(68), cbY, '確認購買', CBW, CBH, '#e8c870', GOLD, () => {
       if (InventoryStore.getGold() < qty * item.price) return;
+      AudioService.playSfx(this, 'sfx_purchase');
       onConfirm(qty);
       pop.destroy();
     });
@@ -5946,6 +5959,7 @@ export class PrepScene extends Phaser.Scene {
         NetworkService.onPartnerLeft(() => { this._partnerIn = false; this.refreshRoomOverlay(); });
         NetworkService.onRoomClosed(() => { NetworkService.disconnect(); this._partnerIn = false; this.refreshRoomOverlay(); this._showToast('房主已離開，房間關閉'); });
         NetworkService.onGameStart(p => {
+          AudioService.playSfx(this, 'sfx_battle_start');
           this.scene.start('BattleLoadScene', {
             seed: p.seed, questStar: p.questStar, bossMonsterId: p.bossMonsterId,
             mapParams: p.mapParams, partnerNickname: p.guestNickname,
@@ -6043,6 +6057,7 @@ export class PrepScene extends Phaser.Scene {
         NetworkService.onRoomClosed(() => { NetworkService.disconnect(); this._partnerIn = false; this.refreshRoomOverlay(); this._showToast('房主已離開，房間關閉'); });
         NetworkService.onGameStart(payload => {
           try { if (payload.questId) QuestStore.acceptQuest(payload.questId); } catch { /* guest */ }
+          AudioService.playSfx(this, 'sfx_battle_start');
           this.scene.start('BattleLoadScene', {
             seed: payload.seed, questStar: payload.questStar, bossMonsterId: payload.bossMonsterId,
             mapParams: payload.mapParams, partnerNickname: payload.hostNickname,
@@ -6662,7 +6677,7 @@ export class PrepScene extends Phaser.Scene {
           this.showQuestPanel(W, H);
         } },
       { xf: 0.33, yf: 0.65, icon: '✦', label: '商店',  color: 0xd47820, buildingKey: 'building_shop',
-        tapW: P(80), tapH: P(72), collW: P(130), collH: P(55), tent: true, onActivate: () => this.showShopPanel(W, H) },
+        tapW: P(80), tapH: P(72), collW: P(130), collH: P(55), tent: true, onActivate: () => { AudioService.playSfx(this, 'sfx_shop_open'); this.showShopPanel(W, H); } },
       { xf: 0.65, yf: 0.50, icon: '⚒', label: '鍛造',  color: 0xd47820, buildingKey: 'building_forge',
         tapW: P(80), tapH: P(72), collW: P(190), collH: P(55), shadow: true, shadowOX: P(0), shadowOY: P(10), onActivate: () => this._showToast('功能待開發') },
       { xf: 0.23, yf: 0.30, icon: '⊕', label: '倉庫',  color: 0x70b858, buildingKey: 'building_warehouse',
@@ -6686,6 +6701,7 @@ export class PrepScene extends Phaser.Scene {
         const bImg = this.add.image(wx, wy, obj.buildingKey)
           .setScale(DPR * (obj.buildingScale ?? 1.4)).setOrigin(0.5, 1).setDepth(bDepth)
           .setInteractive({ useHandCursor: true })
+          .on('pointerdown', () => AudioService.suppressClickSfx())
           .on('pointerup', (p: Phaser.Input.Pointer, _lx: any, _ly: any, ev: any) => {
             ev?.stopPropagation?.();
             if (!this._townJoystick?.ownsPointer(p.id)) obj.onActivate();

@@ -389,11 +389,12 @@ export class GameScene extends Phaser.Scene {
     if (!this.cache.audio.exists('sfx_player_hurt')) this.load.audio('sfx_player_hurt', 'sound/test-close.mp3');
     if (!this.cache.audio.exists('sfx_boss_death'))   this.load.audio('sfx_boss_death',   'sound/boss-death.mp3');
     if (!this.cache.audio.exists('sfx_player_dead'))  this.load.audio('sfx_player_dead',  'sound/test-fail.mp3');
+    if (!this.cache.audio.exists('sfx_potion'))       this.load.audio('sfx_potion',        'sound/plus.mp3');
     if (!this.cache.audio.exists('sfx_swing1')) this.load.audio('sfx_swing1', 'sound/swing-1.mp3');
     if (!this.cache.audio.exists('sfx_swing2')) this.load.audio('sfx_swing2', 'sound/swing-2.mp3');
     if (!this.cache.audio.exists('sfx_swing3')) this.load.audio('sfx_swing3', 'sound/swing-3.mp3');
     if (!this.cache.audio.exists('sfx_swing4')) this.load.audio('sfx_swing4', 'sound/swing-4.mp3');
-    if (!this.cache.audio.exists('sfx_swing5')) this.load.audio('sfx_swing5', 'sound/swing-5.mp3');
+    if (!this.cache.audio.exists('sfx_swing5')) this.load.audio('sfx_swing5', 'sound/skill-2.mp3');
     this.generateTextures();
   }
 
@@ -882,7 +883,8 @@ export class GameScene extends Phaser.Scene {
       this.boss.def = Math.round((bossDef.def ?? 0) * (STAR_DEF_MULT[this.questStar] ?? 0));
       bossDef.fillTint ? this.boss.setTintFill(bossDef.tint) : this.boss.setTint(bossDef.tint);
       this.boss.setVisible(false);
-      this.boss.getTargetPos = () => this.nearestTargetPos(this.boss.x, this.boss.y);
+      this.boss.getTargetPos   = () => this.nearestTargetPos(this.boss.x, this.boss.y);
+      this.boss.hasValidTarget = () => this.hasAnyValidTarget();
       this.boss.onHpChanged = () => this.refreshBossBar();
       this.boss.onDead = () => this.handleBossDefeated();
       this.boss.onAoeExplode = (x, y) => {
@@ -1720,7 +1722,9 @@ export class GameScene extends Phaser.Scene {
 
   protected showFreeReviveDialog(): void {
     this._reviveDialogActive = true;
-    (this.player as any).invincible = true;  // 等候期間玩家無敵，防止重複觸發 onDead
+    this.player.setActive(false);
+    this.player.stop();
+    this.player.setTexture('player_death_shadow', 6);
 
     const W = this.scale.width, H = this.scale.height;
     const bw = P(240), bh = P(150);
@@ -4088,9 +4092,25 @@ export class GameScene extends Phaser.Scene {
     return targets[Math.floor(Math.random() * targets.length)];
   }
 
+  protected hasAnyValidTarget(): boolean {
+    if (this.player.active && !this.gameOver) return true;
+    if (NetworkService.connected) {
+      for (const pd of this._partners.values()) {
+        if (pd.sprite.active && !pd.isDead) return true;
+      }
+    }
+    for (const ally of this._allyMinions) {
+      if (!ally.isDead) return true;
+    }
+    return false;
+  }
+
   protected nearestTargetPos(fromX: number, fromY: number): [number, number] {
+    const playerAlive = !this.gameOver && this.player.active;
     let best: [number, number] = [this.player.x, this.player.y];
-    let bestDist = Phaser.Math.Distance.Between(fromX, fromY, this.player.x, this.player.y);
+    let bestDist = playerAlive
+      ? Phaser.Math.Distance.Between(fromX, fromY, this.player.x, this.player.y)
+      : Infinity;
 
     if (NetworkService.connected && NetworkService.isHost) {
       this._partners.forEach(pd => {
@@ -4107,6 +4127,7 @@ export class GameScene extends Phaser.Scene {
       if (d < bestDist) { bestDist = d; best = [ally.x, ally.y]; }
     }
 
+    if (bestDist === Infinity) return [fromX, fromY];
     return best;
   }
 
@@ -4799,7 +4820,8 @@ export class GameScene extends Phaser.Scene {
     if (defId.startsWith('plant') || defId.startsWith('elite_plant')) m.race = 'plant';
     m.attackCooldownMult = m.race === 'orc' ? 1.3 : m.race === 'plant' ? 1.2 : m.race === 'vampire' ? 0.85 : 1.0;
     m.setPatrolCenter(wx, wy);
-    m.getTargetPos = () => this.nearestTargetPos(m.x, m.y);
+    m.getTargetPos   = () => this.nearestTargetPos(m.x, m.y);
+    m.hasValidTarget = () => this.hasAnyValidTarget();
     m.onDead = () => {
       this.handleMinionDrop(defId, m.x, m.y);
       if (this._towerFloor > 0 && !this.bossActive) {
@@ -4950,7 +4972,8 @@ export class GameScene extends Phaser.Scene {
       if (defId.startsWith('vampire') || defId.startsWith('elite_vampire')) { m.race = 'vampire'; m.walkAnim = 'run'; }
       m.attackCooldownMult = m.race === 'orc' ? 1.3 : m.race === 'plant' ? 1.2 : m.race === 'vampire' ? 0.85 : 1.0;
       m.setPatrolCenter(isPlant ? spawnX : wx, isPlant ? spawnY : wy);
-      m.getTargetPos = () => this.nearestTargetPos(m.x, m.y);
+      m.getTargetPos   = () => this.nearestTargetPos(m.x, m.y);
+      m.hasValidTarget = () => this.hasAnyValidTarget();
       m.onDead = () => this.handleMinionDrop(defId, m.x, m.y);
       this.allMinions.push(m);
       const _awl = this._towerWalls ?? this.wallLayer;
@@ -5963,7 +5986,8 @@ export class GameScene extends Phaser.Scene {
     b.setPosition(x, y).setVisible(true);
     (b.body as Phaser.Physics.Arcade.Body).enable = true;
     (b.body as Phaser.Physics.Arcade.Body).setCollideWorldBounds(true);
-    b.getTargetPos = () => this.nearestTargetPos(b.x, b.y);
+    b.getTargetPos   = () => this.nearestTargetPos(b.x, b.y);
+    b.hasValidTarget = () => this.hasAnyValidTarget();
     b.onHpChanged = () => this.refreshBossBar();
     b.onAoeExplode = (bx, by) => {
       if (!this.bossActive) return;
@@ -6606,6 +6630,7 @@ export class GameScene extends Phaser.Scene {
 
   protected handlePlayerDead(): void {
     this.playSfx('sfx_player_dead');
+    this.player.off(Phaser.Animations.Events.ANIMATION_COMPLETE);
     this._endDarkNight();
     if (this._reviveDialogActive) return;  // 視窗已開啟，忽略重複呼叫
     const stats = CardStore.getTotalStats();
@@ -7916,6 +7941,7 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
+    this.playSfx('sfx_potion');
     // 每種藥水獨立 20 秒 CD
     this._potionCdUntil.set(itemId, this.time.now + 20000);
     this.time.addEvent({ delay: 500, repeat: 39, callback: () => this._potionBarRedraw?.() });

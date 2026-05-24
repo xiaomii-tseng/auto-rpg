@@ -90,6 +90,13 @@ export class VirtualJoystick {
     return this._pointerId !== -1 && this._pointerId === pointerId;
   }
 
+  /** True if (x, y) falls within the joystick touch zone. */
+  isInZone(x: number, y: number): boolean {
+    const dx = x - this.baseX, dy = y - this.baseY;
+    const limit = this.radius + Math.round(20 * DPR);
+    return dx * dx + dy * dy <= limit * limit;
+  }
+
   get value(): JoystickOutput {
     // Every frame: check if the captured pointer is still physically down.
     // If stopPropagation on a game object swallowed the pointerup event,

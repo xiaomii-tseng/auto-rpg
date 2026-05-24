@@ -151,7 +151,8 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
   arenaRadius = 400;
   arenaShape  = 0;   // 0=圓, 1=八角, 2=菱形, 3=圓角矩形
 
-  getTargetPos: () => [number, number] = () => [0, 0];
+  getTargetPos:   () => [number, number] = () => [0, 0];
+  hasValidTarget?: () => boolean;
 
   burnStacks    = 0;
   burnExpiresAt = 0;
@@ -237,6 +238,13 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
       (this.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
       return;
     }
+
+    // 沒有任何有效目標（玩家全滅）→ 原地停止
+    if (this.hasValidTarget && !this.hasValidTarget()) {
+      (this.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
+      return;
+    }
+
     if (this.bossState !== BossState.IDLE) return;
     const [tx, ty] = this.getTargetPos();
     const dist = Phaser.Math.Distance.Between(this.x, this.y, tx, ty);
@@ -428,6 +436,12 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
 
   protected pickNextAttack(): void {
     if (this.guestMode) return;
+    if (this.hasValidTarget && !this.hasValidTarget()) {
+      this.stateTimer = this.scene.time.delayedCall(300, () => {
+        if (this.active && this.bossState !== BossState.DEAD) this.pickNextAttack();
+      });
+      return;
+    }
     const bc = this.barrageChance();
     if (bc > 0 && Math.random() < bc) {
       this.stateTimer = this.scene.time.delayedCall(this.getNextAttackDelay(), () => this.enterBarrageWarn());
@@ -438,6 +452,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
   }
 
   protected enterAoeWarn(): void {
+    if (this.hasValidTarget && !this.hasValidTarget()) { this.enterIdle(); return; }
     this.setBossState(BossState.AOE_WARN, {});
     this.stateTimer?.destroy();
     (this.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
@@ -492,6 +507,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
   }
 
   protected enterDashWarn(): void {
+    if (this.hasValidTarget && !this.hasValidTarget()) { this.enterIdle(); return; }
     this.stateTimer?.destroy();
     (this.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
     if (this.guestMode) {
@@ -724,6 +740,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
 
   protected enterBarrageWarn(): void {
     if (this.bossState === BossState.DEAD) return;
+    if (this.hasValidTarget && !this.hasValidTarget()) { this.enterIdle(); return; }
     this.stateTimer?.destroy();
     (this.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
     this.updateDirToTarget();
