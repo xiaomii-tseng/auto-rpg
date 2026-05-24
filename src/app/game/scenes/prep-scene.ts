@@ -3,7 +3,7 @@ import { InventoryStore } from '../data/inventory-store';
 import { PlayerStore } from '../data/player-store';
 import { PotionBarStore } from '../data/potion-bar-store';
 import { ITEM_POTION_HEALTH_S, ITEM_POTION_HEALTH_M, ITEM_POTION_HEALTH_L, ITEM_POTION_REVIVE, ITEM_POTION_ATK, ITEM_POTION_DEF, ITEM_POTION_SPEED, ITEM_STONE_BROKEN, ITEM_STONE_INTACT, ITEM_BLANK_CARD, ITEM_QUEST_REROLL, ITEM_TICKET_SLIME, ITEM_TICKET_FLOWER, ITEM_TICKET_ORC, ITEM_TICKET_VAMPIRE } from '../data/monster-data';
-import { generateEquipment, randomQuality, QUALITY_NAMES, QUALITY_COLORS, SLOT_NAMES, STAT_NAMES, BEHAVIOR_INFO, BEHAVIOR_NAMES, EquipSlot, EquipmentItem, applyEnhancement, recastItem, ENHANCE_COST, ENHANCE_RATE, ENHANCE_COMPLETE_BONUS, ENHANCE_MAX, fmtAffixValue, StatBonus, REFINE_INCREMENT_RANGE, calcEquipSellPrice } from '../data/equipment-data';
+import { generateEquipment, randomQuality, QUALITY_NAMES, QUALITY_COLORS, SLOT_NAMES, STAT_NAMES, BEHAVIOR_INFO, BEHAVIOR_NAMES, EquipSlot, EquipmentItem, applyEnhancement, recastItem, ENHANCE_COST, ENHANCE_RATE, ENHANCE_COMPLETE_BONUS, ENHANCE_MAX, fmtAffixValue, StatBonus, REFINE_INCREMENT_RANGE, calcEquipSellPrice, LEGENDARY_BOSS_WEAPON, generateLegendaryWeapon } from '../data/equipment-data';
 import { SaveStore } from '../data/save-store';
 import { CardStore, CARD_SLOT_COUNT } from '../data/card-store';
 
@@ -82,7 +82,7 @@ function applyEnhanceGlow(
   item:  import('../data/equipment-data').EquipmentItem,
   x: number, y: number,
 ): Phaser.GameObjects.Image | null {
-  const enh = item.enhancement ?? 0;
+  const enh = item.quality === 'legendary' ? 10 : (item.enhancement ?? 0);
   const def = GLOW_DEF[enh];
   if (!def) return null;
 
@@ -315,6 +315,11 @@ export class PrepScene extends Phaser.Scene {
       const key = `equip_sword${i + 40}`;
       if (!this.textures.exists(key))
         this.load.image(key, `equip/weapons/Icons/icon_32_2_${String(i).padStart(2, '0')}.png`);
+    }
+    for (let i = 1; i <= 4; i++) {
+      const key = `equip_legendary_sw${i}`;
+      if (!this.textures.exists(key))
+        this.load.image(key, `equip/weapons/Icons/red/sw${i}.png`);
     }
     // Boss idle sprites for quest panel
     const bossSprites: [string, string][] = [
@@ -1184,10 +1189,10 @@ export class PrepScene extends Phaser.Scene {
 
     const rewardText = (reward: import('../data/daily-quest-store').DailyReward): string => {
       const parts: string[] = [];
-      if (reward.gold)     parts.push(`金幣 ×${reward.gold.toLocaleString()}`);
-      if (reward.items)    parts.push(...reward.items.map(i => `${i.name} ×${i.qty}`));
-      if (reward.cardName) parts.push(reward.cardName);
-      if (reward.equip)    parts.push(`${SLOT_NAMES[reward.equip.slot]}（${QUALITY_NAMES[reward.equip.quality]}）`);
+      if (reward.gold)   parts.push(`金幣 ×${reward.gold.toLocaleString()}`);
+      if (reward.items)  parts.push(...reward.items.map(i => `${i.name} ×${i.qty}`));
+      if (reward.cardId) parts.push('隨機卡片');
+      if (reward.equip)  parts.push('隨機裝備');
       return parts.join(' ') || '—';
     };
 
@@ -2271,6 +2276,9 @@ export class PrepScene extends Phaser.Scene {
       }
 
       btnHit.on('pointerdown', () => {
+        if (item.quality === 'legendary') {
+          resultTxt.setText('傳說武器無法重鑄').setColor('#ff4444'); return;
+        }
         if (InventoryStore.getItemQty('stone_guard') < 1) {
           matHoldTxt.setText('持有  0 顆').setColor('#ff6666');
           resultTxt.setText('重鑄石不足！').setColor('#ff4444');
@@ -2492,7 +2500,7 @@ export class PrepScene extends Phaser.Scene {
       // ── Refresh ───────────────────────────────────────
       const refresh = () => {
         const lv = item.enhancement;
-        const maxed = lv >= ENHANCE_MAX;
+        const maxed = lv >= ENHANCE_MAX || item.quality === 'legendary';
         const base = maxed ? 0 : ENHANCE_RATE[lv];
         const rate = Math.min(1, base + (useComplete ? ENHANCE_COMPLETE_BONUS : 0));
 
@@ -2555,6 +2563,7 @@ export class PrepScene extends Phaser.Scene {
       btnHit.on('pointerdown', () => {
         clearGainTexts();   // 每次按下清除上次的加成提示
         const lv = item.enhancement;
+        if (item.quality === 'legendary') return;
         if (lv >= ENHANCE_MAX) return;
         const cost = ENHANCE_COST[lv];
         if (InventoryStore.getItemQty('stone_broken') < cost) {
@@ -3229,6 +3238,7 @@ export class PrepScene extends Phaser.Scene {
       item.affixes.forEach(a => {
         statParts.push(`${STAT_NAMES[a.stat]} +${fmtAffixValue(a.stat, a.value)}`);
       });
+      if (item.quality === 'legendary') statParts.push('無法精煉');
       det.add(this.add.text(rightColX + P(72), statOffsetY2, statParts.join('\n'), {
         fontSize: F(15), fontStyle: 'bold', color: '#88cc88', stroke: '#1a0800', strokeThickness: 1,
         lineSpacing: 4,
@@ -4271,6 +4281,90 @@ export class PrepScene extends Phaser.Scene {
         det.add(this.add.text(0, py + P(232), item.name, {
           fontSize: F(15), fontStyle: 'bold', color: '#8aaa88', stroke: '#1a0800', strokeThickness: 1,
         }).setOrigin(0.5));
+      }
+
+      // ── 配置快捷欄按鈕（藥水限定）────────────────────────
+      if (item.id.startsWith('potion_')) {
+        const assignBtnY = py + P(318);
+        const assignBtnW = P(150), assignBtnH = P(40);
+
+        const assignBg = this.add.graphics();
+        assignBg.fillStyle(WB, 1);
+        assignBg.fillRoundedRect(-assignBtnW / 2, assignBtnY - assignBtnH / 2, assignBtnW, assignBtnH, P(6));
+        assignBg.lineStyle(P(2), WL, 0.85);
+        assignBg.strokeRoundedRect(-assignBtnW / 2, assignBtnY - assignBtnH / 2, assignBtnW, assignBtnH, P(6));
+        det.add(assignBg);
+
+        det.add(this.add.text(0, assignBtnY, '配置快捷欄', {
+          fontSize: F(15), fontStyle: 'bold', color: '#e8c070', stroke: '#1a0800', strokeThickness: 2,
+        }).setOrigin(0.5));
+
+        const assignHit = this.add.rectangle(0, assignBtnY, assignBtnW, assignBtnH)
+          .setInteractive({ useHandCursor: true });
+        det.add(assignHit);
+
+        assignHit.on('pointerup', () => {
+          det.destroy();
+
+          const hlObjs: Phaser.GameObjects.GameObject[] = [];
+          const closeHl = () => hlObjs.forEach(o => o.destroy());
+
+          // 整個 panel 的取消攔截層（最先加入 = 在下層）
+          const cancelBlocker = this.add.rectangle(0, 0, PW, PH)
+            .setInteractive()
+            .on('pointerdown', (_p: any, _lx: any, _ly: any, ev: any) => {
+              ev.stopPropagation();
+              closeHl();
+            });
+          hlObjs.push(cancelBlocker);
+          container.add(cancelBlocker);
+
+          // 遮暗藥水格子以外的區域
+          const dimGfx = this.add.graphics();
+          dimGfx.fillStyle(0x000000, 0.5);
+          const dimTop = potionSecY + P(28) + potionSlotSZ + P(4);
+          dimGfx.fillRect(px + P(4), dimTop, PW - P(8), py + PH - dimTop - P(4));
+          hlObjs.push(dimGfx);
+          container.add(dimGfx);
+
+          // 提示文字
+          const hintTxt = this.add.text(0, dimTop + P(6), '點選上方格子以配置\n點其他地方取消', {
+            fontSize: F(12), fontStyle: 'bold', color: '#aaffaa', stroke: '#001a00', strokeThickness: 1,
+            align: 'center',
+          }).setOrigin(0.5, 0);
+          hlObjs.push(hintTxt);
+          container.add(hintTxt);
+
+          // 兩個藥水格子的高亮與點擊區
+          [0, 1].forEach(slotIdx => {
+            const scx = px + P(10) + slotIdx * (potionSlotSZ + potionSlotGap) + potionSlotSZ / 2;
+            const ssy = potionSecY + P(28);
+            const sbx = scx - potionSlotSZ / 2;
+
+            const glowGfx = this.add.graphics();
+            glowGfx.fillStyle(0x44ff44, 0.2);
+            glowGfx.fillRoundedRect(sbx - P(3), ssy - P(3), potionSlotSZ + P(6), potionSlotSZ + P(6), P(8));
+            glowGfx.lineStyle(P(3), 0x44ff44, 0.9);
+            glowGfx.strokeRoundedRect(sbx - P(3), ssy - P(3), potionSlotSZ + P(6), potionSlotSZ + P(6), P(8));
+            hlObjs.push(glowGfx);
+            container.add(glowGfx);
+
+            const slotHit = this.add.rectangle(scx, ssy + potionSlotSZ / 2, potionSlotSZ + P(6), potionSlotSZ + P(6))
+              .setInteractive({ useHandCursor: true });
+            hlObjs.push(slotHit);
+            container.add(slotHit);
+
+            slotHit.on('pointerup', () => {
+              const otherIdx = slotIdx === 0 ? 1 : 0;
+              const otherSlot = PotionBarStore.getSlot(otherIdx as 0 | 1);
+              if (otherSlot && HEAL_IDS.has(otherSlot) && HEAL_IDS.has(item.id)) return;
+              PotionBarStore.setSlot(slotIdx as 0 | 1, item.id);
+              SaveStore.save();
+              redrawPotionSlots();
+              closeHl();
+            });
+          });
+        });
       }
     };
 
@@ -6459,6 +6553,125 @@ export class PrepScene extends Phaser.Scene {
     }).setOrigin(0.5).setDepth(D + 3));
   }
 
+  private _showRankingPanel(W: number, H: number): void {
+    const PW = Math.min(W - P(8), P(360));
+    const PH = Math.min(H - P(16), P(400));
+    const D  = 8000;
+    const px = -PW / 2, py = -PH / 2;
+    const HEADER_H = P(68);
+
+    const container = this.add.container(W / 2, H / 2).setDepth(D);
+    const dim = this.add.rectangle(0, 0, W, H, 0x000000, 0.6).setInteractive();
+    dim.on('pointerdown', () => container.destroy());
+    container.add(dim);
+
+    // ── Background ────────────────────────────────────────────────
+    const bg = this.add.graphics();
+    // Silver outer border
+    bg.fillStyle(0x8899aa, 1);
+    bg.fillRoundedRect(px - P(2), py - P(2), PW + P(4), PH + P(4), P(13));
+    // Stone inner ring
+    bg.fillStyle(0x445566, 0.6);
+    bg.fillRoundedRect(px - P(1), py - P(1), PW + P(2), PH + P(2), P(12));
+    // Main background (dark slate)
+    bg.fillStyle(0x141824, 1);
+    bg.fillRoundedRect(px, py, PW, PH, P(11));
+    // Header fill
+    bg.fillStyle(0x1c2235, 1);
+    bg.fillRoundedRect(px, py, PW, HEADER_H, P(11));
+    bg.fillRect(px, py + P(10), PW, HEADER_H - P(10));
+    // Header bottom divider
+    bg.lineStyle(P(1), 0x556688, 0.9);
+    bg.lineBetween(px + P(14), py + HEADER_H, px + PW - P(14), py + HEADER_H);
+    bg.lineStyle(P(1), 0x334455, 0.4);
+    bg.lineBetween(px + P(14), py + HEADER_H + P(1), px + PW - P(14), py + HEADER_H + P(1));
+    container.add(bg);
+
+    // ── Header text ───────────────────────────────────────────────
+    container.add(this.add.text(0, py + P(24), '英雄紀錄板', {
+      fontSize: F(20), fontStyle: 'bold', color: '#ccd8ee',
+      stroke: '#080c18', strokeThickness: P(2),
+    }).setOrigin(0.5, 0.5));
+    container.add(this.add.text(0, py + P(50), '— 個人最佳成就 —', {
+      fontSize: F(11), color: '#667788',
+      stroke: '#080c18', strokeThickness: P(1),
+    }).setOrigin(0.5, 0.5));
+
+    // ── Close button ─────────────────────────────────────────────
+    const closeBtn = this.add.text(px + PW - P(14), py + P(14), '✕', {
+      fontSize: F(16), fontStyle: 'bold', color: '#778899',
+      stroke: '#080c18', strokeThickness: P(1),
+    }).setOrigin(1, 0).setInteractive({ useHandCursor: true });
+    closeBtn.on('pointerdown', () => container.destroy());
+    container.add(closeBtn);
+
+    // ── Records ───────────────────────────────────────────────────
+    const ownedWeapons  = PlayerStore.getOwned();
+    const bestEnhance   = ownedWeapons.length > 0
+      ? Math.max(...ownedWeapons.map(w => w.enhancement ?? 0)) : 0;
+    const bestFloor     = TowerStore.getBestFloor();
+
+    const records: { label: string; value: string; accent: number }[] = [
+      { label: '角色等級',   value: `Lv. ${PlayerStore.getLevel()}`,             accent: 0xddcc55 },
+      { label: '最高塔層',   value: bestFloor > 0 ? `第 ${bestFloor} 層` : '–', accent: 0x55aaee },
+      { label: '武器收藏',   value: `${ownedWeapons.length} 把`,                accent: 0xee8844 },
+      { label: '最高精煉',   value: bestEnhance > 0 ? `+${bestEnhance}` : '–',  accent: 0xaa55ee },
+      { label: '持有金幣',   value: InventoryStore.getGold().toLocaleString(),   accent: 0xd4a044 },
+    ];
+
+    const ROW_H    = P(50);
+    const ROW_PAD  = P(4);
+    const startY   = py + HEADER_H + P(10);
+    const ROW_L    = px + P(12);
+    const ROW_W    = PW - P(24);
+
+    records.forEach((rec, i) => {
+      const ry = startY + i * (ROW_H + ROW_PAD);
+      const rowBg = this.add.graphics();
+      // Row background — alternating stone shades
+      rowBg.fillStyle(i % 2 === 0 ? 0x1c2233 : 0x192030, 1);
+      rowBg.fillRoundedRect(ROW_L, ry, ROW_W, ROW_H, P(6));
+      // Left accent bar
+      rowBg.fillStyle(rec.accent, 0.85);
+      rowBg.fillRoundedRect(ROW_L, ry + P(10), P(4), ROW_H - P(20), P(2));
+      // Subtle top shine
+      rowBg.fillStyle(0xffffff, 0.03);
+      rowBg.fillRoundedRect(ROW_L, ry, ROW_W, P(3), P(3));
+      container.add(rowBg);
+
+      // Rank badge
+      const rankColors = ['#d4aa30', '#aaaaaa', '#cc7733', '#667799', '#667799'];
+      container.add(this.add.text(ROW_L + P(18), ry + ROW_H / 2, `${i + 1}`, {
+        fontSize: F(13), fontStyle: 'bold',
+        color: rankColors[i] ?? '#667799',
+        stroke: '#080c18', strokeThickness: P(1),
+      }).setOrigin(0.5, 0.5));
+
+      // Label
+      container.add(this.add.text(ROW_L + P(34), ry + ROW_H / 2, rec.label, {
+        fontSize: F(14), color: '#99aabb',
+        stroke: '#080c18', strokeThickness: P(1),
+      }).setOrigin(0, 0.5));
+
+      // Value
+      const accentHex = `#${rec.accent.toString(16).padStart(6, '0')}`;
+      container.add(this.add.text(ROW_L + ROW_W - P(12), ry + ROW_H / 2, rec.value, {
+        fontSize: F(16), fontStyle: 'bold', color: accentHex,
+        stroke: '#080c18', strokeThickness: P(2),
+      }).setOrigin(1, 0.5));
+    });
+
+    // ── Footer ────────────────────────────────────────────────────
+    const footerY = startY + records.length * (ROW_H + ROW_PAD) + P(8);
+    const footerG = this.add.graphics();
+    footerG.lineStyle(P(1), 0x334455, 0.6);
+    footerG.lineBetween(px + P(20), footerY, px + PW - P(20), footerY);
+    container.add(footerG);
+    container.add(this.add.text(0, footerY + P(12), '點擊任意處關閉', {
+      fontSize: F(10), color: '#445566',
+    }).setOrigin(0.5, 0));
+  }
+
   /** Destroys and redraws room overlay: room code, leave button, partner sprite, guest overlay */
   private _showAltarPanel(W: number, H: number): void {
     const PW = Math.min(P(400), W - P(24));
@@ -6504,11 +6717,51 @@ export class PrepScene extends Phaser.Scene {
       stroke: '#2a0066', strokeThickness: P(3),
     }).setOrigin(0.5));
 
-    // 副標題
-    container.add(this.add.text(0, py + P(52), '消耗門票 · 挑戰傳說 6 ★ 王', {
-      fontSize: F(13), fontStyle: 'bold', color: '#9977cc',
-      stroke: '#0a0018', strokeThickness: P(2),
-    }).setOrigin(0.5));
+    // ℹ 資訊按鈕
+    let infoTooltip: Phaser.GameObjects.Container | null = null;
+    const infoBtnX = px + P(22), infoBtnY = py + P(22);
+    const infoBtnSz = P(24);
+    const infoBtnGfx = this.add.graphics();
+    infoBtnGfx.fillStyle(0x2a1255, 1); infoBtnGfx.fillRoundedRect(infoBtnX - infoBtnSz/2, infoBtnY - infoBtnSz/2, infoBtnSz, infoBtnSz, P(5));
+    infoBtnGfx.lineStyle(P(1.5), 0xaa66ff, 0.9); infoBtnGfx.strokeRoundedRect(infoBtnX - infoBtnSz/2, infoBtnY - infoBtnSz/2, infoBtnSz, infoBtnSz, P(5));
+    infoBtnGfx.fillStyle(0xaa66ff, 0.15); infoBtnGfx.fillRect(infoBtnX - infoBtnSz/2 + P(2), infoBtnY - infoBtnSz/2 + P(2), infoBtnSz - P(4), P(2));
+    container.add(infoBtnGfx);
+    const infoBtn = this.add.text(infoBtnX, infoBtnY, 'ℹ', {
+      fontSize: F(13), fontStyle: 'bold', color: '#cc99ff',
+      stroke: '#0a0018', strokeThickness: P(1),
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true,
+      hitArea: new Phaser.Geom.Rectangle(-infoBtnSz/2, -infoBtnSz/2, infoBtnSz, infoBtnSz),
+      hitAreaCallback: Phaser.Geom.Rectangle.Contains });
+    infoBtn.on('pointerdown', () => {
+      if (infoTooltip) { infoTooltip.destroy(); infoTooltip = null; return; }
+      const tw = P(210), th = P(44);
+      const tx = infoBtnX + tw / 2 + P(8), ty = infoBtnY + th / 2 + P(14);
+      infoTooltip = this.add.container(tx, ty).setDepth(D + 30);
+
+      const tbg = this.add.graphics();
+      // 外發光框
+      tbg.fillStyle(0xaa66ff, 0.5); tbg.fillRoundedRect(-tw/2 - P(3), -th/2 - P(3), tw + P(6), th + P(6), P(9));
+      // 主背景
+      tbg.fillStyle(0x1e0e3a, 1);   tbg.fillRoundedRect(-tw/2, -th/2, tw, th, P(7));
+      // 頂部高光條
+      tbg.fillStyle(0xaa66ff, 0.25); tbg.fillRect(-tw/2 + P(2), -th/2 + P(2), tw - P(4), P(3));
+      // 外框線
+      tbg.lineStyle(P(1.5), 0xaa66ff, 0.9); tbg.strokeRoundedRect(-tw/2, -th/2, tw, th, P(7));
+      // 內細框
+      tbg.lineStyle(P(1), 0xffffff, 0.08); tbg.strokeRoundedRect(-tw/2 + P(2), -th/2 + P(2), tw - P(4), th - P(4), P(5));
+      infoTooltip.add(tbg);
+
+      infoTooltip.add(this.add.text(0, 0, '門票來源：5星BOSS機率掉落', {
+        fontSize: F(12), fontStyle: 'bold', color: '#ddbbff',
+        stroke: '#0a0018', strokeThickness: P(1),
+      }).setOrigin(0.5));
+
+      const hit = this.add.rectangle(0, 0, tw, th).setInteractive({ useHandCursor: true });
+      hit.on('pointerdown', () => { infoTooltip?.destroy(); infoTooltip = null; });
+      infoTooltip.add(hit);
+      container.add(infoTooltip);
+    });
+    container.add(infoBtn);
 
     // 關閉按鈕
     const closeBtn = this.add.text(px + PW - P(18), py + P(22), '✕', {
@@ -6558,61 +6811,180 @@ export class PrepScene extends Phaser.Scene {
       [ITEM_TICKET_VAMPIRE]: 'boss_vampire_legendary',
     };
 
+    const popCenterY = py + HEADER_H + CLIP_H / 2;
+    let weaponPopup: Phaser.GameObjects.Container | null = null;
+
+    const showWeaponPopup = (s: typeof SERIES[0]) => {
+      weaponPopup?.destroy();
+      const bossId   = LEGENDARY_BOSS_MAP[s.itemId];
+      const weaponId = bossId ? LEGENDARY_BOSS_WEAPON[bossId] : undefined;
+      if (!weaponId) return;
+      const weapon = generateLegendaryWeapon(weaponId);
+
+      const popW   = P(240);
+      const rowH   = P(26);
+      const iSz    = P(52);
+      const bodyH  = (weapon.affixes.length + 1) * rowH;
+      const popH   = P(48) + P(8) + iSz + P(8) + bodyH + P(28);
+
+      weaponPopup = this.add.container(0, popCenterY).setDepth(D + 20);
+      container.add(weaponPopup);
+
+      // 半透明遮罩，點任意處關閉
+      const dim = this.add.rectangle(0, 0, PW - P(6), CLIP_H, 0x000000, 0.6).setInteractive();
+      dim.on('pointerdown', () => { weaponPopup?.destroy(); weaponPopup = null; });
+      weaponPopup.add(dim);
+
+      // ── 外框 + 背景 ─────────────────────────────────────────
+      const bg = this.add.graphics();
+      // 金色外邊框
+      bg.fillStyle(GOLD, 1);
+      bg.fillRoundedRect(-popW / 2 - P(2), -popH / 2 - P(2), popW + P(4), popH + P(4), P(11));
+      // 深木色內框
+      bg.fillStyle(WL, 0.5);
+      bg.fillRoundedRect(-popW / 2 - P(1), -popH / 2 - P(1), popW + P(2), popH + P(2), P(10));
+      // 主背景
+      bg.fillStyle(WB, 1);
+      bg.fillRoundedRect(-popW / 2, -popH / 2, popW, popH, P(9));
+      // 標題欄底色
+      bg.fillStyle(WD, 1);
+      bg.fillRoundedRect(-popW / 2, -popH / 2, popW, P(48), P(9));
+      bg.fillRect(-popW / 2, -popH / 2 + P(30), popW, P(18));
+      // 標題底線：金色主線 + 高光
+      bg.fillStyle(GOLD, 0.8);
+      bg.fillRect(-popW / 2 + P(10), -popH / 2 + P(48), popW - P(20), P(1));
+      bg.fillStyle(WH, 0.25);
+      bg.fillRect(-popW / 2 + P(10), -popH / 2 + P(49), popW - P(20), P(1));
+      weaponPopup.add(bg);
+
+      // ── 標題區 ───────────────────────────────────────────────
+      weaponPopup.add(this.add.text(0, -popH / 2 + P(18), weapon.name, {
+        fontSize: F(16), fontStyle: 'bold', color: '#e8c070',
+        stroke: '#1a0800', strokeThickness: P(2),
+      }).setOrigin(0.5, 0.5));
+
+      weaponPopup.add(this.add.text(-popW / 2 + P(12), -popH / 2 + P(36), '傳說武器', {
+        fontSize: F(11), fontStyle: 'bold', color: '#ee4444',
+        stroke: '#1a0800', strokeThickness: P(1),
+      }).setOrigin(0, 0.5));
+
+      weaponPopup.add(this.add.text(popW / 2 - P(12), -popH / 2 + P(36), '掉落率 35%', {
+        fontSize: F(11), fontStyle: 'bold', color: '#a87840',
+        stroke: '#1a0800', strokeThickness: P(1),
+      }).setOrigin(1, 0.5));
+
+      // ── 武器圖示 ─────────────────────────────────────────────
+      const iconY = -popH / 2 + P(48) + P(8) + iSz / 2;
+      if (this.textures.exists(weapon.texture)) {
+        const wIcon = this.add.image(0, iconY, weapon.texture).setDisplaySize(iSz, iSz);
+        if (wIcon.postFX) wIcon.postFX.addGlow(0xee2222, 5, 0, false, 0.1, 14);
+        weaponPopup.add(wIcon);
+      }
+
+      // ── 詞綴列（無交錯，統一細線分隔）──────────────────────────
+      const bodyTop = iconY + iSz / 2 + P(8);
+      weapon.affixes.forEach((a, idx) => {
+        const rowY = bodyTop + idx * rowH;
+        if (idx > 0) {
+          const div = this.add.graphics();
+          div.fillStyle(WL, 0.15);
+          div.fillRect(-popW / 2 + P(14), rowY, popW - P(28), P(1));
+          weaponPopup!.add(div);
+        }
+        weaponPopup!.add(this.add.text(-popW / 2 + P(16), rowY + rowH / 2, '◆', {
+          fontSize: F(9), color: '#c49050', stroke: '#1a0800', strokeThickness: P(1),
+        }).setOrigin(0, 0.5));
+        weaponPopup!.add(this.add.text(-popW / 2 + P(28), rowY + rowH / 2, STAT_NAMES[a.stat], {
+          fontSize: F(13), fontStyle: 'bold', color: '#c8a070',
+          stroke: '#1a0800', strokeThickness: P(1),
+        }).setOrigin(0, 0.5));
+        weaponPopup!.add(this.add.text(popW / 2 - P(12), rowY + rowH / 2, `+${fmtAffixValue(a.stat, a.value)}`, {
+          fontSize: F(13), fontStyle: 'bold', color: '#88cc88',
+          stroke: '#1a0800', strokeThickness: P(1),
+        }).setOrigin(1, 0.5));
+      });
+
+      // ── 無法精煉 ─────────────────────────────────────────────
+      const noEnhY = bodyTop + weapon.affixes.length * rowH;
+      const noEnhDiv = this.add.graphics();
+      noEnhDiv.fillStyle(WL, 0.15);
+      noEnhDiv.fillRect(-popW / 2 + P(14), noEnhY, popW - P(28), P(1));
+      weaponPopup.add(noEnhDiv);
+      weaponPopup.add(this.add.text(-popW / 2 + P(28), noEnhY + rowH / 2, '無法精煉', {
+        fontSize: F(12), fontStyle: 'bold', color: '#7a5830',
+        stroke: '#1a0800', strokeThickness: P(1),
+      }).setOrigin(0, 0.5));
+
+      // ── Footer 分隔 + 提示 ────────────────────────────────────
+      const footerG = this.add.graphics();
+      footerG.fillStyle(GOLD, 0.35);
+      footerG.fillRect(-popW / 2 + P(10), noEnhY + rowH + P(2), popW - P(20), P(1));
+      weaponPopup.add(footerG);
+
+      weaponPopup.add(this.add.text(0, popH / 2 - P(14), '點擊任意處關閉', {
+        fontSize: F(10), fontStyle: 'bold', color: '#6a5030',
+        stroke: '#1a0800', strokeThickness: P(1),
+      }).setOrigin(0.5, 0.5));
+    };
+
     SERIES.forEach((s, i) => {
       const ry = i * (ROW_H + ROW_GAP);
       const qty = InventoryStore.getItemQty(s.itemId);
       const hasTicket = qty > 0;
       const cHex = `#${s.color.toString(16).padStart(6, '0')}`;
 
-      // ── 行底色 ──────────────────────────────────────────────
+      // ── 行底色（有無門票均亮色顯示）──────────────────────────
       const rowBg = this.add.graphics();
-      if (hasTicket) {
-        // 有門票：深紫底 + 彩色左邊框 + 彩色外框線
-        rowBg.fillStyle(0x18103a, 1);
-        rowBg.fillRoundedRect(ROW_L, ry, ROW_W, ROW_H, P(10));
-        rowBg.fillStyle(s.color, 1);
-        rowBg.fillRoundedRect(ROW_L, ry + P(10), P(5), ROW_H - P(20), P(2));
-        rowBg.lineStyle(P(1.5), s.color, 0.7);
-        rowBg.strokeRoundedRect(ROW_L, ry, ROW_W, ROW_H, P(10));
-      } else {
-        // 無門票：極深色，邊框幾乎不可見
-        rowBg.fillStyle(0x0e0a1c, 1);
-        rowBg.fillRoundedRect(ROW_L, ry, ROW_W, ROW_H, P(10));
-        rowBg.fillStyle(s.color, 0.12);
-        rowBg.fillRoundedRect(ROW_L, ry + P(10), P(5), ROW_H - P(20), P(2));
-        rowBg.lineStyle(P(1), 0x2a1e44, 0.5);
-        rowBg.strokeRoundedRect(ROW_L, ry, ROW_W, ROW_H, P(10));
-      }
+      rowBg.fillStyle(0x18103a, 1);
+      rowBg.fillRoundedRect(ROW_L, ry, ROW_W, ROW_H, P(10));
+      rowBg.fillStyle(s.color, 1);
+      rowBg.fillRoundedRect(ROW_L, ry + P(10), P(5), ROW_H - P(20), P(2));
+      rowBg.lineStyle(P(1.5), s.color, hasTicket ? 0.7 : 0.35);
+      rowBg.strokeRoundedRect(ROW_L, ry, ROW_W, ROW_H, P(10));
       scrollCnt.add(rowBg);
 
       // ── 圖示 ────────────────────────────────────────────────
       if (this.textures.exists(s.iconKey)) {
         scrollCnt.add(
           this.add.image(ICON_CX, ry + ROW_H / 2, s.iconKey)
-            .setDisplaySize(ICON_SZ, ICON_SZ)
-            .setAlpha(hasTicket ? 1 : 0.15),
+            .setDisplaySize(ICON_SZ, ICON_SZ),
         );
       }
 
       // ── 文字 ────────────────────────────────────────────────
       scrollCnt.add(this.add.text(TEXT_X, ry + P(24), s.seriesName, {
-        fontSize: F(16), fontStyle: 'bold',
-        color: hasTicket ? cHex : '#2e2244',
+        fontSize: F(16), fontStyle: 'bold', color: cHex,
         stroke: '#08001a', strokeThickness: P(2),
       }).setOrigin(0, 0.5));
 
-      scrollCnt.add(this.add.text(TEXT_X, ry + P(48), s.bossName, {
-        fontSize: F(14), fontStyle: 'bold',
-        color: hasTicket ? '#c0a8e8' : '#1e1530',
+      scrollCnt.add(this.add.text(TEXT_X, ry + P(44), s.bossName, {
+        fontSize: F(14), fontStyle: 'bold', color: '#c0a8e8',
         stroke: '#08001a', strokeThickness: P(1),
       }).setOrigin(0, 0.5));
 
+      // ── 查看掉落按鈕 ────────────────────────────────────────
+      const infoBW = P(88), infoBH = P(22), infoBX = TEXT_X + infoBW / 2, infoBY = ry + P(66);
+      const infoBg = this.add.graphics();
+      infoBg.fillStyle(WM, 1);
+      infoBg.fillRoundedRect(infoBX - infoBW / 2, infoBY - infoBH / 2, infoBW, infoBH, P(4));
+      infoBg.lineStyle(P(1.5), GOLD, 0.65);
+      infoBg.strokeRoundedRect(infoBX - infoBW / 2, infoBY - infoBH / 2, infoBW, infoBH, P(4));
+      infoBg.fillStyle(WH, 0.12);
+      infoBg.fillRect(infoBX - infoBW / 2, infoBY - infoBH / 2, infoBW, P(2));
+      scrollCnt.add(infoBg);
+      scrollCnt.add(this.add.text(infoBX, infoBY, '掉落裝備', {
+        fontSize: F(11), fontStyle: 'bold', color: '#c49050',
+        stroke: '#1a0800', strokeThickness: P(1),
+      }).setOrigin(0.5, 0.5));
+      const infoHit = this.add.rectangle(infoBX, infoBY, infoBW, infoBH).setInteractive({ useHandCursor: true });
+      infoHit.on('pointerdown', () => showWeaponPopup(s));
+      scrollCnt.add(infoHit);
+
       // ── 數量 ────────────────────────────────────────────────
       scrollCnt.add(this.add.text(BTN_CX, ry + P(20), `×${qty}`, {
-        fontSize: F(15), fontStyle: 'bold',
-        color: hasTicket ? '#ffdd44' : '#2e2244',
+        fontSize: F(15), fontStyle: 'bold', color: '#ffdd44',
         stroke: '#08001a', strokeThickness: P(2),
-      }).setOrigin(0.5).setAlpha(hasTicket ? 1 : 0.4));
+      }).setOrigin(0.5));
 
       // ── 挑戰按鈕 ────────────────────────────────────────────
       const btnY = ry + ROW_H - P(20);
@@ -7248,6 +7620,9 @@ export class PrepScene extends Phaser.Scene {
     if (this.textures.exists('tx_props') && !this.textures.get('tx_props').has('ritual_circle')) {
       this.textures.get('tx_props').add('ritual_circle', 0, 350, 263, 108, 100);
     }
+    if (this.textures.exists('tx_props') && !this.textures.get('tx_props').has('stone_pillar')) {
+      this.textures.get('tx_props').add('stone_pillar', 0, 227, 91, 38, 66);
+    }
     if (this.textures.exists('tx_shadow') && !this.textures.get('tx_shadow').has('ritual_circle_shadow')) {
       this.textures.get('tx_shadow').add('ritual_circle_shadow', 0, 335, 253, 120, 90);
     }
@@ -7264,7 +7639,7 @@ export class PrepScene extends Phaser.Scene {
       shadowKey?: string; shadowFrame?: string;
       shadowOX?: number; shadowOY?: number;
       animKey?: string;
-      labelBelow?: boolean;
+      labelBelow?: boolean; labelOX?: number;
       decoKey?: string; decoOX?: number; decoOY?: number; decoScale?: number;
       debugBox?: boolean;
       onActivate: () => void;
@@ -7276,10 +7651,13 @@ export class PrepScene extends Phaser.Scene {
         } },
       { xf: 0.33, yf: 0.65, icon: '✦', label: '商店',  color: 0xd47820, buildingKey: 'building_shop',
         tapW: P(80), tapH: P(72), collW: P(130), collH: P(55), tent: true, onActivate: () => { AudioService.playSfx(this, 'sfx_shop_open', 0.7); this.showShopPanel(W, H); } },
-      { xf: 0.78, yf: 0.65, icon: '★', label: '祭祀台', color: 0xffdd44, buildingKey: 'tx_props', buildingFrame: 'ritual_circle',
+      { xf: 0.78, yf: 0.65, icon: '', label: '祭祀台', color: 0xffdd44, buildingKey: 'tx_props', buildingFrame: 'ritual_circle',
         tapW: P(110), tapH: P(100), collW: P(130), collH: P(60), buildingScale: 0.85,
         shadow: true, shadowKey: 'tx_shadow', shadowFrame: 'ritual_circle_shadow', shadowOX: P(-8), shadowOY: P(-12),
         onActivate: () => this._showAltarPanel(W, H) },
+      { xf: 0.60, yf: 0.49, icon: '★', label: '排行榜', color: 0xaabbdd, buildingKey: 'tx_props', buildingFrame: 'stone_pillar',
+        tapW: P(40), tapH: P(90), collW: P(44), collH: P(30), buildingScale: 0.8, labelOX: -P(8),
+        onActivate: () => this._showRankingPanel(W, H) },
       { xf: 0.23, yf: 0.30, icon: '⊕', label: '倉庫',  color: 0x70b858, buildingKey: 'building_warehouse',
         tapW: P(80), tapH: P(60), collW: P(85), collH: P(20), buildingScale: 1.4,
         shadow: true, shadowKey: 'deco_shadow5', shadowOX: P(0), shadowOY: P(10),
@@ -7374,7 +7752,7 @@ export class PrepScene extends Phaser.Scene {
 
         // Sign label — above or below building
         const signY = obj.labelBelow ? wy - P(22) : wy - bImg.displayHeight - P(4);
-        const signTxt = this.add.text(wx, signY, obj.label, {
+        const signTxt = this.add.text(wx + (obj.labelOX ?? 0), signY, obj.label, {
           fontSize: F(15), fontStyle: 'bold',
           color: colorHex, stroke: '#1a0800', strokeThickness: 2,
           backgroundColor: '#00000088',

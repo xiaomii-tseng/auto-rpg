@@ -1,6 +1,6 @@
 export type EquipSlot     = 'hat' | 'outfit' | 'shoes' | 'ring1' | 'ring2' | 'sword';
 export type EquipCategory = 'hat' | 'outfit' | 'shoes' | 'ring'  | 'sword';
-export type EquipQuality  = 'normal' | 'good' | 'fine' | 'perfect';
+export type EquipQuality  = 'normal' | 'good' | 'fine' | 'perfect' | 'legendary';
 export type StatKey       = 'atk' | 'hp' | 'def' | 'crit' | 'speed' | 'atkSpeed' | 'lifesteal' | 'evasion' | 'critDmg' | 'hpRegen' | 'dotBonus' | 'penetration'
                           | 'potionHealPct' | 'onKillHeal' | 'eliteKillerPct' | 'dropRatePct' | 'rarityBonus'
                           | 'killShieldPerKill' | 'executePct' | 'regenShieldMax' | 'allDmgPct' | 'maxHpPct';
@@ -186,7 +186,7 @@ export interface EquipmentItem {
 
 // 品質決定詞綴數量（非武器）；武器在此基礎上額外加固定 ATK 詞綴
 export const QUALITY_AFFIX_COUNT: Record<EquipQuality, number> = {
-  normal: 1, good: 2, fine: 3, perfect: 4,
+  normal: 1, good: 2, fine: 3, perfect: 4, legendary: 0,
 };
 
 // 所有品質共用同一數值範圍，鐘型分布（3次均值）
@@ -232,6 +232,7 @@ export const SWORD_ATK_RANGE: Record<EquipQuality, [number, number]> = {
   good:    [16, 40],
   fine:    [28, 52],
   perfect: [40, 64],
+  legendary: [0, 0],
 };
 
 function rollAtkForQuality(quality: EquipQuality): number {
@@ -241,7 +242,7 @@ function rollAtkForQuality(quality: EquipQuality): number {
 }
 
 export const QUALITY_NAMES: Record<EquipQuality, string> = {
-  normal: '普通', good: '良好', fine: '精良', perfect: '完美',
+  normal: '普通', good: '良好', fine: '精良', perfect: '完美', legendary: '傳說',
 };
 
 export const QUALITY_COLORS: Record<EquipQuality, number> = {
@@ -249,6 +250,7 @@ export const QUALITY_COLORS: Record<EquipQuality, number> = {
   good:    0x44dd44,
   fine:    0x4488ff,
   perfect: 0xffdd00,
+  legendary: 0xee2222,
 };
 
 export const SLOT_NAMES: Record<EquipSlot, string> = {
@@ -552,25 +554,25 @@ export type MonsterType = 'small' | 'elite' | 'boss';
 
 const DROP_QUALITY_WEIGHTS: Record<MonsterType, Record<number, Record<EquipQuality, number>>> = {
   small: {
-    1: { normal: 95,   good:  5,    fine:  0,    perfect: 0   },
-    2: { normal: 80,   good: 20,    fine:  0,    perfect: 0   },
-    3: { normal: 78,   good: 20.5,  fine:  1.5,  perfect: 0   },
-    4: { normal: 75,   good: 21.4,  fine:  3.0,  perfect: 0.6 },
-    5: { normal: 70,   good: 24,    fine:  5.1,  perfect: 0.9 },
+    1: { normal: 95,   good:  5,    fine:  0,    perfect: 0,   legendary: 0 },
+    2: { normal: 80,   good: 20,    fine:  0,    perfect: 0,   legendary: 0 },
+    3: { normal: 78,   good: 20.5,  fine:  1.5,  perfect: 0,   legendary: 0 },
+    4: { normal: 75,   good: 21.4,  fine:  3.0,  perfect: 0.6, legendary: 0 },
+    5: { normal: 70,   good: 24,    fine:  5.1,  perfect: 0.9, legendary: 0 },
   },
   elite: {
-    1: { normal: 78.8, good: 21.2,  fine:  0,    perfect: 0   },
-    2: { normal: 58.8, good: 41.2,  fine:  0,    perfect: 0   },
-    3: { normal: 50,   good: 44,    fine:  6,    perfect: 0   },
-    4: { normal: 47.2, good: 36,    fine: 15.4,  perfect: 1.4 },
-    5: { normal: 44.7, good: 31.3,  fine: 21,    perfect: 3   },
+    1: { normal: 78.8, good: 21.2,  fine:  0,    perfect: 0,   legendary: 0 },
+    2: { normal: 58.8, good: 41.2,  fine:  0,    perfect: 0,   legendary: 0 },
+    3: { normal: 50,   good: 44,    fine:  6,    perfect: 0,   legendary: 0 },
+    4: { normal: 47.2, good: 36,    fine: 15.4,  perfect: 1.4, legendary: 0 },
+    5: { normal: 44.7, good: 31.3,  fine: 21,    perfect: 3,   legendary: 0 },
   },
   boss: {
-    1: { normal: 85.8, good: 15,    fine:  0,    perfect: 0   },
-    2: { normal: 70,   good: 30,    fine:  0,    perfect: 0   },
-    3: { normal: 55,   good: 33,    fine: 12,    perfect: 0   },
-    4: { normal: 49,   good: 28,    fine: 20.9,  perfect: 2.1 },
-    5: { normal: 47.1, good: 23.4,  fine: 25.7,  perfect: 3.8 },
+    1: { normal: 85.8, good: 15,    fine:  0,    perfect: 0,   legendary: 0 },
+    2: { normal: 70,   good: 30,    fine:  0,    perfect: 0,   legendary: 0 },
+    3: { normal: 55,   good: 33,    fine: 12,    perfect: 0,   legendary: 0 },
+    4: { normal: 49,   good: 28,    fine: 20.9,  perfect: 2.1, legendary: 0 },
+    5: { normal: 47.1, good: 23.4,  fine: 25.7,  perfect: 3.8, legendary: 0 },
   },
 };
 
@@ -601,6 +603,7 @@ export const EQUIP_SELL_BASE: Record<EquipQuality, number> = {
   good:    65,
   fine:    180,
   perfect: 450,
+  legendary: 2000,
 };
 
 export function calcEquipSellPrice(item: EquipmentItem): number {
@@ -697,4 +700,46 @@ export function revertEnhancement(item: EquipmentItem): void {
       : Math.round(item.affixes[idx].value - avg);
   }
   item.enhancement--;
+}
+
+// ── Legendary weapons ──────────────────────────────────────────────────────────
+
+const _LEGENDARY_DEFS: Record<string, { name: string; texture: string; affixes: Affix[] }> = {
+  legendary_slime_sword: {
+    name: '毒液巨劍', texture: 'equip_legendary_sw1',
+    affixes: [{ stat: 'atk', value: 380 }],
+  },
+  legendary_flower_sword: {
+    name: '光合神劍', texture: 'equip_legendary_sw2',
+    affixes: [{ stat: 'atk', value: 230 }, { stat: 'hp', value: 150 }, { stat: 'eliteKillerPct', value: 0.30 }],
+  },
+  legendary_orc_sword: {
+    name: '血脈巨刃', texture: 'equip_legendary_sw3',
+    affixes: [{ stat: 'atk', value: 260 }, { stat: 'atkSpeed', value: 0.30 }],
+  },
+  legendary_vampire_sword: {
+    name: '水晶匕首', texture: 'equip_legendary_sw4',
+    affixes: [{ stat: 'atk', value: 220 }, { stat: 'speed', value: 25 }, { stat: 'evasion', value: 0.30 }],
+  },
+};
+
+export const LEGENDARY_BOSS_WEAPON: Record<string, string> = {
+  boss_slime_legendary:   'legendary_slime_sword',
+  boss_flower_legendary:  'legendary_flower_sword',
+  boss_orc_legendary:     'legendary_orc_sword',
+  boss_vampire_legendary: 'legendary_vampire_sword',
+};
+
+export function generateLegendaryWeapon(weaponId: string): EquipmentItem {
+  const def = _LEGENDARY_DEFS[weaponId];
+  return {
+    id:          `${weaponId}_${Date.now()}_${Math.floor(Math.random() * 10000)}`,
+    name:        def.name,
+    slot:        'sword',
+    texture:     def.texture,
+    quality:     'legendary',
+    affixes:     def.affixes.map(a => ({ ...a })),
+    enhancement: 0,
+    enhanceLog:  [],
+  };
 }

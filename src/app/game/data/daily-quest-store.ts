@@ -1,5 +1,5 @@
 import { PlayerStore } from './player-store';
-import { CARD_DEFS } from './monster-data';
+import { CARD_DEFS, MONSTER_DEFS } from './monster-data';
 import { generateEquipment, randomQuality, EquipmentItem, EquipSlot } from './equipment-data';
 import { getMaxNaturalStar, BOSS_MIN_STAR, STAR_EQUIP_QUALITY } from './quest-store';
 
@@ -21,15 +21,16 @@ export interface DailyReward {
 }
 
 export interface DailyQuest {
-  id:           string;
-  type:         DailyQuestType;
-  difficulty:   DailyQuestDifficulty;
-  label:        string;
-  target:       number;
-  progress:     number;
-  status:       DailyQuestStatus;
-  reward:       DailyReward;
-  specificType?: 'normal' | 'elite' | 'boss';
+  id:                string;
+  type:              DailyQuestType;
+  difficulty:        DailyQuestDifficulty;
+  label:             string;
+  target:            number;
+  progress:          number;
+  status:            DailyQuestStatus;
+  reward:            DailyReward;
+  specificType?:     'normal' | 'elite' | 'boss';
+  specificMonsterId?: string;
 }
 
 interface QuestTemplate {
@@ -166,20 +167,39 @@ const ALL_POOLS: [DailyQuestDifficulty, QuestTemplate[]][] = [
   ['easy', EASY_POOL], ['normal', NORMAL_POOL], ['hard', HARD_POOL],
 ];
 
+function pickSpecificMonster(specificType: 'normal' | 'elite' | 'boss'): { id: string; name: string } {
+  let candidates = MONSTER_DEFS.filter(m =>
+    specificType === 'normal' ? (m.tier >= 1 && m.tier < 3) :
+    specificType === 'elite'  ? (m.tier >= 3 && m.tier < 5) :
+                                 m.tier === 5,
+  );
+  if (candidates.length === 0) candidates = MONSTER_DEFS;
+  const picked = candidates[Math.floor(Math.random() * candidates.length)];
+  return { id: picked.id, name: picked.name };
+}
+
 function generateQuests(): DailyQuest[] {
   return Array.from({ length: 3 }, () => {
     const [diff, pool] = ALL_POOLS[Math.floor(Math.random() * ALL_POOLS.length)];
     const tmpl = pickFrom(pool);
+    let label = tmpl.label;
+    let specificMonsterId: string | undefined;
+    if (tmpl.type === 'kill_specific' && tmpl.specificType) {
+      const monster = pickSpecificMonster(tmpl.specificType);
+      specificMonsterId = monster.id;
+      label = `擊殺 ${tmpl.target} 隻 ${monster.name}`;
+    }
     return {
-      id:           `dq_${diff}_${Date.now()}_${Math.random().toString(36).slice(2)}`,
-      type:         tmpl.type,
-      difficulty:   diff,
-      label:        tmpl.label,
-      target:       tmpl.target,
-      progress:     0,
-      status:       'active' as DailyQuestStatus,
-      reward:       buildReward(diff),
-      specificType: tmpl.specificType,
+      id:                `dq_${diff}_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+      type:              tmpl.type,
+      difficulty:        diff,
+      label,
+      target:            tmpl.target,
+      progress:          0,
+      status:            'active' as DailyQuestStatus,
+      reward:            buildReward(diff),
+      specificType:      tmpl.specificType,
+      specificMonsterId,
     };
   });
 }
@@ -206,16 +226,18 @@ export const DailyQuestStore = {
     return _quests;
   },
 
-  addProgress(type: DailyQuestType, amount: number): void {
+  addProgress(type: DailyQuestType, amount: number, monsterId?: string): void {
     this.getQuests();
     let changed = false;
     for (const q of _quests) {
       if (q.status !== 'active') continue;
       let matches = q.type === type;
       if (q.type === 'kill_specific') {
-        if (type === 'kill_normal' && q.specificType === 'normal') matches = true;
-        if (type === 'kill_elite'  && q.specificType === 'elite')  matches = true;
-        if (type === 'kill_boss'   && q.specificType === 'boss')   matches = true;
+        matches = q.specificMonsterId
+          ? !!(monsterId && monsterId === q.specificMonsterId)
+          : (type === 'kill_normal' && q.specificType === 'normal') ||
+            (type === 'kill_elite'  && q.specificType === 'elite')  ||
+            (type === 'kill_boss'   && q.specificType === 'boss');
       }
       if (!matches) continue;
       q.progress = Math.min(q.target, q.progress + amount);

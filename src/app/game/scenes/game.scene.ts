@@ -30,7 +30,7 @@ import { SaveStore } from '../data/save-store';
 import { CardStore } from '../data/card-store';
 import { SkillTreeStore } from '../data/skill-tree-store';
 import { getMonsterDef, getCardDef, getAllCardIdsByTier, DropEntry, MonsterDef } from '../data/monster-data';
-import { getElementMultiplier, ELEMENT_NAMES, ELEMENT_COLORS, QUALITY_NAMES, QUALITY_COLORS, SLOT_NAMES, STAT_NAMES, generateEquipment, randomQuality, getDropQualityWeights, getItemStats, fmtAffixValue, EquipSlot, EquipmentItem, MonsterType } from '../data/equipment-data';
+import { getElementMultiplier, ELEMENT_NAMES, ELEMENT_COLORS, QUALITY_NAMES, QUALITY_COLORS, SLOT_NAMES, STAT_NAMES, generateEquipment, randomQuality, getDropQualityWeights, getItemStats, fmtAffixValue, EquipSlot, EquipmentItem, MonsterType, generateLegendaryWeapon, LEGENDARY_BOSS_WEAPON } from '../data/equipment-data';
 import { QuestStore, STAR_HP_MULT, STAR_STAT_MULT, STAR_DROP_MULT, STAR_DEF_MULT, STAR_EXP_MULT, STAR_EQUIP_QUALITY, MINION_DEF_MULT } from '../data/quest-store';
 import { ELITE_HP_MULT, ELITE_SCALE_MOD } from '../data/monster-data';
 import { NetworkService } from '../network/network.service';
@@ -387,6 +387,11 @@ export class GameScene extends Phaser.Scene {
       const key = `equip_sword${i + 40}`;
       if (!this.textures.exists(key))
         this.load.image(key, `equip/weapons/Icons/icon_32_2_${String(i).padStart(2, '0')}.png`);
+    }
+    for (let i = 1; i <= 4; i++) {
+      const key = `equip_legendary_sw${i}`;
+      if (!this.textures.exists(key))
+        this.load.image(key, `equip/weapons/Icons/red/sw${i}.png`);
     }
     if (!this.textures.exists('icon_gold')) this.load.image('icon_gold', 'other/coin.webp');
     if (!this.textures.exists('potions_sheet')) this.load.spritesheet('potions_sheet', 'items/potions.png', { frameWidth: 16, frameHeight: 16 });
@@ -3406,7 +3411,7 @@ export class GameScene extends Phaser.Scene {
     const def = getMonsterDef(monsterId);
     if (!def) return;
     const isElite = def.tier >= 3 && def.tier < 5;
-    DailyQuestStore.addProgress(isElite ? 'kill_elite' : 'kill_normal', 1);
+    DailyQuestStore.addProgress(isElite ? 'kill_elite' : 'kill_normal', 1, monsterId);
     this.spawnLoot(x, y, def.drops);
     const _pStats     = CardStore.getTotalStats();
     const dropBonus   = 1 + (_pStats.dropRatePct ?? 0);
@@ -6978,7 +6983,7 @@ export class GameScene extends Phaser.Scene {
 
   protected handleBossDefeated(): void {
     this.playSfx('sfx_boss_death');
-    DailyQuestStore.addProgress('kill_boss', 1);
+    DailyQuestStore.addProgress('kill_boss', 1, this.bossMonsterId);
     if (!this._dqDeathThisBattle)  DailyQuestStore.addProgress('clear_no_death', 1);
     if (!this._dqPotionThisBattle) DailyQuestStore.addProgress('clear_no_potion', 1);
     this._dqDeathThisBattle  = false;
@@ -7053,8 +7058,16 @@ export class GameScene extends Phaser.Scene {
       // Ticket drop: 5-star boss has 100% chance (testing) to drop series ticket
       if (this.questStar === 5) {
         const ticket = BOSS_TICKET_MAP[this.bossMonsterId];
-        if (ticket && Math.random() < 1.0) {
+        if (ticket && Math.random() < 0.05) {
           this._spawnBurstItem(this.boss.x, this.boss.y, ticket.itemId, ticket.itemName);
+        }
+      }
+
+      // Legendary weapon drop: 35% chance from legendary bosses
+      if (this._legendaryMode) {
+        const weaponId = LEGENDARY_BOSS_WEAPON[this.bossMonsterId];
+        if (weaponId && Math.random() < 0.35) {
+          this.spawnEquipDrop(this.boss.x, this.boss.y, generateLegendaryWeapon(weaponId), true);
         }
       }
     }
