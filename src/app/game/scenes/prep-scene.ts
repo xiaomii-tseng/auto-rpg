@@ -11,6 +11,7 @@ import { getCardDef, getMonsterDef, getCardDisplayName, monsterCardScale, monste
 import { QuestStore, Quest, STAR_EQUIP_QUALITY, getStarWeights } from '../data/quest-store';
 import { SkillTreeStore, SKILL_NODES, SKILL_NODE_MAP, ATTACK_MODES, MODE_COLORS } from '../data/skill-tree-store';
 import { NetworkService } from '../network/network.service';
+import { AudioService } from '../data/audio.service';
 import { SkinStore, SKINS, getSkinFile } from '../data/skin-store';
 import { VirtualJoystick } from '../ui/joystick';
 import { VERSION } from '../version';
@@ -366,6 +367,10 @@ export class PrepScene extends Phaser.Scene {
       if (!this.textures.exists(`animal_${name}_walk`))
         this.load.spritesheet(`animal_${name}_walk`, `${base}/${walkFile}`, animalCfg);
     }
+    if (!this.cache.audio.exists('sfx_town_bgm'))   this.load.audio('sfx_town_bgm',    'sound/map2.mp3');
+    if (!this.cache.audio.exists('sfx_ui_click'))   this.load.audio('sfx_ui_click',    'sound/plus.mp3');
+    if (!this.cache.audio.exists('sfx_enhance_ok')) this.load.audio('sfx_enhance_ok',  'sound/test-success.mp3');
+    if (!this.cache.audio.exists('sfx_enhance_ng')) this.load.audio('sfx_enhance_ng',  'sound/test-fail.mp3');
   }
 
   create(): void {
@@ -397,6 +402,10 @@ export class PrepScene extends Phaser.Scene {
     // 防止前一個 scene 的 pointerdown 穿透到本場景的按鈕
     this.input.enabled = false;
     this.time.delayedCall(300, () => { this.input.enabled = true; });
+
+    let _ptrDownAt = 0;
+    this.input.on('pointerdown', () => { _ptrDownAt = this.time.now; });
+    this.input.on('pointerup',   () => { if (this.time.now - _ptrDownAt < 200) AudioService.playSfx(this, 'sfx_ui_click', 0.5); });
 
     // 瀏覽器執行時嘗試觸控觸發全螢幕；PWA 已由 manifest 處理，失敗時靜默忽略
     if (!this.scale.isFullscreen) {
@@ -505,6 +514,14 @@ export class PrepScene extends Phaser.Scene {
     } else {
       this.time.delayedCall(100, () => this.refreshRoomOverlay());
     }
+
+    if (!sessionStorage.getItem('changelog_shown')) {
+      sessionStorage.setItem('changelog_shown', '1');
+      this.showChangelog();
+    } else {
+      AudioService.playBgm(this, 'sfx_town_bgm', 0.5);
+    }
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => AudioService.stopBgm());
   }
 
   // ── Item icon textures (shared with GameScene) ──────────
@@ -532,6 +549,182 @@ export class PrepScene extends Phaser.Scene {
     }, 'icon_slime_essence');
 
     // icon_gold 已在 preload 以真實圖片載入
+  }
+
+  // ── 更新日誌 popup ──────────────────────────────────────
+
+  private showChangelog(): void {
+    const W = this.scale.width;
+    const H = this.scale.height;
+    const DEPTH = 200;
+    const objs: Phaser.GameObjects.GameObject[] = [];
+    const track = <T extends Phaser.GameObjects.GameObject>(o: T): T => { objs.push(o); return o; };
+
+    const PW = Math.min(P(320), Math.round(W * 0.88));
+    const PH = Math.min(Math.round(H * 0.82), P(400));
+    const PX = Math.round((W - PW) / 2);
+    const PY = Math.max(Math.round(H * 0.05), Math.round((H - PH) / 2));
+    const CR = P(10);
+
+    // Full-screen input blocker — only button can close
+    track(this.add.rectangle(W / 2, H / 2, W, H).setDepth(DEPTH).setInteractive());
+
+    const dim = track(this.add.graphics().setDepth(DEPTH + 1));
+    dim.fillStyle(0x000000, 0.72);
+    dim.fillRect(0, 0, W, H);
+
+    const panel = track(this.add.graphics().setDepth(DEPTH + 2));
+    panel.fillStyle(0x000000, 0.45);
+    panel.fillRoundedRect(PX + P(3), PY + P(3), PW, PH, CR);
+    panel.fillStyle(WB, 1);
+    panel.fillRoundedRect(PX, PY, PW, PH, CR);
+    panel.fillStyle(WD, 0.3);
+    panel.fillRoundedRect(PX + P(2), PY + P(2), PW - P(4), PH - P(4), CR - P(2));
+    panel.lineStyle(P(2), GOLD, 0.9);
+    panel.strokeRoundedRect(PX, PY, PW, PH, CR);
+    panel.lineStyle(P(1), WL, 0.35);
+    panel.lineBetween(PX + P(14), PY + P(46), PX + PW - P(14), PY + P(46));
+
+    // Title
+    const TITLE_CY = PY + P(23);
+    track(this.add.text(W / 2, TITLE_CY, '更新日誌', {
+      fontSize: F(15), fontStyle: 'bold', color: '#d4a044',
+      stroke: '#1a0e06', strokeThickness: P(3),
+    }).setOrigin(0.5).setDepth(DEPTH + 3));
+
+    track(this.add.text(PX + PW - P(12), TITLE_CY, VERSION, {
+      fontSize: F(15), fontStyle: 'bold', color: '#7a5030',
+    }).setOrigin(1, 0.5).setDepth(DEPTH + 3));
+
+    // Scroll area
+    const BTN_AREA = P(52);
+    const SX = PX + P(12);
+    const SY = PY + P(50);
+    const SBW = P(5);
+    const SBX = PX + PW - P(10) - SBW;
+    const SW = SBX - SX - P(4);   // content width, leaves gap before scrollbar
+    const SH = PH - P(50) - BTN_AREA;
+
+    // Content
+    const ENTRIES: { text: string; header?: boolean }[] = [
+      { text: '── 音效系統 ──', header: true },
+      { text: '♪  新增主城背景音樂' },
+      { text: '♪  攻擊音效（旋風/斬擊/魔法/蓄力/五連/飛刃各自獨立）' },
+      { text: '♪  怪物受擊音效' },
+      { text: '' },
+      { text: '── 多人連線 ──', header: true },
+      { text: '◆  冰火球 / 落雷技能畫面同步' },
+      { text: '◆  夥伴球體旋轉修正' },
+      { text: '◆  斷線重連與連線狀態優化' },
+      { text: '' },
+      { text: '── 遊戲系統 ──', header: true },
+      { text: '◆  新增寶箱系統（走廊隨機生成，多人各取各的）' },
+      { text: '◆  任務中止畫面美化' },
+      { text: '◆  商店恢復藥水價格減半' },
+    ];
+
+    const content = track(this.add.container(SX, SY).setDepth(DEPTH + 3)) as Phaser.GameObjects.Container;
+    let totalH = 0;
+    for (const e of ENTRIES) {
+      if (!e.text) { totalH += P(10); continue; }
+      const t = this.make.text({ x: P(2), y: totalH, text: e.text, style: {
+        fontSize: F(15), fontStyle: 'bold',
+        color: e.header ? '#d4a044' : '#b89060',
+        wordWrap: { width: SW - P(4) },
+      }, add: false });
+      content.add(t);
+      totalH += t.height + P(6);
+    }
+
+    // Geometry mask (clips content to scroll area)
+    const maskGfx = this.make.graphics({ x: 0, y: 0 });
+    maskGfx.fillStyle(0xffffff);
+    maskGfx.fillRect(SX, SY, SW, SH);
+    content.setMask(maskGfx.createGeometryMask());
+
+    // Scrollbar track
+    const sbTrack = track(this.add.graphics().setDepth(DEPTH + 3));
+    sbTrack.fillStyle(WBD, 0.8);
+    sbTrack.fillRoundedRect(SBX, SY, SBW, SH, P(2));
+
+    const sbThumb = track(this.add.graphics().setDepth(DEPTH + 4));
+    const maxScroll = Math.max(0, totalH - SH);
+    const updateScrollbar = (sy: number) => {
+      sbThumb.clear();
+      if (maxScroll <= 0) return;
+      const thumbH = Math.max(P(24), SH * (SH / totalH));
+      const thumbY = SY + (sy / maxScroll) * (SH - thumbH);
+      sbThumb.fillStyle(WL, 0.85);
+      sbThumb.fillRoundedRect(SBX, thumbY, SBW, thumbH, P(2));
+    };
+    updateScrollbar(0);
+
+    // Drag scroll — 用座標判斷取代 zone，避免 blocker 吃掉事件
+    let scrollY = 0;
+    let isDragging = false;
+    let lastPY = 0;
+
+    const inScrollArea = (ptr: Phaser.Input.Pointer) =>
+      ptr.x >= SX && ptr.x <= SX + SW && ptr.y >= SY && ptr.y <= SY + SH;
+
+    const onDown = (ptr: Phaser.Input.Pointer) => {
+      if (inScrollArea(ptr)) { isDragging = true; lastPY = ptr.y; }
+    };
+    const onMove = (ptr: Phaser.Input.Pointer) => {
+      if (!isDragging) return;
+      scrollY = Phaser.Math.Clamp(scrollY + (lastPY - ptr.y), 0, maxScroll);
+      lastPY = ptr.y;
+      content.y = SY - scrollY;
+      updateScrollbar(scrollY);
+    };
+    const onUp = () => { isDragging = false; };
+    const onWheel = (_p: unknown, _go: unknown, _dx: number, dy: number) => {
+      scrollY = Phaser.Math.Clamp(scrollY + dy * 0.6, 0, maxScroll);
+      content.y = SY - scrollY;
+      updateScrollbar(scrollY);
+    };
+    this.input.on('pointerdown', onDown);
+    this.input.on('pointermove', onMove);
+    this.input.on('pointerup',   onUp);
+    this.input.on('wheel',       onWheel);
+
+    // Confirm button
+    const BTN_W = P(130), BTN_H = P(38);
+    const BCX = W / 2;
+    const BCY = PY + PH - P(28);
+    const bx = BCX - BTN_W / 2;
+    const by = BCY - BTN_H / 2;
+
+    const btnGfx = track(this.add.graphics().setDepth(DEPTH + 3));
+    const drawBtn = (hover: boolean) => {
+      btnGfx.clear();
+      btnGfx.fillStyle(0x000000, 0.4);
+      btnGfx.fillRoundedRect(bx + P(2), by + P(2), BTN_W, BTN_H, P(8));
+      btnGfx.fillStyle(hover ? WL : WM, 1);
+      btnGfx.fillRoundedRect(bx, by, BTN_W, BTN_H, P(8));
+      btnGfx.lineStyle(P(2), GOLD, hover ? 1 : 0.75);
+      btnGfx.strokeRoundedRect(bx, by, BTN_W, BTN_H, P(8));
+    };
+    drawBtn(false);
+
+    track(this.add.text(BCX, BCY, '確  定', {
+      fontSize: F(15), fontStyle: 'bold', color: '#d4a044',
+      stroke: '#1a0e06', strokeThickness: P(2),
+    }).setOrigin(0.5).setDepth(DEPTH + 4));
+
+    const hit = track(this.add.rectangle(BCX, BCY, BTN_W, BTN_H)
+      .setDepth(DEPTH + 5).setInteractive({ useHandCursor: true }));
+    hit.on('pointerover', () => drawBtn(true));
+    hit.on('pointerout',  () => drawBtn(false));
+    hit.on('pointerdown', () => {
+      this.input.off('pointerdown', onDown);
+      this.input.off('pointermove', onMove);
+      this.input.off('pointerup',   onUp);
+      this.input.off('wheel',       onWheel);
+      maskGfx.destroy();
+      AudioService.playBgm(this, 'sfx_town_bgm', 0.5);
+      objs.forEach(o => o.destroy());
+    });
   }
 
   // ── Background ──────────────────────────────────────────
@@ -2110,6 +2303,7 @@ export class PrepScene extends Phaser.Scene {
           const beforeVals = item.affixes.map(a => a.value);
           const boosted = applyEnhancement(item, selectedAffixIdx);
           PlayerStore.notify(); SaveStore.save(); refresh();
+          AudioService.playSfx(this, 'sfx_enhance_ok');
           playFlash(0x00cc55);
           for (const idx of boosted) {
             const gain = item.affixes[idx].value - beforeVals[idx];
@@ -2134,6 +2328,7 @@ export class PrepScene extends Phaser.Scene {
           const names = boosted.map(idx => STAT_NAMES[item.affixes[idx].stat]).join('、');
           resultTxt.setText(`✓ 成功！${names} 提升`).setColor('#44ff88');
         } else {
+          AudioService.playSfx(this, 'sfx_enhance_ng');
           playFlash(0xff4422);
           resultTxt.setText('✗ 強化失敗').setColor('#ff6644');
           SaveStore.save(); refresh();

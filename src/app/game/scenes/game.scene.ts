@@ -30,6 +30,7 @@ import { getElementMultiplier, ELEMENT_NAMES, ELEMENT_COLORS, QUALITY_NAMES, QUA
 import { QuestStore, STAR_HP_MULT, STAR_STAT_MULT, STAR_DROP_MULT, STAR_DEF_MULT, STAR_EXP_MULT, STAR_EQUIP_QUALITY, MINION_DEF_MULT } from '../data/quest-store';
 import { ELITE_HP_MULT, ELITE_SCALE_MOD } from '../data/monster-data';
 import { NetworkService } from '../network/network.service';
+import { AudioService } from '../data/audio.service';
 import { PotionBarStore } from '../data/potion-bar-store';
 import { TowerStore } from '../data/tower-store';
 import { ITEM_POTION_HEALTH_S, ITEM_POTION_HEALTH_M, ITEM_POTION_HEALTH_L, ITEM_POTION_REVIVE, ITEM_POTION_ATK, ITEM_POTION_DEF, ITEM_POTION_SPEED, ITEM_STONE_BROKEN, ITEM_STONE_INTACT, ITEM_STONE_RECAST, ITEM_QUEST_REROLL, ITEM_BLANK_CARD, getHealthPotionForStar } from '../data/monster-data';
@@ -377,6 +378,22 @@ export class GameScene extends Phaser.Scene {
     if (!this.textures.exists('icon_gold')) this.load.image('icon_gold', 'other/coin.webp');
     if (!this.textures.exists('potions_sheet')) this.load.spritesheet('potions_sheet', 'items/potions.png', { frameWidth: 16, frameHeight: 16 });
     if (!this.textures.exists('chests')) this.load.spritesheet('chests', 'items/RPG Chests.png', { frameWidth: 32, frameHeight: 32 });
+    if (!this.cache.audio.exists('sfx_hit'))       this.load.audio('sfx_hit',       'sound/hit2.mp3');
+    if (!this.cache.audio.exists('sfx_open_chest')) this.load.audio('sfx_open_chest', 'sound/test-openChest.mp3');
+    if (!this.cache.audio.exists('sfx_pickup'))     this.load.audio('sfx_pickup',     'sound/test-toggle.mp3');
+    if (!this.cache.audio.exists('sfx_map3'))     this.load.audio('sfx_map3',     'sound/map3.mp3');
+    if (!this.cache.audio.exists('sfx_map4'))     this.load.audio('sfx_map4',     'sound/map4.mp3');
+    if (!this.cache.audio.exists('sfx_boss_bgm'))   this.load.audio('sfx_boss_bgm',   'sound/boss-bgm.mp3');
+    if (!this.cache.audio.exists('sfx_boss_roar'))  this.load.audio('sfx_boss_roar',  'sound/Boss-start.mp3');
+    if (!this.cache.audio.exists('sfx_level_up'))    this.load.audio('sfx_level_up',   'sound/success.mp3');
+    if (!this.cache.audio.exists('sfx_player_hurt')) this.load.audio('sfx_player_hurt', 'sound/test-close.mp3');
+    if (!this.cache.audio.exists('sfx_boss_death'))   this.load.audio('sfx_boss_death',   'sound/boss-death.mp3');
+    if (!this.cache.audio.exists('sfx_player_dead'))  this.load.audio('sfx_player_dead',  'sound/test-fail.mp3');
+    if (!this.cache.audio.exists('sfx_swing1')) this.load.audio('sfx_swing1', 'sound/swing-1.mp3');
+    if (!this.cache.audio.exists('sfx_swing2')) this.load.audio('sfx_swing2', 'sound/swing-2.mp3');
+    if (!this.cache.audio.exists('sfx_swing3')) this.load.audio('sfx_swing3', 'sound/swing-3.mp3');
+    if (!this.cache.audio.exists('sfx_swing4')) this.load.audio('sfx_swing4', 'sound/swing-4.mp3');
+    if (!this.cache.audio.exists('sfx_swing5')) this.load.audio('sfx_swing5', 'sound/swing-5.mp3');
     this.generateTextures();
   }
 
@@ -414,6 +431,12 @@ export class GameScene extends Phaser.Scene {
   create(): void {
     this._initPotionTextures();
     const W = this.scale.width;
+
+    // 隨機播放其中一首戰鬥背景音樂
+    const bgmKey = Math.random() < 0.5 ? 'sfx_map3' : 'sfx_map4';
+    AudioService.playBgm(this, bgmKey, 0.45);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => AudioService.stopBgm());
+
     // 遊戲一開始就清掉大廳 callbacks，避免 Guest 先退出時觸發 stale rebuild
     if (NetworkService.connected) NetworkService.clearLobbyCallbacks();
     this.gameOver    = false;
@@ -1998,6 +2021,7 @@ export class GameScene extends Phaser.Scene {
 
     const tx = this.player.x + Math.cos(spawnAngle) * P(80);
     const ty = this.player.y + Math.sin(spawnAngle) * P(80);
+    if (this.player.canStartAttackAnim) this.playSfx('sfx_swing3');
     this.player.playAttack(tx, ty, () => {
       if (this._flowerCharges <= 0) return;
       this._flowerCharges--;
@@ -2487,6 +2511,10 @@ export class GameScene extends Phaser.Scene {
 
   // ── Attack dispatcher ────────────────────────────────────
 
+  private playSfx(key: string, factor = 1.0): void {
+    AudioService.playSfx(this, key, factor);
+  }
+
   private getEffectiveAtkSpeed(): number {
     const stats = CardStore.getTotalStats();
     return stats.atkSpeed + this._sanguineStacks * (stats.bloodlustAtkSpeedPerStack ?? 0);
@@ -2766,6 +2794,7 @@ export class GameScene extends Phaser.Scene {
     const stats = CardStore.getTotalStats();
     const cd = Math.round(650 / (1 + this.getEffectiveAtkSpeed()));
     if (!this.player.lockCooldown(cd)) return;
+    this.playSfx('sfx_swing2');
     const { dir, rad, tx, ty } = this.resolveAttackDir(MELEE_RANGE * 3);
     const arc = stats.attackArc;
     this.player.playAttack(tx, ty, () => {
@@ -2801,6 +2830,7 @@ export class GameScene extends Phaser.Scene {
     const stats = CardStore.getTotalStats();
     const cd = Math.round(650 / (1 + this.getEffectiveAtkSpeed()));
     if (!this.player.lockCooldown(cd)) return;
+    this.playSfx('sfx_swing1');
     const RANGE = Math.round(MELEE_RANGE * 1.1 * (1 + (stats.whirlwindRangePct ?? 0)));
     const px = this.player.x, py = this.player.y;
     const D = this.player.depth;
@@ -2831,6 +2861,7 @@ export class GameScene extends Phaser.Scene {
   protected attackDashPierce(_tx: number, _ty: number): void {
     const cd = Math.round(650 / (1 + this.getEffectiveAtkSpeed()));
     if (!this.player.lockCooldown(cd)) return;
+    this.playSfx('sfx_swing2');
     if (this._forceAttackAngle !== null) {
       this.dashAimAngle = this._forceAttackAngle;
       this._forceAttackAngle = null;
@@ -2891,7 +2922,7 @@ export class GameScene extends Phaser.Scene {
 
     const cd = Math.round(650 / (1 + this.getEffectiveAtkSpeed()));
     if (!this.player.lockCooldown(cd)) return;
-
+    this.playSfx('sfx_swing1');
     this.player.startAttackAnim(`player_attack_${dir}`, rad);
     const isFan  = (stats0.projectileFan ?? 0) >= 1;
     const HIT_R  = P(18) * (isFan ? 0.6 : 1);
@@ -2931,6 +2962,7 @@ export class GameScene extends Phaser.Scene {
 
     DELAYS.map(d => Math.round(d / spd)).forEach((delay, hitIdx) => {
       this.time.delayedCall(delay, () => {
+        this.playSfx('sfx_swing2', 0.88);
         const px = this.player.x, py = this.player.y;
         const D = this.player.depth;
         this.hitInArea(px, py, MELEE_RANGE, 0.29 * (1 + (stats.multiHitDmgPct ?? 0)), arc, deg, dir);
@@ -2946,7 +2978,7 @@ export class GameScene extends Phaser.Scene {
     const spd = 1 + this.getEffectiveAtkSpeed();
     const cd = Math.round(1500 / spd);
     if (!this.player.lockCooldown(cd)) return;
-
+    this.playSfx('sfx_swing5');
     const { dir, rad } = this.resolveAttackDir(P(240));
     this.player.startAttackAnim(`player_attack_${dir}`);
 
@@ -2998,6 +3030,7 @@ export class GameScene extends Phaser.Scene {
     const spd = 1 + this.getEffectiveAtkSpeed();
     const cd  = Math.round(650 / spd);
     if (!this.player.lockCooldown(cd)) return;
+    this.playSfx('sfx_swing5');
     const { dir, rad } = this.resolveAttackDir(P(240));
     this.player.startAttackAnim(`player_attack_${dir}`, rad);
     this.time.delayedCall(150, () => this.firePeriodicKnives());
@@ -3007,7 +3040,7 @@ export class GameScene extends Phaser.Scene {
     const spd = 1 + this.getEffectiveAtkSpeed();
     const cd = Math.round(1100 / spd);
     if (!this.player.lockCooldown(cd)) return;
-
+    this.playSfx('sfx_swing3');
     const { dir, rad } = this.resolveAttackDir(P(260));
     this.player.startAttackAnim(`player_attack_${dir}`);
 
@@ -3301,6 +3334,7 @@ export class GameScene extends Phaser.Scene {
       chargeGfx.destroy();
 
       this.player.startAttackAnim(`player_attack_${dir}`);
+      this.time.delayedCall(50, () => this.playSfx('sfx_swing4'));
       this.time.delayedCall(150, () => {
         const px = this.player.x, py = this.player.y;
         const D = this.player.depth;
@@ -6056,6 +6090,7 @@ export class GameScene extends Phaser.Scene {
       this.player.setPosition(destX, destY).setVisible(false);
       this.cameras.main.fadeIn(460, 0, 0, 0);
       this.cameras.main.once('camerafadeincomplete', () => {
+        AudioService.playBgm(this, 'sfx_boss_bgm', 0.5);
         this.playTeleportIn(destX, destY, origScale, () => { this.teleporting = false; });
         this.boss.setVisible(true).setAlpha(1);
         (this.boss.body as Phaser.Physics.Arcade.Body).enable = true;
@@ -6065,6 +6100,7 @@ export class GameScene extends Phaser.Scene {
         this.refreshBossBar();
         this.time.delayedCall(300, () => {
           this.boss.start();
+          this.playSfx('sfx_boss_roar');
           if (NetworkService.connected && NetworkService.isHost) {
             this.boss.onSyncState = (data) => NetworkService.sendBossSync(data);
             this.time.addEvent({
@@ -6468,6 +6504,7 @@ export class GameScene extends Phaser.Scene {
   // ── Game-end handlers ─────────────────────────────────
 
   protected handleBossDefeated(): void {
+    this.playSfx('sfx_boss_death');
     // Tower mode: wait for both bosses to die before completing floor
     if (this._towerFloor > 0) {
       const boss1Dead = !this.boss?.active;
@@ -6568,6 +6605,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   protected handlePlayerDead(): void {
+    this.playSfx('sfx_player_dead');
     this._endDarkNight();
     if (this._reviveDialogActive) return;  // 視窗已開啟，忽略重複呼叫
     const stats = CardStore.getTotalStats();
@@ -7542,6 +7580,7 @@ export class GameScene extends Phaser.Scene {
       const id = this._chests.indexOf(chest);
       if (id !== -1) NetworkService.sendChestOpen(id);
     }
+    this.playSfx('sfx_open_chest');
     const animKey = `chest_open_${chest.type}`;
     chest.sprite.play(animKey);
     chest.sprite.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => {
@@ -7693,6 +7732,7 @@ export class GameScene extends Phaser.Scene {
         else this._sessionLoot.push({ type: 'item', itemId: loot.itemId, itemName: loot.itemName, qty: loot.qty });
         this.showPickupText(loot.obj.x, loot.obj.y, loot.itemName, loot.qty);
       }
+      this.playSfx('sfx_pickup');
       this._lootBadge?.setText(String(this._sessionLoot.length));
       loot.badge?.destroy();
       loot.obj.destroy();
@@ -7749,26 +7789,42 @@ export class GameScene extends Phaser.Scene {
   }
 
   protected showLevelUp(newLevel: number): void {
+    this.playSfx('sfx_level_up');
     const W = this.scale.width;
     const H = this.scale.height;
+    const hasSkillPt = newLevel % 5 === 0;
+    const panelH = hasSkillPt ? P(100) : P(76);
+    const panelY = H / 2 - panelH / 2;
+
     const bg = this.add.graphics().setScrollFactor(0).setDepth(10000);
     bg.fillStyle(0x000000, 0.55);
-    bg.fillRoundedRect(W / 2 - P(120), H / 2 - P(38), P(240), P(76), P(10));
+    bg.fillRoundedRect(W / 2 - P(120), panelY, P(240), panelH, P(10));
     bg.lineStyle(2, 0xf0c040, 0.9);
-    bg.strokeRoundedRect(W / 2 - P(120), H / 2 - P(38), P(240), P(76), P(10));
+    bg.strokeRoundedRect(W / 2 - P(120), panelY, P(240), panelH, P(10));
 
-    const line1 = this.add.text(W / 2, H / 2 - P(14), '⬆  等級提升！', {
+    const line1Y = hasSkillPt ? H / 2 - P(26) : H / 2 - P(14);
+    const line1 = this.add.text(W / 2, line1Y, '⬆  等級提升！', {
       fontSize: F(20), fontStyle: 'bold', color: '#f0c040', stroke: '#000', strokeThickness: 4,
     }).setOrigin(0.5).setScrollFactor(0).setDepth(10001);
 
-    const skillPt = newLevel % 5 === 0 ? '   技能點 +1' : '';
-    const line2 = this.add.text(W / 2, H / 2 + P(16), `Lv. ${newLevel}   ATK +2   HP +10${skillPt}`, {
+    const line2Y = hasSkillPt ? H / 2 - P(2) : H / 2 + P(16);
+    const line2 = this.add.text(W / 2, line2Y, `Lv. ${newLevel}   ATK +2   HP +10`, {
       fontSize: F(15), fontStyle: 'bold', color: '#ffffff', stroke: '#000', strokeThickness: 3,
     }).setOrigin(0.5).setScrollFactor(0).setDepth(10001);
 
+    const tweenTargets: Phaser.GameObjects.GameObject[] = [bg, line1, line2];
+
+    let line3: Phaser.GameObjects.Text | null = null;
+    if (hasSkillPt) {
+      line3 = this.add.text(W / 2, H / 2 + P(22), '技能點 +1', {
+        fontSize: F(15), fontStyle: 'bold', color: '#88ffcc', stroke: '#000', strokeThickness: 3,
+      }).setOrigin(0.5).setScrollFactor(0).setDepth(10001);
+      tweenTargets.push(line3);
+    }
+
     this.tweens.add({
-      targets: [bg, line1, line2], alpha: 0, delay: 1800, duration: 500,
-      onComplete: () => { bg.destroy(); line1.destroy(); line2.destroy(); },
+      targets: tweenTargets, alpha: 0, delay: 1800, duration: 500,
+      onComplete: () => { bg.destroy(); line1.destroy(); line2.destroy(); line3?.destroy(); },
     });
   }
 

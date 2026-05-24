@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { MONSTER_SCALE_SMALL } from '../data/monster-data';
 import { CardStore } from '../data/card-store';
+import { AudioService } from '../data/audio.service';
 
 const DPR = (window as any).__gameDpr as number;
 const P   = (n: number): number => Math.round(n * DPR);
@@ -183,11 +184,16 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
   }
 
   private _flashUntil = 0;
+  private _nextHitSfx = 0;
 
   flashWhite(ms = 80): void {
     this._flashUntil = this.scene.time.now + ms;
     this.setTintFill(0xffffff);
     this.scene.time.delayedCall(ms, () => this.applyBaseTint());
+    if (this.scene.time.now >= this._nextHitSfx && this.scene.cache.audio.exists('sfx_hit')) {
+      this._nextHitSfx = this.scene.time.now + 40;
+      AudioService.playSfx(this.scene, 'sfx_hit', 0.45);
+    }
   }
 
   private applyBaseTint(): void {

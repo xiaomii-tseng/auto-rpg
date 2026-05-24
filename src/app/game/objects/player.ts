@@ -2,12 +2,14 @@
 const P = (n: number): number => Math.round(n * DPR);
 import Phaser from 'phaser';
 import { CardStore } from '../data/card-store';
+import { AudioService } from '../data/audio.service';
 
 export class Player extends Phaser.Physics.Arcade.Sprite {
   private isMoving    = false;
   private isAttacking = false;
   private onCooldown  = false;
   private rooted      = false;
+  private _nextStepSfx = 0;
   speedMult           = 1;
   slowMult            = 1;
   noInterrupt         = false;
@@ -124,6 +126,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   // 冷卻鎖：只管冷卻，不碰 isAttacking
+  get canStartAttackAnim(): boolean { return !this.isAttacking && !this.playingHurt; }
+
   lockCooldown(ms: number): boolean {
     if (this.playingHurt || this.isAttacking || this.onCooldown) return false;
     this.onCooldown = true;
@@ -268,6 +272,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     if (playHurt && !this.noInterrupt) {
       this.playingHurt = true;
       this.play('player_hurt', true);
+      AudioService.playSfx(this.scene, 'sfx_player_hurt', 0.6);
       this.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => {
         this.playingHurt = false;
         this.playAnim(this.isMoving ? `player_run_${this.lastDir}` : `player_idle_${this.lastDir}`);

@@ -4,6 +4,7 @@ import { MONSTER_SCALE_BOSS } from '../data/monster-data';
 import { STAR_BOSS_DMG_MULT } from '../data/quest-store';
 import type { MsgBossSync } from '../../../../shared/types';
 import { CardStore } from '../data/card-store';
+import { AudioService } from '../data/audio.service';
 
 const DPR = (window as any).__gameDpr as number;
 const P   = (n: number): number => Math.round(n * DPR);
@@ -133,6 +134,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
   protected readonly animPrefix: string;
   protected baseTint = 0xffffff;
   private _flashUntil = 0;
+  private _nextHitSfx = 0;
 
   flashWhite(ms = 80): void {
     this._flashUntil = this.scene.time.now + ms;
@@ -142,6 +144,10 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
         if (this.baseTint === 0xffffff) this.clearTint(); else this.setTint(this.baseTint);
       }
     });
+    if (this.scene.time.now >= this._nextHitSfx && this.scene.cache.audio.exists('sfx_hit')) {
+      this._nextHitSfx = this.scene.time.now + 40;
+      AudioService.playSfx(this.scene, 'sfx_hit', 0.45);
+    }
   }
 
   readonly element: Element;
