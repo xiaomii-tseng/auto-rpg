@@ -219,6 +219,8 @@ export class GameScene extends Phaser.Scene {
   private bossMonsterId = 'boss_orc1';
   protected questStar = 1;
   private _mapSeed = 0;
+  // ── Legendary mode (6-star boss via altar ticket) ───────
+  protected _legendaryMode = false;
   // ── Tower mode ──────────────────────────────────────────
   protected _towerFloor    = 0;
   protected _towerWalls?: Phaser.Physics.Arcade.StaticGroup;
@@ -405,8 +407,9 @@ export class GameScene extends Phaser.Scene {
     this.generateTextures();
   }
 
-  init(data: { seed?: number; questStar?: number; bossMonsterId?: string; mapParams?: MapParams; partnerNickname?: string; playerCount?: number; ownSkinId?: number; partnerSkinId?: number; mapTheme?: GameScene['_mapTheme']; towerFloor?: number }): void {
+  init(data: { seed?: number; questStar?: number; bossMonsterId?: string; mapParams?: MapParams; partnerNickname?: string; playerCount?: number; ownSkinId?: number; partnerSkinId?: number; mapTheme?: GameScene['_mapTheme']; towerFloor?: number; legendaryMode?: boolean }): void {
     this._towerFloor = data?.towerFloor ?? 0;
+    this._legendaryMode = data?.legendaryMode ?? false;
     this._mapSeed = data?.seed ?? Math.floor(Math.random() * 1_000_000);
     this._mapTheme = data?.mapTheme ?? 'lava';
     this._initQuestStar = data?.questStar;
@@ -540,6 +543,26 @@ export class GameScene extends Phaser.Scene {
 
     if (this._towerFloor > 0) {
       this.buildTowerRoom(); // sets playerStartX/Y internally
+    } else if (this._legendaryMode) {
+      // 兩個航點：安全區 + 傳送門（緊鄰），其餘全走現有地圖系統
+      const PAD = P(500);
+      const raw = [
+        new Phaser.Math.Vector2(0, 0),
+        new Phaser.Math.Vector2(P(300), 0),
+      ];
+      const offX = -PAD, offY = -PAD;
+      this.waypoints = raw.map(p => new Phaser.Math.Vector2(p.x - offX, p.y - offY));
+      const ar = this.BOSS_ARENA_RADIUS;
+      this.worldW = P(300) + PAD * 2 + ar * 2 + P(700);
+      this.worldH = Math.max(PAD * 2, ar * 2 + P(600));
+      this.bossArenaCenter.set(this.worldW - ar - P(200), Math.round(this.worldH / 2));
+      this.bossArenaShape = 0;
+      this.bossMonsterId = this._initBossId ?? 'boss_slime_legendary';
+      this.questStar     = this._initQuestStar ?? 6;
+      this.generateAndDrawMap();
+      this.wallLayer = this.buildWallTilemap();
+      this.playerStartX = this.waypoints[0].x;
+      this.playerStartY = this.waypoints[0].y;
     } else {
       this.generateWaypoints();   // sets this.worldW / worldH / waypoints
       this.generateAndDrawMap();
@@ -1058,6 +1081,8 @@ export class GameScene extends Phaser.Scene {
     this.createExitButton();
     if (this._towerFloor > 0) {
       this.spawnTowerFloor();
+    } else if (this._legendaryMode) {
+      this.setupPortal(bossWp.x, bossWp.y);  // 不生普通怪，直接放傳送門
     } else {
       this.spawnAllMonsters();
       this.setupPortal(bossWp.x, bossWp.y);
@@ -4770,6 +4795,205 @@ export class GameScene extends Phaser.Scene {
 
       return b;
     }
+    // ── 傳說系列王：複用現有最強 Boss 類，放大 1.2 倍 ──────────
+    if (bossDef.id === 'boss_slime_legendary') {
+      const b = new BossZombieSlime(this, cx, cy, totalHp, bossDef.element, bossDef.spriteKey, bossDef.tint);
+      b.onSummonZombie = (x, y) => {
+        if (!this.bossActive) return;
+        this.spawnMinionAt('elite_slime_zombie', x, y, true);
+      };
+      b.onPoisonFanHit = (dmg) => {
+        if (!this.bossActive) return;
+        this.hitGlobal(dmg);
+      };
+      b.setScale(b.scaleX * 1.2, b.scaleY * 1.2);
+      return b;
+    }
+    if (bossDef.id === 'boss_flower_legendary') {
+      const b = new BossFlowerOne(this, cx, cy, totalHp, bossDef.element, bossDef.spriteKey, bossDef.tint);
+      b.onFirePetal = (fromX, fromY, angle, speed, dmg, blindDist, large) => {
+        if (!this.bossActive) return;
+        this.fireBossPetal(fromX, fromY, angle, speed, dmg, blindDist, large);
+      };
+      b.onRepelPlayer = () => { /* 暫時停用 */ };
+      b.setScale(b.scaleX * 1.2, b.scaleY * 1.2);
+      return b;
+    }
+    if (bossDef.id === 'boss_orc_legendary') {
+      const b = new BossOrc3(this, cx, cy, totalHp, bossDef.element, bossDef.spriteKey, bossDef.tint);
+      b.onShowKanji = (char, bx, by) => { this._showBossKanji(char, bx, by); };
+      b.onBladeStorm = (bx, by, angle, dmg) => {
+        if (!this.bossActive) return;
+        const tx = bx + Math.cos(angle) * P(320);
+        const ty = by + Math.sin(angle) * P(320);
+        this.bladeWaveAt(bx, by, tx, ty, dmg / 5, true);
+      };
+      b.onStormWarn = (bx, by, angles, warnMs) => {
+        if (!this.bossActive) return;
+        const TRAVEL = P(320);
+        angles.forEach(angle => {
+          const ex = bx + Math.cos(angle) * TRAVEL;
+          const ey = by + Math.sin(angle) * TRAVEL;
+          const g = this.add.graphics().setDepth(52);
+          g.lineStyle(P(1.5), 0x44aaff, 0.55);
+          g.beginPath(); g.moveTo(bx, by); g.lineTo(ex, ey); g.strokePath();
+          g.fillStyle(0x88ddff, 0.7);
+          g.fillCircle(ex, ey, P(4));
+          this.tweens.add({ targets: g, alpha: 0, duration: warnMs, ease: 'Quad.In', onComplete: () => g.destroy() });
+        });
+      };
+      b.onBushidoGuard = (bx, by) => {
+        if (!this.bossActive) return;
+        const ring = this.add.graphics().setDepth(55);
+        ring.lineStyle(P(3), 0xffd700, 0.9); ring.strokeCircle(bx, by, P(28));
+        this.tweens.add({ targets: ring, alpha: 0, scaleX: 1.6, scaleY: 1.6, duration: 600, ease: 'Quad.Out', onComplete: () => ring.destroy() });
+        const shield = this.add.graphics().setDepth(53).setAlpha(0);
+        shield.fillStyle(0xffd700, 0.18); shield.fillCircle(bx, by, P(30));
+        shield.lineStyle(P(2), 0xffd700, 0.7); shield.strokeCircle(bx, by, P(30));
+        this.tweens.add({ targets: shield, alpha: 1, duration: 200, ease: 'Quad.Out' });
+        this.time.delayedCall(1800, () => { this.tweens.add({ targets: shield, alpha: 0, duration: 300, onComplete: () => shield.destroy() }); });
+      };
+      b.onBushidoBurst = (bx, by, rounds, dmg) => {
+        if (!this.bossActive) return;
+        for (let r = 0; r < rounds; r++) {
+          this.time.delayedCall(r * 500, () => {
+            if (!this.bossActive) return;
+            const base = Math.random() * Math.PI * 2;
+            for (let j = 0; j < 8; j++) {
+              const angle = base + (j / 8) * Math.PI * 2;
+              const tx = bx + Math.cos(angle) * P(320);
+              const ty = by + Math.sin(angle) * P(320);
+              this.bladeWaveAt(bx, by, tx, ty, dmg / 5, true);
+            }
+          });
+        }
+      };
+      b.onBurial = (warnMs, dmg) => {
+        if (!this.bossActive) return;
+        const bcx = this.bossArenaCenter.x, bcy = this.bossArenaCenter.y;
+        const R = this.BOSS_ARENA_RADIUS * 0.82;
+        const TRAVEL = P(320);
+        const COLS = 5, ROWS = 3;
+        const cell = R * 0.38;
+        const gridAngle = Math.random() * Math.PI * 2;
+        const gc = Math.cos(gridAngle), gs = Math.sin(gridAngle);
+        const jx = (Math.random() - 0.5) * cell * 0.4;
+        const jy = (Math.random() - 0.5) * cell * 0.4;
+        const entries: Array<{ ox: number; oy: number; angle: number }> = [];
+        for (let row = 0; row < ROWS; row++) {
+          for (let col = 0; col < COLS; col++) {
+            const lx = (col - (COLS - 1) / 2) * cell + jx;
+            const ly = (row - (ROWS - 1) / 2) * cell + jy;
+            entries.push({ ox: bcx + lx * gc - ly * gs, oy: bcy + lx * gs + ly * gc, angle: Math.random() * Math.PI * 2 });
+          }
+        }
+        entries.forEach(e => {
+          const ex = e.ox + Math.cos(e.angle) * TRAVEL;
+          const ey = e.oy + Math.sin(e.angle) * TRAVEL;
+          const g = this.add.graphics().setDepth(52);
+          g.lineStyle(P(1.5), 0xff3311, 0.7);
+          g.beginPath(); g.moveTo(e.ox, e.oy); g.lineTo(ex, ey); g.strokePath();
+          g.fillStyle(0xff5533, 0.85); g.fillCircle(e.ox, e.oy, P(4));
+          this.tweens.add({ targets: g, alpha: 0, duration: warnMs * 0.85, ease: 'Quad.In', onComplete: () => g.destroy() });
+        });
+        entries.forEach((e, i) => {
+          this.time.delayedCall(warnMs + i * 50, () => {
+            if (!this.bossActive) return;
+            const tx = e.ox + Math.cos(e.angle) * TRAVEL;
+            const ty = e.oy + Math.sin(e.angle) * TRAVEL;
+            this.bladeWaveAt(e.ox, e.oy, tx, ty, dmg / 5, true);
+          });
+        });
+      };
+      b.onIronWarn = (bx, by, angle, warnMs) => {
+        if (!this.bossActive) return;
+        const TRAVEL = P(640);
+        const ex = bx + Math.cos(angle) * TRAVEL, ey = by + Math.sin(angle) * TRAVEL;
+        const g = this.add.graphics().setDepth(52);
+        g.lineStyle(P(3), 0xffffff, 0.8); g.beginPath(); g.moveTo(bx, by); g.lineTo(ex, ey); g.strokePath();
+        g.lineStyle(P(7), 0xaaaaff, 0.15); g.beginPath(); g.moveTo(bx, by); g.lineTo(ex, ey); g.strokePath();
+        this.tweens.chain({ targets: g, tweens: [{ alpha: 1, duration: warnMs * 0.6, ease: 'Quad.Out' }, { alpha: 0, duration: warnMs * 0.4, ease: 'Quad.In', onComplete: () => g.destroy() }] });
+      };
+      b.onIronSlash = (bx, by, angle, dmg) => {
+        if (!this.bossActive) return;
+        const tx = bx + Math.cos(angle) * P(640), ty = by + Math.sin(angle) * P(640);
+        this.bladeWaveAt(bx, by, tx, ty, dmg / 5, true, 3);
+      };
+      b.getIronTarget = () => this.randomTargetPos();
+      b.onVanish = (bx, by) => {
+        if (!this.bossActive) return;
+        const smoke = this.add.graphics().setDepth(56);
+        smoke.fillStyle(0x334466, 0.55); smoke.fillCircle(bx, by, P(22));
+        this.tweens.add({ targets: smoke, alpha: 0, scaleX: 2.5, scaleY: 2.5, duration: 500, ease: 'Quad.Out', onComplete: () => smoke.destroy() });
+        this.tweens.add({ targets: b, alpha: 0, duration: 400, ease: 'Quad.In' });
+      };
+      b.onAppear = (nx, ny) => {
+        if (!this.bossActive) return;
+        b.setAlpha(0);
+        const ring = this.add.graphics().setDepth(56);
+        ring.lineStyle(P(3), 0xffffff, 1); ring.strokeCircle(nx, ny, P(12));
+        this.tweens.add({ targets: ring, alpha: 0, scaleX: 4, scaleY: 4, duration: 350, ease: 'Quad.Out', onComplete: () => ring.destroy() });
+        const flash = this.add.graphics().setDepth(55);
+        flash.fillStyle(0xffffff, 0.65); flash.fillCircle(nx, ny, P(26));
+        this.tweens.add({ targets: flash, alpha: 0, duration: 200, ease: 'Quad.Out', onComplete: () => flash.destroy() });
+        this.tweens.add({ targets: b, alpha: 1, duration: 300, ease: 'Quad.Out' });
+      };
+      b.setScale(b.scaleX * 1.2, b.scaleY * 1.2);
+      return b;
+    }
+    if (bossDef.id === 'boss_vampire_legendary') {
+      const b = new BossVampire3(this, cx, cy, totalHp, bossDef.element, bossDef.spriteKey, bossDef.tint);
+      const checkArc = (cx2: number, cy2: number, r: number, aimAng: number, arcDeg: number, dmg: number) => {
+        if (!this.bossActive) return;
+        const half = (arcDeg / 2) * Math.PI / 180;
+        const px = this.player.x, py = this.player.y;
+        const dist = Phaser.Math.Distance.Between(cx2, cy2, px, py);
+        if (dist < P(15) || dist > r + P(20)) return;
+        const angToPlayer = Math.atan2(py - cy2, px - cx2);
+        const diff = Math.abs(Phaser.Math.Angle.Wrap(angToPlayer - aimAng));
+        if (diff <= half + 0.08) this.player.takeDamage(dmg);
+      };
+      b.onScytheHit = checkArc; b.onScytheTrailTick = checkArc; b.onCloneScytheHit = checkArc;
+      b.onBurstOrbLand = (x, y, r, dmg) => {
+        if (!this.bossActive) return;
+        if (Phaser.Math.Distance.Between(this.player.x, this.player.y, x, y) <= r) this.player.takeDamage(dmg);
+        for (const ally of this._allyMinions) {
+          if (!ally.isDead && Phaser.Math.Distance.Between(ally.x, ally.y, x, y) <= r) ally.takeDamage(dmg);
+        }
+      };
+      b.onBurstOrbFly = (x, y, r, dmg) => {
+        if (!this.bossActive) return false;
+        let hit = false;
+        if (Phaser.Math.Distance.Between(this.player.x, this.player.y, x, y) <= r) { this.player.takeDamage(dmg); hit = true; }
+        for (const ally of this._allyMinions) {
+          if (!ally.isDead && Phaser.Math.Distance.Between(ally.x, ally.y, x, y) <= r) ally.takeDamage(dmg);
+        }
+        return hit;
+      };
+      b.onSpikeHit = (x, y, r, dmg) => {
+        if (!this.bossActive) return;
+        if (Phaser.Math.Distance.Between(this.player.x, this.player.y, x, y) <= r) this.player.takeDamage(dmg);
+      };
+      b.onRiverTick = (x1, y1, x2, y2, hw, dmg) => {
+        if (!this.bossActive) return;
+        const abx = x2 - x1, aby = y2 - y1;
+        const lenSq = abx * abx + aby * aby || 1;
+        const inRiver = (cx2: number, cy2: number) => {
+          const raw = ((cx2 - x1) * abx + (cy2 - y1) * aby) / lenSq;
+          if (raw < 0) return false;
+          const t = Math.min(1, raw);
+          const nx = x1 + t * abx - cx2, ny = y1 + t * aby - cy2;
+          return nx * nx + ny * ny <= hw * hw;
+        };
+        if (inRiver(this.player.x, this.player.y)) this.player.takeDamage(dmg);
+        for (const ally of this._allyMinions) {
+          if (!ally.isDead && inRiver(ally.x, ally.y)) ally.takeDamage(dmg);
+        }
+      };
+      b.setScale(b.scaleX * 1.2, b.scaleY * 1.2);
+      return b;
+    }
+
     return new Boss(this, cx, cy, totalHp, bossDef.element, bossDef.spriteKey, bossDef.tint);
   }
 
@@ -5123,6 +5347,7 @@ export class GameScene extends Phaser.Scene {
   // ── Tower mode methods ────────────────────────────────────────
 
   private buildTowerRoom(): void {
+    (this as any).wallLayer = null;  // 清除前一局殘留
     const W = this.scale.width;
     const H = this.scale.height;
     if (this._towerFloor % 5 === 0) {

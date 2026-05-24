@@ -422,10 +422,11 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     3: { min: 1100, max: 2600, cMin: 190, cMax: 420, cChance: 0.14 },
     4: { min: 1060, max: 2500, cMin: 185, cMax: 410, cChance: 0.15 },
     5: { min: 1020, max: 2400, cMin: 175, cMax: 385, cChance: 0.16 },
+    6: { min:  900, max: 2200, cMin: 150, cMax: 370, cChance: 0.18 },
   };
 
   protected getNextAttackDelay(): number {
-    const c = Boss.ATTACK_DELAY_CFG[Math.min(5, Math.max(1, this.questStar))];
+    const c = Boss.ATTACK_DELAY_CFG[Math.min(6, Math.max(1, this.questStar))];
     if (this.comboCount < 1 && Math.random() < c.cChance) {
       this.comboCount++;
       return Phaser.Math.Between(c.cMin, c.cMax);

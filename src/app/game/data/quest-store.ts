@@ -21,39 +21,39 @@ export interface QuestSaveData {
 // ── Star system constants ──────────────────────────────────────────────────
 
 export const STAR_UNLOCK_LEVEL: Record<number, number> = {
-  1: 1, 2: 3, 3: 7, 4: 11, 5: 16,
+  1: 1, 2: 3, 3: 7, 4: 11, 5: 16, 6: 16,
 };
 
 export const STAR_REWARD_MULT: Record<number, number> = {
-  1: 1.0, 2: 2.25, 3: 3.5, 4: 4.75, 5: 6.0,
+  1: 1.0, 2: 2.25, 3: 3.5, 4: 4.75, 5: 6.0, 6: 6.0,
 };
 
 export const STAR_STAT_MULT: Record<number, number> = {
-  1: 1.2, 2: 1.8, 3: 2.64, 4: 3.84, 5: 5.4,
+  1: 1.2, 2: 1.8, 3: 2.64, 4: 3.84, 5: 5.4, 6: 5.4,
 };
 
 export const STAR_BOSS_DMG_MULT: Record<number, number> = {
-  1: 1.0, 2: 3.0, 3: 4.4, 4: 6.4, 5: 10.0,
+  1: 1.0, 2: 3.0, 3: 4.4, 4: 6.4, 5: 10.0, 6: 10.0,
 };
 
 export const STAR_HP_MULT: Record<number, number> = {
-  1: 1.0, 2: 2.5, 3: 6.0, 4: 10.5, 5: 18.5,
+  1: 1.0, 2: 2.5, 3: 6.0, 4: 10.5, 5: 18.5, 6: 18.5,
 };
 
 export const STAR_DROP_MULT: Record<number, number> = {
-  1: 1.0, 2: 1.3, 3: 1.7, 4: 2.2, 5: 3.0,
+  1: 1.0, 2: 1.3, 3: 1.7, 4: 2.2, 5: 3.0, 6: 3.0,
 };
 
 export const STAR_DEF_MULT: Record<number, number> = {
-  1: 0.6, 2: 1.2, 3: 2.2, 4: 3.5, 5: 4.5,
+  1: 0.6, 2: 1.2, 3: 2.2, 4: 3.5, 5: 4.5, 6: 4.5,
 };
 
 export const MINION_DEF_MULT: Record<number, number> = {
-  1: 1.0, 2: 1.2, 3: 1.4, 4: 1.7, 5: 2.0,
+  1: 1.0, 2: 1.2, 3: 1.4, 4: 1.7, 5: 2.0, 6: 2.0,
 };
 
 export const STAR_EXP_MULT: Record<number, number> = {
-  1: 0.2, 2: 0.8, 3: 2.0, 4: 3.0, 5: 5.0,
+  1: 0.2, 2: 0.8, 3: 2.0, 4: 3.0, 5: 5.0, 6: 5.0,
 };
 
 // Equipment quality weights by star (for quest equip rewards)
@@ -63,6 +63,7 @@ export const STAR_EQUIP_QUALITY: Record<number, Record<string, number>> = {
   3: { normal: 0.35, good: 0.35, fine: 0.25 },
   4: { normal: 0.15, good: 0.30, fine: 0.45 },
   5: { normal: 0.00, good: 0.25, fine: 0.50 },
+  6: { normal: 0.00, good: 0.25, fine: 0.50 },
 };
 
 function smoothStep(a: number, b: number, x: number): number {

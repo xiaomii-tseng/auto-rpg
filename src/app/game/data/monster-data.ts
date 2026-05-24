@@ -494,6 +494,36 @@ export const MONSTER_DEFS: MonsterDef[] = [
     cards: [{ cardId: 'card_plant3_b', rate: CR_B }],
     drops: bossDrops,
   },
+
+  // ── 傳說系列王 (tier 6，透過祭祀台門票挑戰) ───────────────
+  {
+    id: 'boss_slime_legendary', name: '傳說史萊姆王', spriteKey: 'slime2', frameEnd: 5,
+    element: 'none', tint: 0xcc44ff, fillTint: true, tier: 6,
+    hp: 820, atk: 29, def: 25, speed: 100, exp: 1500, gold: 500,
+    cards: [],
+    drops: bossDrops,
+  },
+  {
+    id: 'boss_flower_legendary', name: '傳說花王', spriteKey: 'plant1', frameEnd: 9,
+    element: 'grass', tint: 0xff2244, fillTint: true, tier: 6,
+    hp: 780, atk: 29, def: 14, speed: 0, exp: 1500, gold: 500,
+    cards: [],
+    drops: bossDrops,
+  },
+  {
+    id: 'boss_orc_legendary', name: '傳說獸人王', spriteKey: 'orc3', frameEnd: 7,
+    element: 'none', tint: 0x2266ff, fillTint: true, tier: 6,
+    hp: 850, atk: 29, def: 30, speed: 115, exp: 1500, gold: 500,
+    cards: [],
+    drops: bossDrops,
+  },
+  {
+    id: 'boss_vampire_legendary', name: '傳說吸血鬼王', spriteKey: 'vampire3', frameEnd: 3,
+    element: 'none', tint: 0xdd2222, fillTint: true, tier: 6,
+    hp: 790, atk: 29, def: 21, speed: 108, exp: 1500, gold: 500,
+    cards: [],
+    drops: bossDrops,
+  },
 ];
 
 // ── Card definitions ───────────────────────────────────────────────────────

@@ -857,49 +857,6 @@ export class PrepScene extends Phaser.Scene {
       .setInteractive({ useHandCursor: true }).setDepth(35).setAlpha(0.001)
       .on('pointerup', () => { AudioService.suppressClickSfx(); this._showAudioPanel(W, H); });
 
-    // ── 無限塔按鈕（漢堡下方）──────────────────────────────
-    const TWR_Y = SET_Y + SET_S + P(6);
-    const tg = this.add.graphics().setDepth(30);
-    tg.fillStyle(0x000000, 0.5);
-    tg.fillRoundedRect(SET_X + P(2), TWR_Y + P(2), SET_S, SET_S, P(8));
-    tg.fillStyle(0x1a0033, 0.92);
-    tg.fillRoundedRect(SET_X, TWR_Y, SET_S, SET_S, P(8));
-    tg.fillStyle(0xffffff, 0.04);
-    tg.fillRoundedRect(SET_X + P(1), TWR_Y + P(1), SET_S - P(2), SET_S * 0.45, { tl: P(7), tr: P(7), bl: 0, br: 0 });
-    tg.lineStyle(1.5, 0xcc44ff, 0.5);
-    tg.strokeRoundedRect(SET_X, TWR_Y, SET_S, SET_S, P(8));
-    this.add.text(SET_X + SET_S / 2, TWR_Y + SET_S / 2 + P(1), '塔', {
-      fontSize: F(18), fontStyle: 'bold', color: '#cc88ff', stroke: '#1a0033', strokeThickness: 1,
-    }).setOrigin(0.5).setDepth(31);
-    const towerKeyTxt = this.add.text(SET_X + SET_S - P(2), TWR_Y + P(2), `${TowerStore.getKeys()}`, {
-      fontSize: F(10), color: '#ffdd88', stroke: '#000', strokeThickness: 1,
-    }).setOrigin(1, 0).setDepth(32);
-    const onTowerStoreChange = () => towerKeyTxt.setText(`${TowerStore.getKeys()}`);
-    TowerStore.onChange(onTowerStoreChange);
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => TowerStore.offChange(onTowerStoreChange));
-    let towerHoldTimer: Phaser.Time.TimerEvent | null = null;
-    let towerActivated = false;
-    this.add.rectangle(SET_X + SET_S / 2, TWR_Y + SET_S / 2, SET_S, SET_S)
-      .setInteractive({ useHandCursor: true }).setDepth(35).setAlpha(0.001)
-      .on('pointerdown', () => {
-        towerActivated = false;
-        towerHoldTimer = this.time.delayedCall(3000, () => {
-          towerActivated = true;
-          this.scene.start('TowerScene', {
-            globalFloor: 1,
-            runStartTime: Date.now(),
-            ownSkinId: SkinStore.get(),
-          });
-        });
-      })
-      .on('pointerup', () => {
-        if (towerHoldTimer) { towerHoldTimer.remove(); towerHoldTimer = null; }
-        if (!towerActivated) this._showToast('功能待開發');
-      })
-      .on('pointerout', () => {
-        if (towerHoldTimer) { towerHoldTimer.remove(); towerHoldTimer = null; }
-      });
-
     // ── Quick-access buttons (horizontal, bottom-right) ───
     const QB_S   = SET_S * 1.5;
     const QB_GAP = P(6);
@@ -6467,64 +6424,81 @@ export class PrepScene extends Phaser.Scene {
   /** Destroys and redraws room overlay: room code, leave button, partner sprite, guest overlay */
   private _showAltarPanel(W: number, H: number): void {
     const PW = Math.min(P(400), W - P(24));
-    const PH = Math.min(P(480), H - P(40));
+    const PH = Math.min(P(500), H - P(40));
     const D  = 600;
     const px = -PW / 2, py = -PH / 2;
 
-    const HEADER_H = P(68);  // title bar + subtitle
-    const FOOTER_H = P(28);
+    const HEADER_H = P(72);
+    const FOOTER_H = P(24);
     const CLIP_TOP  = py + HEADER_H;
     const CLIP_H    = PH - HEADER_H - FOOTER_H;
 
+    // ── 神秘石壇配色 ────────────────────────────────────────────────
+    const AC_BG      = 0x0c0818;  // 極深紫黑
+    const AC_BORDER  = 0x7744cc;  // 外框紫
+    const AC_BORDER2 = 0x3a1e88;  // 內框深紫
+    const AC_HEAD    = 0x18083a;  // 標題欄深紫
+
     const container = this.add.container(W / 2, H / 2).setDepth(D);
 
-    const backdrop = this.add.rectangle(0, 0, W, H, 0x000000, 0.80).setInteractive();
-    backdrop.on('pointerdown', () => container.destroy());
+    const backdrop = this.add.rectangle(0, 0, W, H, 0x000000, 0.85).setInteractive();
+    backdrop.on('pointerdown', (p: Phaser.Input.Pointer) => {
+      if (Math.abs(p.x - W / 2) < PW / 2 && Math.abs(p.y - H / 2) < PH / 2) return;
+      container.destroy();
+    });
     container.add(backdrop);
 
-    // Panel shell
+    // Panel shell（紫色邊框＋深紫背景）
     const bg = this.add.graphics();
-    bg.fillStyle(IRON, 1); bg.fillRect(px - P(3), py - P(3), PW + P(6), PH + P(6));
-    bg.fillStyle(WL, 1);   bg.fillRect(px - P(2), py - P(2), PW + P(4), PH + P(4));
-    bg.fillStyle(WD, 1);   bg.fillRect(px, py, PW, PH);
-    bg.fillStyle(WB, 0.9); bg.fillRect(px, py, PW, P(40));
-    bg.fillStyle(WB, 1);   bg.fillRect(px, py + P(38), PW, P(2));
+    bg.fillStyle(AC_BORDER, 1);  bg.fillRoundedRect(px - P(3), py - P(3), PW + P(6), PH + P(6), P(14));
+    bg.fillStyle(AC_BORDER2, 1); bg.fillRoundedRect(px - P(1), py - P(1), PW + P(2), PH + P(2), P(12));
+    bg.fillStyle(AC_BG, 1);      bg.fillRoundedRect(px, py, PW, PH, P(12));
+    // 標題欄底色
+    bg.fillStyle(AC_HEAD, 1);    bg.fillRoundedRect(px, py, PW, HEADER_H, P(12));
+    bg.fillStyle(AC_HEAD, 1);    bg.fillRect(px, py + P(8), PW, HEADER_H - P(8));
+    // 標題欄底線
+    bg.lineStyle(P(1), AC_BORDER, 0.6); bg.lineBetween(px + P(12), py + HEADER_H, px + PW - P(12), py + HEADER_H);
     container.add(bg);
 
-    container.add(this.add.text(0, py + P(20), '祭祀台', {
-      fontSize: F(17), fontStyle: 'bold', color: '#ffdd55', stroke: '#1a0800', strokeThickness: 2,
+    // 標題
+    container.add(this.add.text(0, py + P(22), '✦  祭 祀 台  ✦', {
+      fontSize: F(17), fontStyle: 'bold', color: '#ffdd55',
+      stroke: '#2a0066', strokeThickness: P(3),
     }).setOrigin(0.5));
 
-    const closeBtn = this.add.text(px + PW - P(18), py + P(20), '✕', {
-      fontSize: F(16), fontStyle: 'bold', color: '#cc4444', stroke: '#1a0800', strokeThickness: 2,
+    // 副標題
+    container.add(this.add.text(0, py + P(52), '消耗門票 · 挑戰傳說 6 ★ 王', {
+      fontSize: F(13), fontStyle: 'bold', color: '#9977cc',
+      stroke: '#0a0018', strokeThickness: P(2),
+    }).setOrigin(0.5));
+
+    // 關閉按鈕
+    const closeBtn = this.add.text(px + PW - P(18), py + P(22), '✕', {
+      fontSize: F(16), fontStyle: 'bold', color: '#cc55aa',
+      stroke: '#1a0033', strokeThickness: P(2),
     }).setOrigin(0.5)
       .setInteractive({ hitArea: new Phaser.Geom.Rectangle(-P(14), -P(14), P(36), P(36)), hitAreaCallback: Phaser.Geom.Rectangle.Contains, useHandCursor: true });
     closeBtn.on('pointerdown', () => container.destroy());
     container.add(closeBtn);
 
-    container.add(this.add.text(0, py + P(54), '5 星 BOSS 機率掉落', {
-      fontSize: F(15), fontStyle: 'bold', color: '#ccbbaa', stroke: '#1a0800', strokeThickness: 1,
-    }).setOrigin(0.5));
-
     const SERIES: { itemId: string; iconKey: string; seriesName: string; bossName: string; color: number }[] = [
-      { itemId: ITEM_TICKET_SLIME,   iconKey: 'icon_ticket_slime',   seriesName: '史萊姆黏液',  bossName: '傳說史萊姆王',   color: 0x44dd88 },
-      { itemId: ITEM_TICKET_FLOWER,  iconKey: 'icon_ticket_flower',  seriesName: '植物精隨',    bossName: '傳說花王',       color: 0x88dd44 },
-      { itemId: ITEM_TICKET_ORC,     iconKey: 'icon_ticket_orc',     seriesName: '獸人王冠',    bossName: '傳說獸人王',     color: 0xddaa44 },
-      { itemId: ITEM_TICKET_VAMPIRE, iconKey: 'icon_ticket_vampire', seriesName: '邀請函',      bossName: '傳說吸血鬼王',   color: 0xdd66ff },
+      { itemId: ITEM_TICKET_SLIME,   iconKey: 'icon_ticket_slime',   seriesName: '史萊姆黏液',  bossName: '傳說史萊姆王',   color: 0x44ee99 },
+      { itemId: ITEM_TICKET_FLOWER,  iconKey: 'icon_ticket_flower',  seriesName: '植物精隨',    bossName: '傳說花王',       color: 0x99ee44 },
+      { itemId: ITEM_TICKET_ORC,     iconKey: 'icon_ticket_orc',     seriesName: '獸人王冠',    bossName: '傳說獸人王',     color: 0xeebb44 },
+      { itemId: ITEM_TICKET_VAMPIRE, iconKey: 'icon_ticket_vampire', seriesName: '邀請函',      bossName: '傳說吸血鬼王',   color: 0xdd77ff },
     ];
 
-    const ROW_H = P(82), ROW_GAP = P(6);
-    const BTN_W = P(72), BTN_H = P(30);
-    const ICON_SZ = P(48);
-    const ROW_L  = px + P(10);
-    const ROW_W  = PW - P(20);
-    const ICON_CX = ROW_L + P(8) + ICON_SZ / 2;
-    const TEXT_X  = ROW_L + P(8) + ICON_SZ + P(10);
-    const BTN_CX  = px + PW - P(12) - BTN_W / 2;
+    const ROW_H = P(84), ROW_GAP = P(8);
+    const BTN_W = P(76), BTN_H = P(32);
+    const ICON_SZ = P(52);
+    const ROW_L   = px + P(10);
+    const ROW_W   = PW - P(20);
+    const ICON_CX = ROW_L + P(10) + ICON_SZ / 2;
+    const TEXT_X  = ROW_L + P(10) + ICON_SZ + P(10);
+    const BTN_CX  = px + PW - P(14) - BTN_W / 2;
     const CONTENT_H = SERIES.length * ROW_H + (SERIES.length - 1) * ROW_GAP;
     const maxScroll = Math.max(0, CONTENT_H - CLIP_H);
 
-    // Scroll container + mask
     let scrollY = 0;
     const scrollCnt = this.add.container(0, CLIP_TOP);
     container.add(scrollCnt);
@@ -6539,88 +6513,130 @@ export class PrepScene extends Phaser.Scene {
       scrollCnt.y = CLIP_TOP - scrollY;
     };
 
+    const LEGENDARY_BOSS_MAP: Record<string, string> = {
+      [ITEM_TICKET_SLIME]:   'boss_slime_legendary',
+      [ITEM_TICKET_FLOWER]:  'boss_flower_legendary',
+      [ITEM_TICKET_ORC]:     'boss_orc_legendary',
+      [ITEM_TICKET_VAMPIRE]: 'boss_vampire_legendary',
+    };
+
     SERIES.forEach((s, i) => {
       const ry = i * (ROW_H + ROW_GAP);
       const qty = InventoryStore.getItemQty(s.itemId);
       const hasTicket = qty > 0;
-      const colorHex = `#${s.color.toString(16).padStart(6, '0')}`;
+      const cHex = `#${s.color.toString(16).padStart(6, '0')}`;
 
-      // Row background
+      // ── 行底色 ──────────────────────────────────────────────
       const rowBg = this.add.graphics();
-      rowBg.fillStyle(hasTicket ? 0x2a1c0e : 0x1e1408, 1);
-      rowBg.fillRoundedRect(ROW_L, ry, ROW_W, ROW_H, P(8));
-      // Left accent bar (colored)
-      rowBg.fillStyle(s.color, hasTicket ? 0.9 : 0.2);
-      rowBg.fillRoundedRect(ROW_L, ry + P(8), P(4), ROW_H - P(16), P(2));
-      // Border
-      rowBg.lineStyle(1.5, hasTicket ? s.color : 0x3a2a1a, hasTicket ? 0.5 : 0.3);
-      rowBg.strokeRoundedRect(ROW_L, ry, ROW_W, ROW_H, P(8));
+      if (hasTicket) {
+        // 有門票：深紫底 + 彩色左邊框 + 彩色外框線
+        rowBg.fillStyle(0x18103a, 1);
+        rowBg.fillRoundedRect(ROW_L, ry, ROW_W, ROW_H, P(10));
+        rowBg.fillStyle(s.color, 1);
+        rowBg.fillRoundedRect(ROW_L, ry + P(10), P(5), ROW_H - P(20), P(2));
+        rowBg.lineStyle(P(1.5), s.color, 0.7);
+        rowBg.strokeRoundedRect(ROW_L, ry, ROW_W, ROW_H, P(10));
+      } else {
+        // 無門票：極深色，邊框幾乎不可見
+        rowBg.fillStyle(0x0e0a1c, 1);
+        rowBg.fillRoundedRect(ROW_L, ry, ROW_W, ROW_H, P(10));
+        rowBg.fillStyle(s.color, 0.12);
+        rowBg.fillRoundedRect(ROW_L, ry + P(10), P(5), ROW_H - P(20), P(2));
+        rowBg.lineStyle(P(1), 0x2a1e44, 0.5);
+        rowBg.strokeRoundedRect(ROW_L, ry, ROW_W, ROW_H, P(10));
+      }
       scrollCnt.add(rowBg);
 
-      // Icon
-      const iconAlpha = hasTicket ? 1 : 0.35;
+      // ── 圖示 ────────────────────────────────────────────────
       if (this.textures.exists(s.iconKey)) {
         scrollCnt.add(
           this.add.image(ICON_CX, ry + ROW_H / 2, s.iconKey)
-            .setDisplaySize(ICON_SZ, ICON_SZ).setAlpha(iconAlpha),
+            .setDisplaySize(ICON_SZ, ICON_SZ)
+            .setAlpha(hasTicket ? 1 : 0.15),
         );
       }
 
-      // Item name (top line, colored)
-      scrollCnt.add(this.add.text(TEXT_X, ry + P(22), s.seriesName, {
+      // ── 文字 ────────────────────────────────────────────────
+      scrollCnt.add(this.add.text(TEXT_X, ry + P(24), s.seriesName, {
         fontSize: F(16), fontStyle: 'bold',
-        color: hasTicket ? colorHex : '#554433',
-        stroke: '#1a0800', strokeThickness: 1,
+        color: hasTicket ? cHex : '#2e2244',
+        stroke: '#08001a', strokeThickness: P(2),
       }).setOrigin(0, 0.5));
 
-      // Boss name (bottom line, subdued)
-      scrollCnt.add(this.add.text(TEXT_X, ry + P(46), s.bossName, {
-        fontSize: F(15), fontStyle: 'bold',
-        color: hasTicket ? '#b09070' : '#443322',
-        stroke: '#1a0800', strokeThickness: 1,
+      scrollCnt.add(this.add.text(TEXT_X, ry + P(48), s.bossName, {
+        fontSize: F(14), fontStyle: 'bold',
+        color: hasTicket ? '#c0a8e8' : '#1e1530',
+        stroke: '#08001a', strokeThickness: P(1),
       }).setOrigin(0, 0.5));
 
-      // Qty pill (top-right of button area)
-      const qtyTxt = scrollCnt.add(this.add.text(BTN_CX, ry + P(18), `×${qty}`, {
+      // ── 數量 ────────────────────────────────────────────────
+      scrollCnt.add(this.add.text(BTN_CX, ry + P(20), `×${qty}`, {
         fontSize: F(15), fontStyle: 'bold',
-        color: hasTicket ? '#ffee66' : '#443322',
-        stroke: '#1a0800', strokeThickness: 1,
-      }).setOrigin(0.5));
-      if (!hasTicket) qtyTxt.setAlpha(0.5);
+        color: hasTicket ? '#ffdd44' : '#2e2244',
+        stroke: '#08001a', strokeThickness: P(2),
+      }).setOrigin(0.5).setAlpha(hasTicket ? 1 : 0.4));
 
-      // Challenge button
-      const btnY = ry + ROW_H - P(22);
-      const btnAlpha = hasTicket ? 1.0 : 0.3;
-      const btnG = this.add.graphics().setAlpha(btnAlpha);
-      btnG.fillStyle(hasTicket ? 0x6a2200 : 0x2a1800, 1);
-      btnG.fillRoundedRect(BTN_CX - BTN_W / 2, btnY - BTN_H / 2, BTN_W, BTN_H, P(5));
-      btnG.lineStyle(1.5, hasTicket ? 0xffaa33 : 0x3a2211, 1);
-      btnG.strokeRoundedRect(BTN_CX - BTN_W / 2, btnY - BTN_H / 2, BTN_W, BTN_H, P(5));
+      // ── 挑戰按鈕 ────────────────────────────────────────────
+      const btnY = ry + ROW_H - P(20);
+      const btnG = this.add.graphics();
+      if (hasTicket) {
+        btnG.fillStyle(0x7722aa, 1);
+        btnG.fillRoundedRect(BTN_CX - BTN_W / 2, btnY - BTN_H / 2, BTN_W, BTN_H, P(6));
+        btnG.lineStyle(P(1.5), s.color, 0.9);
+        btnG.strokeRoundedRect(BTN_CX - BTN_W / 2, btnY - BTN_H / 2, BTN_W, BTN_H, P(6));
+      } else {
+        btnG.fillStyle(0x140c28, 1);
+        btnG.fillRoundedRect(BTN_CX - BTN_W / 2, btnY - BTN_H / 2, BTN_W, BTN_H, P(6));
+        btnG.lineStyle(P(1), 0x2a1e44, 0.5);
+        btnG.strokeRoundedRect(BTN_CX - BTN_W / 2, btnY - BTN_H / 2, BTN_W, BTN_H, P(6));
+      }
       scrollCnt.add(btnG);
-      scrollCnt.add(this.add.text(BTN_CX, btnY, '挑  戰', {
-        fontSize: F(15), fontStyle: 'bold',
-        color: hasTicket ? '#ffdd55' : '#554433',
-        stroke: '#1a0800', strokeThickness: 1,
-      }).setOrigin(0.5).setAlpha(btnAlpha));
+
+      scrollCnt.add(this.add.text(BTN_CX, btnY, hasTicket ? '⚔ 挑戰' : '需門票', {
+        fontSize: F(14), fontStyle: 'bold',
+        color: hasTicket ? '#eeccff' : '#2e2244',
+        stroke: '#08001a', strokeThickness: P(2),
+      }).setOrigin(0.5).setAlpha(hasTicket ? 1 : 0.35));
 
       if (hasTicket) {
         const hit = this.add.rectangle(BTN_CX, btnY, BTN_W, BTN_H).setInteractive({ useHandCursor: true });
-        hit.on('pointerup', () => this._showToast('6 星挑戰功能即將開放'));
+        hit.on('pointerup', () => {
+          const bossId = LEGENDARY_BOSS_MAP[s.itemId];
+          if (!bossId) return;
+          if (InventoryStore.getItemQty(s.itemId) <= 0) { this._showToast('門票不足'); return; }
+          InventoryStore.spendItem(s.itemId, 1);
+          SaveStore.save();
+          AudioService.playSfx(this, 'sfx_battle_start');
+          container.destroy();
+          this.scene.start('BattleLoadScene', {
+            questStar: 6, bossMonsterId: bossId,
+            ownSkinId: SkinStore.get(), legendaryMode: true,
+          });
+        });
         scrollCnt.add(hit);
       }
     });
 
-    // Scroll area blocker + drag/wheel handlers
-    const scrollZone = this.add.rectangle(0, CLIP_TOP + CLIP_H / 2, PW, CLIP_H).setInteractive();
-    container.add(scrollZone);
-    let _dragY = 0;
-    scrollZone.on('pointerdown', (p: Phaser.Input.Pointer) => { _dragY = p.y; });
-    scrollZone.on('pointermove', (p: Phaser.Input.Pointer) => {
-      if (!p.isDown) return;
+    // Drag-to-scroll: use scene-level pointer events to avoid blocking hit zones
+    let _dragY = -1;
+    const onPD = (p: Phaser.Input.Pointer) => {
+      const ly = p.y - H / 2;
+      _dragY = (ly >= CLIP_TOP && ly <= CLIP_TOP + CLIP_H) ? p.y : -1;
+    };
+    const onPM = (p: Phaser.Input.Pointer) => {
+      if (!p.isDown || _dragY < 0) return;
       applyScroll(_dragY - p.y);
       _dragY = p.y;
+    };
+    const onW = (_p: unknown, _o: unknown, _dx: number, dy: number) => applyScroll((dy as number) * 0.6);
+    this.input.on('pointerdown', onPD);
+    this.input.on('pointermove', onPM);
+    this.input.on('wheel', onW);
+    container.once('destroy', () => {
+      this.input.off('pointerdown', onPD);
+      this.input.off('pointermove', onPM);
+      this.input.off('wheel', onW);
     });
-    this.input.on('wheel', (_p: unknown, _o: unknown, _dx: number, dy: number) => applyScroll((dy as number) * 0.6));
 
   }
 
