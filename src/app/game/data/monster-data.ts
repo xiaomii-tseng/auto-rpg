@@ -74,6 +74,30 @@ export const ITEM_POTION_ATK   = 'potion_atk';      // 攻擊力藥水 ATK+20% 3
 export const ITEM_POTION_DEF   = 'potion_def';      // 防禦力藥水 DEF+20 30秒
 export const ITEM_POTION_SPEED = 'potion_speed';    // 速度藥水 Speed+20 30秒
 
+// ── Map tickets (drop from 5-star boss, unlock 6-star challenge) ────────────
+export const ITEM_TICKET_SLIME   = 'ticket_slime';   // 史萊姆黏液
+export const ITEM_TICKET_FLOWER  = 'ticket_flower';  // 植物精隨
+export const ITEM_TICKET_ORC     = 'ticket_orc';     // 獸人王冠
+export const ITEM_TICKET_VAMPIRE = 'ticket_vampire'; // 邀請函
+
+export const BOSS_TICKET_MAP: Record<string, { itemId: string; itemName: string }> = {
+  boss_slime_green:  { itemId: ITEM_TICKET_SLIME,   itemName: '史萊姆黏液' },
+  boss_slime_red:    { itemId: ITEM_TICKET_SLIME,   itemName: '史萊姆黏液' },
+  boss_slime_blue:   { itemId: ITEM_TICKET_SLIME,   itemName: '史萊姆黏液' },
+  boss_slime_white:  { itemId: ITEM_TICKET_SLIME,   itemName: '史萊姆黏液' },
+  boss_zombie_slime: { itemId: ITEM_TICKET_SLIME,   itemName: '史萊姆黏液' },
+  boss_lava_slime:   { itemId: ITEM_TICKET_SLIME,   itemName: '史萊姆黏液' },
+  boss_flower_one:   { itemId: ITEM_TICKET_FLOWER,  itemName: '植物精隨' },
+  boss_flower_two:   { itemId: ITEM_TICKET_FLOWER,  itemName: '植物精隨' },
+  boss_flower_three: { itemId: ITEM_TICKET_FLOWER,  itemName: '植物精隨' },
+  boss_orc1:         { itemId: ITEM_TICKET_ORC,     itemName: '獸人王冠' },
+  boss_orc2:         { itemId: ITEM_TICKET_ORC,     itemName: '獸人王冠' },
+  boss_orc3:         { itemId: ITEM_TICKET_ORC,     itemName: '獸人王冠' },
+  boss_vampire1:     { itemId: ITEM_TICKET_VAMPIRE, itemName: '邀請函' },
+  boss_vampire2:     { itemId: ITEM_TICKET_VAMPIRE, itemName: '邀請函' },
+  boss_vampire3:     { itemId: ITEM_TICKET_VAMPIRE, itemName: '邀請函' },
+};
+
 export function getHealthPotionForStar(questStar: number): { id: string; name: string; healAmt: number } {
   if (questStar >= 5) return { id: ITEM_POTION_HEALTH_L, name: '大型回復藥水', healAmt: 300 };
   if (questStar >= 3) return { id: ITEM_POTION_HEALTH_M, name: '中型回復藥水', healAmt: 200 };

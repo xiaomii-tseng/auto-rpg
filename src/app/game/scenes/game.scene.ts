@@ -34,7 +34,7 @@ import { AudioService } from '../data/audio.service';
 import { PotionBarStore } from '../data/potion-bar-store';
 import { TowerStore } from '../data/tower-store';
 import { DailyQuestStore } from '../data/daily-quest-store';
-import { ITEM_POTION_HEALTH_S, ITEM_POTION_HEALTH_M, ITEM_POTION_HEALTH_L, ITEM_POTION_REVIVE, ITEM_POTION_ATK, ITEM_POTION_DEF, ITEM_POTION_SPEED, ITEM_STONE_BROKEN, ITEM_STONE_INTACT, ITEM_STONE_RECAST, ITEM_QUEST_REROLL, ITEM_BLANK_CARD, getHealthPotionForStar } from '../data/monster-data';
+import { ITEM_POTION_HEALTH_S, ITEM_POTION_HEALTH_M, ITEM_POTION_HEALTH_L, ITEM_POTION_REVIVE, ITEM_POTION_ATK, ITEM_POTION_DEF, ITEM_POTION_SPEED, ITEM_STONE_BROKEN, ITEM_STONE_INTACT, ITEM_STONE_RECAST, ITEM_QUEST_REROLL, ITEM_BLANK_CARD, getHealthPotionForStar, BOSS_TICKET_MAP } from '../data/monster-data';
 import type { MapParams } from '../../../../shared/types';
 
 const CO_OP_HP_MULTS: number[] = [1, 1, 1.6, 2.4]; // indexed by player count; extend for future 4+ support
@@ -368,6 +368,10 @@ export class GameScene extends Phaser.Scene {
     if (!this.textures.exists('icon_stone_guard')) this.load.image('icon_stone_guard', 'other/ore3.webp');
     if (!this.textures.exists('icon_quest_reroll')) this.load.image('icon_quest_reroll', 'other/ore4.webp');
     if (!this.textures.exists('icon_equip_drop'))   this.load.image('icon_equip_drop',   'equip/weapons/Icons/Iicon_32_01.png');
+    if (!this.textures.exists('icon_ticket_slime'))   this.load.image('icon_ticket_slime',   'icon1/PNG/Transperent/Icon21.png');
+    if (!this.textures.exists('icon_ticket_flower'))  this.load.image('icon_ticket_flower',  'icon1/PNG/Transperent/Icon37.png');
+    if (!this.textures.exists('icon_ticket_orc'))     this.load.image('icon_ticket_orc',     'icon1/PNG/Transperent/Icon44.png');
+    if (!this.textures.exists('icon_ticket_vampire')) this.load.image('icon_ticket_vampire', 'icon1/PNG/Transperent/Icon42.png');
     for (let i = 1; i <= 40; i++) {
       const key = `equip_sword${i}`;
       if (!this.textures.exists(key))
@@ -6593,6 +6597,14 @@ export class GameScene extends Phaser.Scene {
       for (let i = 0; i < bossDropCount; i++) {
         const slot = EQUIP_ALL_SLOTS[Math.floor(Math.random() * EQUIP_ALL_SLOTS.length)];
         this.spawnEquipDrop(this.boss.x, this.boss.y, generateEquipment(slot, randomQuality(bossQualW, bossRarityBonusVal)), true);
+      }
+
+      // Ticket drop: 5-star boss has 100% chance (testing) to drop series ticket
+      if (this.questStar === 5) {
+        const ticket = BOSS_TICKET_MAP[this.bossMonsterId];
+        if (ticket && Math.random() < 1.0) {
+          this._spawnBurstItem(this.boss.x, this.boss.y, ticket.itemId, ticket.itemName);
+        }
       }
     }
 
