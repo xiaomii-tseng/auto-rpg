@@ -4171,9 +4171,21 @@ export class PrepScene extends Phaser.Scene {
     const cellGap = P(8);
     const gridLeft = px + P(10);
     const cols = Math.floor((PW - P(20) + cellGap) / (cellSz + cellGap));
+    const gridVisH = PH - P(44) - P(120) - P(4);
 
     const gridContainer = this.add.container(0, 0);
     container.add(gridContainer);
+
+    // Mask clips grid to its visible area (world coords)
+    const gridMaskGfx = this.add.graphics();
+    gridMaskGfx.fillRect(W / 2 + px, H / 2 + gridY, PW, gridVisH);
+    const gridMask = new Phaser.Display.Masks.GeometryMask(this, gridMaskGfx);
+
+    let gridScrollY   = 0;
+    let gridMaxScroll = 0;
+    let gridDragStartPY     = 0;
+    let gridDragStartScroll = 0;
+    let gridIsDragging      = false;
 
     // ── Item detail overlay ───────────────────────────────
     interface ItemMeta { category: string; categoryColor: string; desc: string; descColor: string }
@@ -4190,10 +4202,10 @@ export class PrepScene extends Phaser.Scene {
       potion_atk:      { category: '增益藥水', categoryColor: '#ffcc88', desc: '攻擊力藥水\n攻擊力 +20%，持續 30 秒', descColor: '#ffcc66' },
       potion_def:      { category: '增益藥水', categoryColor: '#ffcc88', desc: '防禦力藥水\n防禦力 +20，持續 30 秒', descColor: '#ffcc66' },
       potion_speed:    { category: '增益藥水', categoryColor: '#ffcc88', desc: '速度藥水\n移動速度 +20，持續 30 秒', descColor: '#ffcc66' },
-      ticket_slime:    { category: '★  地圖門票', categoryColor: '#ffdd55', desc: '史萊姆系列門票\n可挑戰一次 6 星史萊姆王\n（尚未實裝挑戰功能）', descColor: '#ffee88' },
-      ticket_flower:   { category: '★  地圖門票', categoryColor: '#ffdd55', desc: '花怪系列門票\n可挑戰一次 6 星花王\n（尚未實裝挑戰功能）', descColor: '#ffee88' },
-      ticket_orc:      { category: '★  地圖門票', categoryColor: '#ffdd55', desc: '獸人系列門票\n可挑戰一次 6 星獸人王\n（尚未實裝挑戰功能）', descColor: '#ffee88' },
-      ticket_vampire:  { category: '★  地圖門票', categoryColor: '#ffdd55', desc: '吸血鬼系列門票\n可挑戰一次 6 星吸血鬼王\n（尚未實裝挑戰功能）', descColor: '#ffee88' },
+      ticket_slime:    { category: '★  地圖門票', categoryColor: '#ffdd55', desc: '史萊姆系列門票\n可挑戰一次 6 星史萊姆王', descColor: '#ffee88' },
+      ticket_flower:   { category: '★  地圖門票', categoryColor: '#ffdd55', desc: '花怪系列門票\n可挑戰一次 6 星花王', descColor: '#ffee88' },
+      ticket_orc:      { category: '★  地圖門票', categoryColor: '#ffdd55', desc: '獸人系列門票\n可挑戰一次 6 星獸人王', descColor: '#ffee88' },
+      ticket_vampire:  { category: '★  地圖門票', categoryColor: '#ffdd55', desc: '吸血鬼系列門票\n可挑戰一次 6 星吸血鬼王', descColor: '#ffee88' },
     };
 
     const showItemDetail = (item: import('../data/inventory-store').InventoryItem) => {
@@ -4264,17 +4276,25 @@ export class PrepScene extends Phaser.Scene {
 
     const buildGrid = () => {
       gridContainer.removeAll(true);
+      gridScrollY = 0;
+      gridContainer.y = 0;
       const allItems = InventoryStore.getAllItems();
 
       if (allItems.length === 0) {
+        gridMaxScroll = 0;
         gridContainer.add(this.add.text(0, gridY + 40, '背包是空的', {
           fontSize: F(15), fontStyle: 'bold', color: '#7a5830', stroke: '#1a0800', strokeThickness: 1,
         }).setOrigin(0.5));
         return;
       }
 
+      const rowCount = Math.ceil(allItems.length / cols);
+      gridMaxScroll = Math.max(0, rowCount * (cellSz + cellGap) - gridVisH);
+
       const gg = this.add.graphics();
+      gg.setMask(gridMask);
       gridContainer.add(gg);
+
       allItems.forEach((item, idx) => {
         const col = idx % cols;
         const row = Math.floor(idx / cols);
@@ -4291,24 +4311,42 @@ export class PrepScene extends Phaser.Scene {
           const isBig = item.id.startsWith('stone_') || item.id === 'quest_reroll' || item.id.startsWith('ticket_');
           const iconSz = isBig ? P(44) : P(28);
           gridContainer.add(
-            this.add.image(cx2 + cellSz / 2, cy2 + P(32), iconKey).setDisplaySize(iconSz, iconSz),
+            this.add.image(cx2 + cellSz / 2, cy2 + P(32), iconKey).setDisplaySize(iconSz, iconSz).setMask(gridMask),
           );
         }
 
+        const nameColor = '#ffe090';
         gridContainer.add(this.add.text(cx2 + cellSz / 2, cy2 + cellSz - P(4), item.name, {
-          fontSize: F(15), fontStyle: 'bold', color: '#ffe090', stroke: '#1a0800', strokeThickness: 2,
+          fontSize: F(15), fontStyle: 'bold', color: nameColor, stroke: '#1a0800', strokeThickness: 2,
           wordWrap: { width: cellSz - P(6) }, align: 'center',
-        }).setOrigin(0.5, 1));
+        }).setOrigin(0.5, 1).setMask(gridMask));
 
         gridContainer.add(this.add.text(cx2 + cellSz - P(3), cy2 + P(4), `×${item.qty}`, {
           fontSize: F(15), fontStyle: 'bold', color: '#ffe866', stroke: '#1a0800', strokeThickness: 2,
-        }).setOrigin(1, 0));
+        }).setOrigin(1, 0).setMask(gridMask));
 
         const tap = this.add.rectangle(cx2 + cellSz / 2, cy2 + cellSz / 2, cellSz, cellSz)
-          .setInteractive({ useHandCursor: true });
-        tap.on('pointerup', () => showItemDetail(item));
+          .setInteractive({ useHandCursor: true }).setMask(gridMask);
+        tap.on('pointerdown', (ptr: Phaser.Input.Pointer) => {
+          gridDragStartPY     = ptr.y;
+          gridDragStartScroll = gridScrollY;
+          gridIsDragging      = false;
+        });
+        tap.on('pointermove', (ptr: Phaser.Input.Pointer) => {
+          if (!ptr.isDown) return;
+          if (Math.abs(ptr.y - gridDragStartPY) > P(6)) {
+            gridIsDragging = true;
+            gridScrollY    = Phaser.Math.Clamp(gridDragStartScroll - (ptr.y - gridDragStartPY), 0, gridMaxScroll);
+            gridContainer.y = -gridScrollY;
+          }
+        });
+        tap.on('pointerup', () => {
+          if (!gridIsDragging) showItemDetail(item);
+          gridIsDragging = false;
+        });
         gridContainer.add(tap);
       });
+
     };
 
     buildGrid();

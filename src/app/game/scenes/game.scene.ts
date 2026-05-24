@@ -17,6 +17,10 @@ import { BossOrc3 } from '../objects/boss-orc3';
 import { BossVampire1 } from '../objects/boss-vampire1';
 import { BossVampire2 } from '../objects/boss-vampire2';
 import { BossVampire3 } from '../objects/boss-vampire3';
+import { BossOrcLegendary } from '../objects/boss-orc-legendary';
+import { BossVampireLegendary } from '../objects/boss-vampire-legendary';
+import { BossFlowerLegendary } from '../objects/boss-flower-legendary';
+import { BossSlimeLegendary } from '../objects/boss-slime-legendary';
 import { MinionSlime } from '../objects/minion-slime';
 import { VirtualJoystick } from '../ui/joystick';
 import { drawItemCell } from '../ui/item-cell';
@@ -4797,7 +4801,47 @@ export class GameScene extends Phaser.Scene {
     }
     // ── 傳說系列王：複用現有最強 Boss 類，放大 1.2 倍 ──────────
     if (bossDef.id === 'boss_slime_legendary') {
-      const b = new BossZombieSlime(this, cx, cy, totalHp, bossDef.element, bossDef.spriteKey, bossDef.tint);
+      const b = new BossSlimeLegendary(this, cx, cy, totalHp, bossDef.element, bossDef.spriteKey, bossDef.tint);
+      b.onSummonElite = (x, y) => {
+        if (!this.bossActive) return;
+        this.spawnMinionAt('elite_slime_green', x, y, true);
+      };
+      b.onPoisonTick = (x, y, r, dmg) => {
+        if (!this.bossActive) return;
+        this.hitInRadius(x, y, r, dmg);
+      };
+      b.onJumpHit = (x, y, r, dmg) => {
+        if (!this.bossActive) return;
+        this.hitInRadius(x, y, r, dmg);
+      };
+      b.onFanHit = (bx, by, angle, half, range, dmg) => {
+        if (!this.bossActive) return;
+        const checkFan = (tx: number, ty: number) => {
+          const dx = tx - bx, dy = ty - by;
+          if (Math.sqrt(dx * dx + dy * dy) > range) return false;
+          return Math.abs(Phaser.Math.Angle.Wrap(Math.atan2(dy, dx) - angle)) <= half;
+        };
+        if (checkFan(this.player.x, this.player.y)) this.player.takeDamage(dmg);
+        for (const ally of this._allyMinions) {
+          if (!ally.isDead && checkFan(ally.x, ally.y)) ally.takeDamage(dmg);
+        }
+      };
+      b.onSpikeHit = (x, y, dmg) => {
+        if (!this.bossActive) return;
+        this.hitInRadius(x, y, P(18), dmg);
+      };
+      b.onMineExplode = (x, y, r, dmg) => {
+        if (!this.bossActive) return;
+        this.hitInRadius(x, y, r, dmg);
+      };
+      b.onCrossHit = (dmg) => {
+        if (!this.bossActive) return;
+        this.hitGlobal(dmg);
+      };
+      b.onOrbExplode = (x, y, r, dmg) => {
+        if (!this.bossActive) return;
+        this.hitInRadius(x, y, r, dmg);
+      };
       b.onSummonZombie = (x, y) => {
         if (!this.bossActive) return;
         this.spawnMinionAt('elite_slime_zombie', x, y, true);
@@ -4806,21 +4850,62 @@ export class GameScene extends Phaser.Scene {
         if (!this.bossActive) return;
         this.hitGlobal(dmg);
       };
+      b.onBarrageHit = (dmg) => {
+        if (!this.bossActive) return;
+        this.hitGlobal(dmg);
+      };
+      b.onPillarExplode = (x, y, r, dmg) => {
+        if (!this.bossActive) return;
+        this.hitInRadius(x, y, r, dmg);
+      };
       b.setScale(b.scaleX * 1.2, b.scaleY * 1.2);
       return b;
     }
     if (bossDef.id === 'boss_flower_legendary') {
-      const b = new BossFlowerOne(this, cx, cy, totalHp, bossDef.element, bossDef.spriteKey, bossDef.tint);
+      const b = new BossFlowerLegendary(this, cx, cy, totalHp, bossDef.element, bossDef.spriteKey, bossDef.tint);
+      b.getAliveCount = () => {
+        let count = this._pendingFlowerSeeds;
+        for (const m of this._flowerThreeMinions) { if (!m.isDead) count++; }
+        return count;
+      };
+      b.onSpawnSeed = (positions, _count) => {
+        if (!this.bossActive) return;
+        this.spawnFlowerThreeSeeds(positions);
+      };
+      b.onPlaceSlowZones = (positions, radius, dur, bossX, bossY) => {
+        if (!this.bossActive) return;
+        this.placeSlowZones(positions, radius, dur, bossX, bossY);
+      };
+      b.onPlaceSpike = (tx, ty, dmg) => {
+        if (!this.bossActive) return;
+        this.spikeAt(tx, ty, Math.round(dmg / 3.5), false, 3.15);
+      };
       b.onFirePetal = (fromX, fromY, angle, speed, dmg, blindDist, large) => {
         if (!this.bossActive) return;
         this.fireBossPetal(fromX, fromY, angle, speed, dmg, blindDist, large);
       };
       b.onRepelPlayer = () => { /* 暫時停用 */ };
+      b.onPlaceBuds = (positions, dmg, r, zoneDur) => {
+        if (!this.bossActive) return;
+        this.placeBuds(positions, dmg, r, zoneDur);
+      };
+      b.onSprayMist = (fromX, fromY, angle, range, dmg) => {
+        if (!this.bossActive) return;
+        this.sprayMist(fromX, fromY, angle, range, dmg);
+      };
+      b.onSpawnVines = (fromX, fromY, len, w, dmg, baseAngle, count) => {
+        if (!this.bossActive) return;
+        this.spawnVines(fromX, fromY, len, w, dmg, baseAngle, count);
+      };
+      b.onPoisonBurst = (fromX, fromY, dist, r, dmg, count) => {
+        if (!this.bossActive) return;
+        this.poisonBurst(fromX, fromY, dist, r, dmg, count);
+      };
       b.setScale(b.scaleX * 1.2, b.scaleY * 1.2);
       return b;
     }
     if (bossDef.id === 'boss_orc_legendary') {
-      const b = new BossOrc3(this, cx, cy, totalHp, bossDef.element, bossDef.spriteKey, bossDef.tint);
+      const b = new BossOrcLegendary(this, cx, cy, totalHp, bossDef.element, bossDef.spriteKey, bossDef.tint);
       b.onShowKanji = (char, bx, by) => { this._showBossKanji(char, bx, by); };
       b.onBladeStorm = (bx, by, angle, dmg) => {
         if (!this.bossActive) return;
@@ -4938,11 +5023,72 @@ export class GameScene extends Phaser.Scene {
         this.tweens.add({ targets: flash, alpha: 0, duration: 200, ease: 'Quad.Out', onComplete: () => flash.destroy() });
         this.tweens.add({ targets: b, alpha: 1, duration: 300, ease: 'Quad.Out' });
       };
+      // Orc1 callbacks
+      b.onWhirlTick = (x, y, r, dmg) => {
+        if (!this.bossActive) return;
+        this.hitInRadius(x, y, r, dmg);
+      };
+      b.onWhirlSlash = (wx, wy, tx, ty) => {
+        if (!this.bossActive) return;
+        this.whirlSlashAt(wx, wy, tx, ty, 0, true, Math.round(52 * DPR), b.scaleDmg(40), 320);
+      };
+      b.onSummonOrc = (x, y) => {
+        if (!this.bossActive) return;
+        this.spawnMinionAt('orc1_s', x, y, false);
+      };
+      b.onFanSlash = (bx, by, angle, half, range, dmg) => {
+        if (!this.bossActive) return;
+        const checkFan = (tx: number, ty: number) => {
+          const dx = tx - bx, dy = ty - by;
+          if (Math.sqrt(dx * dx + dy * dy) > range) return false;
+          return Math.abs(Phaser.Math.Angle.Wrap(Math.atan2(dy, dx) - angle)) <= half;
+        };
+        if (checkFan(this.player.x, this.player.y)) this.player.takeDamage(dmg);
+        for (const ally of this._allyMinions) {
+          if (!ally.isDead && checkFan(ally.x, ally.y)) ally.takeDamage(dmg);
+        }
+      };
+      b.onBoulderLand = (x, y, r, dmg) => {
+        if (!this.bossActive) return;
+        this.hitInRadius(x, y, r, dmg);
+      };
+      b.onSlowZoneTick = (x, y, r) => {
+        if (!this.bossActive) return;
+        const d = Phaser.Math.Distance.Between(x, y, this.player.x, this.player.y);
+        if (d <= r) {
+          this.player.speedMult = Math.min(this.player.speedMult, 0.45);
+          this.time.delayedCall(200, () => { if (this.player.speedMult < 1) this.player.speedMult = 1; });
+        }
+      };
+      b.onRoar = () => {
+        if (!this.bossActive) return;
+        this.player.speedMult = 0.5;
+        this.player.setTint(0xff8800);
+        this.time.delayedCall(3500, () => { this.player.speedMult = 1; this.player.clearTint(); });
+      };
+      // Orc2 callbacks
+      b.onJumpLand = (x, y, r, dmg) => {
+        if (!this.bossActive) return;
+        this.fireBossJumpLand(x, y, r, dmg);
+      };
+      b.onFissure = (bx, by, angle, len, dmg) => {
+        if (!this.bossActive) return;
+        this.fireBossFissureWithBranches(bx, by, angle, len, dmg);
+      };
+      b.onFieldFracture = (safeZones, dmg, duration, tickMs) => {
+        if (!this.bossActive) return;
+        this.fireBossFieldFracture(safeZones, dmg, duration, tickMs);
+      };
+      b.onBoulderRoll = (bx, by, angle, speed, r, dmg) => {
+        if (!this.bossActive) return;
+        this.fireBossRollingBoulder(bx, by, angle, speed, r, dmg);
+      };
       b.setScale(b.scaleX * 1.2, b.scaleY * 1.2);
       return b;
     }
     if (bossDef.id === 'boss_vampire_legendary') {
-      const b = new BossVampire3(this, cx, cy, totalHp, bossDef.element, bossDef.spriteKey, bossDef.tint);
+      const b = new BossVampireLegendary(this, cx, cy, totalHp, bossDef.element, bossDef.spriteKey, bossDef.tint);
+      // V3 callbacks
       const checkArc = (cx2: number, cy2: number, r: number, aimAng: number, arcDeg: number, dmg: number) => {
         if (!this.bossActive) return;
         const half = (arcDeg / 2) * Math.PI / 180;
@@ -4990,6 +5136,86 @@ export class GameScene extends Phaser.Scene {
           if (!ally.isDead && inRiver(ally.x, ally.y)) ally.takeDamage(dmg);
         }
       };
+      // V1 callbacks
+      b.getAllTargetPositions = () => {
+        const targets: [number, number][] = [[this.player.x, this.player.y]];
+        if (NetworkService.connected && NetworkService.isHost) {
+          this._partners.forEach(pd => {
+            if (pd.sprite.active && !pd.isDead) targets.push([pd.sprite.x, pd.sprite.y]);
+          });
+        }
+        return targets;
+      };
+      b.onBatHit = (x, y, r, dmg) => {
+        if (!this.bossActive) return;
+        this.hitInRadius(x, y, r, dmg);
+      };
+      b.onCrimsonNeedle = (x, y, r, dmg) => {
+        if (!this.bossActive) return;
+        this.hitInRadius(x, y, r, dmg);
+      };
+      b.onNeedleLand = (x, y, r, dmg) => {
+        if (!this.bossActive) return;
+        this._rainPuddles.push({ x, y, r, dmg, expires: this.time.now + 4000 });
+      };
+      b.onGazeHit = (bx, by, tx, ty, beamR, dmg) => {
+        if (!this.bossActive) return;
+        const abx = tx - bx, aby = ty - by;
+        const len2 = abx * abx + aby * aby || 1;
+        const checkTarget = (cx2: number, cy2: number, takeDmg: () => void) => {
+          const apx = cx2 - bx, apy = cy2 - by;
+          const t   = Math.max(0, Math.min(1, (apx * abx + apy * aby) / len2));
+          const nx  = bx + t * abx - cx2, ny = by + t * aby - cy2;
+          if (nx * nx + ny * ny <= beamR * beamR) takeDmg();
+        };
+        checkTarget(this.player.x, this.player.y, () => this.player.takeDamage(dmg));
+        for (const ally of this._allyMinions) {
+          if (!ally.isDead) checkTarget(ally.x, ally.y, () => ally.takeDamage(dmg));
+        }
+      };
+      b.onDarkNightActivate = (zones) => {
+        if (!this.bossActive) return;
+        this._startDarkNight(zones);
+      };
+      b.onDarkNightLift = () => { this._endDarkNight(); };
+      b.onDarkNightPunish = () => {
+        if (!this.bossActive) return;
+        const inSafe = (cx2: number, cy2: number) =>
+          this._darkNightZones.some(z => Phaser.Math.Distance.Between(cx2, cy2, z.x, z.y) <= z.r);
+        if (!inSafe(this.player.x, this.player.y)) this.player.takeDamage(b.scaleDmg(80));
+        for (const ally of this._allyMinions) {
+          if (!ally.isDead && !inSafe(ally.x, ally.y)) ally.takeDamage(b.scaleDmg(80));
+        }
+      };
+      b.onNeedleHit = (x, y, r, dmg) => {
+        if (!this.bossActive) return;
+        this.hitInRadius(x, y, r, dmg);
+      };
+      // V2 callbacks
+      b.onMeteorRainHit = (x, y, r, dmg) => {
+        if (!this.bossActive) return;
+        this.hitInRadius(x, y, r, dmg);
+      };
+      b.onCometRingHit = (cx2, cy2, rInner, rOuter, dmg) => {
+        if (!this.bossActive) return;
+        const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, cx2, cy2);
+        if (dist >= rInner && dist <= rOuter) this.player.takeDamage(dmg);
+      };
+      b.onElFireHit   = (x, y, r, dmg) => { if (!this.bossActive) return; this.hitInRadius(x, y, r, dmg); };
+      b.onElIceHit    = (x, y, r, dmg) => { if (!this.bossActive) return; this.hitInRadius(x, y, r, dmg); };
+      b.onElThunderHit = (x, y, r, dmg) => { if (!this.bossActive) return; this.hitInRadius(x, y, r, dmg); };
+      b.onElVoidHit   = (x, y, r, dmg) => { if (!this.bossActive) return; this.hitInRadius(x, y, r, dmg); };
+      b.onLightningArcHit = (dmg) => { if (!this.bossActive) return; this.player.takeDamage(dmg); };
+      b.onIceDomainStart = (iceCx, iceCy) => {
+        this._v3IceDomainActive = true;
+        this._v3IceDomainCX     = iceCx;
+        this._v3IceDomainCY     = iceCy;
+      };
+      b.onIceDomainEnd = () => {
+        this._v3IceDomainActive = false;
+        this.player.speedMult   = 1;
+      };
+      b.onTornadoHit = (dmg) => { if (!this.bossActive) return; this.player.takeDamage(dmg); };
       b.setScale(b.scaleX * 1.2, b.scaleY * 1.2);
       return b;
     }
@@ -7858,15 +8084,27 @@ export class GameScene extends Phaser.Scene {
   }
 
   private _spawnBurstItem(cx: number, cy: number, itemId: string, itemName: string): void {
-    const iconKey = `icon_${itemId}`;
-    const iconSz  = itemId.startsWith('stone_') ? P(26) : P(17);
-    const angle   = Math.random() * Math.PI * 2;
-    const dist    = Phaser.Math.Between(P(20), P(60));
-    const tx = Phaser.Math.Clamp(cx + Math.cos(angle) * dist,       P(32), this.worldW - P(32));
-    const ty = Phaser.Math.Clamp(cy + Math.sin(angle) * dist * 0.4, P(32), this.worldH - P(32));
-    const arcX = Phaser.Math.Clamp(cx + Math.cos(angle) * dist * 0.3, P(32), this.worldW - P(32));
+    const TICKET_DROP_COLORS: Record<string, number> = {
+      ticket_slime:    0x44ee99,
+      ticket_flower:   0x99ee44,
+      ticket_orc:      0xeebb44,
+      ticket_vampire:  0xdd77ff,
+    };
+    const iconKey   = `icon_${itemId}`;
+    const isTicket  = itemId.startsWith('ticket_');
+    const iconSz    = itemId.startsWith('stone_') ? P(26) : isTicket ? P(24) : P(17);
+    const angle     = Math.random() * Math.PI * 2;
+    const dist      = Phaser.Math.Between(P(20), P(60));
+    const tx   = Phaser.Math.Clamp(cx + Math.cos(angle) * dist,         P(32), this.worldW - P(32));
+    const ty   = Phaser.Math.Clamp(cy + Math.sin(angle) * dist * 0.4,   P(32), this.worldH - P(32));
+    const arcX = Phaser.Math.Clamp(cx + Math.cos(angle) * dist * 0.3,   P(32), this.worldW - P(32));
     const arcY = Phaser.Math.Clamp(cy - P(55), P(32), this.worldH - P(32));
+
     const img = this.add.image(cx, cy, iconKey).setDisplaySize(iconSz, iconSz).setDepth(ty + 4);
+    if (isTicket) {
+      const tickColor = TICKET_DROP_COLORS[itemId] ?? 0xffffff;
+      img.postFX.addGlow(tickColor, 6, 0, false, 0.1, 16);
+    }
     this.tweens.add({
       targets: img, x: arcX, y: arcY, duration: 170, ease: 'Quad.Out',
       onComplete: () => {
