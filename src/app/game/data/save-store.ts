@@ -17,7 +17,7 @@ import { DismantlePrefsStore } from './dismantle-prefs-store';
 // 新增任何 store 或設定時，在 SaveData interface、save()、load() 三處同步更新。
 // ─────────────────────────────────────────────────────────────────────────────
 const SAVE_KEY = 'auto_rpg_save';
-const VERSION  = '15.0.0';
+const VERSION  = '15.1.0';
 let   _loaded  = false;
 
 interface SaveData {
