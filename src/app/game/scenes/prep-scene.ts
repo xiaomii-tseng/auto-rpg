@@ -12,6 +12,8 @@ import { QuestStore, Quest, STAR_EQUIP_QUALITY, getStarWeights } from '../data/q
 import { SkillTreeStore, SKILL_NODES, SKILL_NODE_MAP, ATTACK_MODES, MODE_COLORS } from '../data/skill-tree-store';
 import { NetworkService } from '../network/network.service';
 import { AudioService } from '../data/audio.service';
+import { DailyQuestStore } from '../data/daily-quest-store';
+import { DismantlePrefsStore as _DismantlePrefsStore } from '../data/dismantle-prefs-store';
 import { SkinStore, SKINS, getSkinFile } from '../data/skin-store';
 import { VirtualJoystick } from '../ui/joystick';
 import { VERSION } from '../version';
@@ -122,24 +124,8 @@ function applyEnhanceGlow(
   return sprite;
 }
 
-const _dismantlePrefs = (() => {
-  try {
-    const raw = localStorage.getItem('dismantlePrefs');
-    if (raw) {
-      const p = JSON.parse(raw) as { qualities: string[]; slots: string[] };
-      return { qualities: new Set<string>(p.qualities), slots: new Set<string>(p.slots) };
-    }
-  } catch { /* ignore */ }
-  return { qualities: new Set<string>(['normal']), slots: new Set<string>(['sword', 'hat', 'outfit', 'shoes', 'ring']) };
-})();
-const _saveDismantlePrefs = () => {
-  try {
-    localStorage.setItem('dismantlePrefs', JSON.stringify({
-      qualities: [..._dismantlePrefs.qualities],
-      slots:     [..._dismantlePrefs.slots],
-    }));
-  } catch { /* ignore */ }
-};
+const _dismantlePrefs = _DismantlePrefsStore;
+const _saveDismantlePrefs = () => SaveStore.save();
 
 export function getPlayerName(): string {
   let name = localStorage.getItem('playerName');
@@ -369,7 +355,8 @@ export class PrepScene extends Phaser.Scene {
     }
     if (!this.cache.audio.exists('sfx_town_bgm'))   this.load.audio('sfx_town_bgm',    'sound/map2.mp3');
     if (!this.cache.audio.exists('sfx_ui_click'))   this.load.audio('sfx_ui_click',    'sound/plus.mp3');
-    if (!this.cache.audio.exists('sfx_enhance_ok')) this.load.audio('sfx_enhance_ok',  'sound/test-success.mp3');
+    if (!this.cache.audio.exists('sfx_enhance_ok'))    this.load.audio('sfx_enhance_ok',    'sound/test-success.mp3');
+    if (!this.cache.audio.exists('sfx_daily_claim'))   this.load.audio('sfx_daily_claim',   'sound/skill-2.mp3');
     if (!this.cache.audio.exists('sfx_enhance_ng')) this.load.audio('sfx_enhance_ng',  'sound/test-fail.mp3');
     if (!this.cache.audio.exists('sfx_purchase'))     this.load.audio('sfx_purchase',     'sound/openChest.mp3');
     if (!this.cache.audio.exists('sfx_battle_start')) this.load.audio('sfx_battle_start', 'sound/openMap.mp3');
@@ -859,7 +846,8 @@ export class PrepScene extends Phaser.Scene {
       fontSize: F(20), color: '#d4a050', stroke: '#1a0800', strokeThickness: 1,
     }).setOrigin(0.5).setDepth(31);
     this.add.rectangle(SET_X + SET_S / 2, SET_Y + SET_S / 2, SET_S, SET_S)
-      .setInteractive({ useHandCursor: true }).setDepth(35).setAlpha(0.001);
+      .setInteractive({ useHandCursor: true }).setDepth(35).setAlpha(0.001)
+      .on('pointerup', () => { AudioService.suppressClickSfx(); this._showAudioPanel(W, H); });
 
     // ── 無限塔按鈕（漢堡下方）──────────────────────────────
     const TWR_Y = SET_Y + SET_S + P(6);
@@ -912,6 +900,7 @@ export class PrepScene extends Phaser.Scene {
       { label: '技能', onClick: () => this.showSkillTree(W, H) },
       { label: '卡片', onClick: () => this.openCardWindow(W, H) },
       { label: '物品', onClick: () => this.showItemPanel(W, H) },
+      { label: '任務', onClick: () => { AudioService.suppressClickSfx(); this.showDailyQuestPanel(W, H); } },
     ];
     const qbGfx = this.add.graphics().setDepth(30);
     const QB_BOT = H - P(8);
@@ -933,6 +922,21 @@ export class PrepScene extends Phaser.Scene {
         .setInteractive({ useHandCursor: true }).setDepth(35).setAlpha(0.001)
         .on('pointerdown', item.onClick);
     });
+
+    // 任務紅點（'任務' is at ri=0, rightmost position）
+    const dqBx = W - P(8) - QB_S;
+    const dqBy = QB_BOT - QB_S;
+    const dqDot = this.add.graphics().setDepth(36);
+    const refreshDqDot = () => {
+      dqDot.clear();
+      if (DailyQuestStore.hasCompletedUnclaimed()) {
+        dqDot.fillStyle(0xff2222, 1);
+        dqDot.fillCircle(dqBx + QB_S - P(5), dqBy + P(5), P(5));
+      }
+    };
+    refreshDqDot();
+    DailyQuestStore.onChange(refreshDqDot);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => DailyQuestStore.offChange(refreshDqDot));
 
     // ── Reactive updates ──────────────────────────────────
     const drawExpBar = () => {
@@ -1015,6 +1019,7 @@ export class PrepScene extends Phaser.Scene {
           return;
         }
         SkinStore.set(i);
+        SaveStore.save();
         this.scene.restart();
       });
     });
@@ -1042,6 +1047,297 @@ export class PrepScene extends Phaser.Scene {
 
 
   // ── Quest panel (wanted posters, horizontal scroll) ────
+
+  private _showAudioPanel(W: number, H: number): void {
+    const D   = 9000;
+    const PW  = Math.min(W - P(16), P(300));
+    const PH  = P(200);
+    const px  = (W - PW) / 2;
+    const py  = (H - PH) / 2;
+
+    const objs: Phaser.GameObjects.GameObject[] = [];
+    const close = () => objs.forEach(o => o.destroy());
+
+    const bd = this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.75)
+      .setInteractive().setDepth(D);
+    objs.push(bd);
+    bd.on('pointerdown', (ptr: Phaser.Input.Pointer) => {
+      if (ptr.x < px || ptr.x > px + PW || ptr.y < py || ptr.y > py + PH) close();
+    });
+
+    const bg = this.add.graphics().setDepth(D + 1);
+    objs.push(bg);
+    bg.fillStyle(0x000000, 0.5);
+    bg.fillRect(px + P(4), py + P(4), PW, PH);
+    bg.fillStyle(0xa06810, 1);
+    bg.fillRect(px - P(3), py - P(3), PW + P(6), PH + P(6));
+    bg.fillStyle(0x160e04, 1);
+    bg.fillRect(px, py, PW, PH);
+    bg.fillStyle(0x241408, 1);
+    bg.fillRect(px, py, PW, P(38));
+    bg.fillStyle(0x3a2010, 1);
+    bg.fillRect(px, py, PW, P(16));
+
+    const addTxt = (txt: string, x: number, y: number, style: object, ox = 0.5, oy = 0) => {
+      const o = this.add.text(x, y, txt, style).setOrigin(ox, oy).setDepth(D + 2);
+      objs.push(o); return o;
+    };
+
+    addTxt('音效設定', px + PW / 2, py + P(10), {
+      fontSize: F(17), fontStyle: 'bold', color: '#ffe08a', stroke: '#1a0800', strokeThickness: 2,
+    });
+    const closeX = this.add.text(px + PW - P(8), py + P(8), '✕', {
+      fontSize: F(16), fontStyle: 'bold', color: '#cc7744',
+    }).setOrigin(1, 0).setDepth(D + 2).setInteractive({ useHandCursor: true });
+    objs.push(closeX);
+    closeX.on('pointerup', close);
+
+    const STEP = 0.05;
+    const rows: { key: '背景音樂' | '音效'; get: () => number; set: (v: number) => void }[] = [
+      { key: '背景音樂', get: () => AudioService.bgmVolume, set: v => AudioService.setBgmVolume(v) },
+      { key: '音效',    get: () => AudioService.sfxVolume,  set: v => AudioService.setSfxVolume(v)  },
+    ];
+
+    rows.forEach((row, i) => {
+      const ry = py + P(50) + i * P(66);
+
+      addTxt(row.key, px + P(14), ry, { fontSize: F(15), fontStyle: 'bold', color: '#e8cc90' }, 0, 0);
+
+      const barX = px + P(14), barW = PW - P(28), barH = P(10), barY = ry + P(22);
+      const barBg = this.add.graphics().setDepth(D + 2);
+      objs.push(barBg);
+
+      const valTxt = addTxt('', px + PW / 2, ry + P(36), {
+        fontSize: F(15), fontStyle: 'bold', color: '#ffe08a',
+      });
+
+      const redraw = () => {
+        const v = row.get();
+        barBg.clear();
+        barBg.fillStyle(0x0a0604, 1);
+        barBg.fillRoundedRect(barX, barY, barW, barH, P(4));
+        barBg.fillStyle(0xcc8822, 1);
+        barBg.fillRoundedRect(barX, barY, Math.round(barW * v), barH, P(4));
+        (valTxt as Phaser.GameObjects.Text).setText(`${Math.round(v * 100)}%`);
+      };
+      redraw();
+
+      // draggable bar
+      const barHit = this.add.rectangle(barX + barW / 2, barY + barH / 2, barW, barH + P(10))
+        .setDepth(D + 3).setAlpha(0.001).setInteractive({ useHandCursor: true, draggable: true });
+      objs.push(barHit);
+      barHit.on('drag', (ptr: Phaser.Input.Pointer) => {
+        const localX = Phaser.Math.Clamp(ptr.x - barX, 0, barW);
+        row.set(Math.round((localX / barW) * 20) / 20);
+        SaveStore.save();
+        redraw();
+      });
+      barHit.on('pointerdown', (ptr: Phaser.Input.Pointer) => {
+        const localX = Phaser.Math.Clamp(ptr.x - barX, 0, barW);
+        row.set(Math.round((localX / barW) * 20) / 20);
+        SaveStore.save();
+        redraw();
+      });
+
+      // − + buttons
+      const btnStyle = { fontSize: F(17), fontStyle: 'bold', color: '#ffe08a', stroke: '#1a0800', strokeThickness: 1 };
+      const minusBtn = addTxt('−', px + P(14), ry + P(36), btnStyle, 0, 0.5);
+      minusBtn.setInteractive({ useHandCursor: true })
+        .on('pointerup', () => { row.set(Math.max(0, Math.round((row.get() - STEP) * 20) / 20)); SaveStore.save(); redraw(); });
+
+      const plusBtn = addTxt('+', px + PW - P(14), ry + P(36), btnStyle, 1, 0.5);
+      plusBtn.setInteractive({ useHandCursor: true })
+        .on('pointerup', () => { row.set(Math.min(1, Math.round((row.get() + STEP) * 20) / 20)); redraw(); });
+    });
+
+    objs.forEach(o => { if ('setScrollFactor' in o) (o as any).setScrollFactor(0); });
+  }
+
+  private showDailyQuestPanel(W: number, H: number): void {
+    const PW       = Math.min(W - P(8), P(420));
+    const HEADER_H = P(48);
+    const ROW_PAD  = P(8);
+    const FOOTER_H = P(8);
+    const ROW_H    = P(76);   // fixed height; scroll handles small screens
+    const PH       = Math.min(H - P(16), HEADER_H + 3 * ROW_H + 2 * ROW_PAD + FOOTER_H);
+    const D   = 8000;
+    const px  = (W - PW) / 2;
+    const py  = Math.max(P(4), (H - PH) / 2);
+
+    const objs: Phaser.GameObjects.GameObject[] = [];
+    const close = () => objs.forEach(o => o.destroy());
+
+    const tt = (txt: string, x: number, y: number, style: object, ox = 0, oy = 0, depth = D + 2): Phaser.GameObjects.Text => {
+      const o = this.add.text(x, y, txt, style).setOrigin(ox, oy).setDepth(depth);
+      objs.push(o);
+      return o;
+    };
+
+    // Backdrop
+    const bd = this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.88)
+      .setInteractive().setDepth(D);
+    objs.push(bd);
+    bd.on('pointerdown', (ptr: Phaser.Input.Pointer) => {
+      if (ptr.x < px || ptr.x > px + PW || ptr.y < py || ptr.y > py + PH) close();
+    });
+
+    // Panel background
+    const bg = this.add.graphics().setDepth(D + 1);
+    objs.push(bg);
+    bg.fillStyle(0x000000, 0.55);
+    bg.fillRect(px + P(5), py + P(5), PW, PH);
+    bg.fillStyle(0xa06810, 1);
+    bg.fillRect(px - P(3), py - P(3), PW + P(6), PH + P(6));
+    bg.fillStyle(0xffd060, 0.7);
+    bg.fillRect(px - P(3), py - P(3), PW + P(6), P(2));
+    bg.fillStyle(0x160e04, 1);
+    bg.fillRect(px, py, PW, PH);
+    for (let i = 0; i < 14; i++) {
+      const gy = py + P(8) + i * (PH / 14);
+      bg.fillStyle(0xffffff, i % 4 === 0 ? 0.025 : 0.01);
+      bg.fillRect(px + P(4), gy, PW - P(8), P(1));
+    }
+    bg.fillStyle(0x241408, 1);
+    bg.fillRect(px, py, PW, HEADER_H);
+    bg.fillStyle(0x3a2010, 1);
+    bg.fillRect(px, py, PW, P(18));
+
+    // Title
+    tt('每日任務', px + PW / 2, py + P(12), {
+      fontSize: F(17), fontStyle: 'bold', color: '#ffe08a',
+      stroke: '#1a0800', strokeThickness: 2,
+    }, 0.5, 0);
+
+    const closeBtn = this.add.text(px + PW - P(8), py + P(8), '✕', {
+      fontSize: F(16), fontStyle: 'bold', color: '#cc7744', stroke: '#0a0000', strokeThickness: 1,
+    }).setOrigin(1, 0).setDepth(D + 3).setInteractive({ useHandCursor: true });
+    objs.push(closeBtn);
+    closeBtn.on('pointerup', close);
+
+    // ── Quest rows (scrollable container) ───────────────────
+    const STATUS_COLOR: Record<string, string> = { active: '#aaaaaa', completed: '#ffe066', claimed: '#556655' };
+
+    const rewardText = (reward: import('../data/daily-quest-store').DailyReward): string => {
+      const parts: string[] = [];
+      if (reward.gold)     parts.push(`金幣 ×${reward.gold.toLocaleString()}`);
+      if (reward.items)    parts.push(...reward.items.map(i => `${i.name} ×${i.qty}`));
+      if (reward.cardName) parts.push(reward.cardName);
+      if (reward.equip)    parts.push(`${SLOT_NAMES[reward.equip.slot]}（${QUALITY_NAMES[reward.equip.quality]}）`);
+      return parts.join(' ') || '—';
+    };
+
+    const VIEWPORT_H = PH - HEADER_H - FOOTER_H;
+    const CONTENT_H  = 3 * ROW_H + 2 * ROW_PAD;
+    const maxScroll  = Math.max(0, CONTENT_H - VIEWPORT_H);
+
+    // Geometry mask: clips container children to the content viewport
+    const maskGfx = this.add.graphics();
+    maskGfx.fillStyle(0xffffff, 1);
+    maskGfx.fillRect(px, py + HEADER_H, PW, VIEWPORT_H);
+    objs.push(maskGfx);
+
+    // Container holds all scrollable content at scene coords; move by -scrollY to scroll
+    const scrollCont = this.add.container(0, 0).setDepth(D + 2).setScrollFactor(0);
+    scrollCont.setMask(new Phaser.Display.Masks.GeometryMask(this, maskGfx));
+    objs.push(scrollCont);
+
+    let scrollY = 0;
+    const applyScroll = () => scrollCont.setY(-scrollY);
+
+    // Helper: create text, add to scrollCont
+    const ts = (txt: string, x: number, y: number, style: object, ox = 0, oy = 0, depth = D + 2) => {
+      const o = this.add.text(x, y, txt, style).setOrigin(ox, oy).setDepth(depth);
+      scrollCont.add(o);
+      return o;
+    };
+
+    const quests  = DailyQuestStore.getQuests();
+    const startY  = py + HEADER_H + P(6);
+    const INNER_W = PW - P(16);
+    const rx0     = px + P(8);
+
+    quests.forEach((q, i) => {
+      const ry = startY + i * (ROW_H + ROW_PAD);
+      const rg = this.add.graphics().setDepth(D + 2);
+      scrollCont.add(rg);
+      rg.fillStyle(0x1e1206, 1);
+      rg.fillRoundedRect(rx0, ry, INNER_W, ROW_H, P(6));
+      rg.lineStyle(1, 0x3a2800, 0.8);
+      rg.strokeRoundedRect(rx0, ry, INNER_W, ROW_H, P(6));
+
+      const tx = rx0 + P(6);
+      const tr = rx0 + INNER_W - P(6);
+
+      const countTxt = q.status === 'claimed' ? '已領取'
+        : q.status === 'completed' ? '✔ 完成'
+        : `${q.progress.toLocaleString()} / ${q.target.toLocaleString()}`;
+      ts(q.label, tx, ry + P(8),
+        { fontSize: F(15), fontStyle: 'bold', color: '#e8d8b0', stroke: '#0a0000', strokeThickness: 1 }, 0, 0);
+      ts(countTxt, tr, ry + P(8),
+        { fontSize: F(15), fontStyle: 'bold', color: STATUS_COLOR[q.status] }, 1, 0);
+
+      const barX = tx, barW = INNER_W - P(12), barH = P(7), barY = ry + P(30);
+      rg.fillStyle(0x0a0604, 1);
+      rg.fillRoundedRect(barX, barY, barW, barH, P(3));
+      const pct = q.status === 'claimed' ? 1 : Math.min(1, q.progress / q.target);
+      rg.fillStyle(q.status === 'claimed' ? 0x446633 : q.status === 'completed' ? 0xcc9900 : 0x5588cc, 1);
+      if (pct > 0) rg.fillRoundedRect(barX, barY, Math.max(barH * 2, Math.round(barW * pct)), barH, P(3));
+
+      const rewardY  = ry + P(45);
+      const btnW = P(78), btnH = P(24);
+      const hasClaim = q.status === 'completed';
+      ts(`獎勵：${rewardText(q.reward)}`, tx, rewardY, {
+        fontSize: F(15), fontStyle: 'bold', color: '#c8a860',
+        wordWrap: { width: hasClaim ? INNER_W - P(12) - btnW - P(6) : INNER_W - P(12) },
+      }, 0, 0);
+
+      if (hasClaim) {
+        const btnX = rx0 + INNER_W - btnW - P(4);
+        const btnY = rewardY - Math.round((btnH - P(15)) / 2);
+        const btnG = this.add.graphics().setDepth(D + 3);
+        scrollCont.add(btnG);
+        btnG.fillStyle(0x6a4200, 1).fillRoundedRect(btnX, btnY, btnW, btnH, P(5));
+        btnG.lineStyle(P(1), GOLD, 0.9).strokeRoundedRect(btnX, btnY, btnW, btnH, P(5));
+        scrollCont.add(
+          this.add.text(btnX + btnW / 2, btnY + btnH / 2, '領取獎勵', {
+            fontSize: F(15), fontStyle: 'bold', color: '#ffe088', stroke: '#1a0800', strokeThickness: 1,
+          }).setOrigin(0.5).setDepth(D + 4),
+        );
+        const btnHit = this.add.rectangle(btnX + btnW / 2, btnY + btnH / 2, btnW, btnH)
+          .setDepth(D + 5).setAlpha(0.001).setInteractive({ useHandCursor: true });
+        scrollCont.add(btnHit);
+        btnHit.on('pointerup', () => {
+          const reward = DailyQuestStore.claimQuest(q.id);
+          if (!reward) return;
+          if (reward.gold)   InventoryStore.addGold(reward.gold);
+          if (reward.items)  reward.items.forEach(it => InventoryStore.addItem(it.id, it.name, it.qty));
+          if (reward.cardId) CardStore.addCard(reward.cardId);
+          if (reward.equip)  PlayerStore.addOwned(reward.equip);
+          SaveStore.save();
+          AudioService.playSfx(this, 'sfx_daily_claim');
+          close();
+          this.showDailyQuestPanel(W, H);
+        });
+      }
+    });
+
+    // Drag-to-scroll zone over the content area
+    if (maxScroll > 0) {
+      let dragStart = 0, scrollStart = 0;
+      const zone = this.add.zone(px + PW / 2, py + HEADER_H + VIEWPORT_H / 2, PW, VIEWPORT_H)
+        .setDepth(D + 1).setInteractive({ draggable: true });
+      objs.push(zone);
+      zone.on('dragstart', (ptr: Phaser.Input.Pointer) => { dragStart = ptr.y; scrollStart = scrollY; });
+      zone.on('drag',      (ptr: Phaser.Input.Pointer) => {
+        scrollY = Phaser.Math.Clamp(scrollStart - (ptr.y - dragStart), 0, maxScroll);
+        applyScroll();
+      });
+    }
+
+    objs.forEach(o => {
+      if ('setScrollFactor' in o) (o as any).setScrollFactor(0);
+    });
+  }
 
   private showQuestPanel(W: number, H: number, baseDepth = 500): void {
     const PW = Math.min(W - P(16), P(500));
@@ -2311,6 +2607,7 @@ export class PrepScene extends Phaser.Scene {
           const boosted = applyEnhancement(item, selectedAffixIdx);
           PlayerStore.notify(); SaveStore.save(); refresh();
           AudioService.playSfx(this, 'sfx_enhance_ok');
+          DailyQuestStore.addProgress('enhance_success', 1);
           playFlash(0x00cc55);
           for (const idx of boosted) {
             const gain = item.affixes[idx].value - beforeVals[idx];
@@ -4769,6 +5066,7 @@ export class PrepScene extends Phaser.Scene {
 
     // ── Rebuild function ───────────────────────────────────
     let savedScrollY = 0;   // 保留 scroll 位置跨 rebuild
+    let rightSavedScrollY = 0;
     const rebuild = () => {
       detailPopup?.destroy();
       detailPopup = null;
@@ -4820,91 +5118,104 @@ export class PrepScene extends Phaser.Scene {
       }).setOrigin(0.5, 1));
 
       // ── Inventory scroll area ──────────────────────────
+      let maxScroll = 0;
+      let applyScroll = (_dy: number) => {};
+
       if (invItems.length === 0) {
-        contentCnt.add(this.add.text(0, INV_TOP + INV_H / 2, '尚未獲得任何卡片', {
+        contentCnt.add(this.add.text(leftCX, INV_TOP + INV_H / 2, '尚未獲得任何卡片', {
           fontSize: F(15), fontStyle: 'bold', color: '#5a3818', stroke: '#1a0800', strokeThickness: 1,
         }).setOrigin(0.5));
-        return;
-      }
+      } else {
+        // 過濾掉存檔中已不存在的舊卡片 ID
+        const validInvItems = invItems.filter(({ cardId }) => !!getCardDef(cardId));
 
-      // 過濾掉存檔中已不存在的舊卡片 ID
-      const validInvItems = invItems.filter(({ cardId }) => !!getCardDef(cardId));
+        const ROWS = Math.ceil(validInvItems.length / INV_COLS);
+        const ROW_H = CARD_H + INV_GAP;
+        const contentH = ROWS * ROW_H;
+        maxScroll = Math.max(0, contentH - INV_H);
+        savedScrollY = Phaser.Math.Clamp(savedScrollY, 0, maxScroll);
 
-      const ROWS = Math.ceil(validInvItems.length / INV_COLS);
-      const ROW_H = CARD_H + INV_GAP;
-      const contentH = ROWS * ROW_H;
-      const maxScroll = Math.max(0, contentH - INV_H);
-      savedScrollY = Phaser.Math.Clamp(savedScrollY, 0, maxScroll);
+        const scrollCnt = this.add.container(0, INV_TOP - savedScrollY);
+        contentCnt.add(scrollCnt);
 
-      const scrollCnt = this.add.container(0, INV_TOP - savedScrollY);
-      contentCnt.add(scrollCnt);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const maskShape = (this.make.graphics as any)({ x: 0, y: 0, add: false }) as Phaser.GameObjects.Graphics;
+        maskShape.fillStyle(0xffffff);
+        maskShape.fillRect(W / 2 + px + P(4), H / 2 + INV_TOP, LEFT_W - P(8), INV_H);
+        scrollCnt.setMask(maskShape.createGeometryMask());
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const maskShape = (this.make.graphics as any)({ x: 0, y: 0, add: false }) as Phaser.GameObjects.Graphics;
-      maskShape.fillStyle(0xffffff);
-      maskShape.fillRect(W / 2 + px + P(4), H / 2 + INV_TOP, LEFT_W - P(8), INV_H);
-      scrollCnt.setMask(maskShape.createGeometryMask());
+        applyScroll = (dy: number) => {
+          savedScrollY = Phaser.Math.Clamp(savedScrollY + dy, 0, maxScroll);
+          scrollCnt.y = INV_TOP - savedScrollY;
+        };
 
-      const applyScroll = (dy: number) => {
-        savedScrollY = Phaser.Math.Clamp(savedScrollY + dy, 0, maxScroll);
-        scrollCnt.y = INV_TOP - savedScrollY;
-      };
-
-      // Build cards once at fixed positions
-      validInvItems.forEach(({ cardId, qty }, idx) => {
-        const def = getCardDef(cardId)!;
-        const col = idx % INV_COLS;
-        const row = Math.floor(idx / INV_COLS);
-        const cx = invX0 + col * (CARD_W + INV_GAP) + CARD_W / 2;
-        const cy = row * ROW_H + CARD_H / 2;
-
-        const cg = this.add.graphics();
-        const monTier = getMonsterDef(def.monsterId)?.tier ?? 1;
-        monTier >= 5 ? drawBossCard(cg, cx, cy, CARD_W, CARD_H) : monTier === 3 ? drawEliteCard(cg, cx, cy, CARD_W, CARD_H) : drawInvCard(cg, cx, cy, CARD_W, CARD_H);
-        scrollCnt.add(cg);
-
-        drawCardFace(scrollCnt, def, cx, cy, '', qty);
-
-        // Stack limit badge (bottom-left)
-        const equippedCount = eq.filter(s => s === cardId).length;
-        const stackLimit = CardStore.getStackLimit(cardId);
-        const atLimit = equippedCount >= stackLimit;
-        const badgeColor = atLimit ? '#cc2222' : equippedCount > 0 ? '#cc8800' : '#226622';
-        scrollCnt.add(this.add.text(cx - CARD_W / 2 + P(2), cy + CARD_H / 2 - P(2), `${equippedCount}/${stackLimit}`, {
-          fontSize: F(15), fontStyle: 'bold', color: '#ffffff',
-          stroke: '#000000', strokeThickness: 1,
-          backgroundColor: badgeColor, padding: { x: 2, y: 1 },
-        }).setOrigin(0, 1));
-
-        // Dim overlay if at stack limit
-        if (atLimit) {
-          const dimOvl = this.add.graphics();
-          dimOvl.fillStyle(0x000000, 0.45);
-          dimOvl.fillRect(cx - CARD_W / 2, cy - CARD_H / 2, CARD_W, CARD_H);
-          scrollCnt.add(dimOvl);
-        }
-
-      });
-
-      // Single hit zone covering the inventory area — avoids overlapping equipped-slot hits
-      const invZone = this.add.rectangle(leftCX, INV_TOP + INV_H / 2, LEFT_W - P(16), INV_H)
-        .setInteractive({ useHandCursor: true });
-      contentCnt.add(invZone);
-      invZone.on('pointerdown', (ptr: Phaser.Input.Pointer) => {
-        // Convert screen pointer to contentCnt-local coords
-        const localX = ptr.x - (W / 2);
-        const localY = ptr.y - (H / 2) - scrollCnt.y;
-        validInvItems.forEach(({ cardId }, idx) => {
+        // Build cards once at fixed positions
+        validInvItems.forEach(({ cardId, qty }, idx) => {
+          const def = getCardDef(cardId)!;
           const col = idx % INV_COLS;
           const row = Math.floor(idx / INV_COLS);
           const cx = invX0 + col * (CARD_W + INV_GAP) + CARD_W / 2;
           const cy = row * ROW_H + CARD_H / 2;
-          if (Math.abs(localX - cx) <= CARD_W / 2 && Math.abs(localY - cy) <= CARD_H / 2) {
-            const def = getCardDef(cardId);
-            if (def) showCardDetail(def, null, cardId);
+
+          const cg = this.add.graphics();
+          const monTier = getMonsterDef(def.monsterId)?.tier ?? 1;
+          monTier >= 5 ? drawBossCard(cg, cx, cy, CARD_W, CARD_H) : monTier === 3 ? drawEliteCard(cg, cx, cy, CARD_W, CARD_H) : drawInvCard(cg, cx, cy, CARD_W, CARD_H);
+          scrollCnt.add(cg);
+
+          drawCardFace(scrollCnt, def, cx, cy, '', qty);
+
+          // Stack limit badge (bottom-left)
+          const equippedCount = eq.filter(s => s === cardId).length;
+          const stackLimit = CardStore.getStackLimit(cardId);
+          const atLimit = equippedCount >= stackLimit;
+          const badgeColor = atLimit ? '#cc2222' : equippedCount > 0 ? '#cc8800' : '#226622';
+          scrollCnt.add(this.add.text(cx - CARD_W / 2 + P(2), cy + CARD_H / 2 - P(2), `${equippedCount}/${stackLimit}`, {
+            fontSize: F(15), fontStyle: 'bold', color: '#ffffff',
+            stroke: '#000000', strokeThickness: 1,
+            backgroundColor: badgeColor, padding: { x: 2, y: 1 },
+          }).setOrigin(0, 1));
+
+          // Dim overlay if at stack limit
+          if (atLimit) {
+            const dimOvl = this.add.graphics();
+            dimOvl.fillStyle(0x000000, 0.45);
+            dimOvl.fillRect(cx - CARD_W / 2, cy - CARD_H / 2, CARD_W, CARD_H);
+            scrollCnt.add(dimOvl);
           }
+
         });
-      });
+
+        // Single hit zone covering the inventory area — avoids overlapping equipped-slot hits
+        const invZone = this.add.rectangle(leftCX, INV_TOP + INV_H / 2, LEFT_W - P(16), INV_H)
+          .setInteractive({ useHandCursor: true });
+        contentCnt.add(invZone);
+        invZone.on('pointerdown', (ptr: Phaser.Input.Pointer) => {
+          // Convert screen pointer to contentCnt-local coords
+          const localX = ptr.x - (W / 2);
+          const localY = ptr.y - (H / 2) - scrollCnt.y;
+          validInvItems.forEach(({ cardId }, idx) => {
+            const col = idx % INV_COLS;
+            const row = Math.floor(idx / INV_COLS);
+            const cx = invX0 + col * (CARD_W + INV_GAP) + CARD_W / 2;
+            const cy = row * ROW_H + CARD_H / 2;
+            if (Math.abs(localX - cx) <= CARD_W / 2 && Math.abs(localY - cy) <= CARD_H / 2) {
+              const def = getCardDef(cardId);
+              if (def) showCardDetail(def, null, cardId);
+            }
+          });
+        });
+      }
+
+      // ── Right panel scroll container ──────────────────────
+      const RPANEL_CLIP_TOP = py + P(58);
+      const RPANEL_CLIP_H = PH - P(62) - P(4);
+      const rightScrollCnt = this.add.container(0, -rightSavedScrollY);
+      contentCnt.add(rightScrollCnt);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const rightMaskShape = (this.make.graphics as any)({ x: 0, y: 0, add: false }) as Phaser.GameObjects.Graphics;
+      rightMaskShape.fillStyle(0xffffff);
+      rightMaskShape.fillRect(W / 2 + RIGHT_X, H / 2 + RPANEL_CLIP_TOP, RIGHT_W, RPANEL_CLIP_H);
+      rightScrollCnt.setMask(rightMaskShape.createGeometryMask());
 
       // ── Right panel: card effects + combo bonuses ─────────
       const statLines = (b: StatBonus): string[] => {
@@ -4960,21 +5271,21 @@ export class PrepScene extends Phaser.Scene {
         const cardId = eq[i];
         const def = cardId ? getCardDef(cardId) : null;
         if (!def) {
-          contentCnt.add(this.add.text(RP_TX, ry, `${i + 1}. （空）`, {
+          rightScrollCnt.add(this.add.text(RP_TX, ry, `${i + 1}. （空）`, {
             fontSize: F(15), fontStyle: 'bold', color: '#5a3818',
           }).setOrigin(0, 0));
           ry += LINE_H + P(3);
           continue;
         }
         const nameColor = def.cardType === 'b' ? '#f0c040' : def.cardType === 'e' ? '#aaccdd' : '#c8a060';
-        contentCnt.add(this.add.text(RP_TX, ry, `${i + 1}. ${def.name}`, {
+        rightScrollCnt.add(this.add.text(RP_TX, ry, `${i + 1}. ${def.name}`, {
           fontSize: F(15), fontStyle: 'bold', color: nameColor,
           stroke: '#1a0800', strokeThickness: 1,
           wordWrap: { width: RP_W },
         }).setOrigin(0, 0));
         ry += LINE_H + P(1);
         for (const line of statLines(def.effect)) {
-          contentCnt.add(this.add.text(RP_TX + P(6), ry, line, {
+          rightScrollCnt.add(this.add.text(RP_TX + P(6), ry, line, {
             fontSize: F(15), fontStyle: 'bold', color: '#a8d0a8',
           }).setOrigin(0, 0));
           ry += LINE_H;
@@ -4989,28 +5300,29 @@ export class PrepScene extends Phaser.Scene {
       sepGfx2.fillRect(RIGHT_X + P(4), ry + P(2), RIGHT_W - P(8), 1);
       sepGfx2.fillStyle(WH, 0.2);
       sepGfx2.fillRect(RIGHT_X + P(4), ry + P(3), RIGHT_W - P(8), 1);
-      contentCnt.add(sepGfx2);
+      rightScrollCnt.add(sepGfx2);
       ry += P(10);
 
-      contentCnt.add(this.add.text(rightCX, ry, '組合效果', {
+      rightScrollCnt.add(this.add.text(rightCX, ry, '組合效果', {
         fontSize: F(15), fontStyle: 'bold', color: '#b07030', stroke: '#1a0800', strokeThickness: 1,
       }).setOrigin(0.5, 0));
       ry += P(20);
 
       if (combos.length === 0) {
-        contentCnt.add(this.add.text(RP_TX, ry, '（未觸發）', {
+        rightScrollCnt.add(this.add.text(RP_TX, ry, '（未觸發）', {
           fontSize: F(15), fontStyle: 'bold', color: '#5a3818',
         }).setOrigin(0, 0));
+        ry += LINE_H;
       } else {
         for (const combo of combos) {
-          contentCnt.add(this.add.text(RP_TX, ry, combo.name, {
+          rightScrollCnt.add(this.add.text(RP_TX, ry, combo.name, {
             fontSize: F(15), fontStyle: 'bold', color: '#e8c070',
             stroke: '#1a0800', strokeThickness: 1,
             wordWrap: { width: RP_W },
           }).setOrigin(0, 0));
           ry += LINE_H + P(1);
           for (const line of statLines(combo.bonus)) {
-            contentCnt.add(this.add.text(RP_TX + P(6), ry, line, {
+            rightScrollCnt.add(this.add.text(RP_TX + P(6), ry, line, {
               fontSize: F(15), fontStyle: 'bold', color: '#a8d0a8',
             }).setOrigin(0, 0));
             ry += LINE_H;
@@ -5019,16 +5331,37 @@ export class PrepScene extends Phaser.Scene {
         }
       }
 
-      // Drag scroll
-      cardScrollHandler = (ptr: Phaser.Input.Pointer) => {
-        if (!ptr.isDown || detailPopup) return;
-        applyScroll(ptr.prevPosition.y - ptr.y);
+      // Compute right panel scroll limits
+      const totalRightH = ry - (py + P(62));
+      const maxRightScroll = Math.max(0, totalRightH - RPANEL_CLIP_H);
+      rightSavedScrollY = Phaser.Math.Clamp(rightSavedScrollY, 0, maxRightScroll);
+      rightScrollCnt.y = -rightSavedScrollY;
+
+      const applyRightScroll = (dy: number) => {
+        rightSavedScrollY = Phaser.Math.Clamp(rightSavedScrollY + dy, 0, maxRightScroll);
+        rightScrollCnt.y = -rightSavedScrollY;
       };
 
-      // Wheel scroll
-      cardWheelHandler = (_ptr: unknown, _objs: unknown, _dx: number, dy: number) => {
+      // Drag & wheel scroll (left vs right panel)
+      const dividerWorldX = W / 2 + RIGHT_X;
+      cardScrollHandler = (ptr: Phaser.Input.Pointer) => {
+        if (!ptr.isDown || detailPopup) return;
+        const dy = ptr.prevPosition.y - ptr.y;
+        if (ptr.x >= dividerWorldX) {
+          applyRightScroll(dy);
+        } else {
+          applyScroll(dy);
+        }
+      };
+
+      cardWheelHandler = (ptr: unknown, _objs: unknown, _dx: number, dy: number) => {
         if (detailPopup) return;
-        applyScroll((dy as number) * 0.6);
+        const scroll = (dy as number) * 0.6;
+        if ((ptr as Phaser.Input.Pointer).x >= dividerWorldX) {
+          applyRightScroll(scroll);
+        } else {
+          applyScroll(scroll);
+        }
       };
 
       this.input.on('pointermove', cardScrollHandler);
@@ -5504,7 +5837,8 @@ export class PrepScene extends Phaser.Scene {
             InventoryStore.addItem(item.id, item.name, qty);
             SaveStore.save();
             refreshGold();
-            AudioService.playSfx(this, 'sfx_purchase');
+            DailyQuestStore.addProgress('shop_purchase', 1);
+            AudioService.playSfx(this, 'sfx_purchase', 0.7);
             showToast(`購買成功：${item.name} ×${qty}`, true);
           });
         });
@@ -5661,7 +5995,8 @@ export class PrepScene extends Phaser.Scene {
             SaveStore.save();
             refreshOwned();
             drawBtn(false);
-            AudioService.playSfx(this, 'sfx_purchase');
+            DailyQuestStore.addProgress('shop_purchase', 1);
+            AudioService.playSfx(this, 'sfx_purchase', 0.7);
             showToast(`兌換成功：${getCardDisplayName(card.id)}`, true);
           });
           scrollCont.add(hit);
@@ -5809,7 +6144,8 @@ export class PrepScene extends Phaser.Scene {
     makeBtn(-P(68), cbY, '取消', CBW, CBH, '#cc6666', 0x883333, () => pop.destroy());
     makeBtn(P(68), cbY, '確認購買', CBW, CBH, '#e8c870', GOLD, () => {
       if (InventoryStore.getGold() < qty * item.price) return;
-      AudioService.playSfx(this, 'sfx_purchase');
+      AudioService.playSfx(this, 'sfx_purchase', 0.7);
+      DailyQuestStore.addProgress('shop_purchase', 1);
       onConfirm(qty);
       pop.destroy();
     });
@@ -6677,7 +7013,7 @@ export class PrepScene extends Phaser.Scene {
           this.showQuestPanel(W, H);
         } },
       { xf: 0.33, yf: 0.65, icon: '✦', label: '商店',  color: 0xd47820, buildingKey: 'building_shop',
-        tapW: P(80), tapH: P(72), collW: P(130), collH: P(55), tent: true, onActivate: () => { AudioService.playSfx(this, 'sfx_shop_open'); this.showShopPanel(W, H); } },
+        tapW: P(80), tapH: P(72), collW: P(130), collH: P(55), tent: true, onActivate: () => { AudioService.playSfx(this, 'sfx_shop_open', 0.7); this.showShopPanel(W, H); } },
       { xf: 0.65, yf: 0.50, icon: '⚒', label: '鍛造',  color: 0xd47820, buildingKey: 'building_forge',
         tapW: P(80), tapH: P(72), collW: P(190), collH: P(55), shadow: true, shadowOX: P(0), shadowOY: P(10), onActivate: () => this._showToast('功能待開發') },
       { xf: 0.23, yf: 0.30, icon: '⊕', label: '倉庫',  color: 0x70b858, buildingKey: 'building_warehouse',

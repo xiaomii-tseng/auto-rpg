@@ -6,7 +6,16 @@ import { QuestStore } from './quest-store';
 import { PotionBarStore } from './potion-bar-store';
 import { SkillTreeStore } from './skill-tree-store';
 import { TowerStore } from './tower-store';
+import { DailyQuestStore } from './daily-quest-store';
+import { AudioService } from './audio.service';
+import { SkinStore } from './skin-store';
+import { DismantlePrefsStore } from './dismantle-prefs-store';
 
+// ─────────────────────────────────────────────────────────────────────────────
+// 所有需要持久化的資料，一律存入 SAVE_KEY（'auto_rpg_save'）這一筆 JSON。
+// 禁止在其他地方另開 localStorage key 存遊戲資料。
+// 新增任何 store 或設定時，在 SaveData interface、save()、load() 三處同步更新。
+// ─────────────────────────────────────────────────────────────────────────────
 const SAVE_KEY = 'auto_rpg_save';
 const VERSION  = '15.0.0';
 let   _loaded  = false;
@@ -32,9 +41,12 @@ interface SaveData {
   quests: {
     quests: { id: string; bossId: string; reward: number; flavorText: string; status: string }[];
   };
-  potionBar: { slots: (string | null)[] };
-  skillTree?: { learned: string[]; attackMode: string };
-  tower?: { keys: number; bestFloor: number };
+  potionBar:   { slots: (string | null)[] };
+  skillTree?:  { learned: string[]; attackMode: string };
+  tower?:      { keys: number; bestFloor: number };
+  dailyQuests?:     { date: string; quests: any[] };
+  audio?:           { bgm: number; sfx: number };
+  dismantlePrefs?:  { qualities: string[]; slots: string[] };
 }
 
 export const SaveStore = {
@@ -42,7 +54,7 @@ export const SaveStore = {
     const data: SaveData = {
       version:    VERSION,
       playerName: localStorage.getItem('playerName') ?? '',
-      skinId:     Number(localStorage.getItem('auto_rpg_skin') ?? '0'),
+      skinId:     SkinStore.get(),
       player: {
         level:    PlayerStore.getLevel(),
         exp:      PlayerStore.getExp(),
@@ -57,10 +69,13 @@ export const SaveStore = {
         equipped:  Array.from(CardStore.getEquipped()),
         inventory: CardStore.getInventory(),
       },
-      quests:    QuestStore.getSaveData(),
-      potionBar: PotionBarStore.getSaveData(),
-      skillTree: SkillTreeStore.getSaveData(),
-      tower:     TowerStore.getSaveData(),
+      quests:      QuestStore.getSaveData(),
+      potionBar:   PotionBarStore.getSaveData(),
+      skillTree:   SkillTreeStore.getSaveData(),
+      tower:       TowerStore.getSaveData(),
+      dailyQuests:    DailyQuestStore.getSaveData(),
+      audio:          { bgm: AudioService.bgmVolume, sfx: AudioService.sfxVolume },
+      dismantlePrefs: DismantlePrefsStore.getSaveData(),
     };
     try {
       localStorage.setItem(SAVE_KEY, JSON.stringify(data));
@@ -77,8 +92,8 @@ export const SaveStore = {
       if (isNaN(majorVer) || majorVer < 15) return false;
 
       // Restore consolidated fields so existing getPlayerName() / SkinStore.get() still work
-      if (data.playerName) localStorage.setItem('playerName',    data.playerName);
-      if (data.skinId)     localStorage.setItem('auto_rpg_skin', String(data.skinId));
+      if (data.playerName) localStorage.setItem('playerName', data.playerName);
+      if (data.skinId)     SkinStore.set(data.skinId);
 
       const p = data.player;
       PlayerStore.setLevelExp(p.level, p.exp);
@@ -109,10 +124,16 @@ export const SaveStore = {
         CardStore.setInventoryDirect(data.cards.inventory);
       }
 
-      if (data.quests)    QuestStore.loadSaveData(data.quests as any);
-      if (data.potionBar) PotionBarStore.loadSaveData(data.potionBar);
-      if (data.skillTree) SkillTreeStore.loadSaveData(data.skillTree as any);
-      if (data.tower)     TowerStore.loadSaveData(data.tower);
+      if (data.quests)      QuestStore.loadSaveData(data.quests as any);
+      if (data.potionBar)   PotionBarStore.loadSaveData(data.potionBar);
+      if (data.skillTree)   SkillTreeStore.loadSaveData(data.skillTree as any);
+      if (data.tower)          TowerStore.loadSaveData(data.tower);
+      if (data.dailyQuests)    DailyQuestStore.loadSaveData(data.dailyQuests as any);
+      if (data.dismantlePrefs) DismantlePrefsStore.loadSaveData(data.dismantlePrefs);
+      if (data.audio) {
+        AudioService.setBgmVolume(data.audio.bgm);
+        AudioService.setSfxVolume(data.audio.sfx);
+      }
 
       _loaded = true;
       return true;

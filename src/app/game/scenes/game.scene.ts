@@ -33,6 +33,7 @@ import { NetworkService } from '../network/network.service';
 import { AudioService } from '../data/audio.service';
 import { PotionBarStore } from '../data/potion-bar-store';
 import { TowerStore } from '../data/tower-store';
+import { DailyQuestStore } from '../data/daily-quest-store';
 import { ITEM_POTION_HEALTH_S, ITEM_POTION_HEALTH_M, ITEM_POTION_HEALTH_L, ITEM_POTION_REVIVE, ITEM_POTION_ATK, ITEM_POTION_DEF, ITEM_POTION_SPEED, ITEM_STONE_BROKEN, ITEM_STONE_INTACT, ITEM_STONE_RECAST, ITEM_QUEST_REROLL, ITEM_BLANK_CARD, getHealthPotionForStar } from '../data/monster-data';
 import type { MapParams } from '../../../../shared/types';
 
@@ -149,6 +150,8 @@ export class GameScene extends Phaser.Scene {
   protected bossDebuffGfx!: Phaser.GameObjects.Graphics;
   protected bossDebuffTexts: Map<string, Phaser.GameObjects.Text> = new Map();
   protected gameOver = false;
+  private _dqDeathThisBattle  = false;
+  private _dqPotionThisBattle = false;
   protected teleporting = false;
   protected _hostReconnecting = false;
 
@@ -3370,17 +3373,8 @@ export class GameScene extends Phaser.Scene {
     const def = getMonsterDef(monsterId);
     if (!def) return;
     const isElite = def.tier >= 3 && def.tier < 5;
-    const { id: hpId, name: hpName } = getHealthPotionForStar(this.questStar);
-    const potionDrops: import('../data/monster-data').DropEntry[] = [
-      { itemId: hpId,              itemName: hpName,     rate: isElite ? 0.02 : 0.01, qtyMin: 1, qtyMax: 1 },
-      ...(isElite ? [
-        { itemId: ITEM_POTION_REVIVE, itemName: '復活藥水', rate: 0.004, qtyMin: 1, qtyMax: 1 },
-        { itemId: ITEM_POTION_ATK,   itemName: '攻擊力藥水', rate: 0.008, qtyMin: 1, qtyMax: 1 },
-        { itemId: ITEM_POTION_DEF,   itemName: '防禦力藥水', rate: 0.008, qtyMin: 1, qtyMax: 1 },
-        { itemId: ITEM_POTION_SPEED, itemName: '速度藥水',   rate: 0.008, qtyMin: 1, qtyMax: 1 },
-      ] : []),
-    ];
-    this.spawnLoot(x, y, [...def.drops, ...potionDrops]);
+    DailyQuestStore.addProgress(isElite ? 'kill_elite' : 'kill_normal', 1);
+    this.spawnLoot(x, y, def.drops);
     const _pStats     = CardStore.getTotalStats();
     const dropBonus   = 1 + (_pStats.dropRatePct ?? 0);
     const rarityBonusVal = _pStats.rarityBonus ?? 0;
@@ -6529,6 +6523,11 @@ export class GameScene extends Phaser.Scene {
 
   protected handleBossDefeated(): void {
     this.playSfx('sfx_boss_death');
+    DailyQuestStore.addProgress('kill_boss', 1);
+    if (!this._dqDeathThisBattle)  DailyQuestStore.addProgress('clear_no_death', 1);
+    if (!this._dqPotionThisBattle) DailyQuestStore.addProgress('clear_no_potion', 1);
+    this._dqDeathThisBattle  = false;
+    this._dqPotionThisBattle = false;
     // Tower mode: wait for both bosses to die before completing floor
     if (this._towerFloor > 0) {
       const boss1Dead = !this.boss?.active;
@@ -6629,6 +6628,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   protected handlePlayerDead(): void {
+    this._dqDeathThisBattle = true;
     this.playSfx('sfx_player_dead');
     this.player.off(Phaser.Animations.Events.ANIMATION_COMPLETE);
     this._endDarkNight();
@@ -7606,6 +7606,7 @@ export class GameScene extends Phaser.Scene {
       if (id !== -1) NetworkService.sendChestOpen(id);
     }
     this.playSfx('sfx_open_chest');
+    DailyQuestStore.addProgress('open_chest', 1);
     const animKey = `chest_open_${chest.type}`;
     chest.sprite.play(animKey);
     chest.sprite.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => {
@@ -7737,6 +7738,7 @@ export class GameScene extends Phaser.Scene {
         this.player.x, this.player.y, loot.obj.x, loot.obj.y,
       );
       if (d > P(60) || Date.now() < loot.readyAt) return true;
+      DailyQuestStore.addProgress('pickup_loot', 1);
       if (loot.cardId) {
         CardStore.addCard(loot.cardId);
         this._sessionLoot.push({ type: 'card', cardId: loot.cardId, itemName: loot.itemName });
@@ -7942,6 +7944,8 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.playSfx('sfx_potion');
+    this._dqPotionThisBattle = true;
+    DailyQuestStore.addProgress('use_potion', 1);
     // 每種藥水獨立 20 秒 CD
     this._potionCdUntil.set(itemId, this.time.now + 20000);
     this.time.addEvent({ delay: 500, repeat: 39, callback: () => this._potionBarRedraw?.() });

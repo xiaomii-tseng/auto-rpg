@@ -125,6 +125,13 @@ const FLAVOR_TEMPLATES: Array<(name: string, star: number) => string> = [
   (n, s) => `邊境守備隊求援：${s >= 3 ? '強化版' : ''}${n}攻佔了要塞入口，危在旦夕！`,
 ];
 
+export function getMaxNaturalStar(playerLevel: number): number {
+  return Math.max(...Object.entries(getStarWeights(playerLevel))
+    .filter(([, w]) => w > 0).map(([s]) => Number(s)));
+}
+
+export { BOSS_POOL, BOSS_MIN_STAR };
+
 function pickStar(playerLevel: number): number {
   const weights = getStarWeights(playerLevel);
   const stars   = [1, 2, 3, 4, 5];

@@ -20,11 +20,11 @@ export const SKINS: readonly SkinDef[] = [
   { label: '劍客',     folder: 'sprite/player/PNG/Sword/With_shadow',        prefix: 'Sword'          },
 ] as const;
 
-const KEY = 'auto_rpg_skin';
+let _skinId = 0;
 
 export const SkinStore = {
-  get(): number { return Math.min(SKINS.length - 1, Math.max(0, Number(localStorage.getItem(KEY) ?? '0'))); },
-  set(id: number): void { localStorage.setItem(KEY, String(id)); },
+  get(): number { return _skinId; },
+  set(id: number): void { _skinId = Math.min(SKINS.length - 1, Math.max(0, id)); },
 };
 
 const CFG = { frameWidth: 64, frameHeight: 64 };
