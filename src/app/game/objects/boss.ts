@@ -134,7 +134,6 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
   protected readonly animPrefix: string;
   protected baseTint = 0xffffff;
   private _flashUntil = 0;
-  private _nextHitSfx = 0;
 
   flashWhite(ms = 80): void {
     this._flashUntil = this.scene.time.now + ms;
@@ -144,10 +143,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
         if (this.baseTint === 0xffffff) this.clearTint(); else this.setTint(this.baseTint);
       }
     });
-    if (this.scene.time.now >= this._nextHitSfx && this.scene.cache.audio.exists('sfx_hit')) {
-      this._nextHitSfx = this.scene.time.now + 40;
-      AudioService.playSfx(this.scene, 'sfx_hit', 0.45);
-    }
+    AudioService.playSfx(this.scene, 'sfx_hit', 0.45, 40);
   }
 
   readonly element: Element;

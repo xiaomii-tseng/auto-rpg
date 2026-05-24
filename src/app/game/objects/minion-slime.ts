@@ -184,16 +184,12 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
   }
 
   private _flashUntil = 0;
-  private _nextHitSfx = 0;
 
   flashWhite(ms = 80): void {
     this._flashUntil = this.scene.time.now + ms;
     this.setTintFill(0xffffff);
     this.scene.time.delayedCall(ms, () => this.applyBaseTint());
-    if (this.scene.time.now >= this._nextHitSfx && this.scene.cache.audio.exists('sfx_hit')) {
-      this._nextHitSfx = this.scene.time.now + 40;
-      AudioService.playSfx(this.scene, 'sfx_hit', 0.45);
-    }
+    AudioService.playSfx(this.scene, 'sfx_hit', 0.45, 40);
   }
 
   private applyBaseTint(): void {

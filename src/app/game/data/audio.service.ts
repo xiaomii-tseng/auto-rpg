@@ -32,9 +32,17 @@ export class AudioService {
 
   // ── SFX ──────────────────────────────────────────────────
 
-  /** factor: 相對音量乘數（預設 1.0），用於個別音效微調響度。 */
-  static playSfx(scene: Phaser.Scene, key: string, factor = 1.0): void {
+  // 需要全局節流的 key → 下次可播的時間戳（ms）
+  private static _sfxGlobalCooldown: Map<string, number> = new Map();
+
+  /** factor: 相對音量乘數（預設 1.0）。throttleMs: 全局同 key 冷卻時間（0 = 不限）。 */
+  static playSfx(scene: Phaser.Scene, key: string, factor = 1.0, throttleMs = 0): void {
     if (!scene.cache.audio.exists(key)) return;
+    if (throttleMs > 0) {
+      const now = performance.now();
+      if (now < (this._sfxGlobalCooldown.get(key) ?? 0)) return;
+      this._sfxGlobalCooldown.set(key, now + throttleMs);
+    }
     scene.sound.play(key, { volume: this.sfxVolume * factor });
   }
 
