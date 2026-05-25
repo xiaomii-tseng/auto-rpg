@@ -608,20 +608,21 @@ export class PrepScene extends Phaser.Scene {
 
     // Content
     const ENTRIES: { text: string; header?: boolean }[] = [
-      { text: '── 音效系統 ──', header: true },
-      { text: '♪  新增主城背景音樂' },
-      { text: '♪  攻擊音效（旋風/斬擊/魔法/蓄力/五連/飛刃各自獨立）' },
-      { text: '♪  怪物受擊音效' },
+      { text: '── 帳號系統 ──', header: true },
+      { text: '◆  帳號登入 / 註冊（玩家名稱唯一）' },
+      { text: '◆  預設開啟自動登入' },
+      { text: '◆  存檔雲端同步，支援多裝置（自動選新存檔）' },
+      { text: '◆  Token 過期自動換新，不中斷上傳' },
       { text: '' },
-      { text: '── 多人連線 ──', header: true },
-      { text: '◆  冰火球 / 落雷技能畫面同步' },
-      { text: '◆  夥伴球體旋轉修正' },
-      { text: '◆  斷線重連與連線狀態優化' },
+      { text: '── 存檔 ──', header: true },
+      { text: '◆  切走 app / 關閉頁面立刻強制上傳' },
+      { text: '◆  每 30 秒自動 debounce 上傳' },
       { text: '' },
-      { text: '── 遊戲系統 ──', header: true },
-      { text: '◆  新增寶箱系統（走廊隨機生成，多人各取各的）' },
-      { text: '◆  任務中止畫面美化' },
-      { text: '◆  商店恢復藥水價格減半' },
+      { text: '── 體驗優化 ──', header: true },
+      { text: '◆  主城 / 戰鬥載入顯示真實進度條' },
+      { text: '◆  伺服器冷啟動顯示等待提示' },
+      { text: '◆  有新版本時顯示更新提示（不強制重載）' },
+      { text: '◆  全球等級排行榜' },
     ];
 
     const content = track(this.add.container(SX, SY).setDepth(DEPTH + 3)) as Phaser.GameObjects.Container;
@@ -1048,14 +1049,16 @@ export class PrepScene extends Phaser.Scene {
       objs.push(o); return o;
     };
 
-    addTxt('音效設定', px + PW / 2, py + P(10), {
+    addTxt('功能選項', px + PW / 2, py + P(10), {
       fontSize: F(17), fontStyle: 'bold', color: '#ffe08a', stroke: '#1a0800', strokeThickness: 2,
     });
     const closeX = this.add.text(px + PW - P(8), py + P(8), '✕', {
       fontSize: F(16), fontStyle: 'bold', color: '#cc7744',
-    }).setOrigin(1, 0).setDepth(D + 2).setInteractive({ useHandCursor: true });
+    }).setOrigin(1, 0).setDepth(D + 2);
     objs.push(closeX);
-    closeX.on('pointerup', close);
+    const closeXHit = this.add.rectangle(px + PW - P(16), py + P(16), P(44), P(44)).setDepth(D + 3).setInteractive({ useHandCursor: true }).setAlpha(0.001);
+    objs.push(closeXHit);
+    closeXHit.on('pointerup', close);
 
     const STEP = 0.05;
     const rows: { key: '背景音樂' | '音效'; get: () => number; set: (v: number) => void }[] = [
@@ -1203,9 +1206,11 @@ export class PrepScene extends Phaser.Scene {
 
     const closeBtn = this.add.text(px + PW - P(8), py + P(8), '✕', {
       fontSize: F(16), fontStyle: 'bold', color: '#cc7744', stroke: '#0a0000', strokeThickness: 1,
-    }).setOrigin(1, 0).setDepth(D + 3).setInteractive({ useHandCursor: true });
+    }).setOrigin(1, 0).setDepth(D + 3);
     objs.push(closeBtn);
-    closeBtn.on('pointerup', close);
+    const closeBtnHit = this.add.rectangle(px + PW - P(16), py + P(16), P(44), P(44)).setDepth(D + 4).setInteractive({ useHandCursor: true }).setAlpha(0.001);
+    objs.push(closeBtnHit);
+    closeBtnHit.on('pointerup', close);
 
     // ── Quest rows (scrollable container) ───────────────────
     const STATUS_COLOR: Record<string, string> = { active: '#aaaaaa', completed: '#ffe066', claimed: '#556655' };
@@ -6637,9 +6642,11 @@ export class PrepScene extends Phaser.Scene {
     const closeBtn = this.add.text(px + PW - P(14), py + P(14), '✕', {
       fontSize: F(16), fontStyle: 'bold', color: '#778899',
       stroke: '#080c18', strokeThickness: P(1),
-    }).setOrigin(1, 0).setInteractive({ useHandCursor: true });
-    closeBtn.on('pointerdown', () => container.destroy());
+    }).setOrigin(1, 0);
+    const closeBtnHit = this.add.rectangle(px + PW - P(22), py + P(22), P(44), P(44)).setInteractive({ useHandCursor: true }).setAlpha(0.001);
+    closeBtnHit.on('pointerdown', () => container.destroy());
     container.add(closeBtn);
+    container.add(closeBtnHit);
 
     // ── Footer (fixed) ────────────────────────────────────────────
     const footerY = py + PH - FOOTER_H;
@@ -6648,13 +6655,13 @@ export class PrepScene extends Phaser.Scene {
     footerDivG.lineBetween(px + P(20), footerY, px + PW - P(20), footerY);
     container.add(footerDivG);
     const footerText = this.add.text(0, footerY + P(10), '讀取中…', {
-      fontSize: F(10), color: '#445566',
+      fontSize: F(15), fontStyle: 'bold', color: '#445566',
     }).setOrigin(0.5, 0);
     container.add(footerText);
 
     // ── Loading text ──────────────────────────────────────────────
     const loadingText = this.add.text(0, BODY_TOP + BODY_H / 2, '讀取中…', {
-      fontSize: F(14), color: '#667788',
+      fontSize: F(15), fontStyle: 'bold', color: '#667788',
     }).setOrigin(0.5, 0.5);
     container.add(loadingText);
 
@@ -6680,7 +6687,7 @@ export class PrepScene extends Phaser.Scene {
     if (fetchError || entries.length === 0) {
       container.add(this.add.text(0, BODY_TOP + BODY_H / 2,
         fetchError ? '讀取失敗，請稍後再試' : '暫無資料', {
-        fontSize: F(14), color: '#667788',
+        fontSize: F(15), fontStyle: 'bold', color: '#667788',
       }).setOrigin(0.5, 0.5));
       footerText.setText('點擊外框關閉');
       return;
@@ -6722,7 +6729,7 @@ export class PrepScene extends Phaser.Scene {
 
       // Rank number
       scrollCnt.add(this.add.text(ROW_L + P(18), ry + ROW_H / 2, `${i + 1}`, {
-        fontSize: F(i < 3 ? 15 : 13), fontStyle: 'bold',
+        fontSize: F(15), fontStyle: 'bold',
         color: i < 3 ? RANK_COLORS[i] : (isMe ? '#88cc88' : '#556677'),
         stroke: '#080c18', strokeThickness: P(1),
       }).setOrigin(0.5, 0.5));
@@ -6730,7 +6737,7 @@ export class PrepScene extends Phaser.Scene {
       // Player name
       const nameStr = entry.playerId.length > 11 ? entry.playerId.slice(0, 10) + '…' : entry.playerId;
       scrollCnt.add(this.add.text(ROW_L + P(36), ry + ROW_H / 2, nameStr, {
-        fontSize: F(14), color: isMe ? '#aaddaa' : '#99aabb',
+        fontSize: F(15), fontStyle: 'bold', color: isMe ? '#aaddaa' : '#99aabb',
         stroke: '#080c18', strokeThickness: P(1),
       }).setOrigin(0, 0.5));
 
@@ -6889,7 +6896,7 @@ export class PrepScene extends Phaser.Scene {
       fontSize: F(16), fontStyle: 'bold', color: '#cc55aa',
       stroke: '#1a0033', strokeThickness: P(2),
     }).setOrigin(0.5)
-      .setInteractive({ hitArea: new Phaser.Geom.Rectangle(-P(14), -P(14), P(36), P(36)), hitAreaCallback: Phaser.Geom.Rectangle.Contains, useHandCursor: true });
+      .setInteractive({ hitArea: new Phaser.Geom.Rectangle(-P(22), -P(22), P(44), P(44)), hitAreaCallback: Phaser.Geom.Rectangle.Contains, useHandCursor: true });
     closeBtn.on('pointerdown', () => container.destroy());
     container.add(closeBtn);
 

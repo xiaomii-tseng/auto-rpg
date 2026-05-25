@@ -10,6 +10,7 @@ import { DailyQuestStore } from './daily-quest-store';
 import { AudioService } from './audio.service';
 import { SkinStore } from './skin-store';
 import { DismantlePrefsStore } from './dismantle-prefs-store';
+import { VERSION as _V } from '../version';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 所有需要持久化的資料，一律存入 SAVE_KEY（'auto_rpg_save'）這一筆 JSON。
@@ -17,7 +18,7 @@ import { DismantlePrefsStore } from './dismantle-prefs-store';
 // 新增任何 store 或設定時，在 SaveData interface、save()、load() 三處同步更新。
 // ─────────────────────────────────────────────────────────────────────────────
 const SAVE_KEY = 'auto_rpg_save';
-const VERSION  = '15.1.0';
+const VERSION  = _V.replace(/^v/, '');
 let   _loaded  = false;
 let   _onSaveHook: (() => void) | null = null;
 
