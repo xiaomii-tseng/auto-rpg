@@ -5,3 +5,10 @@
 @if (showAuth) {
   <app-auth (loggedIn)="onLoggedIn()"></app-auth>
 }
+
+@if (showUpdate()) {
+  <div class="update-banner">
+    <span>遊戲已更新，重新載入以取得最新版本</span>
+    <button (click)="applyUpdate()">立刻更新</button>
+  </div>
+}

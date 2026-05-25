@@ -109,6 +109,26 @@ export class AuthService {
 
   getToken(): string { return this._user?.accessToken ?? ''; }
 
+  /** 用 refreshToken 換新的 accessToken，成功後更新 localStorage */
+  async refreshAccessToken(): Promise<boolean> {
+    const refreshToken = this._user?.refreshToken;
+    if (!refreshToken) return false;
+    try {
+      const res = await fetch(`${environment.apiUrl}/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken }),
+      });
+      if (!res.ok) return false;
+      const data = await res.json();
+      if (!this._user) return false;
+      this._user.accessToken  = data.accessToken;
+      this._user.refreshToken = data.refreshToken;
+      localStorage.setItem('rg_user', JSON.stringify(this._user));
+      return true;
+    } catch { return false; }
+  }
+
   /** 登入後同步存檔：有雲端存檔就下載，否則上傳本地（新玩家建檔） */
   async syncSave(): Promise<void> {
     const token = this.getToken();
@@ -131,8 +151,22 @@ export class AuthService {
         const data = await res.json();
 
         if (data.save_data && Object.keys(data.save_data).length > 0) {
-          // 雲端有存檔 → 覆蓋本地，確保帳號之間不互污
-          localStorage.setItem('auto_rpg_save', JSON.stringify(data.save_data));
+          // 雙裝置衝突：比較時間戳，保留較新的存檔
+          const cloudTs = data.updated_at ? new Date(data.updated_at).getTime() : 0;
+          const localTs = Number(localStorage.getItem('rg_save_ts') ?? '0');
+          if (cloudTs >= localTs) {
+            // 雲端較新 → 覆蓋本地
+            localStorage.setItem('auto_rpg_save', JSON.stringify(data.save_data));
+            localStorage.setItem('rg_save_ts', String(cloudTs));
+          } else {
+            // 本地較新 → 上傳本地到雲端
+            const localSave = JSON.parse(localStorage.getItem('auto_rpg_save') ?? '{}');
+            await fetch(`${environment.apiUrl}/save`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+              body: JSON.stringify({ saveData: localSave, version: localSave.version ?? '' }),
+            });
+          }
         } else {
           // 無雲端存檔 → 新玩家，寫入帶有玩家名稱的初始存檔
           const initSave = makeInitialSave(playerId);

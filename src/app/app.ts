@@ -1,4 +1,4 @@
-import { Component, AfterViewInit, NgZone, inject } from '@angular/core';
+import { Component, AfterViewInit, NgZone, inject, signal } from '@angular/core';
 import { SwUpdate, VersionReadyEvent } from '@angular/service-worker';
 import { filter, interval } from 'rxjs';
 import Phaser from 'phaser';
@@ -27,7 +27,8 @@ export class App implements AfterViewInit {
   private readonly authSvc   = inject(AuthService);
   private readonly saveSync  = inject(SaveSyncService);
 
-  showAuth = true;
+  showAuth     = true;
+  showUpdate   = signal(false);
   private _phaserInited = false;
 
   ngAfterViewInit(): void {
@@ -39,6 +40,10 @@ export class App implements AfterViewInit {
       this._startGame();
       return;
     }
+  }
+
+  applyUpdate(): void {
+    this.swUpdate.activateUpdate().then(() => location.reload());
   }
 
   async onLoggedIn(): Promise<void> {
@@ -53,19 +58,16 @@ export class App implements AfterViewInit {
   }
 
   private _setupSaveSync(): void {
-    const token = this.authSvc.getToken();
-    if (!token) return;
-    this.saveSync.init(token);
+    if (!this.authSvc.getToken()) return;
+    this.saveSync.init();
 
     // SaveStore 每次本地存檔後通知 sync service
     SaveStore.setOnSaveHook(() => this.saveSync.markDirty());
 
-    // 玩家切走 app / 鎖螢幕 → 立刻強制上傳
+    // 玩家切走 app / 鎖螢幕 → 立刻強制上傳（beforeunload 已在 init() 裡掛）
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'hidden') this.saveSync.forceUpload();
     });
-
-    // iOS 備援
     window.addEventListener('pagehide', () => this.saveSync.forceUpload());
   }
 
@@ -77,7 +79,7 @@ export class App implements AfterViewInit {
       this.swUpdate.versionUpdates.pipe(
         filter((e): e is VersionReadyEvent => e.type === 'VERSION_READY'),
       ).subscribe(() => {
-        this.swUpdate.activateUpdate().then(() => location.reload());
+        this.showUpdate.set(true);
       });
 
       // SW 快取損壞無法恢復 → 強制重新載入從網路抓新資源

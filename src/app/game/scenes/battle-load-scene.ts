@@ -103,6 +103,9 @@ export class BattleLoadScene extends Phaser.Scene {
     queueBattleAssets(this, this._gameData?.ownSkinId ?? 0, this._gameData?.partnerSkinId ?? 0);
     this.load.on('progress', (v: number) => drawBar(v));
     this.load.once('complete', done);
+    this.load.on('loaderror', (_file: Phaser.Loader.File) => {
+      loadingTxt.setText('載入失敗，請重新整理').setColor('#ff6644');
+    });
     this.load.start();
 
     if (!this.load.isLoading()) done();

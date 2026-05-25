@@ -1,18 +1,21 @@
-import { Injectable } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
 import { environment } from '../../environments/environment';
+import { AuthService } from './auth.service';
 
 const SAVE_KEY = 'auto_rpg_save';
+const SAVE_TS_KEY = 'rg_save_ts';
 const DEBOUNCE_MS = 30_000;
 
 @Injectable({ providedIn: 'root' })
 export class SaveSyncService {
-  private _token   = '';
-  private _dirty   = false;
+  private auth = inject(AuthService);
+
+  private _dirty     = false;
   private _timer: ReturnType<typeof setTimeout> | null = null;
   private _uploading = false;
 
-  init(token: string): void {
-    this._token = token;
+  init(): void {
+    window.addEventListener('beforeunload', () => this.forceUpload());
   }
 
   /** SaveStore.save() 之後呼叫，啟動 debounce 計時器 */
@@ -30,7 +33,8 @@ export class SaveSyncService {
   }
 
   private async _upload(): Promise<void> {
-    if (!this._token || this._uploading) return;
+    const token = this.auth.getToken();
+    if (!token || this._uploading) return;
     const raw = localStorage.getItem(SAVE_KEY);
     if (!raw) return;
 
@@ -38,16 +42,38 @@ export class SaveSyncService {
     this._dirty = false;
     try {
       const saveData = JSON.parse(raw);
-      await fetch(`${environment.apiUrl}/save`, {
+      const res = await fetch(`${environment.apiUrl}/save`, {
         method:  'POST',
-        headers: {
-          'Content-Type':  'application/json',
-          Authorization:   `Bearer ${this._token}`,
-        },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ saveData, version: saveData.version ?? '' }),
       });
+
+      if (res.status === 401) {
+        // Token 過期 → 嘗試 refresh 再重試一次
+        const refreshed = await this.auth.refreshAccessToken();
+        if (refreshed) {
+          const newToken = this.auth.getToken();
+          const res2 = await fetch(`${environment.apiUrl}/save`, {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${newToken}` },
+            body: JSON.stringify({ saveData, version: saveData.version ?? '' }),
+          });
+          if (res2.ok) {
+            localStorage.setItem(SAVE_TS_KEY, String(Date.now()));
+            return;
+          }
+        }
+        this._dirty = true; // refresh 失敗，標記 dirty 等下次
+        return;
+      }
+
+      if (res.ok) {
+        localStorage.setItem(SAVE_TS_KEY, String(Date.now()));
+      } else {
+        this._dirty = true;
+      }
     } catch (_) {
-      this._dirty = true; // 失敗就補回 dirty，等下次重試
+      this._dirty = true;
     } finally {
       this._uploading = false;
     }

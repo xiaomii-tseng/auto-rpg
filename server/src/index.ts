@@ -47,6 +47,13 @@ app.post('/auth/register', async (req, res) => {
 
   const email = toEmail(account);
 
+  // 0. 確認 playerId 尚未被使用
+  const { data: existingProfile } = await supabase
+    .from('profiles').select('id').eq('player_id', playerId).maybeSingle();
+  if (existingProfile) {
+    res.status(400).json({ error: '玩家名稱已被使用' }); return;
+  }
+
   // 1. 用 admin API 建帳號（不影響 client session，確保後續 DB 操作維持 service_role）
   const { data: created, error: createErr } = await supabase.auth.admin.createUser({
     email,
@@ -129,19 +136,15 @@ app.post('/auth/refresh', async (req, res) => {
 // SAVE DATA
 // ══════════════════════════════════════════════════════════════════════════════
 
-// Middleware: verify JWT and attach userId
-function requireAuth(req: any, res: any, next: any) {
+// Middleware: verify JWT via Supabase (validates signature + expiry)
+async function requireAuth(req: any, res: any, next: any) {
   const auth = req.headers['authorization'] ?? '';
   const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
   if (!token) { res.status(401).json({ error: 'no token' }); return; }
-  // decode payload (we trust Supabase signed JWTs; for extra security verify with JWKS)
-  try {
-    const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString());
-    req.userId = payload.sub;
-    next();
-  } catch {
-    res.status(401).json({ error: 'invalid token' });
-  }
+  const { data, error } = await supabase.auth.getUser(token);
+  if (error || !data.user) { res.status(401).json({ error: 'token expired' }); return; }
+  req.userId = data.user.id;
+  next();
 }
 
 // GET /save  → returns save_data JSON

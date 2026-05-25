@@ -17,3 +17,33 @@
   width: 100%;
   height: 100%;
 }
+
+.update-banner {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 12px 20px;
+  background: #1a2e10;
+  border-top: 1px solid #4a7820;
+  color: #b8e060;
+  font-size: 14px;
+
+  button {
+    padding: 6px 18px;
+    background: #5a9620;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+
+    &:hover { background: #6ab828; }
+  }
+}
