@@ -384,6 +384,273 @@ app.get('/leaderboard/level', async (req, res) => {
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
+// MARKET
+// ══════════════════════════════════════════════════════════════════════════════
+
+const limiterMarket = rateLimit({
+  windowMs: 60 * 1000, max: 30,
+  message: { error: '操作頻率過高，請稍後再試' },
+  standardHeaders: true, legacyHeaders: false,
+});
+
+// ── helpers ───────────────────────────────────────────────────────────────────
+
+function extractAffixStats(item: any): string[] | null {
+  if (!Array.isArray(item?.affixes)) return null;
+  return item.affixes.map((a: any) => a.stat).filter(Boolean);
+}
+
+function removeEquipFromOwned(saveData: any, itemId: string): { save: any; found: boolean } {
+  const owned: any[] = saveData?.player?.owned ?? [];
+  const idx = owned.findIndex((e: any) => e.id === itemId);
+  if (idx === -1) return { save: saveData, found: false };
+  const newOwned = [...owned.slice(0, idx), ...owned.slice(idx + 1)];
+  return {
+    save: { ...saveData, player: { ...saveData.player, owned: newOwned } },
+    found: true,
+  };
+}
+
+function removeConsumable(saveData: any, itemId: string, qty: number): { save: any; found: boolean } {
+  const items: any[] = saveData?.inventory?.items ?? [];
+  const idx = items.findIndex((i: any) => i.id === itemId);
+  if (idx === -1) return { save: saveData, found: false };
+  const entry = items[idx];
+  if (entry.qty < qty) return { save: saveData, found: false };
+  const newItems = entry.qty === qty
+    ? [...items.slice(0, idx), ...items.slice(idx + 1)]
+    : items.map((i: any, n: number) => n === idx ? { ...i, qty: i.qty - qty } : i);
+  return {
+    save: { ...saveData, inventory: { ...saveData.inventory, items: newItems } },
+    found: true,
+  };
+}
+
+function removeCard(saveData: any, cardId: string, qty: number): { save: any; found: boolean } {
+  const inv: any[] = saveData?.cards?.inventory ?? [];
+  const idx = inv.findIndex((c: any) => c.cardId === cardId);
+  if (idx === -1) return { save: saveData, found: false };
+  const entry = inv[idx];
+  if (entry.qty < qty) return { save: saveData, found: false };
+  const newInv = entry.qty === qty
+    ? [...inv.slice(0, idx), ...inv.slice(idx + 1)]
+    : inv.map((c: any, n: number) => n === idx ? { ...c, qty: c.qty - qty } : c);
+  return {
+    save: { ...saveData, cards: { ...saveData.cards, inventory: newInv } },
+    found: true,
+  };
+}
+
+// ── GET /market/listings ──────────────────────────────────────────────────────
+// Query params: type, quality, affix (可多個), name, page, limit
+app.get('/market/listings', async (req, res) => {
+  const { type, quality, name, page = '1', limit: lim = '20' } = req.query as Record<string, string>;
+  const affix = req.query['affix'];
+  const affixes = Array.isArray(affix) ? affix : affix ? [affix] : [];
+  const pageNum  = Math.max(1, parseInt(page)  || 1);
+  const pageSize = Math.min(50, parseInt(lim)   || 20);
+  const offset   = (pageNum - 1) * pageSize;
+
+  let query = supabase
+    .from('market_listings')
+    .select('id, seller_nickname, item_type, item_name, item_snapshot, affix_stats, quality, price, qty, created_at')
+    .eq('status', 'active')
+    .order('created_at', { ascending: false })
+    .range(offset, offset + pageSize - 1);
+
+  if (type)    query = query.eq('item_type', type);
+  if (quality) query = query.eq('quality', quality);
+  if (name)    query = query.ilike('item_name', `%${name}%`);
+  if (affixes.length > 0) query = query.contains('affix_stats', affixes);
+
+  const { data, error } = await query;
+  if (error) { res.status(500).json({ error: error.message }); return; }
+  res.json(data);
+});
+
+// ── GET /market/my-listings ───────────────────────────────────────────────────
+app.get('/market/my-listings', requireAuth, async (req: any, res) => {
+  const { data, error } = await supabase
+    .from('market_listings')
+    .select('id, item_type, item_name, item_snapshot, quality, price, qty, status, created_at, sold_at')
+    .eq('seller_user_id', req.userId)
+    .order('created_at', { ascending: false })
+    .limit(100);
+
+  if (error) { res.status(500).json({ error: error.message }); return; }
+  res.json(data);
+});
+
+// ── POST /market/list ─────────────────────────────────────────────────────────
+// Body: { itemType, itemId, qty, price }
+// itemType = 'equipment' | 'consumable' | 'card'
+// itemId   = EquipmentItem.id | InventoryItem.id | cardId
+app.post('/market/list', limiterMarket, requireAuth, async (req: any, res) => {
+  const { itemType, itemId, qty, price } = req.body ?? {};
+
+  if (!itemType || !itemId || !price) {
+    res.status(400).json({ error: 'itemType, itemId, price required' }); return;
+  }
+  if (!['equipment', 'consumable', 'card'].includes(itemType)) {
+    res.status(400).json({ error: 'invalid itemType' }); return;
+  }
+  const priceNum = parseInt(price);
+  const qtyNum   = parseInt(qty) || 1;
+  if (isNaN(priceNum) || priceNum <= 0 || priceNum > 999999999) {
+    res.status(400).json({ error: 'invalid price' }); return;
+  }
+  if (qtyNum <= 0) { res.status(400).json({ error: 'invalid qty' }); return; }
+
+  // 讀存檔（加鎖用 maybeSingle 即可，RPC 只在 buy 時鎖）
+  const { data: saveRow, error: saveErr } = await supabase
+    .from('player_saves').select('save_data').eq('user_id', req.userId).single();
+  if (saveErr || !saveRow) { res.status(404).json({ error: 'save not found' }); return; }
+
+  const { data: profile } = await supabase
+    .from('profiles').select('player_id, nickname').eq('id', req.userId).single();
+
+  let saveData = saveRow.save_data;
+  let snapshot: any;
+  let itemName: string;
+  let affixStats: string[] | null = null;
+  let quality: string | null = null;
+
+  if (itemType === 'equipment') {
+    const item = (saveData?.player?.owned ?? []).find((e: any) => e.id === itemId);
+    if (!item) { res.status(400).json({ error: 'item not found' }); return; }
+    snapshot   = item;
+    itemName   = item.name ?? item.slot ?? 'equipment';
+    affixStats = extractAffixStats(item);
+    quality    = item.quality ?? null;
+    const { save, found } = removeEquipFromOwned(saveData, itemId);
+    if (!found) { res.status(400).json({ error: 'item not found' }); return; }
+    saveData = save;
+
+  } else if (itemType === 'consumable') {
+    const item = (saveData?.inventory?.items ?? []).find((i: any) => i.id === itemId);
+    if (!item) { res.status(400).json({ error: 'item not found' }); return; }
+    if (item.qty < qtyNum) { res.status(400).json({ error: 'insufficient qty' }); return; }
+    snapshot = { id: item.id, name: item.name, qty: qtyNum };
+    itemName = item.name ?? item.id;
+    const { save, found } = removeConsumable(saveData, itemId, qtyNum);
+    if (!found) { res.status(400).json({ error: 'item not found or qty insufficient' }); return; }
+    saveData = save;
+
+  } else {
+    // card
+    const entry = (saveData?.cards?.inventory ?? []).find((c: any) => c.cardId === itemId);
+    if (!entry) { res.status(400).json({ error: 'card not found' }); return; }
+    if (entry.qty < qtyNum) { res.status(400).json({ error: 'insufficient qty' }); return; }
+    snapshot = { cardId: itemId, qty: qtyNum };
+    itemName = itemId;
+    const { save, found } = removeCard(saveData, itemId, qtyNum);
+    if (!found) { res.status(400).json({ error: 'card not found or qty insufficient' }); return; }
+    saveData = save;
+  }
+
+  // 寫入 listing + 更新存檔（兩個 DB 操作，用 Promise.all 快一點；listing 失敗時補償存檔）
+  const [listRes, saveRes] = await Promise.all([
+    supabase.from('market_listings').insert({
+      seller_user_id:  req.userId,
+      seller_nickname: profile?.nickname ?? profile?.player_id ?? null,
+      item_type:       itemType,
+      item_name:       itemName,
+      item_snapshot:   snapshot,
+      affix_stats:     affixStats,
+      quality,
+      price:           priceNum,
+      qty:             qtyNum,
+    }).select('id').single(),
+    supabase.from('player_saves').update({ save_data: saveData, updated_at: new Date().toISOString() })
+      .eq('user_id', req.userId),
+  ]);
+
+  if (listRes.error || saveRes.error) {
+    // 補償：存檔成功但 listing 失敗時，把道具還回去（best-effort）
+    if (!listRes.error && saveRes.error) {
+      await supabase.from('market_listings').delete().eq('id', listRes.data!.id);
+    }
+    if (listRes.error && !saveRes.error) {
+      await supabase.from('player_saves').update({
+        save_data: saveRow.save_data, updated_at: new Date().toISOString()
+      }).eq('user_id', req.userId);
+    }
+    res.status(500).json({ error: listRes.error?.message ?? saveRes.error?.message }); return;
+  }
+
+  res.json({ ok: true, listingId: listRes.data!.id });
+});
+
+// ── POST /market/buy/:id ──────────────────────────────────────────────────────
+app.post('/market/buy/:id', limiterMarket, requireAuth, async (req: any, res) => {
+  const listingId = req.params.id;
+  if (!listingId) { res.status(400).json({ error: 'listingId required' }); return; }
+
+  const { data, error } = await supabase.rpc('buy_listing', {
+    p_listing_id:    listingId,
+    p_buyer_user_id: req.userId,
+  });
+
+  if (error) { res.status(500).json({ error: error.message }); return; }
+  if (!data?.ok) { res.status(400).json({ error: data?.error ?? 'buy failed' }); return; }
+  res.json({ ok: true });
+});
+
+// ── DELETE /market/list/:id ───────────────────────────────────────────────────
+app.delete('/market/list/:id', limiterMarket, requireAuth, async (req: any, res) => {
+  const listingId = req.params.id;
+
+  // 取回 listing，確認是自己的且仍 active
+  const { data: listing, error: listErr } = await supabase
+    .from('market_listings').select('*').eq('id', listingId).single();
+  if (listErr || !listing) { res.status(404).json({ error: 'listing not found' }); return; }
+  if (listing.seller_user_id !== req.userId) { res.status(403).json({ error: 'forbidden' }); return; }
+  if (listing.status !== 'active') { res.status(400).json({ error: 'listing not active' }); return; }
+
+  // 讀存檔
+  const { data: saveRow, error: saveErr } = await supabase
+    .from('player_saves').select('save_data').eq('user_id', req.userId).single();
+  if (saveErr || !saveRow) { res.status(404).json({ error: 'save not found' }); return; }
+
+  let saveData = saveRow.save_data;
+  const snap   = listing.item_snapshot;
+
+  if (listing.item_type === 'equipment') {
+    const newOwned = [...(saveData?.player?.owned ?? []), snap];
+    saveData = { ...saveData, player: { ...saveData.player, owned: newOwned } };
+
+  } else if (listing.item_type === 'consumable') {
+    const items: any[]  = saveData?.inventory?.items ?? [];
+    const idx           = items.findIndex((i: any) => i.id === snap.id);
+    const newItems      = idx === -1
+      ? [...items, { id: snap.id, name: snap.name, qty: listing.qty }]
+      : items.map((i: any, n: number) => n === idx ? { ...i, qty: i.qty + listing.qty } : i);
+    saveData = { ...saveData, inventory: { ...saveData.inventory, items: newItems } };
+
+  } else {
+    // card
+    const inv: any[]  = saveData?.cards?.inventory ?? [];
+    const idx         = inv.findIndex((c: any) => c.cardId === snap.cardId);
+    const newInv      = idx === -1
+      ? [...inv, { cardId: snap.cardId, qty: listing.qty }]
+      : inv.map((c: any, n: number) => n === idx ? { ...c, qty: c.qty + listing.qty } : c);
+    saveData = { ...saveData, cards: { ...saveData.cards, inventory: newInv } };
+  }
+
+  const [cancelRes, saveRes] = await Promise.all([
+    supabase.from('market_listings').update({ status: 'cancelled' }).eq('id', listingId),
+    supabase.from('player_saves').update({ save_data: saveData, updated_at: new Date().toISOString() })
+      .eq('user_id', req.userId),
+  ]);
+
+  if (cancelRes.error || saveRes.error) {
+    res.status(500).json({ error: cancelRes.error?.message ?? saveRes.error?.message }); return;
+  }
+
+  res.json({ ok: true });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
 // COLYSEUS
 // ══════════════════════════════════════════════════════════════════════════════
 

@@ -115,7 +115,9 @@
       "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); configs=d['projects']['auto-rpg']['architect']['build']['configurations']; print\\(json.dumps\\(configs, indent=2\\)\\)\")",
       "Bash(node node_modules/@angular/cli/bin/ng.js build --configuration production)",
       "Bash(node node_modules/typescript/bin/tsc --noEmit)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "Bash(Get-ChildItem \"C:\\\\MyCode\\\\auto-rpg\\\\src\\\\app\\\\game\\\\scenes\" -Filter \"*.ts\")",
+      "PowerShell(Get-ChildItem \"C:\\\\MyCode\\\\auto-rpg\\\\src\\\\app\\\\game\\\\scenes\" | Where-Object { $_.Extension -eq \".ts\" })"
     ],
     "additionalDirectories": [
       "\\MyCode\\auto-rpg\\src\\app\\game\\scenes",
