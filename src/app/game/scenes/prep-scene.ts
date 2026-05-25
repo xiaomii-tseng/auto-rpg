@@ -6627,7 +6627,7 @@ export class PrepScene extends Phaser.Scene {
       fontSize: F(20), fontStyle: 'bold', color: '#ccd8ee',
       stroke: '#080c18', strokeThickness: P(2),
     }).setOrigin(0.5, 0.5));
-    container.add(this.add.text(0, py + P(50), '— 全球玩家 —', {
+    container.add(this.add.text(0, py + P(50), '— 全服玩家 —', {
       fontSize: F(11), color: '#667788',
       stroke: '#080c18', strokeThickness: P(1),
     }).setOrigin(0.5, 0.5));
