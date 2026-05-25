@@ -42,12 +42,18 @@ export class SaveSyncService {
     this._uploading = true;
     this._dirty = false;
     try {
-      const saveData = JSON.parse(decryptSave(raw));
+      const saveData  = JSON.parse(decryptSave(raw));
+      const sessionId = this.auth.getSessionId();
+      const body      = JSON.stringify({ saveData, version: saveData.version ?? '', sessionId });
       const res = await fetch(`${environment.apiUrl}/save`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ saveData, version: saveData.version ?? '' }),
+        body,
       });
+
+      if (res.status === 409) {
+        this._forceLogout('此帳號已在其他裝置登入，你已被登出'); return;
+      }
 
       if (res.status === 401) {
         // Token 過期 → 嘗試 refresh 再重試一次
@@ -57,7 +63,7 @@ export class SaveSyncService {
           const res2 = await fetch(`${environment.apiUrl}/save`, {
             method:  'POST',
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${newToken}` },
-            body: JSON.stringify({ saveData, version: saveData.version ?? '' }),
+            body,
           });
           if (res2.ok) {
             localStorage.setItem(SAVE_TS_KEY, String(Date.now()));
@@ -78,5 +84,12 @@ export class SaveSyncService {
     } finally {
       this._uploading = false;
     }
+  }
+
+  private _forceLogout(message: string): void {
+    ['rg_user', 'rg_auto_login', 'rg_remember', 'auto_rpg_save', 'rg_save_ts', 'playerName']
+      .forEach(k => localStorage.removeItem(k));
+    alert(message);
+    window.location.reload();
   }
 }

@@ -8,6 +8,7 @@ export interface AuthUser {
   nickname: string | null;
   accessToken:  string;
   refreshToken: string;
+  sessionId:    string;
 }
 
 const USER_KEY        = 'rg_user';
@@ -107,7 +108,8 @@ export class AuthService {
     localStorage.removeItem(AUTO_LOGIN_KEY);
   }
 
-  getToken(): string { return this._user?.accessToken ?? ''; }
+  getToken(): string     { return this._user?.accessToken ?? ''; }
+  getSessionId(): string { return this._user?.sessionId   ?? ''; }
 
   /** 用 refreshToken 換新的 accessToken，成功後更新 localStorage */
   async refreshAccessToken(): Promise<boolean> {
@@ -165,7 +167,7 @@ export class AuthService {
             await fetch(`${environment.apiUrl}/save`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-              body: JSON.stringify({ saveData: localSave, version: localSave.version ?? '' }),
+              body: JSON.stringify({ saveData: localSave, version: localSave.version ?? '', sessionId: this._user?.sessionId ?? '' }),
             });
           }
         } else {
@@ -175,7 +177,7 @@ export class AuthService {
           await fetch(`${environment.apiUrl}/save`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-            body: JSON.stringify({ saveData: initSave, version: initSave.version }),
+            body: JSON.stringify({ saveData: initSave, version: initSave.version, sessionId: this._user?.sessionId ?? '' }),
           });
         }
         return; // 成功就離開
