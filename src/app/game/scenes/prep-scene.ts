@@ -6581,46 +6581,53 @@ export class PrepScene extends Phaser.Scene {
     }).setOrigin(0.5).setDepth(D + 3));
   }
 
-  private _showRankingPanel(W: number, H: number): void {
-    const PW = Math.min(W - P(8), P(360));
-    const PH = Math.min(H - P(16), P(400));
-    const D  = 8000;
-    const px = -PW / 2, py = -PH / 2;
+  private async _showRankingPanel(W: number, H: number): Promise<void> {
+    const PW      = Math.min(W - P(8), P(360));
+    const PH      = Math.min(H - P(16), P(460));
+    const D       = 8000;
+    const px      = -PW / 2, py = -PH / 2;
     const HEADER_H = P(68);
+    const FOOTER_H = P(38);
+    const ROW_H   = P(42);
+    const ROW_PAD = P(3);
+    const ROW_L   = px + P(12);
+    const ROW_W   = PW - P(24);
+    const BODY_TOP = py + HEADER_H;   // local Y where body starts
+    const BODY_H  = PH - HEADER_H - FOOTER_H;
 
     const container = this.add.container(W / 2, H / 2).setDepth(D);
+
+    // Click-outside-to-close (coordinate check, not blocking interior clicks)
     const dim = this.add.rectangle(0, 0, W, H, 0x000000, 0.6).setInteractive();
-    dim.on('pointerdown', () => container.destroy());
+    dim.on('pointerdown', (p: Phaser.Input.Pointer) => {
+      if (Math.abs(p.x - W / 2) < PW / 2 && Math.abs(p.y - H / 2) < PH / 2) return;
+      container.destroy();
+    });
     container.add(dim);
 
     // ── Background ────────────────────────────────────────────────
     const bg = this.add.graphics();
-    // Silver outer border
     bg.fillStyle(0x8899aa, 1);
     bg.fillRoundedRect(px - P(2), py - P(2), PW + P(4), PH + P(4), P(13));
-    // Stone inner ring
     bg.fillStyle(0x445566, 0.6);
     bg.fillRoundedRect(px - P(1), py - P(1), PW + P(2), PH + P(2), P(12));
-    // Main background (dark slate)
     bg.fillStyle(0x141824, 1);
     bg.fillRoundedRect(px, py, PW, PH, P(11));
-    // Header fill
     bg.fillStyle(0x1c2235, 1);
     bg.fillRoundedRect(px, py, PW, HEADER_H, P(11));
     bg.fillRect(px, py + P(10), PW, HEADER_H - P(10));
-    // Header bottom divider
     bg.lineStyle(P(1), 0x556688, 0.9);
     bg.lineBetween(px + P(14), py + HEADER_H, px + PW - P(14), py + HEADER_H);
     bg.lineStyle(P(1), 0x334455, 0.4);
     bg.lineBetween(px + P(14), py + HEADER_H + P(1), px + PW - P(14), py + HEADER_H + P(1));
     container.add(bg);
 
-    // ── Header text ───────────────────────────────────────────────
-    container.add(this.add.text(0, py + P(24), '英雄紀錄板', {
+    // ── Header ────────────────────────────────────────────────────
+    container.add(this.add.text(0, py + P(24), '等級排行榜', {
       fontSize: F(20), fontStyle: 'bold', color: '#ccd8ee',
       stroke: '#080c18', strokeThickness: P(2),
     }).setOrigin(0.5, 0.5));
-    container.add(this.add.text(0, py + P(50), '— 個人最佳成就 —', {
+    container.add(this.add.text(0, py + P(50), '— 全球玩家 —', {
       fontSize: F(11), color: '#667788',
       stroke: '#080c18', strokeThickness: P(1),
     }).setOrigin(0.5, 0.5));
@@ -6633,71 +6640,156 @@ export class PrepScene extends Phaser.Scene {
     closeBtn.on('pointerdown', () => container.destroy());
     container.add(closeBtn);
 
-    // ── Records ───────────────────────────────────────────────────
-    const ownedWeapons  = PlayerStore.getOwned();
-    const bestEnhance   = ownedWeapons.length > 0
-      ? Math.max(...ownedWeapons.map(w => w.enhancement ?? 0)) : 0;
-    const bestFloor     = TowerStore.getBestFloor();
+    // ── Footer (fixed) ────────────────────────────────────────────
+    const footerY = py + PH - FOOTER_H;
+    const footerDivG = this.add.graphics();
+    footerDivG.lineStyle(P(1), 0x334455, 0.6);
+    footerDivG.lineBetween(px + P(20), footerY, px + PW - P(20), footerY);
+    container.add(footerDivG);
+    const footerText = this.add.text(0, footerY + P(10), '讀取中…', {
+      fontSize: F(10), color: '#445566',
+    }).setOrigin(0.5, 0);
+    container.add(footerText);
 
-    const records: { label: string; value: string; accent: number }[] = [
-      { label: '角色等級',   value: `Lv. ${PlayerStore.getLevel()}`,             accent: 0xddcc55 },
-      { label: '最高塔層',   value: bestFloor > 0 ? `第 ${bestFloor} 層` : '–', accent: 0x55aaee },
-      { label: '武器收藏',   value: `${ownedWeapons.length} 把`,                accent: 0xee8844 },
-      { label: '最高精煉',   value: bestEnhance > 0 ? `+${bestEnhance}` : '–',  accent: 0xaa55ee },
-      { label: '持有金幣',   value: InventoryStore.getGold().toLocaleString(),   accent: 0xd4a044 },
-    ];
+    // ── Loading text ──────────────────────────────────────────────
+    const loadingText = this.add.text(0, BODY_TOP + BODY_H / 2, '讀取中…', {
+      fontSize: F(14), color: '#667788',
+    }).setOrigin(0.5, 0.5);
+    container.add(loadingText);
 
-    const ROW_H    = P(50);
-    const ROW_PAD  = P(4);
-    const startY   = py + HEADER_H + P(10);
-    const ROW_L    = px + P(12);
-    const ROW_W    = PW - P(24);
+    // ── Fetch leaderboard ─────────────────────────────────────────
+    interface LBEntry { playerId: string; level: number; }
+    let entries: LBEntry[] = [];
+    let fetchError = false;
+    try {
+      const raw    = localStorage.getItem('rg_user');
+      const token  = raw ? (JSON.parse(raw) as { accessToken: string }).accessToken : '';
+      const apiUrl = (window as any).__apiUrl as string ?? '';
+      const resp   = await fetch(`${apiUrl}/leaderboard/level`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (resp.ok) entries = await resp.json();
+      else fetchError = true;
+    } catch { fetchError = true; }
 
-    records.forEach((rec, i) => {
-      const ry = startY + i * (ROW_H + ROW_PAD);
+    if (!container.active) return;
+    loadingText.destroy();
+
+    // ── Error / empty ─────────────────────────────────────────────
+    if (fetchError || entries.length === 0) {
+      container.add(this.add.text(0, BODY_TOP + BODY_H / 2,
+        fetchError ? '讀取失敗，請稍後再試' : '暫無資料', {
+        fontSize: F(14), color: '#667788',
+      }).setOrigin(0.5, 0.5));
+      footerText.setText('點擊外框關閉');
+      return;
+    }
+
+    // ── Current player ────────────────────────────────────────────
+    const myRaw      = localStorage.getItem('rg_user');
+    const myPlayerId = myRaw ? (JSON.parse(myRaw) as any).playerId ?? '' : '';
+
+    // ── Scrollable rows container ─────────────────────────────────
+    const scrollCnt = this.add.container(0, BODY_TOP);
+    container.add(scrollCnt);
+
+    // Geometry mask (clips rows to body area) — in world coordinates
+    const maskGfx = (this.make.graphics as any)({ x: 0, y: 0, add: false }) as Phaser.GameObjects.Graphics;
+    maskGfx.fillStyle(0xffffff);
+    maskGfx.fillRect(W / 2 + px, H / 2 + BODY_TOP, PW, BODY_H);
+    scrollCnt.setMask(maskGfx.createGeometryMask());
+
+    // ── Build rows (Y relative to scrollCnt) ──────────────────────
+    const RANK_COLORS = ['#d4aa30', '#cccccc', '#cc7733'];
+    let myRank = -1;
+
+    entries.forEach((entry, i) => {
+      if (entry.playerId === myPlayerId) myRank = i + 1;
+      const ry   = P(6) + i * (ROW_H + ROW_PAD);
+      const isMe = entry.playerId === myPlayerId;
+
       const rowBg = this.add.graphics();
-      // Row background — alternating stone shades
-      rowBg.fillStyle(i % 2 === 0 ? 0x1c2233 : 0x192030, 1);
+      rowBg.fillStyle(isMe ? 0x1a2c1a : (i % 2 === 0 ? 0x1c2233 : 0x192030), 1);
       rowBg.fillRoundedRect(ROW_L, ry, ROW_W, ROW_H, P(6));
-      // Left accent bar
-      rowBg.fillStyle(rec.accent, 0.85);
-      rowBg.fillRoundedRect(ROW_L, ry + P(10), P(4), ROW_H - P(20), P(2));
-      // Subtle top shine
+      if (isMe) {
+        rowBg.lineStyle(P(1), 0x44aa44, 0.7);
+        rowBg.strokeRoundedRect(ROW_L, ry, ROW_W, ROW_H, P(6));
+      }
       rowBg.fillStyle(0xffffff, 0.03);
       rowBg.fillRoundedRect(ROW_L, ry, ROW_W, P(3), P(3));
-      container.add(rowBg);
+      scrollCnt.add(rowBg);
 
-      // Rank badge
-      const rankColors = ['#d4aa30', '#aaaaaa', '#cc7733', '#667799', '#667799'];
-      container.add(this.add.text(ROW_L + P(18), ry + ROW_H / 2, `${i + 1}`, {
-        fontSize: F(13), fontStyle: 'bold',
-        color: rankColors[i] ?? '#667799',
+      // Rank number
+      scrollCnt.add(this.add.text(ROW_L + P(18), ry + ROW_H / 2, `${i + 1}`, {
+        fontSize: F(i < 3 ? 15 : 13), fontStyle: 'bold',
+        color: i < 3 ? RANK_COLORS[i] : (isMe ? '#88cc88' : '#556677'),
         stroke: '#080c18', strokeThickness: P(1),
       }).setOrigin(0.5, 0.5));
 
-      // Label
-      container.add(this.add.text(ROW_L + P(34), ry + ROW_H / 2, rec.label, {
-        fontSize: F(14), color: '#99aabb',
+      // Player name
+      const nameStr = entry.playerId.length > 11 ? entry.playerId.slice(0, 10) + '…' : entry.playerId;
+      scrollCnt.add(this.add.text(ROW_L + P(36), ry + ROW_H / 2, nameStr, {
+        fontSize: F(14), color: isMe ? '#aaddaa' : '#99aabb',
         stroke: '#080c18', strokeThickness: P(1),
       }).setOrigin(0, 0.5));
 
-      // Value
-      const accentHex = `#${rec.accent.toString(16).padStart(6, '0')}`;
-      container.add(this.add.text(ROW_L + ROW_W - P(12), ry + ROW_H / 2, rec.value, {
-        fontSize: F(16), fontStyle: 'bold', color: accentHex,
+      // Level
+      const lvColor = i < 3 ? RANK_COLORS[i] : (isMe ? '#88cc88' : '#aabbcc');
+      scrollCnt.add(this.add.text(ROW_L + ROW_W - P(12), ry + ROW_H / 2, `Lv. ${entry.level}`, {
+        fontSize: F(15), fontStyle: 'bold', color: lvColor,
         stroke: '#080c18', strokeThickness: P(2),
       }).setOrigin(1, 0.5));
     });
 
-    // ── Footer ────────────────────────────────────────────────────
-    const footerY = startY + records.length * (ROW_H + ROW_PAD) + P(8);
-    const footerG = this.add.graphics();
-    footerG.lineStyle(P(1), 0x334455, 0.6);
-    footerG.lineBetween(px + P(20), footerY, px + PW - P(20), footerY);
-    container.add(footerG);
-    container.add(this.add.text(0, footerY + P(12), '點擊任意處關閉', {
-      fontSize: F(10), color: '#445566',
-    }).setOrigin(0.5, 0));
+    // ── Footer text ───────────────────────────────────────────────
+    if (myRank > 0) {
+      footerText.setText(`我的排名：第 ${myRank} 名`);
+      footerText.setColor('#88cc88');
+    } else {
+      footerText.setText('點擊外框關閉');
+    }
+
+    // ── Scroll logic ──────────────────────────────────────────────
+    const totalH   = P(6) + entries.length * (ROW_H + ROW_PAD);
+    const maxScroll = Math.max(0, totalH - BODY_H);
+
+    let scrollY    = 0;
+    let isDragging = false;
+    let lastPY     = 0;
+
+    const inBody = (p: Phaser.Input.Pointer) =>
+      p.x >= W / 2 + px && p.x <= W / 2 + px + PW &&
+      p.y >= H / 2 + BODY_TOP && p.y <= H / 2 + BODY_TOP + BODY_H;
+
+    const onDown = (p: Phaser.Input.Pointer) => {
+      if (!container.active || !inBody(p)) return;
+      isDragging = true; lastPY = p.y;
+    };
+    const onMove = (p: Phaser.Input.Pointer) => {
+      if (!isDragging || !container.active) return;
+      scrollY = Phaser.Math.Clamp(scrollY + (lastPY - p.y), 0, maxScroll);
+      lastPY  = p.y;
+      scrollCnt.y = BODY_TOP - scrollY;
+    };
+    const onUp   = () => { isDragging = false; };
+    const onWheel = (_p: unknown, _go: unknown, _dx: number, dy: number) => {
+      if (!container.active) return;
+      scrollY = Phaser.Math.Clamp(scrollY + dy * 0.6, 0, maxScroll);
+      scrollCnt.y = BODY_TOP - scrollY;
+    };
+
+    this.input.on('pointerdown', onDown);
+    this.input.on('pointermove', onMove);
+    this.input.on('pointerup',   onUp);
+    this.input.on('wheel',       onWheel);
+
+    container.once('destroy', () => {
+      this.input.off('pointerdown', onDown);
+      this.input.off('pointermove', onMove);
+      this.input.off('pointerup',   onUp);
+      this.input.off('wheel',       onWheel);
+      maskGfx.destroy();
+    });
   }
 
   /** Destroys and redraws room overlay: room code, leave button, partner sprite, guest overlay */

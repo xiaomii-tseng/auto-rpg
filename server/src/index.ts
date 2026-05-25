@@ -215,6 +215,36 @@ app.post('/leaderboard/tower', requireAuth, async (req: any, res) => {
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
+// LEADERBOARD — LEVEL
+// ══════════════════════════════════════════════════════════════════════════════
+
+// GET /leaderboard/level?limit=50
+app.get('/leaderboard/level', async (req, res) => {
+  const limit = Math.min(Number(req.query.limit) || 50, 100);
+
+  const [savesRes, profilesRes] = await Promise.all([
+    supabase.from('player_saves').select('user_id, save_data'),
+    supabase.from('profiles').select('id, player_id'),
+  ]);
+
+  if (savesRes.error) { res.status(500).json({ error: savesRes.error.message }); return; }
+
+  const profileMap = new Map(
+    (profilesRes.data ?? []).map((p: any) => [p.id as string, p.player_id as string])
+  );
+
+  const ranked = (savesRes.data ?? [])
+    .map((s: any) => ({
+      playerId: profileMap.get(s.user_id) ?? '–',
+      level: Number(s.save_data?.player?.level ?? 0),
+    }))
+    .sort((a: any, b: any) => b.level - a.level)
+    .slice(0, limit);
+
+  res.json(ranked);
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
 // COLYSEUS
 // ══════════════════════════════════════════════════════════════════════════════
 

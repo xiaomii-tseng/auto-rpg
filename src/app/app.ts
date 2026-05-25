@@ -120,6 +120,7 @@ export class App implements AfterViewInit {
       });
     }
 
+    (window as any).__apiUrl = environment.apiUrl;
     const dpr = (window as any).__gameDpr as number;
     const isMobile = 'ontouchstart' in window;
     (window as any).__gameMobile = isMobile;
