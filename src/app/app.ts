@@ -8,8 +8,11 @@ import { TownLoadingScene } from './game/scenes/town-loading-scene';
 import { GameScene } from './game/scenes/game.scene';
 import { TowerScene } from './game/scenes/tower-scene';
 import { InventoryStore } from './game/data/inventory-store';
-import { AuthComponent } from './auth/auth.component';
-import { AuthService }   from './auth/auth.service';
+import { AuthComponent }    from './auth/auth.component';
+import { AuthService }      from './auth/auth.service';
+import { SaveSyncService }  from './auth/save-sync.service';
+import { SaveStore }        from './game/data/save-store';
+import { environment }      from '../environments/environment';
 
 @Component({
   selector: 'app-root',
@@ -22,27 +25,50 @@ export class App implements AfterViewInit {
   private readonly ngZone    = inject(NgZone);
   private readonly swUpdate  = inject(SwUpdate);
   private readonly authSvc   = inject(AuthService);
+  private readonly saveSync  = inject(SaveSyncService);
 
   showAuth = true;
   private _phaserInited = false;
 
   ngAfterViewInit(): void {
-    // 若已有 token 直接進遊戲
+    // 啟動時先 ping server，喚醒 Render 避免登入卡頓
+    fetch(`${environment.apiUrl}/health`).catch(() => {});
+
     if (this.authSvc.init()) {
       this.showAuth = false;
-      this._initPhaser();
+      this._startGame();
       return;
     }
-    // 否則顯示登入畫面，Phaser 先不啟動
   }
 
   async onLoggedIn(): Promise<void> {
     this.showAuth = false;
-    if (!this._phaserInited) {
-      await this.authSvc.syncSave();
-      this._initPhaser();
-    }
+    if (!this._phaserInited) await this._startGame();
   }
+
+  private async _startGame(): Promise<void> {
+    await this.authSvc.syncSave();
+    this._setupSaveSync();
+    this._initPhaser();
+  }
+
+  private _setupSaveSync(): void {
+    const token = this.authSvc.getToken();
+    if (!token) return;
+    this.saveSync.init(token);
+
+    // SaveStore 每次本地存檔後通知 sync service
+    SaveStore.setOnSaveHook(() => this.saveSync.markDirty());
+
+    // 玩家切走 app / 鎖螢幕 → 立刻強制上傳
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') this.saveSync.forceUpload();
+    });
+
+    // iOS 備援
+    window.addEventListener('pagehide', () => this.saveSync.forceUpload());
+  }
+
 
   private _initPhaser(): void {
     this._phaserInited = true;

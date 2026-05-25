@@ -19,6 +19,7 @@ import { DismantlePrefsStore } from './dismantle-prefs-store';
 const SAVE_KEY = 'auto_rpg_save';
 const VERSION  = '15.1.0';
 let   _loaded  = false;
+let   _onSaveHook: (() => void) | null = null;
 
 interface SaveData {
   version: string | number;
@@ -50,6 +51,8 @@ interface SaveData {
 }
 
 export const SaveStore = {
+  setOnSaveHook(fn: () => void): void { _onSaveHook = fn; },
+
   save(): void {
     const data: SaveData = {
       version:    VERSION,
@@ -79,6 +82,7 @@ export const SaveStore = {
     };
     try {
       localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+      _onSaveHook?.();
     } catch (_) {}
   },
 
