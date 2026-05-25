@@ -229,6 +229,15 @@ $border:     rgba(200, 169, 110, 0.35);
   }
 }
 
+.loading-hint {
+  text-align: center;
+  font-size: 13px;
+  color: rgba(200,169,110,0.55);
+  margin: 4px 0 0;
+  letter-spacing: 1px;
+  animation: fadeIn 0.3s ease;
+}
+
 // ── 自動登入 ───────────────────────────────────────────────
 .remember-label {
   display: flex;

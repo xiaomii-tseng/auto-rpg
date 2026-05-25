@@ -51,6 +51,23 @@ export class AuthService {
     return localStorage.getItem(REMEMBER_KEY) ?? '';
   }
 
+  /**
+   * 確認伺服器已醒來。Render 免費版冷啟動最多約 60 秒。
+   * 每 3 秒 ping /health 一次，最多 25 次（~75 秒）。
+   * onWaiting 在第一次失敗後呼叫，讓 UI 顯示等待提示。
+   */
+  async waitForServer(onWaiting: () => void): Promise<void> {
+    for (let i = 0; i < 25; i++) {
+      try {
+        const res = await fetchWithTimeout(`${environment.apiUrl}/health`, {}, 8_000);
+        if (res.ok) return;
+      } catch {}
+      if (i === 0) onWaiting();
+      await new Promise(r => setTimeout(r, 3_000));
+    }
+    throw new Error('伺服器連線失敗，請稍後再試');
+  }
+
   async login(account: string, password: string, rememberMe: boolean): Promise<void> {
     const res = await fetchWithTimeout(`${environment.apiUrl}/auth/login`, {
       method: 'POST',

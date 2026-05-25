@@ -30,9 +30,10 @@ export class AuthComponent {
   regPassword   = '';
   regNickname   = '';
 
-  loading = false;
-  error   = '';
-  shake   = false;
+  loading     = false;
+  loadingHint = '';
+  error       = '';
+  shake       = false;
 
   isLogin    = computed(() => this.tab() === 'login');
   isRegister = computed(() => this.tab() === 'register');
@@ -45,15 +46,23 @@ export class AuthComponent {
 
   async submit() {
     if (this.loading) return;
-    this.error   = '';
-    this.loading = true;
+    // 前端驗證（不需要連線）
+    if (this.tab() === 'login') {
+      if (!this.loginAccount || !this.loginPassword) { this.showError('請填寫帳號與密碼'); return; }
+    } else {
+      if (!this.regPlayerName || !this.regAccount || !this.regPassword) { this.showError('請填寫必填欄位'); return; }
+      if (this.regPassword.length < 6) { this.showError('密碼至少需要 6 個字元'); return; }
+    }
+
+    this.error       = '';
+    this.loadingHint = '';
+    this.loading     = true;
     try {
+      await this.auth.waitForServer(() => { this.loadingHint = '伺服器啟動中，請稍候...'; });
+      this.loadingHint = '';
       if (this.tab() === 'login') {
-        if (!this.loginAccount || !this.loginPassword) throw new Error('請填寫帳號與密碼');
         await this.auth.login(this.loginAccount, this.loginPassword, this.rememberMe);
       } else {
-        if (!this.regPlayerName || !this.regAccount || !this.regPassword) throw new Error('請填寫必填欄位');
-        if (this.regPassword.length < 6) throw new Error('密碼至少需要 6 個字元');
         await this.auth.register(this.regPlayerName, this.regAccount, this.regPassword, this.regNickname || undefined);
       }
       this.loggedIn.emit();
@@ -61,8 +70,14 @@ export class AuthComponent {
       this.error = e.message ?? '發生錯誤';
       this.triggerShake();
     } finally {
-      this.loading = false;
+      this.loading     = false;
+      this.loadingHint = '';
     }
+  }
+
+  private showError(msg: string) {
+    this.error = msg;
+    this.triggerShake();
   }
 
   private triggerShake() {
