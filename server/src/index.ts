@@ -137,6 +137,39 @@ app.post('/auth/login', limiterAuth, async (req, res) => {
   });
 });
 
+// POST /auth/change-password  { oldPassword, newPassword }
+app.post('/auth/change-password', requireAuth, async (req: any, res) => {
+  const { oldPassword, newPassword } = req.body ?? {};
+  if (!oldPassword || !newPassword) {
+    res.status(400).json({ error: 'oldPassword and newPassword required' }); return;
+  }
+  if (newPassword.length < 6) {
+    res.status(400).json({ error: '新密碼至少需要 6 個字元' }); return;
+  }
+
+  const { data: adminUser, error: adminErr } = await supabase.auth.admin.getUserById(req.userId);
+  if (adminErr || !adminUser.user?.email) {
+    res.status(500).json({ error: '無法取得使用者資訊' }); return;
+  }
+
+  const { error: signInErr } = await supabase.auth.signInWithPassword({
+    email: adminUser.user.email,
+    password: oldPassword,
+  });
+  if (signInErr) {
+    res.status(401).json({ error: '舊密碼錯誤' }); return;
+  }
+
+  const { error: updateErr } = await supabase.auth.admin.updateUserById(req.userId, {
+    password: newPassword,
+  });
+  if (updateErr) {
+    res.status(500).json({ error: updateErr.message }); return;
+  }
+
+  res.json({ ok: true });
+});
+
 // POST /auth/refresh  { refreshToken }
 app.post('/auth/refresh', async (req, res) => {
   const { refreshToken } = req.body ?? {};
