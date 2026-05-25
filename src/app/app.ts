@@ -8,19 +8,41 @@ import { TownLoadingScene } from './game/scenes/town-loading-scene';
 import { GameScene } from './game/scenes/game.scene';
 import { TowerScene } from './game/scenes/tower-scene';
 import { InventoryStore } from './game/data/inventory-store';
+import { AuthComponent } from './auth/auth.component';
+import { AuthService }   from './auth/auth.service';
 
 @Component({
   selector: 'app-root',
-  imports: [],
+  imports: [AuthComponent],
   templateUrl: './app.html',
   styleUrl: './app.scss',
 })
 export class App implements AfterViewInit {
 
-  private readonly ngZone   = inject(NgZone);
-  private readonly swUpdate = inject(SwUpdate);
+  private readonly ngZone    = inject(NgZone);
+  private readonly swUpdate  = inject(SwUpdate);
+  private readonly authSvc   = inject(AuthService);
+
+  showAuth = true;
+  private _phaserInited = false;
 
   ngAfterViewInit(): void {
+    // 若已有 token 直接進遊戲
+    if (this.authSvc.init()) {
+      this.showAuth = false;
+      this._initPhaser();
+      return;
+    }
+    // 否則顯示登入畫面，Phaser 先不啟動
+  }
+
+  onLoggedIn(): void {
+    this.showAuth = false;
+    if (!this._phaserInited) this._initPhaser();
+  }
+
+  private _initPhaser(): void {
+    this._phaserInited = true;
     if (this.swUpdate.isEnabled) {
       // 新版就緒 → 立刻激活並重新載入
       this.swUpdate.versionUpdates.pipe(

@@ -1,0 +1,92 @@
+<div class="auth-backdrop">
+  <div class="vignette"></div>
+
+  <div class="auth-card" [class.shake]="shake">
+
+    <div class="corners"></div>
+
+    <div class="divider top-divider">
+      <span class="divider-gem"></span>
+    </div>
+
+    <div class="tab-bar">
+      <button class="tab-btn" [class.active]="isLogin()" (click)="switchTab('login')">
+        <span>登入</span>
+      </button>
+      <button class="tab-btn" [class.active]="isRegister()" (click)="switchTab('register')">
+        <span>註冊</span>
+      </button>
+      <div class="tab-indicator" [class.right]="isRegister()"></div>
+    </div>
+
+    <div class="form-scroll">
+      <form class="auth-form" (ngSubmit)="submit()" autocomplete="off">
+
+        @if (isLogin()) {
+          <div class="field-group">
+            <label class="field-label">帳號</label>
+            <input type="text" class="field-input" placeholder="請輸入帳號"
+                   [(ngModel)]="loginAccount" name="loginAccount" autocomplete="username" />
+          </div>
+          <div class="field-group">
+            <label class="field-label">密碼</label>
+            <input type="password" class="field-input" placeholder="請輸入密碼"
+                   [(ngModel)]="loginPassword" name="loginPassword" autocomplete="current-password" />
+          </div>
+        }
+
+        @if (isRegister()) {
+          <div class="field-group">
+            <label class="field-label">玩家名稱 <span class="required">*</span></label>
+            <input type="text" class="field-input" placeholder="遊戲內顯示的名稱"
+                   [(ngModel)]="regPlayerName" name="regPlayerName" maxlength="16" />
+          </div>
+          <div class="field-group">
+            <label class="field-label">帳號 <span class="required">*</span></label>
+            <input type="text" class="field-input" placeholder="登入用的帳號"
+                   [(ngModel)]="regAccount" name="regAccount" autocomplete="username" />
+          </div>
+          <div class="field-group">
+            <label class="field-label">密碼 <span class="required">*</span></label>
+            <input type="password" class="field-input" placeholder="至少 6 個字元"
+                   [(ngModel)]="regPassword" name="regPassword" autocomplete="new-password" />
+          </div>
+          <div class="field-group">
+            <label class="field-label">你是誰 <span class="optional">（選填）</span></label>
+            <input type="text" class="field-input" placeholder="真實姓名或備註"
+                   [(ngModel)]="regNickname" name="regNickname" maxlength="32" />
+          </div>
+        }
+
+        @if (isLogin()) {
+          <label class="remember-label">
+            <input type="checkbox" class="remember-check" [(ngModel)]="rememberMe" name="rememberMe" />
+            <span class="remember-text">自動登入</span>
+          </label>
+        }
+
+        @if (error) {
+          <div class="error-msg">
+            <span class="error-icon">!</span>
+            {{ error }}
+          </div>
+        }
+
+        <button type="submit" class="submit-btn" [class.loading]="loading" [disabled]="loading">
+          @if (loading) {
+            <span class="spinner"></span>
+          } @else {
+            <span class="btn-text">{{ isLogin() ? '進入遊戲' : '建立帳號' }}</span>
+            <span class="btn-shine"></span>
+          }
+        </button>
+
+      </form>
+    </div>
+
+    <div class="divider bottom-divider">
+      <span class="divider-gem small"></span>
+    </div>
+
+  </div>
+</div>

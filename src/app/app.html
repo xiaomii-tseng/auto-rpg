@@ -1,3 +1,7 @@
 <div id="game-wrapper">
   <div id="game-container"></div>
 </div>
+
+@if (showAuth) {
+  <app-auth (loggedIn)="onLoggedIn()"></app-auth>
+}

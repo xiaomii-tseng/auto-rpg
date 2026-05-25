@@ -1,0 +1,356 @@
+// ── 色票 ───────────────────────────────────────────────────
+$gold-light: #e8d4a0;
+$gold-mid:   #c8a96e;
+$card-bg:    rgba(12, 9, 4, 0.90);
+$border:     rgba(200, 169, 110, 0.35);
+
+// ── 背景 ───────────────────────────────────────────────────
+.auth-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background:
+    linear-gradient(rgba(0,0,0,0.55), rgba(0,0,0,0.65)),
+    url('/other/town-loading.png') center/cover no-repeat;
+  font-family: 'Segoe UI', '微軟正黑體', sans-serif;
+}
+
+.vignette {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center,
+    transparent 30%,
+    rgba(0,0,0,0.6) 100%
+  );
+}
+
+// ── 卡片 ───────────────────────────────────────────────────
+.auth-card {
+  position: relative;
+  width: min(420px, 100%);
+  background: $card-bg;
+  border: 1px solid $border;
+  border-radius: 4px;
+  padding: 16px 20px;
+  box-shadow:
+    0 0 0 1px rgba(200,169,110,0.08),
+    0 8px 40px rgba(0,0,0,0.75),
+    inset 0 1px 0 rgba(232,212,160,0.12);
+  animation: cardIn 0.45s cubic-bezier(0.16,1,0.3,1) both;
+  display: flex;
+  flex-direction: column;
+
+  // 上方兩角
+  &::before {
+    content: '';
+    position: absolute;
+    top: 8px; left: 8px;
+    width: 14px; height: 14px;
+    border: 1px solid rgba(200,169,110,0.5);
+    border-right: none; border-bottom: none;
+  }
+  &::after {
+    content: '';
+    position: absolute;
+    top: 8px; right: 8px;
+    width: 14px; height: 14px;
+    border: 1px solid rgba(200,169,110,0.5);
+    border-left: none; border-bottom: none;
+  }
+
+  &.shake {
+    animation: shake 0.55s cubic-bezier(0.36,0.07,0.19,0.97) both;
+  }
+}
+
+// 下方兩角（獨立元素，撐滿卡片）
+.corners {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+
+  &::before {
+    content: '';
+    position: absolute;
+    bottom: 8px; left: 8px;
+    width: 14px; height: 14px;
+    border: 1px solid rgba(200,169,110,0.5);
+    border-right: none; border-top: none;
+  }
+  &::after {
+    content: '';
+    position: absolute;
+    bottom: 8px; right: 8px;
+    width: 14px; height: 14px;
+    border: 1px solid rgba(200,169,110,0.5);
+    border-left: none; border-top: none;
+  }
+}
+
+// ── 分隔線 ─────────────────────────────────────────────────
+.divider {
+  display: flex;
+  align-items: center;
+
+  &::before, &::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(to right, transparent, rgba(200,169,110,0.4), transparent);
+  }
+}
+
+.top-divider    { margin-bottom: 12px; }
+.bottom-divider { margin-top: 12px; }
+
+.divider-gem {
+  display: inline-block;
+  width: 6px; height: 6px;
+  background: $gold-mid;
+  transform: rotate(45deg);
+  margin: 0 10px;
+  box-shadow: 0 0 6px rgba(200,169,110,0.6);
+
+  &.small { width: 4px; height: 4px; }
+}
+
+// ── Tab 切換 ───────────────────────────────────────────────
+.tab-bar {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid $border;
+  border-radius: 3px;
+  margin-bottom: 14px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.tab-btn {
+  position: relative;
+  z-index: 1;
+  background: none;
+  border: none;
+  padding: 10px 0;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: rgba(200,169,110,0.45);
+  cursor: pointer;
+  transition: color 0.25s;
+  -webkit-tap-highlight-color: transparent;
+
+  &.active { color: $gold-light; }
+}
+
+.tab-indicator {
+  position: absolute;
+  top: 0; bottom: 0; left: 0;
+  width: 50%;
+  background: linear-gradient(135deg, rgba(122,92,32,0.4), rgba(68,60,34,0.5));
+  border-right: 1px solid rgba(200,169,110,0.25);
+  transition: left 0.25s cubic-bezier(0.4,0,0.2,1);
+
+  &.right {
+    left: 50%;
+    border-right: none;
+    border-left: 1px solid rgba(200,169,110,0.25);
+  }
+}
+
+// ── 表單 scroll 容器（固定高度，等同登入頁大小）──────────────
+.form-scroll {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  // 高度 = 2 個 field + button 的自然高度，讓登入不需捲動
+  // 註冊 4 個 field 則在這個高度內捲動
+  max-height: 210px;
+  min-height: 210px;
+
+  // 隱藏捲軸但保留功能
+  scrollbar-width: none;
+  &::-webkit-scrollbar { display: none; }
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-right: 2px; // 防止 focus ring 被裁切
+}
+
+.field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.field-label {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: rgba(200,169,110,0.7);
+}
+
+.required { color: #c87050; margin-left: 2px; font-weight: 700; }
+.optional { color: rgba(200,169,110,0.4); font-weight: 700; }
+
+.field-input {
+  width: 100%;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(200,169,110,0.22);
+  border-radius: 3px;
+  padding: 10px 12px;
+  font-size: 16px;
+  font-weight: 700;
+  color: $gold-light;
+  outline: none;
+  -webkit-appearance: none;
+  transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+
+  &::placeholder { color: rgba(200,169,110,0.25); font-weight: 400; }
+
+  &:focus {
+    border-color: rgba(200,169,110,0.6);
+    background: rgba(255,255,255,0.08);
+    box-shadow: 0 0 0 2px rgba(200,169,110,0.1), inset 0 1px 3px rgba(0,0,0,0.4);
+  }
+}
+
+// ── 自動登入 ───────────────────────────────────────────────
+.remember-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.remember-check {
+  width: 16px;
+  height: 16px;
+  accent-color: #c8a96e;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.remember-text {
+  font-size: 15px;
+  font-weight: 700;
+  color: rgba(200,169,110,0.65);
+}
+
+// ── 錯誤訊息 ───────────────────────────────────────────────
+.error-msg {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(180,60,30,0.15);
+  border: 1px solid rgba(180,60,30,0.4);
+  border-radius: 3px;
+  padding: 8px 12px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #e8a080;
+  animation: fadeIn 0.2s ease;
+}
+
+.error-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  border: 1px solid rgba(180,60,30,0.6);
+  font-size: 13px;
+  font-weight: 800;
+  flex-shrink: 0;
+  color: #e8a080;
+}
+
+// ── 送出按鈕 ───────────────────────────────────────────────
+.submit-btn {
+  position: relative;
+  overflow: hidden;
+  margin-top: 4px;
+  padding: 12px 0;
+  border: 1px solid rgba(200,169,110,0.5);
+  border-radius: 3px;
+  background: linear-gradient(180deg,
+    rgba(122,92,32,0.7) 0%,
+    rgba(68,60,34,0.85) 100%
+  );
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: 3px;
+  color: $gold-light;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.7);
+  width: 100%;
+  -webkit-tap-highlight-color: transparent;
+  transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+
+  &:hover:not(:disabled) {
+    border-color: rgba(200,169,110,0.75);
+    background: linear-gradient(180deg,
+      rgba(150,112,40,0.8) 0%,
+      rgba(90,78,42,0.9) 100%
+    );
+    box-shadow: 0 0 16px rgba(200,169,110,0.2);
+
+    .btn-shine {
+      transform: translateX(200%);
+      transition: transform 0.6s ease;
+    }
+  }
+
+  &:active:not(:disabled) { transform: translateY(1px); box-shadow: none; }
+  &:disabled { opacity: 0.6; cursor: not-allowed; }
+}
+
+.btn-shine {
+  position: absolute;
+  top: 0; bottom: 0; left: -60%;
+  width: 40%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent);
+  transform: translateX(0);
+  transition: none;
+  pointer-events: none;
+}
+
+.spinner {
+  display: inline-block;
+  width: 20px; height: 20px;
+  border: 2px solid rgba(232,212,160,0.2);
+  border-top-color: $gold-light;
+  border-radius: 50%;
+  animation: spin 0.75s linear infinite;
+  vertical-align: middle;
+}
+
+// ── 動畫 ───────────────────────────────────────────────────
+@keyframes cardIn {
+  from { opacity: 0; transform: translateY(24px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  15%       { transform: translateX(-7px); }
+  35%       { transform: translateX(6px); }
+  55%       { transform: translateX(-4px); }
+  75%       { transform: translateX(3px); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }

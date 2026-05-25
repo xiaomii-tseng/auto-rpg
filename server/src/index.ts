@@ -35,11 +35,16 @@ app.get('/room/:code', (req, res) => {
 // ══════════════════════════════════════════════════════════════════════════════
 
 // POST /auth/register  { email, password, playerId, nickname? }
+// account → 內部轉成 account@game.local，玩家不需要填真實 email
+const toEmail = (account: string) => `${account.toLowerCase().replace(/[^a-z0-9_.-]/g, '_')}@game.local`;
+
 app.post('/auth/register', async (req, res) => {
-  const { email, password, playerId, nickname } = req.body ?? {};
-  if (!email || !password || !playerId) {
-    res.status(400).json({ error: 'email, password, playerId required' }); return;
+  const { account, password, playerId, nickname } = req.body ?? {};
+  if (!account || !password || !playerId) {
+    res.status(400).json({ error: 'account, password, playerId required' }); return;
   }
+
+  const email = toEmail(account);
 
   // 1. create auth user
   const { data: signUp, error: signUpErr } = await supabase.auth.signUp({ email, password });
@@ -60,13 +65,14 @@ app.post('/auth/register', async (req, res) => {
   res.json({ userId: signUp.user.id, playerId });
 });
 
-// POST /auth/login  { email, password }
+// POST /auth/login  { account, password }
 app.post('/auth/login', async (req, res) => {
-  const { email, password } = req.body ?? {};
-  if (!email || !password) {
-    res.status(400).json({ error: 'email and password required' }); return;
+  const { account, password } = req.body ?? {};
+  if (!account || !password) {
+    res.status(400).json({ error: 'account and password required' }); return;
   }
 
+  const email = toEmail(account);
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
   if (error || !data.session) {
     res.status(401).json({ error: error?.message ?? 'login failed' }); return;
