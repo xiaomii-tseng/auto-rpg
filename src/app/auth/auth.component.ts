@@ -28,6 +28,7 @@ export class AuthComponent {
   regPlayerName = '';
   regAccount    = '';
   regPassword   = '';
+  regEmail      = '';
   regNickname   = '';
 
   loading     = signal(false);
@@ -49,8 +50,9 @@ export class AuthComponent {
     if (this.tab() === 'login') {
       if (!this.loginAccount || !this.loginPassword) { this.showError('請填寫帳號與密碼'); return; }
     } else {
-      if (!this.regPlayerName || !this.regAccount || !this.regPassword) { this.showError('請填寫必填欄位'); return; }
+      if (!this.regPlayerName || !this.regAccount || !this.regPassword || !this.regEmail) { this.showError('請填寫必填欄位'); return; }
       if (this.regPassword.length < 6) { this.showError('密碼至少需要 6 個字元'); return; }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(this.regEmail)) { this.showError('請輸入有效的電子郵件'); return; }
     }
 
     this.error.set('');
@@ -62,7 +64,7 @@ export class AuthComponent {
       if (this.tab() === 'login') {
         await this.auth.login(this.loginAccount, this.loginPassword, this.rememberMe);
       } else {
-        await this.auth.register(this.regPlayerName, this.regAccount, this.regPassword, this.regNickname || undefined);
+        await this.auth.register(this.regPlayerName, this.regAccount, this.regPassword, this.regEmail, this.regNickname || undefined);
       }
       this.loggedIn.emit();
     } catch (e: any) {

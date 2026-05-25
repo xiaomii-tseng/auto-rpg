@@ -59,9 +59,9 @@ app.get('/room/:code', (req, res) => {
 const toEmail = (account: string) => `${account.toLowerCase().replace(/[^a-z0-9_.-]/g, '_')}@game.local`;
 
 app.post('/auth/register', limiterAuth, async (req, res) => {
-  const { account, password, playerId, nickname } = req.body ?? {};
-  if (!account || !password || !playerId) {
-    res.status(400).json({ error: 'account, password, playerId required' }); return;
+  const { account, password, playerId, email: playerEmail, nickname } = req.body ?? {};
+  if (!account || !password || !playerId || !playerEmail) {
+    res.status(400).json({ error: 'account, password, playerId, email required' }); return;
   }
 
   const email = toEmail(account);
@@ -89,9 +89,10 @@ app.post('/auth/register', limiterAuth, async (req, res) => {
 
   // 2. 建 profile
   const { error: profErr } = await supabase.from('profiles').insert({
-    id: created.user.id,
+    id:        created.user.id,
     player_id: playerId,
-    nickname: nickname ?? null,
+    email:     playerEmail ?? null,
+    nickname:  nickname ?? null,
   });
   if (profErr) {
     // 若 profile 建失敗，把剛建的 auth user 也刪掉，保持一致性

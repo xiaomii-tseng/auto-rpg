@@ -89,11 +89,11 @@ export class AuthService {
     this._persist(data);
   }
 
-  async register(playerId: string, account: string, password: string, nickname?: string): Promise<void> {
+  async register(playerId: string, account: string, password: string, email: string, nickname?: string): Promise<void> {
     const res = await fetchWithTimeout(`${environment.apiUrl}/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ account, password, playerId, nickname: nickname || undefined }),
+      body: JSON.stringify({ account, password, playerId, email, nickname: nickname || undefined }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error ?? '註冊失敗');

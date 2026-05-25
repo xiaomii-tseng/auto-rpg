@@ -57,6 +57,11 @@
                    [(ngModel)]="regPassword" name="regPassword" autocomplete="new-password" />
           </div>
           <div class="field-group">
+            <label class="field-label">電子郵件 <span class="required">*</span></label>
+            <input type="email" class="field-input" placeholder="協助找回密碼用"
+                   [(ngModel)]="regEmail" name="regEmail" autocomplete="email" />
+          </div>
+          <div class="field-group">
             <label class="field-label">測試人 <span class="optional">（選填）</span></label>
             <input type="text" class="field-input" placeholder="真實姓名或備註"
                    [(ngModel)]="regNickname" name="regNickname" maxlength="32" />
