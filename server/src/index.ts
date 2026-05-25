@@ -161,7 +161,7 @@ function validateSave(d: any): string | null {
 
   const p = d.player;
   if (!p || typeof p !== 'object')           return 'missing player';
-  if (typeof p.level !== 'number' || p.level < 1 || p.level > 1000) return 'invalid level';
+  if (typeof p.level !== 'number' || p.level < 1 || p.level > 200) return 'invalid level';
   if (typeof p.exp   !== 'number' || p.exp   < 0)                    return 'invalid exp';
 
   const inv = d.inventory;
