@@ -17,17 +17,6 @@ $border:     rgba(200, 169, 110, 0.35);
   background: rgba(0,0,0,0.55);
   font-family: 'Segoe UI', '微軟正黑體', sans-serif;
 
-  // 假橫版：手機實際是 portrait，整個畫面旋轉 90° 對齊遊戲
-  &.portrait {
-    top: 0;
-    left: 0;
-    right: auto;
-    bottom: auto;
-    width: 100vh;
-    height: 100vw;
-    transform-origin: top left;
-    transform: rotate(90deg) translateY(-100%);
-  }
 }
 
 .auth-bg-img {

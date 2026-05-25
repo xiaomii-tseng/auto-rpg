@@ -93,16 +93,15 @@ export class AuthService {
         const data = await res.json();
 
         if (data.save_data && Object.keys(data.save_data).length > 0) {
-          // 雲端有存檔 → 覆蓋本地，PrepScene 讀取時拿到雲端資料
+          // 雲端有存檔 → 覆蓋本地，確保帳號之間不互污
           localStorage.setItem('auto_rpg_save', JSON.stringify(data.save_data));
         } else {
-          // 無雲端存檔（新帳號）→ 上傳當前本地存檔（register 已清空，通常是 {}）
-          const local    = localStorage.getItem('auto_rpg_save');
-          const saveData = local ? JSON.parse(local) : {};
+          // 無雲端存檔 → 清掉本地（可能是別帳號的舊資料），建立空白紀錄
+          localStorage.removeItem('auto_rpg_save');
           await fetch(`${environment.apiUrl}/save`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-            body: JSON.stringify({ saveData, version: saveData.version ?? '' }),
+            body: JSON.stringify({ saveData: {}, version: '' }),
           });
         }
         return; // 成功就離開
