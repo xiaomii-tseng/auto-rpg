@@ -2,7 +2,7 @@
   <img class="auth-bg-img" src="other/town-loading.png" alt="" />
   <div class="vignette"></div>
 
-  <div class="auth-card" [class.shake]="shake">
+  <div class="auth-card" [class.shake]="shake()">
 
     <div class="corners"></div>
 
@@ -63,16 +63,16 @@
           </div>
         }
 
-        <button type="submit" class="submit-btn" [disabled]="loading">
-          @if (loading) {
+        <button type="submit" class="submit-btn" [disabled]="loading()">
+          @if (loading()) {
             <span class="spinner"></span>
           } @else {
             <span class="btn-text">{{ isLogin() ? '進入遊戲' : '建立帳號' }}</span>
             <span class="btn-shine"></span>
           }
         </button>
-        @if (loadingHint) {
-          <p class="loading-hint">{{ loadingHint }}</p>
+        @if (loadingHint()) {
+          <p class="loading-hint">{{ loadingHint() }}</p>
         }
 
       </form>
@@ -83,11 +83,11 @@
     </div>
 
     <!-- 錯誤彈窗 -->
-    @if (error) {
+    @if (error()) {
       <div class="err-overlay">
-        <div class="err-box" [class.shake]="shake">
-          <p class="err-text">{{ error }}</p>
-          <button class="err-btn" (click)="error = ''">確定</button>
+        <div class="err-box" [class.shake]="shake()">
+          <p class="err-text">{{ error() }}</p>
+          <button class="err-btn" (click)="error.set('')">確定</button>
         </div>
       </div>
     }

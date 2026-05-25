@@ -30,10 +30,10 @@ export class AuthComponent {
   regPassword   = '';
   regNickname   = '';
 
-  loading     = false;
-  loadingHint = '';
-  error       = '';
-  shake       = false;
+  loading     = signal(false);
+  loadingHint = signal('');
+  error       = signal('');
+  shake       = signal(false);
 
   isLogin    = computed(() => this.tab() === 'login');
   isRegister = computed(() => this.tab() === 'register');
@@ -41,11 +41,11 @@ export class AuthComponent {
   switchTab(t: Tab) {
     if (this.tab() === t) return;
     this.tab.set(t);
-    this.error = '';
+    this.error.set('');
   }
 
   async submit() {
-    if (this.loading) return;
+    if (this.loading()) return;
     // 前端驗證（不需要連線）
     if (this.tab() === 'login') {
       if (!this.loginAccount || !this.loginPassword) { this.showError('請填寫帳號與密碼'); return; }
@@ -54,12 +54,12 @@ export class AuthComponent {
       if (this.regPassword.length < 6) { this.showError('密碼至少需要 6 個字元'); return; }
     }
 
-    this.error       = '';
-    this.loadingHint = '';
-    this.loading     = true;
+    this.error.set('');
+    this.loadingHint.set('');
+    this.loading.set(true);
     try {
-      await this.auth.waitForServer(() => { this.loadingHint = '伺服器啟動中，請稍候...'; });
-      this.loadingHint = '';
+      await this.auth.waitForServer(() => { this.loadingHint.set('伺服器啟動中，請稍候...'); });
+      this.loadingHint.set('');
       if (this.tab() === 'login') {
         await this.auth.login(this.loginAccount, this.loginPassword, this.rememberMe);
       } else {
@@ -67,21 +67,21 @@ export class AuthComponent {
       }
       this.loggedIn.emit();
     } catch (e: any) {
-      this.error = e.message ?? '發生錯誤';
+      this.error.set(e.message ?? '發生錯誤');
       this.triggerShake();
     } finally {
-      this.loading     = false;
-      this.loadingHint = '';
+      this.loading.set(false);
+      this.loadingHint.set('');
     }
   }
 
   private showError(msg: string) {
-    this.error = msg;
+    this.error.set(msg);
     this.triggerShake();
   }
 
   private triggerShake() {
-    this.shake = true;
-    setTimeout(() => this.shake = false, 600);
+    this.shake.set(true);
+    setTimeout(() => this.shake.set(false), 600);
   }
 }
