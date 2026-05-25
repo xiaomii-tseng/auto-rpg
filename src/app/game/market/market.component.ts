@@ -88,7 +88,7 @@ export class MarketComponent implements OnInit {
   readonly quickAffixes   = QUICK_AFFIXES;
   readonly qualities      = QUALITIES;
 
-  get myUserId(): string { return this.auth.getUser()?.userId ?? ''; }
+  get myUserId(): string { return this.auth.user?.userId ?? ''; }
 
   ngOnInit(): void {
     this.loadBrowse();
