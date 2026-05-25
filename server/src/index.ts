@@ -11,6 +11,7 @@ const PORT = Number(process.env.PORT) || 3001;
 
 // Allow GitHub Pages origin + localhost dev
 const ALLOWED_ORIGINS = [
+  'https://xiaomii-tseng.github.io',
   'https://mii-gpgpu.github.io',
   'http://localhost:4200',
   'http://localhost:3000',

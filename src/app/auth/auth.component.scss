@@ -219,6 +219,7 @@ $border:     rgba(200, 169, 110, 0.35);
   color: $gold-light;
   outline: none;
   -webkit-appearance: none;
+  min-width: 0;
   transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
 
   &::placeholder { color: rgba(200,169,110,0.25); font-weight: 400; }
