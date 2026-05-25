@@ -7,6 +7,7 @@ export type MarketItemType = 'equipment' | 'consumable' | 'card';
 
 export interface MarketListing {
   id:              string;
+  seller_user_id:  string;
   seller_nickname: string | null;
   item_type:       MarketItemType;
   item_name:       string;

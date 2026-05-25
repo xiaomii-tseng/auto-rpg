@@ -8173,7 +8173,7 @@ export class PrepScene extends Phaser.Scene {
         tapW: P(80), tapH: P(60), collW: P(85), collH: P(20), buildingScale: 1.4,
         shadow: true, shadowKey: 'deco_shadow5', shadowOX: P(0), shadowOY: P(10),
         decoKey: 'deco_warehouse_box', decoOX: P(10), decoOY: P(0), decoScale: 1.2,
-        onActivate: () => this._showToast('功能待開發') },
+        onActivate: () => (window as any).__openMarket?.() },
       { xf: 0.45, yf: 0.90, icon: '✧', label: '造型',  color: 0xdd88aa, animKey: 'campfire',
         tapW: P(48), tapH: P(40), collW: P(48), collH: P(20), onActivate: () => this._openWardrobePanel() },
     ];

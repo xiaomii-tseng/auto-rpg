@@ -14,10 +14,12 @@ import { SaveSyncService }  from './auth/save-sync.service';
 import { SaveStore }        from './game/data/save-store';
 import { VERSION }          from './game/version';
 import { environment }      from '../environments/environment';
+import { MarketComponent }          from './game/market/market.component';
+import { MarketVisibilityService }  from './game/market/market-visibility.service';
 
 @Component({
   selector: 'app-root',
-  imports: [AuthComponent],
+  imports: [AuthComponent, MarketComponent],
   templateUrl: './app.html',
   styleUrl: './app.scss',
 })
@@ -27,9 +29,11 @@ export class App implements AfterViewInit {
   private readonly swUpdate  = inject(SwUpdate);
   private readonly authSvc   = inject(AuthService);
   private readonly saveSync  = inject(SaveSyncService);
+  private readonly marketVis = inject(MarketVisibilityService);
 
   showAuth     = true;
   showUpdate   = signal(false);
+  showMarket   = this.marketVis.visible;
   private _phaserInited = false;
 
   ngAfterViewInit(): void {
@@ -125,6 +129,7 @@ export class App implements AfterViewInit {
 
     (window as any).__apiUrl      = environment.apiUrl;
     (window as any).__gameVersion = VERSION;
+    (window as any).__openMarket  = () => this.ngZone.run(() => this.marketVis.open());
     const dpr = (window as any).__gameDpr as number;
     const isMobile = 'ontouchstart' in window;
     (window as any).__gameMobile = isMobile;

@@ -1,0 +1,248 @@
+<div class="market-overlay">
+  <div class="market-panel">
+
+    <!-- Header -->
+    <div class="panel-header">
+      <span class="panel-title">交易市場</span>
+      <div class="tabs">
+        <button class="tab-btn" [class.active]="tab() === 'browse'" (click)="setTab('browse')">市集</button>
+        <button class="tab-btn" [class.active]="tab() === 'mine'"   (click)="setTab('mine')">我的上架</button>
+      </div>
+      <button class="close-btn" (click)="close()">✕</button>
+    </div>
+
+    <!-- ═══════════════════ BROWSE TAB ═══════════════════ -->
+    @if (tab() === 'browse') {
+      <div class="filters">
+        <!-- Type filter -->
+        <div class="filter-row">
+          <button class="chip" [class.active]="filterType() === ''"           (click)="setTypeFilter('')">全部</button>
+          <button class="chip" [class.active]="filterType() === 'equipment'"  (click)="setTypeFilter('equipment')">裝備</button>
+          <button class="chip" [class.active]="filterType() === 'consumable'" (click)="setTypeFilter('consumable')">道具</button>
+          <button class="chip" [class.active]="filterType() === 'card'"       (click)="setTypeFilter('card')">卡片</button>
+        </div>
+
+        <!-- Search -->
+        <div class="filter-row search-row">
+          <input class="search-input" [(ngModel)]="filterName" placeholder="搜尋物品名稱…" (keydown.enter)="onSearch()" />
+          <button class="search-btn" (click)="onSearch()">搜尋</button>
+        </div>
+
+        <!-- Equipment-only filters -->
+        @if (showEquipFilters()) {
+          <div class="filter-row wrap">
+            @for (q of qualities; track q) {
+              <button class="chip quality-chip"
+                [class.active]="filterQuality() === q"
+                [style.color]="qualityColor(q)"
+                (click)="setQualityFilter(q)">
+                {{ qualityLabels[q] }}
+              </button>
+            }
+          </div>
+          <div class="filter-row wrap">
+            @for (a of quickAffixes; track a) {
+              <button class="chip affix-chip"
+                [class.active]="filterAffixes().includes(a)"
+                (click)="toggleAffix(a)">
+                {{ affixLabels[a] }}
+              </button>
+            }
+          </div>
+        }
+      </div>
+
+      @if (actionError()) {
+        <div class="error-bar">{{ actionError() }}</div>
+      }
+
+      <div class="list-body">
+        @if (browseLoading() && listings().length === 0) {
+          <div class="center-msg">讀取中…</div>
+        } @else if (browseError()) {
+          <div class="center-msg error">{{ browseError() }}</div>
+        } @else if (listings().length === 0) {
+          <div class="center-msg muted">目前沒有商品</div>
+        } @else {
+          @for (item of listings(); track item.id) {
+            <div class="listing-row">
+              <div class="listing-info">
+                <span class="item-name" [style.color]="qualityColor(item.quality)">
+                  {{ item.item_name }}
+                  @if (item.quality) { <span class="quality-tag">[{{ qualityLabel(item.quality) }}]</span> }
+                </span>
+                <span class="item-meta">
+                  賣家：{{ item.seller_nickname ?? '未知' }}
+                  @if (item.qty > 1) { &nbsp;×{{ item.qty }} }
+                </span>
+                @if (item.affix_stats?.length) {
+                  <span class="item-affixes">{{ item.affix_stats!.join(' / ') }}</span>
+                }
+              </div>
+              <div class="listing-right">
+                <span class="price">{{ formatGold(item.price) }} G</span>
+                @if (item.seller_user_id !== myUserId) {
+                  <button class="buy-btn"
+                    [disabled]="actionPending() === item.id"
+                    (click)="buy(item)">
+                    {{ actionPending() === item.id ? '…' : '購買' }}
+                  </button>
+                } @else {
+                  <span class="own-tag">自己的</span>
+                }
+              </div>
+            </div>
+          }
+          @if (hasMore()) {
+            <button class="load-more-btn" [disabled]="browseLoading()" (click)="loadMore()">
+              {{ browseLoading() ? '讀取中…' : '載入更多' }}
+            </button>
+          }
+        }
+      </div>
+    }
+
+    <!-- ═══════════════════ MY LISTINGS TAB ═══════════════════ -->
+    @if (tab() === 'mine') {
+      <div class="mine-header">
+        <button class="list-new-btn" (click)="openListFlow()">＋ 上架物品</button>
+      </div>
+
+      @if (actionError()) {
+        <div class="error-bar">{{ actionError() }}</div>
+      }
+
+      <div class="list-body">
+        @if (mineLoading()) {
+          <div class="center-msg">讀取中…</div>
+        } @else if (mineError()) {
+          <div class="center-msg error">{{ mineError() }}</div>
+        } @else if (myListings().length === 0) {
+          <div class="center-msg muted">尚無上架商品</div>
+        } @else {
+          @for (item of myListings(); track item.id) {
+            <div class="listing-row">
+              <div class="listing-info">
+                <span class="item-name" [style.color]="qualityColor(item.quality)">
+                  {{ item.item_name }}
+                  @if (item.quality) { <span class="quality-tag">[{{ qualityLabel(item.quality) }}]</span> }
+                </span>
+                <span class="item-meta">
+                  <span [style.color]="statusColor(item.status)">{{ statusLabel(item.status) }}</span>
+                  @if (item.qty > 1) { &nbsp;×{{ item.qty }} }
+                </span>
+              </div>
+              <div class="listing-right">
+                <span class="price">{{ formatGold(item.price) }} G</span>
+                @if (item.status === 'active') {
+                  <button class="cancel-btn"
+                    [disabled]="actionPending() === item.id"
+                    (click)="cancel(item)">
+                    {{ actionPending() === item.id ? '…' : '下架' }}
+                  </button>
+                }
+              </div>
+            </div>
+          }
+        }
+      </div>
+    }
+
+  </div><!-- /panel -->
+
+  <!-- ═══════════════════ LIST ITEM FLOW (modal on top) ═══════════════════ -->
+  @if (listStep() !== null) {
+    <div class="sub-modal">
+      <div class="sub-panel">
+
+        @if (listStep() === 'select-type') {
+          <div class="sub-title">選擇上架類型</div>
+          <div class="type-grid">
+            <button class="type-btn" (click)="selectListType('equipment')">⚔️ 裝備</button>
+            <button class="type-btn" (click)="selectListType('consumable')">🧪 道具</button>
+            <button class="type-btn" (click)="selectListType('card')">🃏 卡片</button>
+          </div>
+          <button class="sub-cancel" (click)="cancelListFlow()">取消</button>
+        }
+
+        @if (listStep() === 'select-item') {
+          <div class="sub-title">選擇要上架的{{ listType() === 'equipment' ? '裝備' : listType() === 'consumable' ? '道具' : '卡片' }}</div>
+          <div class="item-picker">
+
+            @if (listType() === 'equipment') {
+              @if (ownedEquips().length === 0) {
+                <div class="center-msg muted">背包沒有裝備</div>
+              }
+              @for (eq of ownedEquips(); track eq.id) {
+                <button class="picker-row" (click)="selectListItem(eq)">
+                  <span [style.color]="qualityColor(eq.quality)">{{ eq.name }} +{{ eq.enhancement }}</span>
+                  <span class="picker-meta">{{ affixSummary(eq) }}</span>
+                </button>
+              }
+            }
+
+            @if (listType() === 'consumable') {
+              @if (ownedItems().length === 0) {
+                <div class="center-msg muted">背包沒有道具</div>
+              }
+              @for (it of ownedItems(); track it.id) {
+                <button class="picker-row" (click)="selectListItem(it)">
+                  <span>{{ it.name }}</span>
+                  <span class="picker-meta">×{{ it.qty }}</span>
+                </button>
+              }
+            }
+
+            @if (listType() === 'card') {
+              @if (ownedCards().length === 0) {
+                <div class="center-msg muted">卡片欄位是空的</div>
+              }
+              @for (c of ownedCards(); track c.cardId) {
+                <button class="picker-row" (click)="selectListItem(c)">
+                  <span>{{ c.cardId }}</span>
+                  <span class="picker-meta">×{{ c.qty }}</span>
+                </button>
+              }
+            }
+
+          </div>
+          <button class="sub-cancel" (click)="cancelListFlow()">取消</button>
+        }
+
+        @if (listStep() === 'set-price') {
+          <div class="sub-title">設定售價</div>
+          <div class="price-form">
+            <div class="price-item-name" [style.color]="qualityColor(listSelected()?.quality)">
+              {{ listItemName }}
+              @if (listSelected()?.quality) { [{{ qualityLabel(listSelected()?.quality) }}] }
+            </div>
+
+            @if (listType() !== 'equipment') {
+              <label class="price-label">數量
+                <input class="price-input" type="number" [(ngModel)]="listQty" min="1" [max]="maxListQty" />
+                <span class="price-hint">最多 {{ maxListQty }}</span>
+              </label>
+            }
+
+            <label class="price-label">售價（金幣）
+              <input class="price-input" type="number" [(ngModel)]="listPrice" min="1" max="999999999" placeholder="輸入金額" />
+            </label>
+
+            @if (listError()) {
+              <div class="sub-error">{{ listError() }}</div>
+            }
+
+            <div class="price-actions">
+              <button class="sub-cancel" (click)="backToSelectItem()">返回</button>
+              <button class="confirm-btn" [disabled]="listSubmitting()" (click)="confirmList()">
+                {{ listSubmitting() ? '上架中…' : '確認上架' }}
+              </button>
+            </div>
+          </div>
+        }
+
+      </div>
+    </div>
+  }
+
+</div>
