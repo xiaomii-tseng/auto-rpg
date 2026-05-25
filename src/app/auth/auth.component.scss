@@ -43,7 +43,7 @@ $border:     rgba(200, 169, 110, 0.35);
 // ── 卡片 ───────────────────────────────────────────────────
 .auth-card {
   position: relative;
-  width: min(420px, 100%);
+  width: min(580px, calc(100% - 24px)); // 橫版比例：盡量填滿直式螢幕寬度
   background: $card-bg;
   border: 1px solid $border;
   border-radius: 4px;
@@ -176,24 +176,37 @@ $border:     rgba(200, 169, 110, 0.35);
   }
 }
 
-// ── 表單 scroll 容器（固定高度，等同登入頁大小）──────────────
-.form-scroll {
-  overflow-x: hidden;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  max-height: 245px;
-
-  // 隱藏捲軸但保留功能
-  scrollbar-width: none;
-  &::-webkit-scrollbar { display: none; }
-}
-
+// ── 表單 ───────────────────────────────────────────────────
 .auth-form {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
   width: 100%;
   box-sizing: border-box;
+}
+
+// 登入：帳號密碼橫排
+.login-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+// 登入：自動登入 + 按鈕橫排
+.login-bottom {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+
+  .remember-label { flex-shrink: 0; }
+  .submit-btn { flex: 1; margin-top: 0; }
+}
+
+// 註冊：2 欄 grid
+.reg-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 10px;
 }
 
 .field-group {
@@ -201,6 +214,7 @@ $border:     rgba(200, 169, 110, 0.35);
   flex-direction: column;
   gap: 3px;
   width: 100%;
+  min-width: 0;
 }
 
 .field-label {
