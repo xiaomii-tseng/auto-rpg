@@ -12,6 +12,7 @@ import { AuthComponent }    from './auth/auth.component';
 import { AuthService }      from './auth/auth.service';
 import { SaveSyncService }  from './auth/save-sync.service';
 import { SaveStore }        from './game/data/save-store';
+import { VERSION }          from './game/version';
 import { environment }      from '../environments/environment';
 
 @Component({
@@ -122,7 +123,8 @@ export class App implements AfterViewInit {
       });
     }
 
-    (window as any).__apiUrl = environment.apiUrl;
+    (window as any).__apiUrl      = environment.apiUrl;
+    (window as any).__gameVersion = VERSION;
     const dpr = (window as any).__gameDpr as number;
     const isMobile = 'ontouchstart' in window;
     (window as any).__gameMobile = isMobile;

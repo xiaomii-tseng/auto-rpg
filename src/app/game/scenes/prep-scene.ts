@@ -1017,7 +1017,7 @@ export class PrepScene extends Phaser.Scene {
   private _showAudioPanel(W: number, H: number): void {
     const D   = 9000;
     const PW  = Math.min(W - P(16), P(300));
-    const PH  = P(240);
+    const PH  = P(290);
     const px  = (W - PW) / 2;
     const py  = (H - PH) / 2;
 
@@ -1118,6 +1118,29 @@ export class PrepScene extends Phaser.Scene {
         .on('pointerup', () => { row.set(Math.min(1, Math.round((row.get() + STEP) * 20) / 20)); redraw(); });
     });
 
+    // ── 回報問題按鈕 ──────────────────────────────────────────
+    const BTN_H = P(32);
+    const BTN_W = PW - P(28);
+    const BTN_X = px + P(14);
+    const RBTN_Y = py + PH - P(14) - BTN_H - P(10) - BTN_H;
+
+    const rbg = this.add.graphics().setDepth(D + 2);
+    objs.push(rbg);
+    rbg.fillStyle(0x0a1a2a, 1);
+    rbg.fillRoundedRect(BTN_X, RBTN_Y, BTN_W, BTN_H, P(6));
+    rbg.lineStyle(1, 0x2a5a8a, 0.8);
+    rbg.strokeRoundedRect(BTN_X, RBTN_Y, BTN_W, BTN_H, P(6));
+
+    const rTxt = this.add.text(BTN_X + BTN_W / 2, RBTN_Y + BTN_H / 2, '回報問題', {
+      fontSize: F(15), fontStyle: 'bold', color: '#77bbff', stroke: '#001a2a', strokeThickness: 1,
+    }).setOrigin(0.5).setDepth(D + 3);
+    objs.push(rTxt);
+
+    const rHit = this.add.rectangle(BTN_X + BTN_W / 2, RBTN_Y + BTN_H / 2, BTN_W, BTN_H)
+      .setDepth(D + 4).setAlpha(0.001).setInteractive({ useHandCursor: true });
+    objs.push(rHit);
+    rHit.on('pointerup', () => { close(); this._showReportPanel(W, H); });
+
     // ── 登出按鈕 ──────────────────────────────────────────────
     const LBTN_H = P(32);
     const LBTN_Y = py + PH - P(14) - LBTN_H;
@@ -1144,6 +1167,182 @@ export class PrepScene extends Phaser.Scene {
       localStorage.removeItem('rg_auto_login');
       localStorage.removeItem('rg_remember');
       window.location.reload();
+    });
+
+    objs.forEach(o => { if ('setScrollFactor' in o) (o as any).setScrollFactor(0); });
+  }
+
+  private _showReportPanel(W: number, H: number): void {
+    const D  = 9100;
+    const PW = Math.min(W - P(16), P(320));
+    const PH = P(340);
+    const px = (W - PW) / 2;
+    const py = (H - PH) / 2;
+
+    const objs: Phaser.GameObjects.GameObject[] = [];
+    const domObjs: HTMLElement[] = [];
+    const close = () => { objs.forEach(o => o.destroy()); domObjs.forEach(e => e.remove()); };
+
+    // backdrop
+    const bd = this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.75)
+      .setInteractive().setDepth(D);
+    objs.push(bd);
+
+    // panel bg
+    const bg = this.add.graphics().setDepth(D + 1);
+    objs.push(bg);
+    bg.fillStyle(0x000000, 0.5);
+    bg.fillRect(px + P(4), py + P(4), PW, PH);
+    bg.fillStyle(0x1a5a8a, 1);
+    bg.fillRect(px - P(3), py - P(3), PW + P(6), PH + P(6));
+    bg.fillStyle(0x060e18, 1);
+    bg.fillRect(px, py, PW, PH);
+    bg.fillStyle(0x0a1e30, 1);
+    bg.fillRect(px, py, PW, P(38));
+    bg.fillStyle(0x122840, 1);
+    bg.fillRect(px, py, PW, P(16));
+
+    const addTxt = (txt: string, x: number, y: number, style: object, ox = 0.5) => {
+      const o = this.add.text(x, y, txt, style).setOrigin(ox, 0).setDepth(D + 2);
+      objs.push(o); return o;
+    };
+
+    addTxt('回報問題', px + PW / 2, py + P(10), {
+      fontSize: F(17), fontStyle: 'bold', color: '#77ccff', stroke: '#001020', strokeThickness: 2,
+    });
+
+    const closeX = this.add.text(px + PW - P(8), py + P(8), '✕', {
+      fontSize: F(16), fontStyle: 'bold', color: '#5599cc',
+    }).setOrigin(1, 0).setDepth(D + 2);
+    objs.push(closeX);
+    const closeHit = this.add.rectangle(px + PW - P(16), py + P(16), P(44), P(44))
+      .setDepth(D + 3).setInteractive({ useHandCursor: true }).setAlpha(0.001);
+    objs.push(closeHit);
+    closeHit.on('pointerup', close);
+
+    // textarea (DOM)
+    const TA_X = px + P(12), TA_Y = py + P(48);
+    const TA_W = PW - P(24),  TA_H = P(140);
+    const ta = document.createElement('textarea');
+    ta.placeholder = '請描述遇到的問題…';
+    Object.assign(ta.style, {
+      position: 'absolute',
+      left:     `${TA_X / window.devicePixelRatio}px`,
+      top:      `${TA_Y / window.devicePixelRatio}px`,
+      width:    `${TA_W / window.devicePixelRatio}px`,
+      height:   `${TA_H / window.devicePixelRatio}px`,
+      fontSize: `${P(13) / window.devicePixelRatio}px`,
+      padding:  '6px',
+      background: '#0a1824',
+      color:      '#c8e8ff',
+      border:     '1px solid #2a5a8a',
+      borderRadius: '6px',
+      resize:     'none',
+      outline:    'none',
+      zIndex:     String(D + 4),
+      boxSizing:  'border-box',
+    });
+    const container = document.getElementById('game-container') ?? document.body;
+    container.appendChild(ta);
+    domObjs.push(ta);
+
+    // image pick (DOM file input hidden)
+    const fileInput = document.createElement('input');
+    fileInput.type   = 'file';
+    fileInput.accept = 'image/*';
+    fileInput.style.display = 'none';
+    container.appendChild(fileInput);
+    domObjs.push(fileInput);
+
+    // image button
+    const IB_Y   = TA_Y + TA_H + P(12);
+    const IB_W   = PW - P(24);
+    const imgBg  = this.add.graphics().setDepth(D + 2);
+    objs.push(imgBg);
+    const imgTxt = addTxt('📎 附上截圖（選填）', px + P(12) + IB_W / 2, IB_Y + P(6), {
+      fontSize: F(14), color: '#5599cc',
+    });
+
+    const drawImgBtn = (hasFile: boolean) => {
+      imgBg.clear();
+      imgBg.fillStyle(hasFile ? 0x0d2a14 : 0x0a1420, 1);
+      imgBg.fillRoundedRect(px + P(12), IB_Y, IB_W, P(32), P(6));
+      imgBg.lineStyle(1, hasFile ? 0x3a9a44 : 0x2a5a8a, 0.8);
+      imgBg.strokeRoundedRect(px + P(12), IB_Y, IB_W, P(32), P(6));
+      imgTxt.setText(hasFile ? `✔ ${fileInput.files![0].name}` : '📎 附上截圖（選填）');
+      imgTxt.setColor(hasFile ? '#66dd88' : '#5599cc');
+    };
+    drawImgBtn(false);
+
+    const imgHit = this.add.rectangle(px + P(12) + IB_W / 2, IB_Y + P(16), IB_W, P(32))
+      .setDepth(D + 3).setInteractive({ useHandCursor: true }).setAlpha(0.001);
+    objs.push(imgHit);
+    imgHit.on('pointerup', () => fileInput.click());
+    fileInput.addEventListener('change', () => drawImgBtn(!!fileInput.files?.length));
+
+    // submit button
+    const SB_Y = py + PH - P(14) - P(36);
+    const SB_W = PW - P(24);
+    const sbBg = this.add.graphics().setDepth(D + 2);
+    objs.push(sbBg);
+    const sbTxt = addTxt('送出', px + P(12) + SB_W / 2, SB_Y + P(9), {
+      fontSize: F(16), fontStyle: 'bold', color: '#ffffff', stroke: '#001020', strokeThickness: 1,
+    });
+
+    const drawSubmitBtn = (state: 'idle' | 'loading' | 'done' | 'error') => {
+      sbBg.clear();
+      const colors: Record<string, [number, number]> = {
+        idle:    [0x0d3a5a, 0x1a6aaa],
+        loading: [0x1a3a1a, 0x2a6a2a],
+        done:    [0x0d3a18, 0x1a8a3a],
+        error:   [0x3a0d0d, 0x8a1a1a],
+      };
+      const [fill, border] = colors[state];
+      sbBg.fillStyle(fill, 1);
+      sbBg.fillRoundedRect(px + P(12), SB_Y, SB_W, P(36), P(8));
+      sbBg.lineStyle(1, border, 0.9);
+      sbBg.strokeRoundedRect(px + P(12), SB_Y, SB_W, P(36), P(8));
+      const labels = { idle: '送出', loading: '傳送中…', done: '✔ 感謝回報！', error: '送出失敗，請稍後再試' };
+      sbTxt.setText(labels[state]);
+    };
+    drawSubmitBtn('idle');
+
+    const sbHit = this.add.rectangle(px + P(12) + SB_W / 2, SB_Y + P(18), SB_W, P(36))
+      .setDepth(D + 3).setInteractive({ useHandCursor: true }).setAlpha(0.001);
+    objs.push(sbHit);
+
+    sbHit.on('pointerup', async () => {
+      const msg = ta.value.trim();
+      if (!msg) { ta.style.border = '1px solid #cc4444'; return; }
+      ta.style.border = '1px solid #2a5a8a';
+
+      drawSubmitBtn('loading');
+      sbHit.disableInteractive();
+
+      const playerName = localStorage.getItem('playerName') ?? '';
+      const apiUrl     = (window as any).__apiUrl as string;
+      const version    = (window as any).__gameVersion as string ?? '';
+
+      const fd = new FormData();
+      fd.append('message',    msg);
+      fd.append('playerName', playerName);
+      fd.append('version',    version);
+      fd.append('scene',      'PrepScene');
+      if (fileInput.files?.length) fd.append('image', fileInput.files[0]);
+
+      try {
+        const res = await fetch(`${apiUrl}/report`, { method: 'POST', body: fd });
+        if (res.ok) {
+          drawSubmitBtn('done');
+          this.time.delayedCall(1800, close);
+        } else {
+          drawSubmitBtn('error');
+          sbHit.setInteractive({ useHandCursor: true });
+        }
+      } catch {
+        drawSubmitBtn('error');
+        sbHit.setInteractive({ useHandCursor: true });
+      }
     });
 
     objs.forEach(o => { if ('setScrollFactor' in o) (o as any).setScrollFactor(0); });

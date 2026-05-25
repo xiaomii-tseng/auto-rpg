@@ -1,5 +1,6 @@
 import express    from 'express';
 import cors       from 'cors';
+import multer     from 'multer';
 import { Server } from 'colyseus';
 import { createServer } from 'http';
 import { GameRoom }     from './rooms/GameRoom';
@@ -176,6 +177,50 @@ app.post('/save', requireAuth, async (req: any, res) => {
 
   if (error) { res.status(500).json({ error: error.message }); return; }
   res.json({ ok: true });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// BUG REPORT
+// ══════════════════════════════════════════════════════════════════════════════
+
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 } });
+
+// POST /report  { message, playerName, version, scene }  + optional image file
+app.post('/report', upload.single('image'), async (req: any, res) => {
+  const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
+  if (!webhookUrl) { res.status(503).json({ error: 'report not configured' }); return; }
+
+  const { message, playerName, version, scene } = req.body ?? {};
+  if (!message?.trim()) { res.status(400).json({ error: 'message required' }); return; }
+
+  const embed = {
+    title: '🐛 玩家回報問題',
+    color: 0xe74c3c,
+    fields: [
+      { name: '玩家', value: playerName || '未知', inline: true },
+      { name: '版本', value: version   || '未知', inline: true },
+      { name: '場景', value: scene     || '未知', inline: true },
+      { name: '描述', value: message.slice(0, 1000) },
+    ],
+    timestamp: new Date().toISOString(),
+  };
+
+  const form = new FormData();
+  form.append('payload_json', JSON.stringify({ embeds: [embed] }));
+
+  if (req.file) {
+    const ext  = req.file.originalname.split('.').pop() ?? 'png';
+    const blob = new Blob([req.file.buffer], { type: req.file.mimetype });
+    form.append('files[0]', blob, `screenshot.${ext}`);
+  }
+
+  try {
+    const dr = await fetch(webhookUrl, { method: 'POST', body: form });
+    if (!dr.ok) { res.status(502).json({ error: 'discord error' }); return; }
+    res.json({ ok: true });
+  } catch {
+    res.status(502).json({ error: 'network error' });
+  }
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
