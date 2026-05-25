@@ -98,7 +98,7 @@ export class AuthService {
     if (!res.ok) throw new Error(data.error ?? '註冊失敗');
     // 清掉舊的本地存檔，新帳號應該從乾淨狀態開始
     localStorage.removeItem('auto_rpg_save');
-    await this.login(account, password, false);
+    await this.login(account, password, true);
   }
 
   logout(): void {

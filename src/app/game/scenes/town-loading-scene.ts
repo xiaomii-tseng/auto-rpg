@@ -1,10 +1,11 @@
 import Phaser from 'phaser';
+import { queueTownAssets } from '../data/scene-assets';
 
 const DPR = (window as any).__gameDpr as number;
 const P = (n: number) => Math.round(n * DPR);
 const F = (n: number) => `${Math.round(n * DPR)}px`;
 
-const LOAD_DURATION = 1500;
+const MIN_DISPLAY_MS = 600;
 
 export class TownLoadingScene extends Phaser.Scene {
   constructor() { super({ key: 'TownLoadingScene' }); }
@@ -16,38 +17,30 @@ export class TownLoadingScene extends Phaser.Scene {
   create(): void {
     const W = this.scale.width, H = this.scale.height;
 
-    // ── Background image ────────────────────────────────────
+    // ── Background image ─────────────────────────────────────
     const img = this.add.image(W / 2, H / 2, 'town-loading');
-    const scale = Math.max(W / img.width, H / img.height);
-    img.setScale(scale);
+    img.setScale(Math.max(W / img.width, H / img.height));
 
-    // Dark overlay to make text readable
     const overlay = this.add.graphics();
     overlay.fillStyle(0x000000, 0.52);
     overlay.fillRect(0, 0, W, H);
 
-    // Vignette
     const vig = this.add.graphics();
     for (let i = 0; i < 8; i++) {
-      const a = 0.06 - i * 0.007;
-      const r = Math.min(W, H) * (0.5 + i * 0.08);
-      vig.fillStyle(0x000000, a);
-      vig.fillCircle(W / 2, H / 2, r);
+      vig.fillStyle(0x000000, 0.06 - i * 0.007);
+      vig.fillCircle(W / 2, H / 2, Math.min(W, H) * (0.5 + i * 0.08));
     }
 
-    // ── Village label ───────────────────────────────────────
+    // ── Village label ────────────────────────────────────────
     const labelTxt = this.add.text(W / 2, H * 0.38, 'V I L L A G E', {
-      fontSize: F(12), fontStyle: 'bold',
-      color: '#8aaa66', letterSpacing: P(4),
+      fontSize: F(12), fontStyle: 'bold', color: '#8aaa66', letterSpacing: P(4),
     }).setOrigin(0.5).setAlpha(0);
 
-    // Thin divider lines around label
     const divG = this.add.graphics().setAlpha(0);
     divG.lineStyle(P(1), 0x6a8846, 0.6);
     divG.lineBetween(W / 2 - P(106), H * 0.38, W / 2 - P(66), H * 0.38);
     divG.lineBetween(W / 2 + P(66),  H * 0.38, W / 2 + P(106), H * 0.38);
 
-    // ── Village name ─────────────────────────────────────────
     const nameTxt = this.add.text(W / 2, H * 0.48, '亞特', {
       fontSize: F(38), fontStyle: 'bold',
       color: '#e8d4a0', stroke: '#1a1000', strokeThickness: P(4),
@@ -71,7 +64,6 @@ export class TownLoadingScene extends Phaser.Scene {
       if (w < 1) return;
       barFill.fillGradientStyle(0x3a6614, 0x5a9620, 0x8dc84a, 0x60a828, 1);
       barFill.fillRoundedRect(barX, barY, w, BAR_H, P(3));
-      // Shimmer highlight
       barFill.fillStyle(0xffffff, 0.15);
       barFill.fillRoundedRect(barX, barY, w, BAR_H * 0.45, P(2));
     };
@@ -82,27 +74,28 @@ export class TownLoadingScene extends Phaser.Scene {
     }).setOrigin(0.5).setAlpha(0);
 
     // ── Fade in ──────────────────────────────────────────────
-    const fadeTargets = [labelTxt, divG, nameTxt, barBg, barFill, loadingTxt];
     this.tweens.add({
-      targets: fadeTargets, alpha: 1, duration: 400, ease: 'Sine.easeOut',
+      targets: [labelTxt, divG, nameTxt, barBg, barFill, loadingTxt],
+      alpha: 1, duration: 400, ease: 'Sine.easeOut',
     });
 
-    // ── Loading bar fill ─────────────────────────────────────
-    const barObj = { pct: 0 };
-    this.tweens.add({
-      targets: barObj,
-      pct: 1,
-      duration: LOAD_DURATION,
-      ease: 'Sine.easeInOut',
-      onUpdate: () => drawBar(barObj.pct),
-    });
-
-    // ── Transition ───────────────────────────────────────────
-    this.time.delayedCall(LOAD_DURATION + 100, () => {
-      this.cameras.main.fadeOut(300, 0, 0, 0);
-      this.cameras.main.once('camerafadeoutcomplete', () => {
-        this.scene.start('PrepScene');
+    // ── Real asset loading ───────────────────────────────────
+    const startTime = Date.now();
+    const done = () => {
+      drawBar(1);
+      const wait = Math.max(0, MIN_DISPLAY_MS - (Date.now() - startTime));
+      this.time.delayedCall(wait, () => {
+        this.cameras.main.fadeOut(300, 0, 0, 0);
+        this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start('PrepScene'));
       });
-    });
+    };
+
+    queueTownAssets(this);
+    this.load.on('progress', (v: number) => drawBar(v));
+    this.load.once('complete', done);
+    this.load.start();
+
+    // If nothing queued (all cached), complete fires synchronously before the listener → call manually
+    if (!this.load.isLoading()) done();
   }
 }

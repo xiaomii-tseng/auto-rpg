@@ -22,7 +22,7 @@ export class AuthComponent {
   // login fields
   loginAccount  = this.auth.getSavedAccount();
   loginPassword = '';
-  rememberMe    = !!this.auth.getSavedAccount();
+  rememberMe    = true;
 
   // register fields
   regPlayerName = '';
