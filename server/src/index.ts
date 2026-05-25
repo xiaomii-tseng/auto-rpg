@@ -47,23 +47,29 @@ app.post('/auth/register', async (req, res) => {
 
   const email = toEmail(account);
 
-  // 1. create auth user
-  const { data: signUp, error: signUpErr } = await supabase.auth.signUp({ email, password });
-  if (signUpErr || !signUp.user) {
-    res.status(400).json({ error: signUpErr?.message ?? 'signup failed' }); return;
+  // 1. 用 admin API 建帳號（不影響 client session，確保後續 DB 操作維持 service_role）
+  const { data: created, error: createErr } = await supabase.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+  });
+  if (createErr || !created.user) {
+    res.status(400).json({ error: createErr?.message ?? 'signup failed' }); return;
   }
 
-  // 2. insert profile (trigger also does this, but we set playerId + nickname here)
-  const { error: profErr } = await supabase.from('profiles').upsert({
-    id: signUp.user.id,
+  // 2. 建 profile
+  const { error: profErr } = await supabase.from('profiles').insert({
+    id: created.user.id,
     player_id: playerId,
     nickname: nickname ?? null,
   });
   if (profErr) {
+    // 若 profile 建失敗，把剛建的 auth user 也刪掉，保持一致性
+    await supabase.auth.admin.deleteUser(created.user.id);
     res.status(400).json({ error: profErr.message }); return;
   }
 
-  res.json({ userId: signUp.user.id, playerId });
+  res.json({ userId: created.user.id, playerId });
 });
 
 // POST /auth/login  { account, password }
