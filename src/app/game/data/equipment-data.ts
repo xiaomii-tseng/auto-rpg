@@ -483,6 +483,12 @@ const TEXTURE_COUNT: Record<EquipCategory, number> = {
   hat: 5, outfit: 5, shoes: 5, ring: 5, sword: 70,
 };
 
+// Valid sword texture numbers — excludes missing/reserved files (13,17 moved to red; 40 never existed; 58 moved to red)
+const SWORD_VALID_TEXTURES: number[] = [
+  ...Array.from({ length: 39 }, (_, i) => i + 1).filter(n => n !== 13 && n !== 17),
+  ...Array.from({ length: 30 }, (_, i) => i + 41).filter(n => n !== 58),
+];
+
 const PCT_STATS = new Set<StatKey>(['crit', 'atkSpeed', 'lifesteal', 'evasion', 'critDmg', 'dotBonus', 'hpRegen',
   'potionHealPct', 'eliteKillerPct', 'dropRatePct', 'rarityBonus', 'executePct', 'allDmgPct', 'maxHpPct']);
 
@@ -512,7 +518,9 @@ function pickAffixes(category: EquipCategory, count: number): Affix[] {
 
 export function generateEquipment(slot: EquipSlot, quality: EquipQuality): EquipmentItem {
   const cat    = slotToCategory(slot);
-  const texNum = Math.floor(Math.random() * TEXTURE_COUNT[cat]) + 1;
+  const texNum = slot === 'sword'
+    ? SWORD_VALID_TEXTURES[Math.floor(Math.random() * SWORD_VALID_TEXTURES.length)]
+    : Math.floor(Math.random() * TEXTURE_COUNT[cat]) + 1;
 
   let affixes: Affix[];
 

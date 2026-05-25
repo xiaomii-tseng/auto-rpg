@@ -301,12 +301,14 @@ export class PrepScene extends Phaser.Scene {
           this.load.image(key, `equip/${cat}${i}.webp`);
       }
     });
-    for (let i = 1; i <= 40; i++) {
+    for (let i = 1; i <= 39; i++) {
+      if (i === 13 || i === 17) continue;
       const key = `equip_sword${i}`;
       if (!this.textures.exists(key))
         this.load.image(key, `equip/weapons/Icons/Iicon_32_${String(i).padStart(2, '0')}.png`);
     }
     for (let i = 1; i <= 30; i++) {
+      if (i === 18) continue;
       const key = `equip_sword${i + 40}`;
       if (!this.textures.exists(key))
         this.load.image(key, `equip/weapons/Icons/icon_32_2_${String(i).padStart(2, '0')}.png`);
@@ -2171,8 +2173,8 @@ export class PrepScene extends Phaser.Scene {
   // ── Equipment panel (wooden cabinet) ───────────────────
 
   private showEquipmentPanel(W: number, H: number): void {
-    const PW = Math.min(W - P(16), P(640));
-    const PH = Math.min(H - P(16), P(560));
+    const PW = Math.min(W - P(16), P(700));
+    const PH = Math.min(H - P(16), P(620));
     const D = 500;
 
     const container = this.add.container(W / 2, H / 2).setDepth(D);
@@ -3573,8 +3575,13 @@ export class PrepScene extends Phaser.Scene {
         return;
       }
 
-      const rows = Math.ceil(items.length / cols);
-      const contentH = rows * (cellSz + cellGap) - cellGap;
+      const GCOLS   = 2;
+      const CARD_GAP = P(6);
+      const cardW   = Math.floor((rightColW - CARD_GAP) / GCOLS);
+      const ROW_H   = P(86);
+      const ROW_GAP = P(5);
+      const totalRows = Math.ceil(items.length / GCOLS);
+      const contentH  = totalRows * (ROW_H + ROW_GAP) - ROW_GAP;
       let scrollY = 0;
       const maxScroll = Math.max(0, contentH - gridH);
 
@@ -3596,30 +3603,47 @@ export class PrepScene extends Phaser.Scene {
       scrollCnt.add(gg);
 
       items.forEach((item, idx) => {
-        const col = idx % cols;
-        const row = Math.floor(idx / cols);
-        const cx2 = gridLeft + col * (cellSz + cellGap);
-        const cy2 = row * (cellSz + cellGap);   // relative to scrollCnt
-        const qc = QUALITY_COLORS[item.quality] ?? WL;
-        gg.fillStyle(WB, 1); gg.fillRect(cx2, cy2, cellSz, cellSz);
-        gg.fillStyle(WM, 0.8); gg.fillRect(cx2 + P(2), cy2 + P(2), cellSz - P(4), cellSz - P(4));
-        gg.fillStyle(qc, 0.5); gg.fillRect(cx2, cy2, cellSz, P(3));
-        gg.lineStyle(P(2), qc, 0.8); gg.strokeRect(cx2, cy2, cellSz, cellSz);
-        gg.lineStyle(P(1), qc, 0.25); gg.strokeRect(cx2 + P(2), cy2 + P(2), cellSz - P(4), cellSz - P(4));
+        const col  = idx % GCOLS;
+        const row  = Math.floor(idx / GCOLS);
+        const cx   = rightColX + col * (cardW + CARD_GAP);
+        const rowY = row * (ROW_H + ROW_GAP);
+        const qc    = QUALITY_COLORS[item.quality] ?? WL;
+        const qcStr = '#' + qc.toString(16).padStart(6, '0');
 
+        // Card background
+        gg.fillStyle(WB, 1);    gg.fillRect(cx, rowY, cardW, ROW_H);
+        gg.fillStyle(WM, 0.85); gg.fillRect(cx + P(2), rowY + P(1), cardW - P(4), ROW_H - P(2));
+        // Quality colour left bar
+        gg.fillStyle(qc, 0.9);  gg.fillRect(cx, rowY, P(3), ROW_H);
+        // Border
+        gg.lineStyle(P(1), qc, 0.45); gg.strokeRect(cx, rowY, cardW, ROW_H);
+
+        // Item image
+        const imgX = cx + P(28);
+        const imgY = rowY + ROW_H / 2;
         if (this.textures.exists(item.texture)) {
-          const gGlow = applyEnhanceGlow(this, item, cx2 + cellSz / 2, cy2 + cellSz / 2 - P(8));
+          const gGlow = applyEnhanceGlow(this, item, imgX, imgY);
           if (gGlow) scrollCnt.add(gGlow);
-          const gImg = this.add.image(cx2 + cellSz / 2, cy2 + cellSz / 2 - P(8), item.texture).setDisplaySize(P(42), P(42));
-          scrollCnt.add(gImg);
+          scrollCnt.add(this.add.image(imgX, imgY, item.texture).setDisplaySize(P(42), P(42)));
         }
 
-        gg.fillStyle(0x000000, 0.5); gg.fillRect(cx2, cy2 + cellSz - P(18), cellSz, P(18));
-        scrollCnt.add(this.add.text(cx2 + cellSz / 2, cy2 + cellSz - P(10), item.enhancement > 0 ? `+${item.enhancement} ${item.name}` : item.name, {
-          fontSize: F(15), fontStyle: 'bold', color: '#ffe8a0', stroke: '#000000', strokeThickness: 2,
-        }).setOrigin(0.5));
+        // Name (+enhancement)
+        const textX   = cx + P(58);
+        const nameStr = item.enhancement > 0 ? `+${item.enhancement} ${item.name}` : item.name;
+        scrollCnt.add(this.add.text(textX, rowY + P(10), nameStr, {
+          fontSize: F(14), fontStyle: 'bold', color: qcStr, stroke: '#1a0800', strokeThickness: 2,
+          wordWrap: { width: cardW - P(62), useAdvancedWrap: false },
+        }).setOrigin(0, 0));
 
-        const tap = this.add.rectangle(cx2 + cellSz / 2, cy2 + cellSz / 2, cellSz, cellSz)
+        // Affixes
+        item.affixes.forEach((a, ai) => {
+          scrollCnt.add(this.add.text(textX, rowY + P(28) + ai * P(14), `${STAT_NAMES[a.stat]} +${fmtAffixValue(a.stat, a.value)}`, {
+            fontSize: F(12), fontStyle: 'bold', color: '#88cc88', stroke: '#1a0800', strokeThickness: 1,
+          }).setOrigin(0, 0));
+        });
+
+        // Tap to open detail
+        const tap = this.add.rectangle(cx + cardW / 2, rowY + ROW_H / 2, cardW, ROW_H)
           .setInteractive({ useHandCursor: true });
         let _tapStartY = 0;
         tap.on('pointerdown', (ptr: Phaser.Input.Pointer) => { _tapStartY = ptr.y; });

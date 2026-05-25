@@ -456,7 +456,7 @@ export class MarketComponent implements OnInit, OnDestroy {
     const [, cat, numStr] = m;
     const n = parseInt(numStr);
     if (cat === 'sword') {
-      if (n >= 40) return `equip/weapons/Icons/icon_32_2_${String(n - 40).padStart(2, '0')}.png`;
+      if (n > 40) return `equip/weapons/Icons/icon_32_2_${String(n - 40).padStart(2, '0')}.png`;
       return `equip/weapons/Icons/Iicon_32_${String(n).padStart(2, '0')}.png`;
     }
     return `equip/${cat}${n}.webp`;
