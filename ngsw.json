@@ -1,6 +1,6 @@
 {
   "configVersion": 1,
-  "timestamp": 1779703548290,
+  "timestamp": 1779719829895,
   "index": "/auto-rpg/index.html",
   "assetGroups": [
     {
@@ -13,9 +13,9 @@
       "urls": [
         "/auto-rpg/favicon.ico",
         "/auto-rpg/index.html",
-        "/auto-rpg/main-LNAYJGM7.js",
+        "/auto-rpg/main-55VCX4YE.js",
         "/auto-rpg/manifest.webmanifest",
-        "/auto-rpg/styles-5FO5G3CS.css"
+        "/auto-rpg/styles-XANMRWWS.css"
       ],
       "patterns": []
     },
@@ -4577,12 +4577,12 @@
     "/auto-rpg/icons/icon-512x512.png": "1de182f76f7329dfa8f9fcdd1fdcdd695bea6a99",
     "/auto-rpg/icons/icon-72x72.png": "aa88a6096bd973be7f6d7a5489bfa6bc2463f8c4",
     "/auto-rpg/icons/icon-96x96.png": "7fb8f59c30ce2ff12c700321a0b39e14b3dc8f95",
-    "/auto-rpg/index.html": "20bc69cd93d8fdec77fb880b5a57203c3f64def1",
+    "/auto-rpg/index.html": "b992ee99edc1d1237ca0a33486c66433d6df4cfd",
     "/auto-rpg/items/RPG Chests.png": "168646dd97aac905305ff54858d69f55491f04ce",
     "/auto-rpg/items/chests.png": "c288fcf04deb56ae39bb346c612b9175833bae2b",
     "/auto-rpg/items/potions.png": "b9eac20f1780d9af256707d43e869d46ad793acc",
-    "/auto-rpg/main-LNAYJGM7.js": "0c149692327b0a0c4e37a1048d31dbae93d37e2c",
-    "/auto-rpg/manifest.webmanifest": "03c10065c5789ddd43072aa6ffb151db7dd3f2e6",
+    "/auto-rpg/main-55VCX4YE.js": "20c78ff1d377843c15333d6af4410bc549b1e937",
+    "/auto-rpg/manifest.webmanifest": "67bee4cf6ed59f9d917237f94417adbc2acf9f5c",
     "/auto-rpg/other/battle.webp": "0a1f669168877df909a321e17400cd08edd7d214",
     "/auto-rpg/other/bg1.png": "0b06193a30b00e77191a23889a1fb1dbd20e740d",
     "/auto-rpg/other/card.webp": "8ae246c13cbedb4e98eac174def5a0b2fed35135",
@@ -7444,7 +7444,7 @@
     "/auto-rpg/sprite/vampire/__MACOSX/Tiled/._Vampires3_Walk_without_shadow.png": "b9e60d4f1b32a9da8d84b37d58aff19921ecf03d",
     "/auto-rpg/sprite/vampire/__MACOSX/Tiled/._shadow_death.png": "b9e60d4f1b32a9da8d84b37d58aff19921ecf03d",
     "/auto-rpg/sprite/vampire/__MACOSX/Tiled/._shadow_single.png": "b9e60d4f1b32a9da8d84b37d58aff19921ecf03d",
-    "/auto-rpg/styles-5FO5G3CS.css": "c345062afc5b9a9a1052874458cd5a5bbe71000b",
+    "/auto-rpg/styles-XANMRWWS.css": "148a53172c82806c6854ff3892354b81636a0568",
     "/auto-rpg/texture/Extra/TX Plant with Shadow.png": "b68bf26a0235357710f6f97490b9a15c26fcd82f",
     "/auto-rpg/texture/Extra/TX Props with Shadow.png": "d336a0f335ed862269ab29c978eb303d4ec5f0d1",
     "/auto-rpg/texture/TX Plant.png": "3614e3d2cfef929d1c1a2766529f08a07e7a7cbc",
