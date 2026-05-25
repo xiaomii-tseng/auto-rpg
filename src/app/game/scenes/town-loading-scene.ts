@@ -93,9 +93,6 @@ export class TownLoadingScene extends Phaser.Scene {
     queueTownAssets(this);
     this.load.on('progress', (v: number) => drawBar(v));
     this.load.once('complete', done);
-    this.load.on('loaderror', (_file: Phaser.Loader.File) => {
-      loadingTxt.setText('載入失敗，請重新整理').setColor('#ff6644');
-    });
     this.load.start();
 
     // If nothing queued (all cached), complete fires synchronously before the listener → call manually
