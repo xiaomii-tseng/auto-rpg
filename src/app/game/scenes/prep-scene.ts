@@ -1242,8 +1242,8 @@ export class PrepScene extends Phaser.Scene {
       zIndex:     String(D + 4),
       boxSizing:  'border-box',
     });
-    const container = document.getElementById('game-container') ?? document.body;
-    container.appendChild(ta);
+    const domContainer: HTMLElement = (this.sys.game as any).domContainer ?? document.body;
+    domContainer.appendChild(ta);
     domObjs.push(ta);
 
     // image pick (DOM file input hidden)
@@ -1251,7 +1251,7 @@ export class PrepScene extends Phaser.Scene {
     fileInput.type   = 'file';
     fileInput.accept = 'image/*';
     fileInput.style.display = 'none';
-    container.appendChild(fileInput);
+    domContainer.appendChild(fileInput);
     domObjs.push(fileInput);
 
     // image button

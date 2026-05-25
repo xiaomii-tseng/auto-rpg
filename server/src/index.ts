@@ -1,6 +1,7 @@
 import express    from 'express';
 import cors       from 'cors';
 import multer     from 'multer';
+import rateLimit  from 'express-rate-limit';
 import { Server } from 'colyseus';
 import { createServer } from 'http';
 import { GameRoom }     from './rooms/GameRoom';
@@ -22,6 +23,23 @@ const app = express();
 app.use(cors({ origin: ALLOWED_ORIGINS, credentials: true }));
 app.use(express.json());
 
+// ── Rate limiters ─────────────────────────────────────────────────────────────
+const limiterAuth = rateLimit({
+  windowMs: 15 * 60 * 1000, max: 10,
+  message: { error: '嘗試次數過多，請 15 分鐘後再試' },
+  standardHeaders: true, legacyHeaders: false,
+});
+const limiterReport = rateLimit({
+  windowMs: 10 * 60 * 1000, max: 3,
+  message: { error: '回報次數過多，請稍後再試' },
+  standardHeaders: true, legacyHeaders: false,
+});
+const limiterSave = rateLimit({
+  windowMs: 60 * 1000, max: 20,
+  message: { error: '存檔頻率過高，請稍後再試' },
+  standardHeaders: true, legacyHeaders: false,
+});
+
 // ── health ────────────────────────────────────────────────────────────────────
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 
@@ -40,7 +58,7 @@ app.get('/room/:code', (req, res) => {
 // account → 內部轉成 account@game.local，玩家不需要填真實 email
 const toEmail = (account: string) => `${account.toLowerCase().replace(/[^a-z0-9_.-]/g, '_')}@game.local`;
 
-app.post('/auth/register', async (req, res) => {
+app.post('/auth/register', limiterAuth, async (req, res) => {
   const { account, password, playerId, nickname } = req.body ?? {};
   if (!account || !password || !playerId) {
     res.status(400).json({ error: 'account, password, playerId required' }); return;
@@ -85,7 +103,7 @@ app.post('/auth/register', async (req, res) => {
 });
 
 // POST /auth/login  { account, password }
-app.post('/auth/login', async (req, res) => {
+app.post('/auth/login', limiterAuth, async (req, res) => {
   const { account, password } = req.body ?? {};
   if (!account || !password) {
     res.status(400).json({ error: 'account and password required' }); return;
@@ -137,6 +155,29 @@ app.post('/auth/refresh', async (req, res) => {
 // SAVE DATA
 // ══════════════════════════════════════════════════════════════════════════════
 
+// ── Save validation ───────────────────────────────────────────────────────────
+function validateSave(d: any): string | null {
+  if (typeof d !== 'object' || d === null) return 'saveData must be an object';
+
+  const p = d.player;
+  if (!p || typeof p !== 'object')           return 'missing player';
+  if (typeof p.level !== 'number' || p.level < 1 || p.level > 1000) return 'invalid level';
+  if (typeof p.exp   !== 'number' || p.exp   < 0)                    return 'invalid exp';
+
+  const inv = d.inventory;
+  if (!inv || typeof inv !== 'object')       return 'missing inventory';
+  if (typeof inv.gold !== 'number' || inv.gold < 0 || inv.gold > 1_000_000_000) return 'invalid gold';
+  if (!Array.isArray(inv.items))             return 'invalid items';
+
+  if (d.tower != null) {
+    const t = d.tower;
+    if (typeof t.keys !== 'number' || t.keys < 0 || t.keys > 9999)           return 'invalid tower.keys';
+    if (typeof t.bestFloor !== 'number' || t.bestFloor < 0 || t.bestFloor > 9999) return 'invalid tower.bestFloor';
+  }
+
+  return null;
+}
+
 // Middleware: verify JWT via Supabase (validates signature + expiry)
 async function requireAuth(req: any, res: any, next: any) {
   const auth = req.headers['authorization'] ?? '';
@@ -164,9 +205,12 @@ app.get('/save', requireAuth, async (req: any, res) => {
 });
 
 // POST /save  { saveData, version }  → upsert
-app.post('/save', requireAuth, async (req: any, res) => {
+app.post('/save', limiterSave, requireAuth, async (req: any, res) => {
   const { saveData, version } = req.body ?? {};
   if (!saveData) { res.status(400).json({ error: 'saveData required' }); return; }
+
+  const validationError = validateSave(saveData);
+  if (validationError) { res.status(400).json({ error: validationError }); return; }
 
   const { error } = await supabase.from('player_saves').upsert({
     user_id:    req.userId,
@@ -186,7 +230,7 @@ app.post('/save', requireAuth, async (req: any, res) => {
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 } });
 
 // POST /report  { message, playerName, version, scene }  + optional image file
-app.post('/report', upload.single('image'), async (req: any, res) => {
+app.post('/report', limiterReport, upload.single('image'), async (req: any, res) => {
   const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
   if (!webhookUrl) { res.status(503).json({ error: 'report not configured' }); return; }
 
