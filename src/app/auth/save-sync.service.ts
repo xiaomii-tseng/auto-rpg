@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { environment } from '../../environments/environment';
 import { AuthService } from './auth.service';
+import { decryptSave } from '../game/data/save-store';
 
 const SAVE_KEY = 'auto_rpg_save';
 const SAVE_TS_KEY = 'rg_save_ts';
@@ -41,7 +42,7 @@ export class SaveSyncService {
     this._uploading = true;
     this._dirty = false;
     try {
-      const saveData = JSON.parse(raw);
+      const saveData = JSON.parse(decryptSave(raw));
       const res = await fetch(`${environment.apiUrl}/save`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },

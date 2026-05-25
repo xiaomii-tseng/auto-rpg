@@ -20,6 +20,33 @@ import { VERSION as _V } from '../version';
 const SAVE_KEY = 'auto_rpg_save';
 const VERSION  = _V.replace(/^v/, '');
 let   _loaded  = false;
+
+// ── localStorage 加密（XOR + Base64）────────────────────────────────────────
+// 防止玩家直接編輯 localStorage 中的 JSON 存檔
+const _CK = new Uint8Array([
+  0x7f, 0x3a, 0xc8, 0x15, 0x9e, 0x42, 0xd7, 0x6b,
+  0x28, 0xf4, 0x51, 0x8d, 0xa3, 0x7c, 0x2e, 0xb9,
+  0x64, 0x1f, 0x93, 0x5a, 0xe8, 0x37, 0x0c, 0x76,
+  0xd5, 0x4b, 0x82, 0x19, 0xac, 0x63, 0xf0, 0x2d,
+  0x58, 0x9b, 0xe4, 0x71, 0x3c, 0xa7, 0x06, 0xcd,
+  0x85, 0x42, 0xfe, 0x1a, 0x67, 0xb3, 0x90, 0x4e,
+  0xd2, 0x7f, 0x38, 0xc5, 0x0b, 0x91, 0x56, 0xe3,
+  0xaa, 0x2c, 0x78, 0xf1, 0x43, 0x8e, 0xbd, 0x60,
+]);
+
+export function encryptSave(plain: string): string {
+  const bytes = new TextEncoder().encode(plain);
+  const out   = new Uint8Array(bytes.length);
+  for (let i = 0; i < bytes.length; i++) out[i] = bytes[i] ^ _CK[i % _CK.length];
+  return btoa(String.fromCharCode(...out));
+}
+
+export function decryptSave(cipher: string): string {
+  const bytes = Uint8Array.from(atob(cipher), c => c.charCodeAt(0));
+  const out   = new Uint8Array(bytes.length);
+  for (let i = 0; i < bytes.length; i++) out[i] = bytes[i] ^ _CK[i % _CK.length];
+  return new TextDecoder().decode(out);
+}
 let   _onSaveHook: (() => void) | null = null;
 
 interface SaveData {
@@ -102,7 +129,7 @@ export const SaveStore = {
       dismantlePrefs: DismantlePrefsStore.getSaveData(),
     };
     try {
-      localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+      localStorage.setItem(SAVE_KEY, encryptSave(JSON.stringify(data)));
       _onSaveHook?.();
     } catch (_) {}
   },
@@ -112,9 +139,9 @@ export const SaveStore = {
     try {
       const raw = localStorage.getItem(SAVE_KEY);
       if (!raw) return false;
-      const data: SaveData = JSON.parse(raw);
+      const data: SaveData = JSON.parse(decryptSave(raw));
       const majorVer = parseInt(String(data.version).split('.')[0], 10);
-      if (isNaN(majorVer) || majorVer < 15) return false;
+      if (isNaN(majorVer) || majorVer < 17) return false;
 
       // Restore consolidated fields so existing getPlayerName() / SkinStore.get() still work
       if (data.playerName) localStorage.setItem('playerName', data.playerName);

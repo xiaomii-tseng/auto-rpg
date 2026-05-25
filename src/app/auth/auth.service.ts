@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { environment } from '../../environments/environment';
-import { makeInitialSave } from '../game/data/save-store';
+import { makeInitialSave, encryptSave, decryptSave } from '../game/data/save-store';
 
 export interface AuthUser {
   userId:   string;
@@ -155,12 +155,13 @@ export class AuthService {
           const cloudTs = data.updated_at ? new Date(data.updated_at).getTime() : 0;
           const localTs = Number(localStorage.getItem('rg_save_ts') ?? '0');
           if (cloudTs >= localTs) {
-            // 雲端較新 → 覆蓋本地
-            localStorage.setItem('auto_rpg_save', JSON.stringify(data.save_data));
+            // 雲端較新 → 覆蓋本地（加密後存入）
+            localStorage.setItem('auto_rpg_save', encryptSave(JSON.stringify(data.save_data)));
             localStorage.setItem('rg_save_ts', String(cloudTs));
           } else {
-            // 本地較新 → 上傳本地到雲端
-            const localSave = JSON.parse(localStorage.getItem('auto_rpg_save') ?? '{}');
+            // 本地較新 → 解密後上傳到雲端
+            const raw = localStorage.getItem('auto_rpg_save') ?? '';
+            const localSave = JSON.parse(raw ? decryptSave(raw) : '{}');
             await fetch(`${environment.apiUrl}/save`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -168,9 +169,9 @@ export class AuthService {
             });
           }
         } else {
-          // 無雲端存檔 → 新玩家，寫入帶有玩家名稱的初始存檔
+          // 無雲端存檔 → 新玩家，寫入帶有玩家名稱的初始存檔（加密後存入）
           const initSave = makeInitialSave(playerId);
-          localStorage.setItem('auto_rpg_save', JSON.stringify(initSave));
+          localStorage.setItem('auto_rpg_save', encryptSave(JSON.stringify(initSave)));
           await fetch(`${environment.apiUrl}/save`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
