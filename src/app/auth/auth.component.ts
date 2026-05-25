@@ -17,6 +17,8 @@ export class AuthComponent {
 
   private auth = inject(AuthService);
 
+  isPortrait = window.innerHeight > window.innerWidth;
+
   tab = signal<Tab>('login');
 
   // login fields
