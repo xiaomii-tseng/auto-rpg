@@ -3644,6 +3644,11 @@ export class PrepScene extends Phaser.Scene {
     };
     drawMap();
     resetTxt.on('pointerdown', () => {
+      if (InventoryStore.getItemQty('stone_guard') < 1) {
+        this._showToast?.('重鑄石不足，無法重置技能星盤');
+        return;
+      }
+      InventoryStore.spendItem('stone_guard', 1);
       SkillTreeStore.resetAll();
       updatePts();
       drawMap();
@@ -4230,7 +4235,7 @@ export class PrepScene extends Phaser.Scene {
     const ITEM_META: Record<string, ItemMeta> = {
       stone_broken:    { category: '精煉材料', categoryColor: '#aaccaa', desc: '精煉裝備的基礎材料', descColor: '#8aaa88' },
       stone_intact:    { category: '精煉材料', categoryColor: '#aaccaa', desc: '品質較好的精煉材料\n可以增加8%成功率', descColor: '#8aaa88' },
-      stone_guard:     { category: '精煉材料', categoryColor: '#aaccaa', desc: '重鑄石\n將裝備重製回未精煉狀態', descColor: '#8aaa88' },
+      stone_guard:     { category: '精煉材料', categoryColor: '#aaccaa', desc: '重鑄石\n將裝備重製回未精煉狀態\n亦可用於重置技能星盤', descColor: '#8aaa88' },
       quest_reroll:    { category: '任務道具', categoryColor: '#aacc88', desc: '任務重製石\n可重新抽取懸賞任務', descColor: '#aabb88' },
       blank_card:      { category: '卡片材料', categoryColor: '#aabbee', desc: '空白卡片\n可用於兌換卡片', descColor: '#88aacc' },
       potion_health_s: { category: '回復藥水', categoryColor: '#88ddaa', desc: '小型回復藥水\n使用後立即恢復 100 HP', descColor: '#88ccaa' },
@@ -5781,7 +5786,7 @@ export class PrepScene extends Phaser.Scene {
     const STONE_ITEMS: ShopItem[] = [
       { id: ITEM_STONE_BROKEN, name: '破損強化石', price: 1000, desc: '強化裝備時消耗', color: 0x88ccff },
       { id: ITEM_STONE_INTACT, name: '完整強化石', price: 1800, desc: '強化成功率 +8%', color: 0x66ffcc },
-      { id: 'stone_guard', name: '重鑄石', price: 4500, desc: '消耗1顆可重鑄裝備 回歸精煉前數值', color: 0xbb66ff },
+      { id: 'stone_guard', name: '重鑄石', price: 4500, desc: '消耗1顆可重鑄裝備 回歸精煉前數值\n亦可重置技能星盤', color: 0xbb66ff },
       { id: ITEM_QUEST_REROLL, name: '任務重製石', price: 250, desc: '重置當前任務列表', color: 0xffcc44 },
     ];
     const TAB_DEFS: { label: string; items: ShopItem[] | null }[] = [
