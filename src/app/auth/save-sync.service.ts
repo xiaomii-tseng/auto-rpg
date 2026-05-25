@@ -89,7 +89,47 @@ export class SaveSyncService {
   private _forceLogout(message: string): void {
     ['rg_user', 'rg_auto_login', 'rg_remember', 'auto_rpg_save', 'rg_save_ts', 'playerName']
       .forEach(k => localStorage.removeItem(k));
-    alert(message);
-    window.location.reload();
+
+    const overlay = document.createElement('div');
+    Object.assign(overlay.style, {
+      position: 'fixed', inset: '0', zIndex: '99999',
+      background: 'rgba(0,0,0,0.82)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+    });
+
+    const box = document.createElement('div');
+    Object.assign(box.style, {
+      background: '#160e04',
+      border: '2px solid #a06810',
+      borderRadius: '12px',
+      padding: '32px 28px 24px',
+      maxWidth: '320px',
+      width: '88vw',
+      textAlign: 'center',
+      fontFamily: 'sans-serif',
+      boxShadow: '0 0 32px rgba(160,104,16,0.4)',
+    });
+
+    const msg = document.createElement('p');
+    msg.textContent = message;
+    Object.assign(msg.style, {
+      color: '#ffe08a', fontSize: '16px', lineHeight: '1.6',
+      marginBottom: '24px', marginTop: '0',
+    });
+
+    const btn = document.createElement('button');
+    btn.textContent = '確定';
+    Object.assign(btn.style, {
+      background: '#a06810', color: '#fff',
+      border: 'none', borderRadius: '8px',
+      padding: '10px 40px', fontSize: '16px',
+      cursor: 'pointer', fontWeight: 'bold',
+    });
+    btn.addEventListener('click', () => window.location.reload());
+
+    box.appendChild(msg);
+    box.appendChild(btn);
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
   }
 }
