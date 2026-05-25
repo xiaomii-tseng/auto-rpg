@@ -5640,8 +5640,9 @@ export class PrepScene extends Phaser.Scene {
         close();
         return;
       }
-      const name = inp.getValue() || '勇者';
-      setPlayerName(name);
+      const name = inp.getValue().trim() || getPlayerName();
+      if (name) setPlayerName(name);
+      SaveStore.save();
       close();
       this.scene.restart();
     });
