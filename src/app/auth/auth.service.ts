@@ -75,6 +75,38 @@ export class AuthService {
 
   getToken(): string { return this._user?.accessToken ?? ''; }
 
+  /** 登入後同步存檔：有雲端存檔就下載，否則上傳本地（新玩家建檔）*/
+  async syncSave(): Promise<void> {
+    const token = this.getToken();
+    if (!token) return;
+
+    try {
+      const res = await fetch(`${environment.apiUrl}/save`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) return;
+
+      const data = await res.json();
+
+      if (data.save_data && Object.keys(data.save_data).length > 0) {
+        // 雲端有存檔 → 寫入 localStorage，PrepScene 會讀取
+        localStorage.setItem('auto_rpg_save', JSON.stringify(data.save_data));
+      } else {
+        // 新玩家，上傳當前本地存檔（可能是空的，也沒關係）
+        const local = localStorage.getItem('auto_rpg_save');
+        const saveData = local ? JSON.parse(local) : {};
+        await fetch(`${environment.apiUrl}/save`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ saveData, version: saveData.version ?? '' }),
+        });
+      }
+    } catch (_) {}
+  }
+
   private _persist(data: AuthUser): void {
     this._user = data;
     localStorage.setItem(USER_KEY, JSON.stringify(data));

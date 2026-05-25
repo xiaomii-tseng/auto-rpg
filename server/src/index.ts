@@ -54,7 +54,11 @@ app.post('/auth/register', async (req, res) => {
     email_confirm: true,
   });
   if (createErr || !created.user) {
-    res.status(400).json({ error: createErr?.message ?? 'signup failed' }); return;
+    const msg = createErr?.message ?? '';
+    const friendly = msg.includes('already') || msg.includes('exists')
+      ? '帳號已被使用'
+      : msg || '註冊失敗';
+    res.status(400).json({ error: friendly }); return;
   }
 
   // 2. 建 profile

@@ -36,9 +36,12 @@ export class App implements AfterViewInit {
     // 否則顯示登入畫面，Phaser 先不啟動
   }
 
-  onLoggedIn(): void {
+  async onLoggedIn(): Promise<void> {
     this.showAuth = false;
-    if (!this._phaserInited) this._initPhaser();
+    if (!this._phaserInited) {
+      await this.authSvc.syncSave();
+      this._initPhaser();
+    }
   }
 
   private _initPhaser(): void {

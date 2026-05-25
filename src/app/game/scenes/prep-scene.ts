@@ -1021,7 +1021,7 @@ export class PrepScene extends Phaser.Scene {
   private _showAudioPanel(W: number, H: number): void {
     const D   = 9000;
     const PW  = Math.min(W - P(16), P(300));
-    const PH  = P(200);
+    const PH  = P(240);
     const px  = (W - PW) / 2;
     const py  = (H - PH) / 2;
 
@@ -1118,6 +1118,34 @@ export class PrepScene extends Phaser.Scene {
       const plusBtn = addTxt('+', px + PW - P(14), ry + P(36), btnStyle, 1, 0.5);
       plusBtn.setInteractive({ useHandCursor: true })
         .on('pointerup', () => { row.set(Math.min(1, Math.round((row.get() + STEP) * 20) / 20)); redraw(); });
+    });
+
+    // ── 登出按鈕 ──────────────────────────────────────────────
+    const LBTN_H = P(32);
+    const LBTN_Y = py + PH - P(14) - LBTN_H;
+    const LBTN_X = px + P(14);
+    const LBTN_W = PW - P(28);
+
+    const lbg = this.add.graphics().setDepth(D + 2);
+    objs.push(lbg);
+    lbg.fillStyle(0x3a1008, 1);
+    lbg.fillRoundedRect(LBTN_X, LBTN_Y, LBTN_W, LBTN_H, P(6));
+    lbg.lineStyle(1, 0xa04020, 0.8);
+    lbg.strokeRoundedRect(LBTN_X, LBTN_Y, LBTN_W, LBTN_H, P(6));
+
+    const lTxt = this.add.text(LBTN_X + LBTN_W / 2, LBTN_Y + LBTN_H / 2, '登出', {
+      fontSize: F(15), fontStyle: 'bold', color: '#ff9977', stroke: '#1a0800', strokeThickness: 1,
+    }).setOrigin(0.5).setDepth(D + 3);
+    objs.push(lTxt);
+
+    const lHit = this.add.rectangle(LBTN_X + LBTN_W / 2, LBTN_Y + LBTN_H / 2, LBTN_W, LBTN_H)
+      .setDepth(D + 4).setAlpha(0.001).setInteractive({ useHandCursor: true });
+    objs.push(lHit);
+    lHit.on('pointerup', () => {
+      localStorage.removeItem('rg_user');
+      localStorage.removeItem('rg_auto_login');
+      localStorage.removeItem('rg_remember');
+      window.location.reload();
     });
 
     objs.forEach(o => { if ('setScrollFactor' in o) (o as any).setScrollFactor(0); });
