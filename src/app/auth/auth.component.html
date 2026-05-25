@@ -2,7 +2,7 @@
   <img class="auth-bg-img" src="other/town-loading.png" alt="" />
   <div class="vignette"></div>
 
-  <div class="auth-card" [class.shake]="shake()">
+  <div class="auth-card">
 
     <div class="corners"></div>
 
@@ -85,7 +85,7 @@
     <!-- 錯誤彈窗 -->
     @if (error()) {
       <div class="err-overlay">
-        <div class="err-box" [class.shake]="shake()">
+        <div class="err-box">
           <p class="err-text">{{ error() }}</p>
           <button class="err-btn" (click)="error.set('')">確定</button>
         </div>

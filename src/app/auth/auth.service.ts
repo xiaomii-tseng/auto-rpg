@@ -114,6 +114,12 @@ export class AuthService {
     const token = this.getToken();
     if (!token) return;
 
+    const playerId = this._user?.playerId ?? '';
+
+    // 保底：登入後立刻把玩家名稱寫入 localStorage，
+    // 確保遊戲拿到正確名稱而非隨機勇者xxx
+    if (playerId) localStorage.setItem('playerName', playerId);
+
     // Render 免費版冷啟動可能很慢，最多重試 3 次
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
@@ -128,8 +134,8 @@ export class AuthService {
           // 雲端有存檔 → 覆蓋本地，確保帳號之間不互污
           localStorage.setItem('auto_rpg_save', JSON.stringify(data.save_data));
         } else {
-          // 無雲端存檔 → 清掉本地（可能是別帳號的舊資料），寫入初始存檔
-          const initSave = makeInitialSave();
+          // 無雲端存檔 → 新玩家，寫入帶有玩家名稱的初始存檔
+          const initSave = makeInitialSave(playerId);
           localStorage.setItem('auto_rpg_save', JSON.stringify(initSave));
           await fetch(`${environment.apiUrl}/save`, {
             method: 'POST',

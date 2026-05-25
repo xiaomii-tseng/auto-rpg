@@ -128,12 +128,7 @@ const _dismantlePrefs = _DismantlePrefsStore;
 const _saveDismantlePrefs = () => SaveStore.save();
 
 export function getPlayerName(): string {
-  let name = localStorage.getItem('playerName');
-  if (!name) {
-    name = '勇者' + String(Math.floor(Math.random() * 900) + 100);
-    localStorage.setItem('playerName', name);
-  }
-  return name;
+  return localStorage.getItem('playerName') ?? '';
 }
 export function setPlayerName(name: string): void {
   localStorage.setItem('playerName', name.slice(0, 8));

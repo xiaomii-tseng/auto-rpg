@@ -33,7 +33,6 @@ export class AuthComponent {
   loading     = signal(false);
   loadingHint = signal('');
   error       = signal('');
-  shake       = signal(false);
 
   isLogin    = computed(() => this.tab() === 'login');
   isRegister = computed(() => this.tab() === 'register');
@@ -68,7 +67,6 @@ export class AuthComponent {
       this.loggedIn.emit();
     } catch (e: any) {
       this.error.set(e.message ?? '發生錯誤');
-      this.triggerShake();
     } finally {
       this.loading.set(false);
       this.loadingHint.set('');
@@ -77,11 +75,5 @@ export class AuthComponent {
 
   private showError(msg: string) {
     this.error.set(msg);
-    this.triggerShake();
-  }
-
-  private triggerShake() {
-    this.shake.set(true);
-    setTimeout(() => this.shake.set(false), 600);
   }
 }

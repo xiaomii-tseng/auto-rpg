@@ -50,10 +50,10 @@ interface SaveData {
   dismantlePrefs?:  { qualities: string[]; slots: string[] };
 }
 
-export function makeInitialSave(): SaveData {
+export function makeInitialSave(playerName = ''): SaveData {
   return {
     version:    VERSION,
-    playerName: '',
+    playerName,
     skinId:     0,
     player: {
       level:    1,
