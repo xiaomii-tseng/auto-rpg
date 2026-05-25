@@ -50,6 +50,26 @@ interface SaveData {
   dismantlePrefs?:  { qualities: string[]; slots: string[] };
 }
 
+export function makeInitialSave(): SaveData {
+  return {
+    version:    VERSION,
+    playerName: '',
+    skinId:     0,
+    player: {
+      level:    1,
+      exp:      0,
+      equipped: { hat: null, outfit: null, shoes: null, ring1: null, ring2: null, sword: null },
+      owned:    [],
+    },
+    inventory: { gold: 0, items: [] },
+    cards:     { equipped: [null, null, null], inventory: [] },
+    quests:    { quests: [] },
+    potionBar: { slots: [null, null] },
+    skillTree: { learned: [], attackMode: 'projectile' },
+    tower:     { keys: 0, bestFloor: 0 },
+  };
+}
+
 export const SaveStore = {
   setOnSaveHook(fn: () => void): void { _onSaveHook = fn; },
 

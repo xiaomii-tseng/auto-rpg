@@ -185,29 +185,6 @@ $border:     rgba(200, 169, 110, 0.35);
   box-sizing: border-box;
 }
 
-// 登入：帳號密碼橫排
-.login-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-}
-
-// 登入：自動登入 + 按鈕橫排
-.login-bottom {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-
-  .remember-label { flex-shrink: 0; }
-  .submit-btn { flex: 1; margin-top: 0; }
-}
-
-// 註冊：2 欄 grid
-.reg-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px 10px;
-}
 
 .field-group {
   display: flex;

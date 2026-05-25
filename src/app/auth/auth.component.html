@@ -20,11 +20,10 @@
       <div class="tab-indicator" [class.right]="isRegister()"></div>
     </div>
 
-    <form class="auth-form" (ngSubmit)="submit()" autocomplete="off">
+    <div class="form-scroll">
+      <form class="auth-form" (ngSubmit)="submit()" autocomplete="off">
 
-      @if (isLogin()) {
-        <!-- 登入：帳號密碼橫排 -->
-        <div class="login-row">
+        @if (isLogin()) {
           <div class="field-group">
             <label class="field-label">帳號</label>
             <input type="text" class="field-input" placeholder="請輸入帳號"
@@ -35,22 +34,13 @@
             <input type="password" class="field-input" placeholder="請輸入密碼"
                    [(ngModel)]="loginPassword" name="loginPassword" autocomplete="current-password" />
           </div>
-        </div>
-        <div class="login-bottom">
           <label class="remember-label">
             <input type="checkbox" class="remember-check" [(ngModel)]="rememberMe" name="rememberMe" />
             <span class="remember-text">自動登入</span>
           </label>
-          <button type="submit" class="submit-btn" [disabled]="loading">
-            @if (loading) { <span class="spinner"></span> }
-            @else { <span class="btn-text">進入遊戲</span><span class="btn-shine"></span> }
-          </button>
-        </div>
-      }
+        }
 
-      @if (isRegister()) {
-        <!-- 註冊：2 欄 grid -->
-        <div class="reg-grid">
+        @if (isRegister()) {
           <div class="field-group">
             <label class="field-label">玩家名稱 <span class="required">*</span></label>
             <input type="text" class="field-input" placeholder="遊戲內顯示的名稱"
@@ -71,14 +61,19 @@
             <input type="text" class="field-input" placeholder="真實姓名或備註"
                    [(ngModel)]="regNickname" name="regNickname" maxlength="32" />
           </div>
-        </div>
-        <button type="submit" class="submit-btn" [disabled]="loading">
-          @if (loading) { <span class="spinner"></span> }
-          @else { <span class="btn-text">建立帳號</span><span class="btn-shine"></span> }
-        </button>
-      }
+        }
 
-    </form>
+        <button type="submit" class="submit-btn" [disabled]="loading">
+          @if (loading) {
+            <span class="spinner"></span>
+          } @else {
+            <span class="btn-text">{{ isLogin() ? '進入遊戲' : '建立帳號' }}</span>
+            <span class="btn-shine"></span>
+          }
+        </button>
+
+      </form>
+    </div>
 
     <div class="divider bottom-divider">
       <span class="divider-gem small"></span>

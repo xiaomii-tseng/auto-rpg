@@ -86,7 +86,12 @@ app.post('/auth/login', async (req, res) => {
   const email = toEmail(account);
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
   if (error || !data.session) {
-    res.status(401).json({ error: error?.message ?? 'login failed' }); return;
+    const msg = (error?.message ?? '').toLowerCase();
+    const friendly =
+      msg.includes('invalid') || msg.includes('credentials') ? '帳號或密碼錯誤'
+      : msg.includes('too many') || msg.includes('rate')     ? '嘗試次數過多，請稍後再試'
+      : '登入失敗';
+    res.status(401).json({ error: friendly }); return;
   }
 
   const { data: profile } = await supabase

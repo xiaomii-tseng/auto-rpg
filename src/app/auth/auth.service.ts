@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
 import { environment } from '../../environments/environment';
+import { makeInitialSave } from '../game/data/save-store';
 
 export interface AuthUser {
   userId:   string;
@@ -96,12 +97,13 @@ export class AuthService {
           // 雲端有存檔 → 覆蓋本地，確保帳號之間不互污
           localStorage.setItem('auto_rpg_save', JSON.stringify(data.save_data));
         } else {
-          // 無雲端存檔 → 清掉本地（可能是別帳號的舊資料），建立空白紀錄
-          localStorage.removeItem('auto_rpg_save');
+          // 無雲端存檔 → 清掉本地（可能是別帳號的舊資料），寫入初始存檔
+          const initSave = makeInitialSave();
+          localStorage.setItem('auto_rpg_save', JSON.stringify(initSave));
           await fetch(`${environment.apiUrl}/save`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-            body: JSON.stringify({ saveData: {}, version: '' }),
+            body: JSON.stringify({ saveData: initSave, version: initSave.version }),
           });
         }
         return; // 成功就離開
