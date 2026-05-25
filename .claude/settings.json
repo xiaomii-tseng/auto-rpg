@@ -102,7 +102,9 @@
       "Bash(sed -i 's/^const SCYTHE_TRAIL_DMG = 42;/const SCYTHE_TRAIL_DMG = 28;/' src/app/game/objects/boss-vampire3.ts)",
       "Bash(sed -i 's/^const BURST_DMG      = 72;/const BURST_DMG      = 75;/' src/app/game/objects/boss-vampire3.ts)",
       "Bash(sed -i 's/^const SPIKE_DMG      = 88;/const SPIKE_DMG      = 85;/' src/app/game/objects/boss-vampire3.ts)",
-      "Bash(sed -i 's/^const CLONE_SCYTHE_DMG = 55;/const CLONE_SCYTHE_DMG = 65;/' src/app/game/objects/boss-vampire3.ts)"
+      "Bash(sed -i 's/^const CLONE_SCYTHE_DMG = 55;/const CLONE_SCYTHE_DMG = 65;/' src/app/game/objects/boss-vampire3.ts)",
+      "Bash(Get-ChildItem -Path \"c:\\\\MyCode\\\\auto-rpg\\\\src\\\\app\\\\game\\\\data\" -File)",
+      "Bash(Select-Object Name)"
     ],
     "additionalDirectories": [
       "\\MyCode\\auto-rpg\\src\\app\\game\\scenes",
