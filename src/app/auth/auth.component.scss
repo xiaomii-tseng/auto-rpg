@@ -13,16 +13,25 @@ $border:     rgba(200, 169, 110, 0.35);
   align-items: center;
   justify-content: center;
   padding: 16px;
-  background:
-    linear-gradient(rgba(0,0,0,0.55), rgba(0,0,0,0.65)),
-    url('other/town-loading.png') center/cover no-repeat;
+  background: rgba(0,0,0,0.55);
   font-family: 'Segoe UI', '微軟正黑體', sans-serif;
+}
+
+.auth-bg-img {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 0;
+  filter: brightness(0.45);
 }
 
 .vignette {
   position: fixed;
   inset: 0;
   pointer-events: none;
+  z-index: 1;
   background: radial-gradient(ellipse at center,
     transparent 30%,
     rgba(0,0,0,0.6) 100%
@@ -44,6 +53,7 @@ $border:     rgba(200, 169, 110, 0.35);
   animation: cardIn 0.45s cubic-bezier(0.16,1,0.3,1) both;
   display: flex;
   flex-direction: column;
+  z-index: 2;
 
   // 上方兩角
   &::before {
@@ -168,10 +178,7 @@ $border:     rgba(200, 169, 110, 0.35);
 .form-scroll {
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  // 高度 = 2 個 field + button 的自然高度，讓登入不需捲動
-  // 註冊 4 個 field 則在這個高度內捲動
-  max-height: 195px;
-  min-height: 195px;
+  max-height: 245px;
 
   // 隱藏捲軸但保留功能
   scrollbar-width: none;
@@ -181,14 +188,14 @@ $border:     rgba(200, 169, 110, 0.35);
 .auth-form {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding-right: 2px; // 防止 focus ring 被裁切
+  gap: 6px;
+  padding-right: 2px;
 }
 
 .field-group {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
 }
 
 .field-label {
@@ -206,7 +213,7 @@ $border:     rgba(200, 169, 110, 0.35);
   background: rgba(255,255,255,0.05);
   border: 1px solid rgba(200,169,110,0.22);
   border-radius: 3px;
-  padding: 9px 12px;
+  padding: 8px 12px;
   font-size: 16px;
   font-weight: 700;
   color: $gold-light;
@@ -278,8 +285,8 @@ $border:     rgba(200, 169, 110, 0.35);
 .submit-btn {
   position: relative;
   overflow: hidden;
-  margin-top: 4px;
-  padding: 12px 0;
+  margin-top: 2px;
+  padding: 11px 0;
   border: 1px solid rgba(200,169,110,0.5);
   border-radius: 3px;
   background: linear-gradient(180deg,
