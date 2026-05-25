@@ -11,8 +11,22 @@ export interface AuthUser {
 }
 
 const USER_KEY        = 'rg_user';
-const REMEMBER_KEY    = 'rg_remember';   // 存帳號（不存密碼）
-const AUTO_LOGIN_KEY  = 'rg_auto_login'; // 是否自動登入
+const REMEMBER_KEY    = 'rg_remember';
+const AUTO_LOGIN_KEY  = 'rg_auto_login';
+const LOGIN_TIMEOUT   = 20_000; // 20 秒沒回應視為失敗
+
+async function fetchWithTimeout(url: string, options: RequestInit, ms = LOGIN_TIMEOUT): Promise<Response> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), ms);
+  try {
+    return await fetch(url, { ...options, signal: ctrl.signal });
+  } catch (e: any) {
+    if (e.name === 'AbortError') throw new Error('伺服器連線逾時，請稍後再試');
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
@@ -38,7 +52,7 @@ export class AuthService {
   }
 
   async login(account: string, password: string, rememberMe: boolean): Promise<void> {
-    const res = await fetch(`${environment.apiUrl}/auth/login`, {
+    const res = await fetchWithTimeout(`${environment.apiUrl}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ account, password }),
@@ -58,7 +72,7 @@ export class AuthService {
   }
 
   async register(playerId: string, account: string, password: string, nickname?: string): Promise<void> {
-    const res = await fetch(`${environment.apiUrl}/auth/register`, {
+    const res = await fetchWithTimeout(`${environment.apiUrl}/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ account, password, playerId, nickname: nickname || undefined }),
