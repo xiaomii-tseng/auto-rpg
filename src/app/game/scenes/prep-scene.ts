@@ -608,21 +608,22 @@ export class PrepScene extends Phaser.Scene {
 
     // Content
     const ENTRIES: { text: string; header?: boolean }[] = [
+      { text: '── 安全強化 ──', header: true },
+      { text: '🔒  本地存檔加密，無法直接修改' },
+      { text: '🔒  伺服器驗證存檔數值合理性' },
+      { text: '🔒  API 請求頻率限制，防濫用' },
+      { text: '' },
       { text: '── 帳號系統 ──', header: true },
       { text: '◆  帳號登入 / 註冊（玩家名稱唯一）' },
-      { text: '◆  預設開啟自動登入' },
-      { text: '◆  存檔雲端同步，支援多裝置（自動選新存檔）' },
-      { text: '◆  Token 過期自動換新，不中斷上傳' },
-      { text: '' },
-      { text: '── 存檔 ──', header: true },
-      { text: '◆  切走 app / 關閉頁面立刻強制上傳' },
-      { text: '◆  每 30 秒自動 debounce 上傳' },
+      { text: '◆  存檔雲端同步，支援多裝置' },
+      { text: '◆  Token 過期自動換新' },
+      { text: '◆  登出時自動清除本地資料' },
       { text: '' },
       { text: '── 體驗優化 ──', header: true },
       { text: '◆  主城 / 戰鬥載入顯示真實進度條' },
       { text: '◆  伺服器冷啟動顯示等待提示' },
-      { text: '◆  有新版本時顯示更新提示（不強制重載）' },
-      { text: '◆  全球等級排行榜' },
+      { text: '◆  新版本上線時顯示更新提示' },
+      { text: '◆  漢堡選單新增玩家回報問題功能' },
     ];
 
     const content = track(this.add.container(SX, SY).setDepth(DEPTH + 3)) as Phaser.GameObjects.Container;
@@ -1166,6 +1167,9 @@ export class PrepScene extends Phaser.Scene {
       localStorage.removeItem('rg_user');
       localStorage.removeItem('rg_auto_login');
       localStorage.removeItem('rg_remember');
+      localStorage.removeItem('auto_rpg_save');
+      localStorage.removeItem('rg_save_ts');
+      localStorage.removeItem('playerName');
       window.location.reload();
     });
 
