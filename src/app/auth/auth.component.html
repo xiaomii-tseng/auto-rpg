@@ -66,13 +66,6 @@
           </label>
         }
 
-        @if (error) {
-          <div class="error-msg">
-            <span class="error-icon">!</span>
-            {{ error }}
-          </div>
-        }
-
         <button type="submit" class="submit-btn" [class.loading]="loading" [disabled]="loading">
           @if (loading) {
             <span class="spinner"></span>
@@ -88,6 +81,16 @@
     <div class="divider bottom-divider">
       <span class="divider-gem small"></span>
     </div>
+
+    <!-- 錯誤彈窗 -->
+    @if (error) {
+      <div class="err-overlay">
+        <div class="err-box" [class.shake]="shake">
+          <p class="err-text">{{ error }}</p>
+          <button class="err-btn" (click)="error = ''">確定</button>
+        </div>
+      </div>
+    }
 
   </div>
 </div>

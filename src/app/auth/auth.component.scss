@@ -260,32 +260,55 @@ $border:     rgba(200, 169, 110, 0.35);
   color: rgba(200,169,110,0.65);
 }
 
-// ── 錯誤訊息 ───────────────────────────────────────────────
-.error-msg {
+// ── 錯誤彈窗 ───────────────────────────────────────────────
+.err-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
   display: flex;
   align-items: center;
-  gap: 10px;
-  background: rgba(180,60,30,0.15);
-  border: 1px solid rgba(180,60,30,0.4);
-  border-radius: 3px;
-  padding: 8px 12px;
-  font-size: 15px;
-  font-weight: 700;
-  color: #e8a080;
-  animation: fadeIn 0.2s ease;
+  justify-content: center;
+  background: rgba(0,0,0,0.55);
+  border-radius: 4px;
+  animation: fadeIn 0.15s ease;
 }
 
-.error-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px; height: 20px;
-  border-radius: 50%;
+.err-box {
+  background: rgba(20, 10, 4, 0.97);
   border: 1px solid rgba(180,60,30,0.6);
-  font-size: 13px;
-  font-weight: 800;
-  flex-shrink: 0;
-  color: #e8a080;
+  border-radius: 4px;
+  padding: 20px 24px 16px;
+  width: 80%;
+  text-align: center;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,150,100,0.08);
+
+  &.shake {
+    animation: shake 0.55s cubic-bezier(0.36,0.07,0.19,0.97) both;
+  }
+}
+
+.err-text {
+  font-size: 16px;
+  font-weight: 700;
+  color: #ffaa88;
+  margin-bottom: 16px;
+  line-height: 1.5;
+}
+
+.err-btn {
+  background: linear-gradient(180deg, rgba(120,40,20,0.8), rgba(80,20,10,0.9));
+  border: 1px solid rgba(180,60,30,0.6);
+  border-radius: 3px;
+  padding: 8px 32px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #ffaa88;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: border-color 0.2s, background 0.2s;
+
+  &:hover { border-color: rgba(220,80,40,0.8); }
+  &:active { transform: translateY(1px); }
 }
 
 // ── 送出按鈕 ───────────────────────────────────────────────
