@@ -4,6 +4,6 @@ import { Injectable, signal } from '@angular/core';
 export class MarketVisibilityService {
   readonly visible = signal(false);
 
-  open():  void { this.visible.set(true);  }
+  open(): void  { this.visible.set(true);  }
   close(): void { this.visible.set(false); }
 }

@@ -1,0 +1,43 @@
+@if (visible()) {
+  <div class="report-overlay">
+    <div class="report-panel">
+      <div class="panel-header">
+        <span class="panel-title">回報問題</span>
+        <button class="close-btn" (click)="close()">✕</button>
+      </div>
+
+      @if (state() !== 'done') {
+        <div class="panel-body">
+          <textarea
+            class="msg-input"
+            [(ngModel)]="message"
+            placeholder="請描述遇到的問題…"
+            [disabled]="state() === 'loading'">
+          </textarea>
+
+          <label class="file-label" [class.has-file]="!!selectedFile">
+            <input type="file" accept="image/*" (change)="onFileChange($event)" style="display:none" #fileInput />
+            <span (click)="fileInput.click()">
+              {{ selectedFile ? ('✔ ' + fileName) : '📎 附上截圖（選填）' }}
+            </span>
+          </label>
+
+          @if (state() === 'error') {
+            <div class="error-msg">
+              送出失敗，請稍後再試
+              <button class="retry-btn" (click)="retry()">重試</button>
+            </div>
+          }
+
+          <button class="submit-btn"
+            [disabled]="state() === 'loading' || !message.trim()"
+            (click)="submit()">
+            {{ state() === 'loading' ? '傳送中…' : '送出' }}
+          </button>
+        </div>
+      } @else {
+        <div class="done-msg">✔ 感謝回報！</div>
+      }
+    </div>
+  </div>
+}

@@ -1,5 +1,40 @@
 /* You can add global styles to this file, and also import other style files */
 
+/* ══════════════════════════════════════════════════════════
+   主題色規範 — Coffee-Gold Theme（咖啡琥珀金）
+   所有新 UI 組件請使用以下 CSS 變數
+   ══════════════════════════════════════════════════════════ */
+:root {
+  /* 主色 */
+  --theme:          #c8a96e;                /* 琥珀金（主要 accent、按鈕邊框） */
+  --theme-light:    #e8d4a0;                /* 亮金（標題、亮色文字） */
+  --theme-strong:   #a06810;                /* 深琥珀（按鈕填充、強調背景） */
+  --theme-glow:     rgba(200,169,110,0.27); /* 光暈 / 淡色邊框用 */
+
+  /* 深色背景 */
+  --bg-deepest:  #0c0904;                   /* 最深底色 */
+  --bg-dark:     #160e04;                   /* 主要面板背景 */
+  --bg-card:     rgba(12, 9, 4, 0.90);      /* 卡片 / 浮層 */
+  --bg-surface:  rgba(255,255,255,0.04);    /* 輕微凸起層（row、chip） */
+
+  /* 邊框 */
+  --border:        rgba(200,169,110,0.35);  /* 標準邊框 */
+  --border-light:  rgba(200,169,110,0.22);  /* 淡邊框 */
+  --border-strong: rgba(200,169,110,0.55);  /* 強調邊框 / hover */
+
+  /* 文字 */
+  --text:       #e8d4a0;                    /* 主要文字 */
+  --text-sub:   #c8a96e;                    /* 次要 / 說明文字 */
+  --text-muted: rgba(200,169,110,0.65);     /* 淡化文字 */
+  --text-dim:   rgba(200,169,110,0.40);     /* placeholder / disabled */
+
+  /* 語意色 */
+  --color-gold:    #ffe08a;  /* 金幣 / 價格 */
+  --color-success: #88dd88;  /* 成功 / 購買 */
+  --color-danger:  #cc5544;  /* 危險 / 取消 */
+  --color-error:   #ffaa88;  /* 錯誤訊息 */
+}
+
 html, body, app-root {
   margin: 0;
   padding: 0;

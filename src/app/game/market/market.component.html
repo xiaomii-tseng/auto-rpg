@@ -1,5 +1,5 @@
-<div class="market-overlay">
-  <div class="market-panel">
+<div class="market-overlay" (click)="close()">
+  <div class="market-panel" (click)="$event.stopPropagation()">
 
     <!-- Header -->
     <div class="panel-header">
@@ -13,234 +13,461 @@
 
     <!-- ═══════════════════ BROWSE TAB ═══════════════════ -->
     @if (tab() === 'browse') {
-      <div class="filters">
-        <!-- Type filter -->
-        <div class="filter-row">
-          <button class="chip" [class.active]="filterType() === ''"           (click)="setTypeFilter('')">全部</button>
-          <button class="chip" [class.active]="filterType() === 'equipment'"  (click)="setTypeFilter('equipment')">裝備</button>
-          <button class="chip" [class.active]="filterType() === 'consumable'" (click)="setTypeFilter('consumable')">道具</button>
-          <button class="chip" [class.active]="filterType() === 'card'"       (click)="setTypeFilter('card')">卡片</button>
-        </div>
-
-        <!-- Search -->
-        <div class="filter-row search-row">
-          <input class="search-input" [(ngModel)]="filterName" placeholder="搜尋物品名稱…" (keydown.enter)="onSearch()" />
-          <button class="search-btn" (click)="onSearch()">搜尋</button>
-        </div>
-
-        <!-- Equipment-only filters -->
-        @if (showEquipFilters()) {
-          <div class="filter-row wrap">
-            @for (q of qualities; track q) {
-              <button class="chip quality-chip"
-                [class.active]="filterQuality() === q"
-                [style.color]="qualityColor(q)"
-                (click)="setQualityFilter(q)">
-                {{ qualityLabels[q] }}
-              </button>
-            }
+      <div class="tab-content">
+        <div class="filters">
+          <!-- Type filter -->
+          <div class="type-row">
+            <button class="chip" [class.active]="filterType() === 'equipment'"  (click)="setTypeFilter('equipment')">裝備</button>
+            <button class="chip" [class.active]="filterType() === 'consumable'" (click)="setTypeFilter('consumable')">道具</button>
+            <button class="chip" [class.active]="filterType() === 'card'"       (click)="setTypeFilter('card')">卡片</button>
           </div>
-          <div class="filter-row wrap">
-            @for (a of quickAffixes; track a) {
-              <button class="chip affix-chip"
-                [class.active]="filterAffixes().includes(a)"
-                (click)="toggleAffix(a)">
-                {{ affixLabels[a] }}
-              </button>
-            }
+
+          <!-- Search -->
+          <div class="search-wrap">
+            <input class="search-input" [(ngModel)]="filterName" placeholder="搜尋物品名稱…" (keydown.enter)="onSearch()" />
+            <button class="search-btn" (click)="onSearch()">搜尋</button>
           </div>
-        }
-      </div>
 
-      @if (actionError()) {
-        <div class="error-bar">{{ actionError() }}</div>
-      }
-
-      <div class="list-body">
-        @if (browseLoading() && listings().length === 0) {
-          <div class="center-msg">讀取中…</div>
-        } @else if (browseError()) {
-          <div class="center-msg error">{{ browseError() }}</div>
-        } @else if (listings().length === 0) {
-          <div class="center-msg muted">目前沒有商品</div>
-        } @else {
-          @for (item of listings(); track item.id) {
-            <div class="listing-row">
-              <div class="listing-info">
-                <span class="item-name" [style.color]="qualityColor(item.quality)">
-                  {{ item.item_name }}
-                  @if (item.quality) { <span class="quality-tag">[{{ qualityLabel(item.quality) }}]</span> }
-                </span>
-                <span class="item-meta">
-                  賣家：{{ item.seller_nickname ?? '未知' }}
-                  @if (item.qty > 1) { &nbsp;×{{ item.qty }} }
-                </span>
-                @if (item.affix_stats?.length) {
-                  <span class="item-affixes">{{ item.affix_stats!.join(' / ') }}</span>
-                }
-              </div>
-              <div class="listing-right">
-                <span class="price">{{ formatGold(item.price) }} G</span>
-                @if (item.seller_user_id !== myUserId) {
-                  <button class="buy-btn"
-                    [disabled]="actionPending() === item.id"
-                    (click)="buy(item)">
-                    {{ actionPending() === item.id ? '…' : '購買' }}
-                  </button>
-                } @else {
-                  <span class="own-tag">自己的</span>
-                }
-              </div>
+          <!-- Equipment-only: quality + 4 affix dropdowns -->
+          @if (showEquipFilters()) {
+            <div class="dd-wrap">
+              <button class="dd-btn" #qBtn (click)="toggleDropdown('q', qBtn, $event)">
+                <span [style.color]="filterQuality() ? qualityColor(filterQuality()) : ''">{{ qualityFilterLabel }}</span>
+                <span class="dd-arrow">▾</span>
+              </button>
+            </div>
+            <div class="dd-wrap">
+              <button class="dd-btn" #a1Btn (click)="toggleDropdown('a1', a1Btn, $event)">
+                <span>{{ affixLabel(0) }}</span><span class="dd-arrow">▾</span>
+              </button>
+            </div>
+            <div class="dd-wrap">
+              <button class="dd-btn" #a2Btn (click)="toggleDropdown('a2', a2Btn, $event)">
+                <span>{{ affixLabel(1) }}</span><span class="dd-arrow">▾</span>
+              </button>
+            </div>
+            <div class="dd-wrap">
+              <button class="dd-btn" #a3Btn (click)="toggleDropdown('a3', a3Btn, $event)">
+                <span>{{ affixLabel(2) }}</span><span class="dd-arrow">▾</span>
+              </button>
+            </div>
+            <div class="dd-wrap">
+              <button class="dd-btn" #a4Btn (click)="toggleDropdown('a4', a4Btn, $event)">
+                <span>{{ affixLabel(3) }}</span><span class="dd-arrow">▾</span>
+              </button>
             </div>
           }
-          @if (hasMore()) {
-            <button class="load-more-btn" [disabled]="browseLoading()" (click)="loadMore()">
-              {{ browseLoading() ? '讀取中…' : '載入更多' }}
-            </button>
+
+          <!-- Floating dropdown -->
+          @if (openDropdown() && dropdownPos()) {
+            <div class="dd-list"
+              [style.top.px]="dropdownPos()!.top"
+              [style.left.px]="dropdownPos()!.left"
+              [style.width.px]="dropdownPos()!.width"
+              (click)="$event.stopPropagation()">
+              @if (openDropdown() === 'q') {
+                <div class="dd-item" [class.active]="filterQuality() === ''" (click)="pickQuality('', $event)">品質（全部）</div>
+                @for (q of qualities; track q) {
+                  <div class="dd-item" [class.active]="filterQuality() === q"
+                    [style.color]="qualityColor(q)" (click)="pickQuality(q, $event)">{{ qualityLabels[q] }}</div>
+                }
+              }
+              @if (openDropdown() === 'a1') {
+                <div class="dd-item" [class.active]="filterAffix1() === ''" (click)="pickAffix(0, '', $event)">詞墜 1</div>
+                @for (a of affixOptions; track a.key) {
+                  <div class="dd-item" [class.active]="filterAffix1() === a.key" (click)="pickAffix(0, a.key, $event)">{{ a.label }}</div>
+                }
+              }
+              @if (openDropdown() === 'a2') {
+                <div class="dd-item" [class.active]="filterAffix2() === ''" (click)="pickAffix(1, '', $event)">詞墜 2</div>
+                @for (a of affixOptions; track a.key) {
+                  <div class="dd-item" [class.active]="filterAffix2() === a.key" (click)="pickAffix(1, a.key, $event)">{{ a.label }}</div>
+                }
+              }
+              @if (openDropdown() === 'a3') {
+                <div class="dd-item" [class.active]="filterAffix3() === ''" (click)="pickAffix(2, '', $event)">詞墜 3</div>
+                @for (a of affixOptions; track a.key) {
+                  <div class="dd-item" [class.active]="filterAffix3() === a.key" (click)="pickAffix(2, a.key, $event)">{{ a.label }}</div>
+                }
+              }
+              @if (openDropdown() === 'a4') {
+                <div class="dd-item" [class.active]="filterAffix4() === ''" (click)="pickAffix(3, '', $event)">詞墜 4</div>
+                @for (a of affixOptions; track a.key) {
+                  <div class="dd-item" [class.active]="filterAffix4() === a.key" (click)="pickAffix(3, a.key, $event)">{{ a.label }}</div>
+                }
+              }
+            </div>
           }
-        }
+        </div>
+
+        <div class="main-area">
+          @if (actionError()) {
+            <div class="error-bar">{{ actionError() }}</div>
+          }
+          @if (!browseStarted) {
+            <div class="center-msg muted">請選擇類型或搜尋以查看商品</div>
+          } @else if (browseLoading() && listings().length === 0) {
+            <div class="center-msg">讀取中…</div>
+          } @else if (browseError()) {
+            <div class="center-msg error">{{ browseError() }}</div>
+          } @else if (listings().length === 0) {
+            <div class="center-msg muted">目前沒有商品</div>
+          } @else {
+            <div class="equip-grid browse-grid">
+              @for (item of listings(); track item.id) {
+                <div class="equip-card browse-card">
+                  @if (item.item_type === 'card') {
+                    <div class="equip-img-wrap card-img-wrap">
+                      <div class="card-sprite" [style.backgroundImage]="'url(' + browseImgUrl(item) + ')'"></div>
+                    </div>
+                  } @else {
+                    <div class="equip-img-wrap">
+                      <img class="equip-img"
+                        [class.potion-img]="item.item_type === 'consumable' && isPotionId(item.item_snapshot?.id ?? '')"
+                        [src]="browseImgUrl(item)" [alt]="item.item_name" />
+                    </div>
+                  }
+                  <div class="equip-info">
+                    <span class="equip-name"
+                      [style.color]="qualityColor(item.quality)"
+                      [class.white-name]="item.item_type !== 'equipment'">
+                      {{ item.item_name }}
+                      @if (item.quality) { <span class="quality-tag">[{{ qualityLabel(item.quality) }}]</span> }
+                    </span>
+                    @if (item.item_type === 'equipment') {
+                      @for (a of affixDetails(item.item_snapshot); track a.name) {
+                        <span class="equip-affix-row">{{ a.name }} +{{ a.val }}</span>
+                      }
+                    }
+                    @if (item.qty > 1) {
+                      <span class="equip-affix-row">×{{ item.qty }}</span>
+                    }
+                  </div>
+                  <div class="browse-footer">
+                    <div class="browse-price-row">
+                      <img class="coin-icon" src="other/coin.webp" alt="" />
+                      <span class="price">{{ formatGold(item.price) }}</span>
+                    </div>
+                    <button class="buy-btn browse-buy-btn"
+                      [class.btn-own]="item.seller_user_id === myUserId"
+                      [disabled]="actionPending() === item.id || item.seller_user_id === myUserId"
+                      (click)="initBuy(item, $event)">
+                      {{ actionPending() === item.id ? '…' : '購買' }}
+                    </button>
+                  </div>
+                </div>
+              }
+            </div>
+            @if (hasMore()) {
+              <button class="load-more-btn" [disabled]="browseLoading()" (click)="loadMore()">
+                {{ browseLoading() ? '讀取中…' : '載入更多' }}
+              </button>
+            }
+          }
+        </div>
       </div>
     }
 
     <!-- ═══════════════════ MY LISTINGS TAB ═══════════════════ -->
     @if (tab() === 'mine') {
-      <div class="mine-header">
-        <button class="list-new-btn" (click)="openListFlow()">＋ 上架物品</button>
-      </div>
 
-      @if (actionError()) {
-        <div class="error-bar">{{ actionError() }}</div>
-      }
+      <!-- ── Inline item picker ── -->
+      @if (listStep() === 'select-item') {
+        <div class="tab-content">
+          <div class="filters">
+            <!-- Type -->
+            <div class="type-row">
+              <button class="chip" [class.active]="listType() === 'equipment'"  (click)="setListType('equipment')">裝備</button>
+              <button class="chip" [class.active]="listType() === 'consumable'" (click)="setListType('consumable')">道具</button>
+              <button class="chip" [class.active]="listType() === 'card'"       (click)="setListType('card')">卡片</button>
+            </div>
 
-      <div class="list-body">
-        @if (mineLoading()) {
-          <div class="center-msg">讀取中…</div>
-        } @else if (mineError()) {
-          <div class="center-msg error">{{ mineError() }}</div>
-        } @else if (myListings().length === 0) {
-          <div class="center-msg muted">尚無上架商品</div>
-        } @else {
-          @for (item of myListings(); track item.id) {
-            <div class="listing-row">
-              <div class="listing-info">
-                <span class="item-name" [style.color]="qualityColor(item.quality)">
-                  {{ item.item_name }}
-                  @if (item.quality) { <span class="quality-tag">[{{ qualityLabel(item.quality) }}]</span> }
-                </span>
-                <span class="item-meta">
-                  <span [style.color]="statusColor(item.status)">{{ statusLabel(item.status) }}</span>
-                  @if (item.qty > 1) { &nbsp;×{{ item.qty }} }
-                </span>
+            @if (listType() === 'equipment') {
+              <!-- Slot dropdown -->
+              <div class="dd-wrap">
+                <button class="dd-btn" #lsBtn (click)="toggleDropdown('ls', lsBtn, $event)">
+                  <span>{{ listSlotLabel }}</span><span class="dd-arrow">▾</span>
+                </button>
               </div>
-              <div class="listing-right">
-                <span class="price">{{ formatGold(item.price) }} G</span>
-                @if (item.status === 'active') {
-                  <button class="cancel-btn"
-                    [disabled]="actionPending() === item.id"
-                    (click)="cancel(item)">
-                    {{ actionPending() === item.id ? '…' : '下架' }}
-                  </button>
+              <!-- Quality dropdown -->
+              <div class="dd-wrap">
+                <button class="dd-btn" #lqBtn (click)="toggleDropdown('lq', lqBtn, $event)">
+                  <span [style.color]="listPickerQuality() ? qualityColor(listPickerQuality()) : ''">{{ listQualityFilterLabel }}</span>
+                  <span class="dd-arrow">▾</span>
+                </button>
+              </div>
+              <!-- 4 Affix dropdowns -->
+              <div class="dd-wrap">
+                <button class="dd-btn" #la1Btn (click)="toggleDropdown('la1', la1Btn, $event)">
+                  <span>{{ listAffixLabel(0) }}</span><span class="dd-arrow">▾</span>
+                </button>
+              </div>
+              <div class="dd-wrap">
+                <button class="dd-btn" #la2Btn (click)="toggleDropdown('la2', la2Btn, $event)">
+                  <span>{{ listAffixLabel(1) }}</span><span class="dd-arrow">▾</span>
+                </button>
+              </div>
+              <div class="dd-wrap">
+                <button class="dd-btn" #la3Btn (click)="toggleDropdown('la3', la3Btn, $event)">
+                  <span>{{ listAffixLabel(2) }}</span><span class="dd-arrow">▾</span>
+                </button>
+              </div>
+              <div class="dd-wrap">
+                <button class="dd-btn" #la4Btn (click)="toggleDropdown('la4', la4Btn, $event)">
+                  <span>{{ listAffixLabel(3) }}</span><span class="dd-arrow">▾</span>
+                </button>
+              </div>
+            }
+
+            <!-- Floating dropdown (listing picker) -->
+            @if (openDropdown() && dropdownPos()) {
+              <div class="dd-list"
+                [style.top.px]="dropdownPos()!.top"
+                [style.left.px]="dropdownPos()!.left"
+                [style.width.px]="dropdownPos()!.width"
+                (click)="$event.stopPropagation()">
+                @if (openDropdown() === 'ls') {
+                  @for (t of slotTabs; track t.key) {
+                    <div class="dd-item" [class.active]="slotFilter() === t.key" (click)="pickListSlot(t.key, $event)">{{ t.label }}</div>
+                  }
+                }
+              @if (openDropdown() === 'lq') {
+                  <div class="dd-item" [class.active]="listPickerQuality() === ''" (click)="pickListQuality('', $event)">品質（全部）</div>
+                  @for (q of qualities; track q) {
+                    <div class="dd-item" [class.active]="listPickerQuality() === q"
+                      [style.color]="qualityColor(q)" (click)="pickListQuality(q, $event)">{{ qualityLabels[q] }}</div>
+                  }
+                }
+                @if (openDropdown() === 'la1') {
+                  <div class="dd-item" [class.active]="listPickerAffix1() === ''" (click)="pickListAffix(0, '', $event)">詞墜 1</div>
+                  @for (a of affixOptions; track a.key) {
+                    <div class="dd-item" [class.active]="listPickerAffix1() === a.key" (click)="pickListAffix(0, a.key, $event)">{{ a.label }}</div>
+                  }
+                }
+                @if (openDropdown() === 'la2') {
+                  <div class="dd-item" [class.active]="listPickerAffix2() === ''" (click)="pickListAffix(1, '', $event)">詞墜 2</div>
+                  @for (a of affixOptions; track a.key) {
+                    <div class="dd-item" [class.active]="listPickerAffix2() === a.key" (click)="pickListAffix(1, a.key, $event)">{{ a.label }}</div>
+                  }
+                }
+                @if (openDropdown() === 'la3') {
+                  <div class="dd-item" [class.active]="listPickerAffix3() === ''" (click)="pickListAffix(2, '', $event)">詞墜 3</div>
+                  @for (a of affixOptions; track a.key) {
+                    <div class="dd-item" [class.active]="listPickerAffix3() === a.key" (click)="pickListAffix(2, a.key, $event)">{{ a.label }}</div>
+                  }
+                }
+                @if (openDropdown() === 'la4') {
+                  <div class="dd-item" [class.active]="listPickerAffix4() === ''" (click)="pickListAffix(3, '', $event)">詞墜 4</div>
+                  @for (a of affixOptions; track a.key) {
+                    <div class="dd-item" [class.active]="listPickerAffix4() === a.key" (click)="pickListAffix(3, a.key, $event)">{{ a.label }}</div>
+                  }
                 }
               </div>
+            }
+          </div>
+
+          <!-- Right: item grid -->
+          <div class="main-area">
+            <div class="pick-bar">
+              <span class="pick-title">選擇要上架的物品</span>
+              <button class="pick-cancel-btn" (click)="cancelListFlow()">取消</button>
             </div>
-          }
-        }
-      </div>
+            <div class="list-body picker-body">
+
+              @if (listType() === 'equipment') {
+                <div class="equip-grid">
+                  @if (filteredListEquips().length === 0) {
+                    <div class="equip-empty">沒有符合的裝備</div>
+                  }
+                  @for (eq of filteredListEquips(); track eq.id) {
+                    <button class="equip-card" (click)="selectListItem(eq)">
+                      <div class="equip-img-wrap">
+                        <img class="equip-img" [src]="equipImgUrl(eq.texture)" [alt]="eq.name" />
+                      </div>
+                      <div class="equip-info">
+                        <span class="equip-name" [style.color]="qualityColor(eq.quality)">{{ eq.name }} +{{ eq.enhancement }}</span>
+                        @for (a of affixDetails(eq); track a.name) {
+                          <span class="equip-affix-row">{{ a.name }} +{{ a.val }}</span>
+                        }
+                      </div>
+                    </button>
+                  }
+                </div>
+              }
+
+              @if (listType() === 'consumable') {
+                <div class="equip-grid">
+                  @if (ownedItems().length === 0) {
+                    <div class="equip-empty">背包沒有道具</div>
+                  }
+                  @for (it of ownedItems(); track it.id) {
+                    <button class="equip-card" (click)="selectListItem(it)">
+                      <div class="equip-img-wrap">
+                        <img class="equip-img" [class.potion-img]="isPotionId(it.id)" [src]="consumableImgUrl(it.id)" [alt]="it.name" />
+                      </div>
+                      <div class="equip-info">
+                        <span class="equip-name white-name">{{ it.name }}</span>
+                        <span class="equip-affix-row">×{{ it.qty }}</span>
+                      </div>
+                    </button>
+                  }
+                </div>
+              }
+
+              @if (listType() === 'card') {
+                <div class="equip-grid">
+                  @if (ownedCards().length === 0) {
+                    <div class="equip-empty">卡片欄位是空的</div>
+                  }
+                  @for (c of ownedCards(); track c.cardId) {
+                    <button class="equip-card" (click)="selectListItem(c)">
+                      <div class="equip-img-wrap card-img-wrap">
+                        <div class="card-sprite" [style.backgroundImage]="'url(' + cardImgUrl(c.cardId) + ')'"></div>
+                      </div>
+                      <div class="equip-info">
+                        <span class="equip-name white-name">{{ cardName(c.cardId) }}</span>
+                        <span class="equip-affix-row">×{{ c.qty }}</span>
+                      </div>
+                    </button>
+                  }
+                </div>
+              }
+
+            </div>
+          </div>
+        </div>
+      }
+
+      <!-- ── Normal mine view ── -->
+      @if (listStep() === null) {
+        <div class="tab-content">
+          <div class="mine-sidebar">
+            <button class="list-new-btn" (click)="openListFlow()">＋ 上架物品</button>
+          </div>
+          <div class="main-area">
+            @if (actionError()) {
+              <div class="error-bar">{{ actionError() }}</div>
+            }
+            @if (mineLoading()) {
+              <div class="center-msg">讀取中…</div>
+            } @else if (mineError()) {
+              <div class="center-msg error">{{ mineError() }}</div>
+            } @else if (myListings().length === 0) {
+              <div class="center-msg muted">尚無上架商品</div>
+            } @else {
+              <div class="equip-grid browse-grid">
+                @for (item of myListings(); track item.id) {
+                  <div class="equip-card browse-card">
+                    @if (item.item_type === 'card') {
+                      <div class="equip-img-wrap card-img-wrap">
+                        <div class="card-sprite" [style.backgroundImage]="'url(' + browseImgUrl(item) + ')'"></div>
+                      </div>
+                    } @else {
+                      <div class="equip-img-wrap">
+                        <img class="equip-img"
+                          [class.potion-img]="item.item_type === 'consumable' && isPotionId(item.item_snapshot?.id ?? '')"
+                          [src]="browseImgUrl(item)" [alt]="item.item_name" />
+                      </div>
+                    }
+                    <div class="equip-info">
+                      <span class="equip-name"
+                        [style.color]="qualityColor(item.quality)"
+                        [class.white-name]="item.item_type !== 'equipment'">
+                        {{ item.item_name }}
+                        @if (item.quality) { <span class="quality-tag">[{{ qualityLabel(item.quality) }}]</span> }
+                      </span>
+                      @if (item.item_type === 'equipment') {
+                        @for (a of affixDetails(item.item_snapshot); track a.name) {
+                          <span class="equip-affix-row">{{ a.name }} +{{ a.val }}</span>
+                        }
+                      }
+                      @if (item.qty > 1) {
+                        <span class="equip-affix-row">×{{ item.qty }}</span>
+                      }
+                    </div>
+                    <div class="browse-footer">
+                      <div class="browse-price-row">
+                        <img class="coin-icon" src="other/coin.webp" alt="" />
+                        <span class="price">{{ formatGold(item.price) }}</span>
+                      </div>
+                      <span class="mine-status" [style.color]="statusColor(item.status)">{{ statusLabel(item.status) }}</span>
+                      @if (item.status === 'active') {
+                        <button class="cancel-btn browse-buy-btn"
+                          [disabled]="actionPending() === item.id"
+                          (click)="cancel(item)">
+                          {{ actionPending() === item.id ? '…' : '下架' }}
+                        </button>
+                      }
+                    </div>
+                  </div>
+                }
+              </div>
+            }
+          </div>
+        </div>
+      }
     }
 
   </div><!-- /panel -->
 
-  <!-- ═══════════════════ LIST ITEM FLOW (modal on top) ═══════════════════ -->
-  @if (listStep() !== null) {
-    <div class="sub-modal">
+  <!-- ═══ BUY CONFIRM MODAL ═══ -->
+  @if (buyTarget()) {
+    <div class="sub-modal" (click)="$event.stopPropagation()">
       <div class="sub-panel">
-
-        @if (listStep() === 'select-type') {
-          <div class="sub-title">選擇上架類型</div>
-          <div class="type-grid">
-            <button class="type-btn" (click)="selectListType('equipment')">⚔️ 裝備</button>
-            <button class="type-btn" (click)="selectListType('consumable')">🧪 道具</button>
-            <button class="type-btn" (click)="selectListType('card')">🃏 卡片</button>
+        <div class="sub-title">確認購買</div>
+        <div class="price-form">
+          <div class="price-item-name">{{ buyTarget()!.item_name }}</div>
+          <label class="price-label">購買數量
+            <input class="price-input" type="number" [(ngModel)]="buyQty" min="1" [max]="buyTarget()!.qty" />
+            <span class="price-hint">最多 {{ buyTarget()!.qty }}</span>
+          </label>
+          <div class="price-item-name" style="color: var(--color-gold)">
+            總計：{{ formatGold(buyTarget()!.price * buyQty) }} G
           </div>
-          <button class="sub-cancel" (click)="cancelListFlow()">取消</button>
-        }
-
-        @if (listStep() === 'select-item') {
-          <div class="sub-title">選擇要上架的{{ listType() === 'equipment' ? '裝備' : listType() === 'consumable' ? '道具' : '卡片' }}</div>
-          <div class="item-picker">
-
-            @if (listType() === 'equipment') {
-              @if (ownedEquips().length === 0) {
-                <div class="center-msg muted">背包沒有裝備</div>
-              }
-              @for (eq of ownedEquips(); track eq.id) {
-                <button class="picker-row" (click)="selectListItem(eq)">
-                  <span [style.color]="qualityColor(eq.quality)">{{ eq.name }} +{{ eq.enhancement }}</span>
-                  <span class="picker-meta">{{ affixSummary(eq) }}</span>
-                </button>
-              }
-            }
-
-            @if (listType() === 'consumable') {
-              @if (ownedItems().length === 0) {
-                <div class="center-msg muted">背包沒有道具</div>
-              }
-              @for (it of ownedItems(); track it.id) {
-                <button class="picker-row" (click)="selectListItem(it)">
-                  <span>{{ it.name }}</span>
-                  <span class="picker-meta">×{{ it.qty }}</span>
-                </button>
-              }
-            }
-
-            @if (listType() === 'card') {
-              @if (ownedCards().length === 0) {
-                <div class="center-msg muted">卡片欄位是空的</div>
-              }
-              @for (c of ownedCards(); track c.cardId) {
-                <button class="picker-row" (click)="selectListItem(c)">
-                  <span>{{ c.cardId }}</span>
-                  <span class="picker-meta">×{{ c.qty }}</span>
-                </button>
-              }
-            }
-
+          <div class="price-actions">
+            <button class="sub-cancel" (click)="cancelBuy()">取消</button>
+            <button class="confirm-btn" [disabled]="actionPending() !== null" (click)="confirmBuy()">
+              {{ actionPending() !== null ? '…' : '確認購買' }}
+            </button>
           </div>
-          <button class="sub-cancel" (click)="cancelListFlow()">取消</button>
-        }
+        </div>
+      </div>
+    </div>
+  }
 
-        @if (listStep() === 'set-price') {
-          <div class="sub-title">設定售價</div>
-          <div class="price-form">
-            <div class="price-item-name" [style.color]="qualityColor(listSelected()?.quality)">
-              {{ listItemName }}
-              @if (listSelected()?.quality) { [{{ qualityLabel(listSelected()?.quality) }}] }
-            </div>
+  <!-- ═══ SET PRICE MODAL ═══ -->
+  @if (listStep() === 'set-price') {
+    <div class="sub-modal" (click)="$event.stopPropagation()">
+      <div class="sub-panel">
+        <div class="sub-title">設定售價</div>
+        <div class="price-form">
+          <div class="price-item-name" [style.color]="qualityColor(listSelected()?.quality)">
+            {{ listItemName }}
+            @if (listSelected()?.quality) { [{{ qualityLabel(listSelected()?.quality) }}] }
+          </div>
 
-            @if (listType() !== 'equipment') {
-              <label class="price-label">數量
-                <input class="price-input" type="number" [(ngModel)]="listQty" min="1" [max]="maxListQty" />
-                <span class="price-hint">最多 {{ maxListQty }}</span>
-              </label>
-            }
-
-            <label class="price-label">售價（金幣）
-              <input class="price-input" type="number" [(ngModel)]="listPrice" min="1" max="999999999" placeholder="輸入金額" />
+          @if (listType() !== 'equipment') {
+            <label class="price-label">數量
+              <input class="price-input" type="number" [(ngModel)]="listQty" min="1" [max]="maxListQty" />
+              <span class="price-hint">最多 {{ maxListQty }}</span>
             </label>
+          }
 
-            @if (listError()) {
-              <div class="sub-error">{{ listError() }}</div>
-            }
+          <label class="price-label">售價（金幣）
+            <input class="price-input" type="number" [(ngModel)]="listPrice" min="1" max="999999999" placeholder="輸入金額" />
+          </label>
 
-            <div class="price-actions">
-              <button class="sub-cancel" (click)="backToSelectItem()">返回</button>
-              <button class="confirm-btn" [disabled]="listSubmitting()" (click)="confirmList()">
-                {{ listSubmitting() ? '上架中…' : '確認上架' }}
-              </button>
-            </div>
+          @if (listError()) {
+            <div class="sub-error">{{ listError() }}</div>
+          }
+
+          <div class="price-actions">
+            <button class="sub-cancel" (click)="backToSelectItem()">返回</button>
+            <button class="confirm-btn" [disabled]="listSubmitting()" (click)="confirmList()">
+              {{ listSubmitting() ? '上架中…' : '確認上架' }}
+            </button>
           </div>
-        }
-
+        </div>
       </div>
     </div>
   }
