@@ -90,7 +90,7 @@ export class App implements AfterViewInit {
       this.swUpdate.versionUpdates.pipe(
         filter((e): e is VersionReadyEvent => e.type === 'VERSION_READY'),
       ).subscribe(() => {
-        this.showUpdate.set(true);
+        this.swUpdate.activateUpdate().then(() => location.reload());
       });
 
       // SW 快取損壞無法恢復 → 強制重新載入從網路抓新資源
