@@ -1,6 +1,6 @@
 {
   "configVersion": 1,
-  "timestamp": 1779758494998,
+  "timestamp": 1779759280981,
   "index": "/auto-rpg/index.html",
   "assetGroups": [
     {
@@ -13,7 +13,7 @@
       "urls": [
         "/auto-rpg/favicon.ico",
         "/auto-rpg/index.html",
-        "/auto-rpg/main-L2CSOP4V.js",
+        "/auto-rpg/main-O5P75K6R.js",
         "/auto-rpg/manifest.webmanifest",
         "/auto-rpg/styles-XANMRWWS.css"
       ],
@@ -4577,11 +4577,11 @@
     "/auto-rpg/icons/icon-512x512.png": "1de182f76f7329dfa8f9fcdd1fdcdd695bea6a99",
     "/auto-rpg/icons/icon-72x72.png": "aa88a6096bd973be7f6d7a5489bfa6bc2463f8c4",
     "/auto-rpg/icons/icon-96x96.png": "7fb8f59c30ce2ff12c700321a0b39e14b3dc8f95",
-    "/auto-rpg/index.html": "98f1bed675ee4af8d9f73ec4b3a220df0f1c41d2",
+    "/auto-rpg/index.html": "19ba49a871c33e629365688ff2d92e9393216f7c",
     "/auto-rpg/items/RPG Chests.png": "168646dd97aac905305ff54858d69f55491f04ce",
     "/auto-rpg/items/chests.png": "c288fcf04deb56ae39bb346c612b9175833bae2b",
     "/auto-rpg/items/potions.png": "b9eac20f1780d9af256707d43e869d46ad793acc",
-    "/auto-rpg/main-L2CSOP4V.js": "fefa1ceda53b7d51c0343138f5e31d47755d8cd4",
+    "/auto-rpg/main-O5P75K6R.js": "a8c77cf3bd9a74de5206c6b6650f877fcc45ce05",
     "/auto-rpg/manifest.webmanifest": "03c10065c5789ddd43072aa6ffb151db7dd3f2e6",
     "/auto-rpg/other/battle.webp": "0a1f669168877df909a321e17400cd08edd7d214",
     "/auto-rpg/other/bg1.png": "0b06193a30b00e77191a23889a1fb1dbd20e740d",
