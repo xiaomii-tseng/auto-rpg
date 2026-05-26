@@ -625,6 +625,7 @@ export class PrepScene extends Phaser.Scene {
       { text: '── 先行版 ──', header: true },
       { text: '目前開始不刪檔測試' },
       { text: '如果有BUG請到右上角點選錯誤回報' },
+      { text: '有什麼建議也都可以跟我說' },
     ];
 
     const content = track(this.add.container(SX, SY).setDepth(DEPTH + 3)) as Phaser.GameObjects.Container;
