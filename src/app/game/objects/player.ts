@@ -328,6 +328,12 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.onHpChanged?.(this.hp, this.maxHp);
   }
 
+  addMaxHp(amount: number): void {
+    this.maxHp += amount;
+    this.hp    += amount;
+    this.onHpChanged?.(this.hp, this.maxHp);
+  }
+
   get moving(): boolean    { return this.isMoving; }
   get currentHp(): number  { return this.hp; }
   get maxHpValue(): number { return this.maxHp; }

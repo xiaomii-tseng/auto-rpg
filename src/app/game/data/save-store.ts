@@ -10,6 +10,7 @@ import { DailyQuestStore } from './daily-quest-store';
 import { AudioService } from './audio.service';
 import { SkinStore } from './skin-store';
 import { DismantlePrefsStore } from './dismantle-prefs-store';
+import { TutorialStore, TutorialKey } from './tutorial-store';
 import { VERSION as _V } from '../version';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -76,6 +77,7 @@ interface SaveData {
   dailyQuests?:     { date: string; quests: any[] };
   audio?:           { bgm: number; sfx: number };
   dismantlePrefs?:  { qualities: string[]; slots: string[] };
+  tutorial?:        Partial<Record<TutorialKey, boolean>>;
 }
 
 export function makeInitialSave(playerName = ''): SaveData {
@@ -127,6 +129,7 @@ export const SaveStore = {
       dailyQuests:    DailyQuestStore.getSaveData(),
       audio:          { bgm: AudioService.bgmVolume, sfx: AudioService.sfxVolume },
       dismantlePrefs: DismantlePrefsStore.getSaveData(),
+      tutorial:       TutorialStore.getSaveData(),
     };
     try {
       localStorage.setItem(SAVE_KEY, encryptSave(JSON.stringify(data)));
@@ -182,6 +185,7 @@ export const SaveStore = {
       if (data.tower)          TowerStore.loadSaveData(data.tower);
       if (data.dailyQuests)    DailyQuestStore.loadSaveData(data.dailyQuests as any);
       if (data.dismantlePrefs) DismantlePrefsStore.loadSaveData(data.dismantlePrefs);
+      if (data.tutorial)       TutorialStore.loadSaveData(data.tutorial);
       if (data.audio) {
         AudioService.setBgmVolume(data.audio.bgm);
         AudioService.setSfxVolume(data.audio.sfx);

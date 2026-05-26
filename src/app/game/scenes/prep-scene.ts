@@ -8,7 +8,8 @@ import { SaveStore } from '../data/save-store';
 import { CardStore, CARD_SLOT_COUNT } from '../data/card-store';
 
 import { getCardDef, getMonsterDef, getCardDisplayName, monsterCardScale, monsterDetailScale, CARD_DEFS, CardDef } from '../data/monster-data';
-import { QuestStore, Quest, STAR_EQUIP_QUALITY, getStarWeights } from '../data/quest-store';
+import { QuestStore, Quest, STAR_EQUIP_QUALITY, getStarWeights, BOSS_POOL } from '../data/quest-store';
+import { TutorialStore, TutorialKey } from '../data/tutorial-store';
 import { SkillTreeStore, SKILL_NODES, SKILL_NODE_MAP, ATTACK_MODES, MODE_COLORS } from '../data/skill-tree-store';
 import { NetworkService } from '../network/network.service';
 import { AudioService } from '../data/audio.service';
@@ -426,7 +427,17 @@ export class PrepScene extends Phaser.Scene {
       InventoryStore.addItem('quest_reroll', '任務重製石', 10);
     }
 
-
+    // 新玩家：自動進入教學關卡（1 星隨機地圖）
+    if (TutorialStore.isNewPlayer()) {
+      this.scene.start('BattleLoadScene', {
+        ownSkinId:      SkinStore.get(),
+        questStar:      1,
+        bossMonsterId:  BOSS_POOL[0],
+        mapTheme:       randomQuestTheme(),
+        isTutorial:     true,
+      });
+      return;
+    }
 
     this.generateItemIcons();
 
@@ -867,7 +878,9 @@ export class PrepScene extends Phaser.Scene {
     const QB_GAP = P(6);
     const qbItems: { label: string; onClick: () => void }[] = [
       { label: '裝備', onClick: () => this.showEquipmentPanel(W, H) },
-      { label: '技能', onClick: () => this.showSkillTree(W, H) },
+      { label: '技能', onClick: () => this._showTutorialHint('skill', '✦', '技能樹',
+          '每達到 5 等可獲得一個技能點。你也可以在這裡切換攻擊模式（投射／近戰／範圍），找到最適合你的打法！',
+          () => this.showSkillTree(W, H)) },
       { label: '卡片', onClick: () => this.openCardWindow(W, H) },
       { label: '物品', onClick: () => this.showItemPanel(W, H) },
       { label: '任務', onClick: () => { AudioService.suppressClickSfx(); this.showDailyQuestPanel(W, H); } },
@@ -1197,6 +1210,83 @@ export class PrepScene extends Phaser.Scene {
     });
 
     objs.forEach(o => { if ('setScrollFactor' in o) (o as any).setScrollFactor(0); });
+  }
+
+  private _showTutorialHint(
+    key: TutorialKey,
+    _icon: string,
+    title: string,
+    body: string,
+    then: () => void,
+  ): void {
+    if (TutorialStore.isDone(key)) { then(); return; }
+
+    const vw = Math.min(window.innerWidth, window.innerHeight) < 500
+      ? window.innerWidth : window.innerWidth;
+    const bw = Math.min(vw - 32, 320);
+
+    const overlay = document.createElement('div');
+    Object.assign(overlay.style, {
+      position: 'fixed', inset: '0', zIndex: '99000',
+      background: 'rgba(0,0,0,0.72)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+    });
+
+    const box = document.createElement('div');
+    Object.assign(box.style, {
+      width: `${bw}px`,
+      maxHeight: `${window.innerHeight * 0.8}px`,
+      background: '#160e04',
+      border: '2px solid #a06810',
+      borderRadius: '12px',
+      fontFamily: 'sans-serif',
+      boxShadow: '0 0 24px rgba(160,104,16,0.4)',
+      overflow: 'hidden',
+      display: 'flex', flexDirection: 'column',
+    });
+
+    const header = document.createElement('div');
+    Object.assign(header.style, {
+      background: '#241408',
+      padding: '13px 18px',
+      borderBottom: '1px solid #3a2010',
+      fontSize: '17px', fontWeight: 'bold', color: '#ffe08a',
+      flexShrink: '0',
+    });
+    header.textContent = title;
+
+    const bodyEl = document.createElement('p');
+    Object.assign(bodyEl.style, {
+      color: '#ddd0b0', fontSize: '15px', fontWeight: 'bold',
+      lineHeight: '1.8', margin: '16px 18px 18px',
+      whiteSpace: 'pre-line', flexShrink: '1', overflowY: 'auto',
+    });
+    bodyEl.textContent = body;
+
+    const btn = document.createElement('button');
+    btn.textContent = '知道了';
+    Object.assign(btn.style, {
+      display: 'block', margin: '0 auto 18px',
+      background: '#5a3400', color: '#ffe08a',
+      border: '1px solid #cc9030', borderRadius: '8px',
+      padding: '10px 48px', fontSize: '15px',
+      fontWeight: 'bold', cursor: 'pointer', flexShrink: '0',
+    });
+
+    const confirm = () => {
+      overlay.remove();
+      TutorialStore.markDone(key);
+      SaveStore.save();
+      then();
+    };
+    btn.addEventListener('click', confirm);
+
+    box.appendChild(header);
+    box.appendChild(bodyEl);
+    box.appendChild(btn);
+    overlay.appendChild(box);
+
+    document.body.appendChild(overlay);
   }
 
   private _showChangePasswordPanel(W: number, H: number): void {
@@ -3881,17 +3971,65 @@ export class PrepScene extends Phaser.Scene {
         this._showToast?.('重鑄石不足，無法重置技能星盤');
         return;
       }
-      InventoryStore.spendItem('stone_guard', 1);
-      SkillTreeStore.resetAll();
-      updatePts();
-      drawMap();
-      SaveStore.save();
+
+      // ── 確認對話框（獨立陣列管理，不用 s() 避免 double-destroy 問題）──
+      const cfmObjs: Phaser.GameObjects.GameObject[] = [];
+      const ca = <T extends Phaser.GameObjects.GameObject>(o: T): T => { cfmObjs.push(o); return o; };
+      const closeConfirm = () => cfmObjs.forEach(o => o.destroy());
+
+      const CW = P(240), CH = P(110), D2 = D + 20;
+      const cx = px + PW / 2, cy = py + P(160);
+
+      const dimHit = ca(this.add.rectangle(px + PW / 2, py + PH / 2, PW, PH).setDepth(D2).setInteractive().setAlpha(0.001));
+      dimHit.on('pointerdown', Phaser.Utils.NOOP);
+
+      const cfmG = ca(this.add.graphics().setDepth(D2));
+      cfmG.fillStyle(0x0a0a14, 0.97); cfmG.fillRoundedRect(cx - CW / 2, cy - CH / 2, CW, CH, P(8));
+      cfmG.lineStyle(P(1.5), 0xffaa33, 0.8); cfmG.strokeRoundedRect(cx - CW / 2, cy - CH / 2, CW, CH, P(8));
+
+      ca(this.add.text(cx, cy - CH / 2 + P(18), '確認重置技能星盤？', {
+        fontSize: F(14), fontStyle: 'bold', color: '#ffe8a0', stroke: '#000', strokeThickness: 2,
+      }).setOrigin(0.5, 0).setDepth(D2 + 1));
+      ca(this.add.text(cx, cy - CH / 2 + P(38), '將消耗 1 顆重鑄石', {
+        fontSize: F(13), color: '#aabbcc', stroke: '#000', strokeThickness: 1,
+      }).setOrigin(0.5, 0).setDepth(D2 + 1));
+
+      const BW = P(88), BH = P(30), BY = cy + CH / 2 - BH - P(10);
+
+      // 取消
+      const cancelG = ca(this.add.graphics().setDepth(D2 + 1));
+      cancelG.fillStyle(0x1a1a2a, 1); cancelG.fillRoundedRect(cx - CW / 2 + P(12), BY, BW, BH, P(5));
+      cancelG.lineStyle(P(1), 0x445566, 0.8); cancelG.strokeRoundedRect(cx - CW / 2 + P(12), BY, BW, BH, P(5));
+      const cancelHit = ca(this.add.rectangle(cx - CW / 2 + P(12) + BW / 2, BY + BH / 2, BW, BH).setDepth(D2 + 2).setInteractive({ useHandCursor: true }).setAlpha(0.001));
+      ca(this.add.text(cx - CW / 2 + P(12) + BW / 2, BY + BH / 2, '取消', {
+        fontSize: F(14), fontStyle: 'bold', color: '#778899', stroke: '#000', strokeThickness: 1,
+      }).setOrigin(0.5).setDepth(D2 + 2));
+
+      // 確認
+      const okG = ca(this.add.graphics().setDepth(D2 + 1));
+      okG.fillStyle(0x3a1a00, 1); okG.fillRoundedRect(cx + CW / 2 - P(12) - BW, BY, BW, BH, P(5));
+      okG.lineStyle(P(1), 0xffaa33, 0.8); okG.strokeRoundedRect(cx + CW / 2 - P(12) - BW, BY, BW, BH, P(5));
+      const okHit = ca(this.add.rectangle(cx + CW / 2 - P(12) - BW / 2, BY + BH / 2, BW, BH).setDepth(D2 + 2).setInteractive({ useHandCursor: true }).setAlpha(0.001));
+      ca(this.add.text(cx + CW / 2 - P(12) - BW / 2, BY + BH / 2, '確認重置', {
+        fontSize: F(14), fontStyle: 'bold', color: '#ffcc66', stroke: '#000', strokeThickness: 2,
+      }).setOrigin(0.5).setDepth(D2 + 2));
+
+      cancelHit.on('pointerup', closeConfirm);
+      okHit.on('pointerup', () => {
+        closeConfirm();
+        InventoryStore.spendItem('stone_guard', 1);
+        SkillTreeStore.resetAll();
+        updatePts();
+        drawMap();
+        SaveStore.save();
+      });
     });
 
     // ── Tooltip popup ─────────────────────────────────────────────────────
     const TW = PW - P(20), TH = P(110);
     const tipG      = s(this.add.graphics().setDepth(D + 5));
-    const tipBlocker = s(this.add.rectangle(0, 0, TW, TH).setDepth(D + 5).setVisible(false));
+    const tipBlocker = s(this.add.rectangle(0, 0, TW, TH).setDepth(D + 5).setVisible(false).setInteractive());
+    tipBlocker.on('pointerdown', Phaser.Utils.NOOP); // 消費事件，防止穿透
     const tipT1 = s(this.add.text(0, 0, '', { fontSize: F(15), fontStyle: 'bold', color: '#ffe8a0', stroke: '#000', strokeThickness: 2 }).setDepth(D + 6));
     const tipT2 = s(this.add.text(0, 0, '', { fontSize: F(15), fontStyle: 'bold', color: '#aaccdd', stroke: '#000', strokeThickness: 1, wordWrap: { width: TW - P(20) } }).setDepth(D + 6));
     const tipBtnG = s(this.add.graphics().setDepth(D + 6));
@@ -4468,7 +4606,7 @@ export class PrepScene extends Phaser.Scene {
     const ITEM_META: Record<string, ItemMeta> = {
       stone_broken:    { category: '精煉材料', categoryColor: '#aaccaa', desc: '精煉裝備的基礎材料', descColor: '#8aaa88' },
       stone_intact:    { category: '精煉材料', categoryColor: '#aaccaa', desc: '品質較好的精煉材料\n可以增加8%成功率', descColor: '#8aaa88' },
-      stone_guard:     { category: '精煉材料', categoryColor: '#aaccaa', desc: '重鑄石\n將裝備重製回未精煉狀態\n亦可用於重置技能星盤', descColor: '#8aaa88' },
+      stone_guard:     { category: '精煉材料', categoryColor: '#aaccaa', desc: '重鑄石\n將裝備重\n重置技能星盤', descColor: '#8aaa88' },
       quest_reroll:    { category: '任務道具', categoryColor: '#aacc88', desc: '任務重製石\n可重新抽取懸賞任務', descColor: '#aabb88' },
       blank_card:      { category: '卡片材料', categoryColor: '#aabbee', desc: '空白卡片\n可用於兌換卡片', descColor: '#88aacc' },
       potion_health_s: { category: '回復藥水', categoryColor: '#88ddaa', desc: '小型回復藥水\n使用後立即恢復 100 HP', descColor: '#88ccaa' },
@@ -6015,12 +6153,12 @@ export class PrepScene extends Phaser.Scene {
       { id: ITEM_POTION_ATK, name: '攻擊力藥水', price: 2000, desc: '傷害+20%，持續30秒', color: 0xff6644 },
       { id: ITEM_POTION_DEF, name: '防禦力藥水', price: 2000, desc: 'DEF+20，持續30秒', color: 0x44aaff },
       { id: ITEM_POTION_SPEED, name: '速度藥水', price: 2000, desc: '移動速度+20，持續30秒', color: 0xffdd22 },
-      { id: ITEM_POTION_REVIVE, name: '復活藥水', price: 1, desc: '戰鬥中自動復活一次', color: 0xffee44 },
+      { id: ITEM_POTION_REVIVE, name: '復活藥水', price: 5000, desc: '戰鬥中自動復活一次', color: 0xffee44 },
     ];
     const STONE_ITEMS: ShopItem[] = [
       { id: ITEM_STONE_BROKEN, name: '破損強化石', price: 1000, desc: '強化裝備時消耗', color: 0x88ccff },
       { id: ITEM_STONE_INTACT, name: '完整強化石', price: 1800, desc: '強化成功率 +8%', color: 0x66ffcc },
-      { id: 'stone_guard', name: '重鑄石', price: 4500, desc: '消耗1顆可重鑄裝備 回歸精煉前數值\n亦可重置技能星盤', color: 0xbb66ff },
+      { id: 'stone_guard', name: '重鑄石', price: 4500, desc: '重鑄裝備\n可重置技能星盤', color: 0xbb66ff },
       { id: ITEM_QUEST_REROLL, name: '任務重製石', price: 250, desc: '重置當前任務列表', color: 0xffcc44 },
     ];
     const TAB_DEFS: { label: string; items: ShopItem[] | null }[] = [
@@ -8008,24 +8146,40 @@ export class PrepScene extends Phaser.Scene {
       { xf: 0.45, yf: 0.20, icon: '⚔', label: '出戰',  color: 0xcc4400, buildingKey: 'building_battle',
         tapW: P(80), tapH: P(72), collW: P(120), collH: P(55), shadow: true, buildingScale: 1.4, labelBelow: true, onActivate: () => {
           if (this._partyState === 'in_party' && !this._amPartyLeader) { this._showToast('你不是隊長'); return; }
-          this.showQuestPanel(W, H);
+          this._showTutorialHint('quest', '⚔', '選擇關卡',
+            '星數越高，掉落品質越好但難度也越高。\n每個關卡有種族屬性，搭配對應的技能或卡片可獲得大幅加成！',
+            () => this.showQuestPanel(W, H));
         } },
       { xf: 0.33, yf: 0.65, icon: '✦', label: '商店',  color: 0xd47820, buildingKey: 'building_shop',
-        tapW: P(80), tapH: P(72), collW: P(130), collH: P(55), tent: true, onActivate: () => { AudioService.playSfx(this, 'sfx_shop_open', 0.7); this.showShopPanel(W, H); } },
+        tapW: P(80), tapH: P(72), collW: P(130), collH: P(55), tent: true, onActivate: () => {
+          AudioService.playSfx(this, 'sfx_shop_open', 0.7);
+          this._showTutorialHint('shop', '✦', '商店',
+            '用金幣購買藥水補充戰鬥用品，或購買強化石來提升裝備的精煉等級。',
+            () => this.showShopPanel(W, H));
+        } },
       { xf: 0.78, yf: 0.65, icon: '', label: '祭祀台', color: 0xffdd44, buildingKey: 'tx_props', buildingFrame: 'ritual_circle',
         tapW: P(110), tapH: P(100), collW: P(130), collH: P(60), buildingScale: 0.85,
         shadow: true, shadowKey: 'tx_shadow', shadowFrame: 'ritual_circle_shadow', shadowOX: P(-8), shadowOY: P(-12),
-        onActivate: () => this._showAltarPanel(W, H) },
+        onActivate: () => this._showTutorialHint('altar', '🔮', '祭祀台',
+          '擊敗 5 星BOSS，有機率獲得特殊門票，即可挑戰傳說級BOSS取得傳說裝備',
+          () => this._showAltarPanel(W, H)) },
       { xf: 0.60, yf: 0.49, icon: '★', label: '排行榜', color: 0xaabbdd, buildingKey: 'tx_props', buildingFrame: 'stone_pillar',
         tapW: P(40), tapH: P(90), collW: P(44), collH: P(30), buildingScale: 0.8, labelOX: -P(8),
-        onActivate: () => this._showRankingPanel(W, H) },
+        onActivate: () => this._showTutorialHint('ranking', '★', '排行榜',
+          '查看所有玩家的等級排名。努力提升，爭取登上榜首！',
+          () => this._showRankingPanel(W, H)) },
       { xf: 0.23, yf: 0.30, icon: '⊕', label: '市場',  color: 0x70b858, buildingKey: 'building_warehouse',
         tapW: P(80), tapH: P(60), collW: P(85), collH: P(20), buildingScale: 1.4,
         shadow: true, shadowKey: 'deco_shadow5', shadowOX: P(0), shadowOY: P(10),
         decoKey: 'deco_warehouse_box', decoOX: P(10), decoOY: P(0), decoScale: 1.2,
-        onActivate: () => (window as any).__openMarket?.() },
+        onActivate: () => this._showTutorialHint('market', '⊕', '市場',
+          '市場可以與其他玩家進行裝備/道具/卡片的買賣！',
+          () => (window as any).__openMarket?.()) },
       { xf: 0.45, yf: 0.90, icon: '✧', label: '造型',  color: 0xdd88aa, animKey: 'campfire',
-        tapW: P(48), tapH: P(40), collW: P(48), collH: P(20), onActivate: () => this._openWardrobePanel() },
+        tapW: P(48), tapH: P(40), collW: P(48), collH: P(20), onActivate: () =>
+          this._showTutorialHint('wardrobe', '✧', '更換造型',
+            '選擇你喜歡的角色外觀。更換造型完全免費，且不影響任何戰力！',
+            () => this._openWardrobePanel()) },
     ];
 
     for (const obj of objs) {

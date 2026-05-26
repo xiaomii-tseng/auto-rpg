@@ -117,7 +117,8 @@
       "Bash(node node_modules/typescript/bin/tsc --noEmit)",
       "Bash(git push *)",
       "Bash(Get-ChildItem \"C:\\\\MyCode\\\\auto-rpg\\\\src\\\\app\\\\game\\\\scenes\" -Filter \"*.ts\")",
-      "PowerShell(Get-ChildItem \"C:\\\\MyCode\\\\auto-rpg\\\\src\\\\app\\\\game\\\\scenes\" | Where-Object { $_.Extension -eq \".ts\" })"
+      "PowerShell(Get-ChildItem \"C:\\\\MyCode\\\\auto-rpg\\\\src\\\\app\\\\game\\\\scenes\" | Where-Object { $_.Extension -eq \".ts\" })",
+      "Bash(Get-ChildItem -Path \"C:\\\\MyCode\\\\auto-rpg\\\\src\\\\app\\\\game\\\\\" -Recurse | Select-Object FullName | head -50)"
     ],
     "additionalDirectories": [
       "\\MyCode\\auto-rpg\\src\\app\\game\\scenes",

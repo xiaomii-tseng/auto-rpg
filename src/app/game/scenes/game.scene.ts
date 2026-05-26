@@ -38,6 +38,7 @@ import { AudioService } from '../data/audio.service';
 import { PotionBarStore } from '../data/potion-bar-store';
 import { TowerStore } from '../data/tower-store';
 import { DailyQuestStore } from '../data/daily-quest-store';
+import { TutorialStore, TutorialKey } from '../data/tutorial-store';
 import { ITEM_POTION_HEALTH_S, ITEM_POTION_HEALTH_M, ITEM_POTION_HEALTH_L, ITEM_POTION_REVIVE, ITEM_POTION_ATK, ITEM_POTION_DEF, ITEM_POTION_SPEED, ITEM_STONE_BROKEN, ITEM_STONE_INTACT, ITEM_STONE_RECAST, ITEM_QUEST_REROLL, ITEM_BLANK_CARD, getHealthPotionForStar, BOSS_TICKET_MAP } from '../data/monster-data';
 import type { MapParams } from '../../../../shared/types';
 
@@ -154,6 +155,10 @@ export class GameScene extends Phaser.Scene {
   protected bossDebuffGfx!: Phaser.GameObjects.Graphics;
   protected bossDebuffTexts: Map<string, Phaser.GameObjects.Text> = new Map();
   protected gameOver = false;
+  protected _tutPaused = false;
+  protected _isTutorial = false;
+  private _tutorialDropIdx = 0;
+  private _tutorialInitData: any = null;
   private _dqDeathThisBattle  = false;
   private _dqPotionThisBattle = false;
   protected teleporting = false;
@@ -416,7 +421,7 @@ export class GameScene extends Phaser.Scene {
     this.generateTextures();
   }
 
-  init(data: { seed?: number; questStar?: number; bossMonsterId?: string; mapParams?: MapParams; partnerNickname?: string; playerCount?: number; ownSkinId?: number; partnerSkinId?: number; mapTheme?: GameScene['_mapTheme']; towerFloor?: number; legendaryMode?: boolean }): void {
+  init(data: { seed?: number; questStar?: number; bossMonsterId?: string; mapParams?: MapParams; partnerNickname?: string; playerCount?: number; ownSkinId?: number; partnerSkinId?: number; mapTheme?: GameScene['_mapTheme']; towerFloor?: number; legendaryMode?: boolean; isTutorial?: boolean }): void {
     this._towerFloor = data?.towerFloor ?? 0;
     this._legendaryMode = data?.legendaryMode ?? false;
     this._mapSeed = data?.seed ?? Math.floor(Math.random() * 1_000_000);
@@ -428,6 +433,8 @@ export class GameScene extends Phaser.Scene {
     this._playerCount = data?.playerCount ?? (this._partnerNickname ? 2 : 1);
     this._ownSkinId = data?.ownSkinId ?? 0;
     this._partnerSkinId = data?.partnerSkinId ?? 0;
+    this._isTutorial = data?.isTutorial ?? false;
+    if (this._isTutorial) this._tutorialInitData = data;
 
     // Clear cached skin textures/anims so preload can reload with potentially new skin
     ['player', 'partner'].forEach(prefix => {
@@ -597,6 +604,7 @@ export class GameScene extends Phaser.Scene {
     this.createSlimeAnims();
     this._createChestAnims();
     this.player = new Player(this, this.playerStartX, this.playerStartY);
+    if (this._isTutorial) this.player.addMaxHp(1000);
     this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
     this.player.onDead = () => this.handlePlayerDead();
     this.player.onEvade = (x, y) => this.spawnEvadeText(x, y);
@@ -1086,6 +1094,16 @@ export class GameScene extends Phaser.Scene {
 
     this.input.addPointer(3);
     this.joystick = new VirtualJoystick(this);
+
+    if (this._isTutorial) {
+      this.time.delayedCall(600, () => this._showBattleTutorial(
+        '🕹', '移動', '拖動畫面左下角的搖桿來控制角色移動。\n靈活走位可以閃避敵人攻擊！', 'move',
+        () => this._showBattleTutorial(
+          '⚔', '攻擊', '點擊右側攻擊按鈕發動攻擊，長壓可持續攻擊。\n角色在攻擊範圍內會自動鎖定最近的敵人！', 'attack',
+        ),
+      ));
+    }
+
     this.addHUD();
     this.createExitButton();
     if (this._towerFloor > 0) {
@@ -2201,7 +2219,7 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
-    if (this.gameOver || this.teleporting || this._hostReconnecting) return;
+    if (this.gameOver || this.teleporting || this._hostReconnecting || this._tutPaused) return;
 
     this._updateDarkNight();
 
@@ -3412,6 +3430,21 @@ export class GameScene extends Phaser.Scene {
     if (!def) return;
     const isElite = def.tier >= 3 && def.tier < 5;
     DailyQuestStore.addProgress(isElite ? 'kill_elite' : 'kill_normal', 1, monsterId);
+
+    if (this._isTutorial) {
+      const pending: (() => void)[] = [
+        ...(!TutorialStore.isDone('equip')       ? [() => this.spawnEquipDrop(x, y, generateEquipment('sword', 'normal'))] : []),
+        ...(!TutorialStore.isDone('card')        ? [() => this.spawnCardDrop(x, y, 'card_slime_green_n')] : []),
+        ...(!TutorialStore.isDone('potion')      ? [() => this.spawnLoot(x, y, [{ itemId: ITEM_POTION_HEALTH_S, itemName: '小型回復藥水', rate: 1, qtyMin: 1, qtyMax: 1 }])] : []),
+        ...(!TutorialStore.isDone('brokenStone') ? [() => this.spawnLoot(x, y, [{ itemId: ITEM_STONE_BROKEN, itemName: '破損強化石', rate: 1, qtyMin: 1, qtyMax: 1 }])] : []),
+      ];
+      pending[this._tutorialDropIdx++]?.();
+      const expMult = STAR_EXP_MULT[this.questStar] ?? 1;
+      const gained = PlayerStore.addExp(Math.round(def.exp * expMult));
+      if (gained > 0) this.showLevelUp(PlayerStore.getLevel());
+      return;
+    }
+
     this.spawnLoot(x, y, def.drops);
     const _pStats     = CardStore.getTotalStats();
     const dropBonus   = 1 + (_pStats.dropRatePct ?? 0);
@@ -4104,6 +4137,49 @@ export class GameScene extends Phaser.Scene {
     eg.strokeCircle(sx, sy, vR + Math.round(3 * DPR));
     eg.lineStyle(Math.round(11 * DPR), 0x440066, 0.10 + pulse * 0.08);
     eg.strokeCircle(sx, sy, vR + Math.round(9 * DPR));
+  }
+
+  private _clearAllSkillVfx(): void {
+    const FADE = 500;
+    const fadeDestroy = (gfx: Phaser.GameObjects.GameObject) => {
+      if (!gfx?.active) return;
+      this.tweens.add({ targets: gfx, alpha: 0, duration: FADE, onComplete: () => { if (gfx.active) gfx.destroy(); } });
+    };
+
+    // Plant zones
+    this.plantZones.forEach(z => fadeDestroy(z.gfx));
+    this.plantZones = [];
+
+    // Orbit balls (player + partner)
+    this._orbitBalls.forEach(b => fadeDestroy(b.gfx));
+    this._orbitBalls = [];
+    this._partnerOrbitBalls.forEach(arr => arr.forEach(b => fadeDestroy(b.gfx)));
+    this._partnerOrbitBalls.clear();
+
+    // Knives
+    this._playerKnives.forEach(k => fadeDestroy(k.gfx));
+    this._playerKnives = [];
+    this._partnerKnives.forEach(k => fadeDestroy(k.gfx));
+    this._partnerKnives = [];
+
+    // Slow zones
+    this._slowZones.forEach(z => fadeDestroy(z.gfx));
+    this._slowZones = [];
+
+    // Timers + named gfx
+    this._divineShieldTimer?.destroy(); this._divineShieldTimer = undefined;
+    fadeDestroy(this._divineShieldGfx!); this._divineShieldGfx = undefined;
+    this._blazingTimer?.destroy();      this._blazingTimer = undefined;
+    fadeDestroy(this._blazingGfx!);     this._blazingGfx = undefined;
+    this._fearAuraTimer?.destroy();     this._fearAuraTimer = undefined;
+    fadeDestroy(this._fearAuraGfx!);    this._fearAuraGfx = undefined;
+
+    // Flower charge gfx
+    if (this._flowerChargeGfx?.active) fadeDestroy(this._flowerChargeGfx);
+
+    // Data-only arrays (rendered via shared gfx, clearing stops them)
+    this.activeFires = [];
+    this._rainPuddles = [];
   }
 
   private _endDarkNight(): void {
@@ -5470,8 +5546,8 @@ export class GameScene extends Phaser.Scene {
         plantClusters.push({ x: wx + Math.cos(ca) * cr, y: wy + Math.sin(ca) * cr });
       }
 
-      const baseCount = srng.between(8, 15);
-      const count = Math.round(baseCount * countMult);
+      const baseCount = this._isTutorial ? srng.between(2, 3) : srng.between(8, 15);
+      const count = this._isTutorial ? baseCount : Math.round(baseCount * countMult);
       for (let j = 0; j < count; j++) {
         const minionId = (mainMinionId && srng.float(0, 1) < 0.4)
           ? mainMinionId
@@ -5496,7 +5572,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     for (let i = 1; i < this.cornerPts.length - 1; i++) {
-      if (srng.float(0, 1) < 0.4) {
+      if (!this._isTutorial && srng.float(0, 1) < 0.4) {
         const c = this.cornerPts[i];
         const zBefore = this.allMinions.length;
         const zoneIdx = -(i + 1);
@@ -6995,6 +7071,7 @@ export class GameScene extends Phaser.Scene {
       if (!boss1Dead || !boss2Dead) return;  // other boss still alive
       this.bossActive = false;
       this._endDarkNight();
+      this._clearAllSkillVfx();
       // Fade out boss bar
       [this.bossHpGfx, this.bossHpLabel, this.bossDebuffGfx].forEach(t => {
         if (t?.active) this.tweens.add({ targets: t, alpha: 0, delay: 300, duration: 600,
@@ -7010,6 +7087,7 @@ export class GameScene extends Phaser.Scene {
 
     this.bossActive = false;
     this._endDarkNight();
+    this._clearAllSkillVfx();
     // Fade out boss HP bar UI
     const barTargets = [
       this.bossHpGfx, this.bossHpLabel, this.bossDebuffGfx,
@@ -7123,6 +7201,11 @@ export class GameScene extends Phaser.Scene {
       if (!ally.isDead) ally.takeDamage(999999);
     }
 
+    if (this._isTutorial) {
+      this.time.delayedCall(2000, () => this.scene.restart(this._tutorialInitData));
+      return;
+    }
+
     if (this._towerFloor > 0) {
       // Tower: save best floor, then return to PrepScene after delay
       TowerStore.recordFloor(this._towerFloor - 1);
@@ -7163,8 +7246,14 @@ export class GameScene extends Phaser.Scene {
       fontSize: F(15), fontStyle: 'bold', color: '#ee4444', stroke: '#000', strokeThickness: 2,
     }).setOrigin(0.5).setScrollFactor(0).setDepth(9801);
 
+    if (this._isTutorial) {
+      this.exitBtnGfx.setVisible(false);
+      this.exitBtnTxt.setVisible(false);
+    }
+
     this.exitBtnHit = this.add.rectangle(cx, cy, bw, bh)
       .setScrollFactor(0).setDepth(9802).setInteractive({ useHandCursor: true });
+    if (this._isTutorial) this.exitBtnHit.disableInteractive();
     this.exitBtnHit.on('pointerdown', () => {
       if (NetworkService.connected) {
         NetworkService.sendPartyExit();
@@ -7781,6 +7870,9 @@ export class GameScene extends Phaser.Scene {
   }
 
   protected exitToLobby(): void {
+    if (this._isTutorial) {
+      TutorialStore.markDone('battleDone');
+    }
     SaveStore.save();
     const wasMulti = NetworkService.connected;
     if (wasMulti) {
@@ -8231,11 +8323,15 @@ export class GameScene extends Phaser.Scene {
         CardStore.addCard(loot.cardId);
         this._sessionLoot.push({ type: 'card', cardId: loot.cardId, itemName: loot.itemName });
         this.showPickupText(loot.obj.x, loot.obj.y, loot.itemName, 1);
+        if (this._isTutorial) this.time.delayedCall(200, () =>
+          this._showBattleTutorial('🃏', '卡片', '卡片可以在主城的卡片欄裝備，最多三張。\n每張卡片提供不同的被動效果，搭配好的組合非常強力！', 'card'));
       } else if (loot.equip) {
         PlayerStore.addOwned(loot.equip);
         SaveStore.save();
         this._sessionLoot.push({ type: 'equip', equip: loot.equip, itemName: loot.itemName });
         this.showPickupText(loot.obj.x, loot.obj.y, loot.itemName, 1);
+        if (this._isTutorial) this.time.delayedCall(200, () =>
+          this._showBattleTutorial('🛡', '裝備', '撿到的裝備會進入裝備欄。\n回到主城後可以穿戴、強化或分解裝備。', 'equip'));
       } else if (loot.gold) {
         InventoryStore.addGold(loot.gold);
         SaveStore.save();
@@ -8246,6 +8342,15 @@ export class GameScene extends Phaser.Scene {
         if (existing && existing.type === 'item') existing.qty += loot.qty;
         else this._sessionLoot.push({ type: 'item', itemId: loot.itemId, itemName: loot.itemName, qty: loot.qty });
         this.showPickupText(loot.obj.x, loot.obj.y, loot.itemName, loot.qty);
+        if (this._isTutorial) {
+          const isPotion = [ITEM_POTION_HEALTH_S, ITEM_POTION_HEALTH_M, ITEM_POTION_HEALTH_L,
+            ITEM_POTION_ATK, ITEM_POTION_DEF, ITEM_POTION_SPEED, ITEM_POTION_REVIVE].includes(loot.itemId);
+          const isBroken = loot.itemId === ITEM_STONE_BROKEN;
+          if (isPotion) this.time.delayedCall(200, () =>
+            this._showBattleTutorial('🧪', '藥水', '撿到的藥水會進入物品欄。\n回到主城後，進入物品欄把藥水配置到藥水格，戰鬥中就能即時使用！', 'potion'));
+          else if (isBroken) this.time.delayedCall(200, () =>
+            this._showBattleTutorial('🪨', '破損強化石', '強化石可以用來精煉裝備，提升裝備數值。\n回到主城裝備欄，選擇裝備後點擊「精煉」即可使用。', 'brokenStone'));
+        }
       }
       this.playSfx('sfx_pickup');
       this._lootBadge?.setText(String(this._sessionLoot.length));
@@ -8253,6 +8358,77 @@ export class GameScene extends Phaser.Scene {
       loot.obj.destroy();
       return false;
     });
+  }
+
+  protected _showBattleTutorial(_icon: string, title: string, body: string, key: TutorialKey, onConfirm?: () => void): void {
+    if (TutorialStore.isDone(key)) { onConfirm?.(); return; }
+    this._tutPaused = true;
+    this.physics.pause();
+
+    const bw = Math.min(window.innerWidth - 32, 320);
+
+    const overlay = document.createElement('div');
+    Object.assign(overlay.style, {
+      position: 'fixed', inset: '0', zIndex: '99000',
+      background: 'rgba(0,0,0,0.72)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+    });
+
+    const box = document.createElement('div');
+    Object.assign(box.style, {
+      width: `${bw}px`,
+      maxHeight: `${window.innerHeight * 0.8}px`,
+      background: '#160e04',
+      border: '2px solid #a06810',
+      borderRadius: '12px',
+      fontFamily: 'sans-serif',
+      boxShadow: '0 0 24px rgba(160,104,16,0.4)',
+      overflow: 'hidden',
+      display: 'flex', flexDirection: 'column',
+    });
+
+    const header = document.createElement('div');
+    Object.assign(header.style, {
+      background: '#241408',
+      padding: '13px 18px',
+      borderBottom: '1px solid #3a2010',
+      fontSize: '17px', fontWeight: 'bold', color: '#ffe08a',
+      flexShrink: '0',
+    });
+    header.textContent = title;
+
+    const bodyEl = document.createElement('p');
+    Object.assign(bodyEl.style, {
+      color: '#ddd0b0', fontSize: '15px', fontWeight: 'bold',
+      lineHeight: '1.8', margin: '16px 18px 18px',
+      whiteSpace: 'pre-line', flexShrink: '1', overflowY: 'auto',
+    });
+    bodyEl.textContent = body;
+
+    const btn = document.createElement('button');
+    btn.textContent = '知道了';
+    Object.assign(btn.style, {
+      display: 'block', margin: '0 auto 18px',
+      background: '#5a3400', color: '#ffe08a',
+      border: '1px solid #cc9030', borderRadius: '8px',
+      padding: '10px 48px', fontSize: '15px',
+      fontWeight: 'bold', cursor: 'pointer', flexShrink: '0',
+    });
+    btn.addEventListener('click', () => {
+      overlay.remove();
+      TutorialStore.markDone(key);
+      SaveStore.save();
+      this.physics.resume();
+      this._tutPaused = false;
+      onConfirm?.();
+    });
+
+    box.appendChild(header);
+    box.appendChild(bodyEl);
+    box.appendChild(btn);
+    overlay.appendChild(box);
+
+    document.body.appendChild(overlay);
   }
 
   private showPickupText(_x: number, _y: number, name: string, qty: number): void {
