@@ -8125,6 +8125,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private _spawnChest(zoneIdx: number, wx: number, wy: number, rooms?: { x: number; y: number; w: number; h: number }[]): void {
+    if (this._isTutorial) return;
     if (NetworkService.connected && !NetworkService.isHost) return;
     if (Math.random() >= 0.12) return;
 
@@ -8149,6 +8150,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private _spawnCorridorChests(): void {
+    if (this._isTutorial) return;
     if (NetworkService.connected && !NetworkService.isHost) return;
     for (const seg of this.corridorSegs) {
       if (Math.random() >= 0.12) continue;
