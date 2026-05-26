@@ -2,6 +2,55 @@
   <img class="auth-bg-img" src="other/town-loading.png" alt="" />
   <div class="vignette"></div>
 
+  <div class="auth-layout">
+
+  @if (showPwaPanel) {
+    <div class="pwa-panel">
+      <div class="pwa-panel-title">📱 安裝遊戲 App</div>
+
+      @if (isIOS) {
+        <div class="pwa-steps">
+          <div class="pwa-step">
+            <span class="pwa-step-num">1</span>
+            <span>點擊底部的 <strong>分享</strong> 圖示<br><span class="pwa-icon-hint">（方框加上箭頭 ⎋）</span></span>
+          </div>
+          <div class="pwa-step">
+            <span class="pwa-step-num">2</span>
+            <span>選擇「<strong>加入主畫面</strong>」</span>
+          </div>
+          <div class="pwa-step">
+            <span class="pwa-step-num">3</span>
+            <span>點擊右上角「<strong>新增</strong>」</span>
+          </div>
+        </div>
+        <div class="pwa-benefit">安裝後全螢幕遊玩，效能更佳！</div>
+      } @else if (isAndroid) {
+        @if (canInstall()) {
+          <div class="pwa-desc">安裝到主畫面，享受全螢幕、更流暢的遊戲體驗！</div>
+          <button class="pwa-install-btn" (click)="installPWA()">立即安裝</button>
+        } @else {
+          <div class="pwa-steps">
+            <div class="pwa-step">
+              <span class="pwa-step-num">1</span>
+              <span>點擊瀏覽器右上角 <strong>⋮ 選單</strong></span>
+            </div>
+            <div class="pwa-step">
+              <span class="pwa-step-num">2</span>
+              <span>選擇「<strong>新增至主畫面</strong>」</span>
+            </div>
+            <div class="pwa-step">
+              <span class="pwa-step-num">3</span>
+              <span>點擊「<strong>新增</strong>」確認</span>
+            </div>
+          </div>
+          <div class="pwa-benefit">安裝後全螢幕遊玩，效能更佳！</div>
+        }
+      } @else {
+        <div class="pwa-desc">本遊戲專為手機設計，<br>建議使用手機開啟以獲得最佳體驗。</div>
+      }
+    </div>
+  }
+
   <div class="auth-card">
 
     <div class="corners"></div>
@@ -98,4 +147,6 @@
     }
 
   </div>
+
+  </div> <!-- auth-layout -->
 </div>

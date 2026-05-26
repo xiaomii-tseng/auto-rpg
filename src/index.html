@@ -10,6 +10,11 @@
         var maxByPixels = Math.sqrt(1920 * 1080 / (window.innerWidth * window.innerHeight));
         window.__gameDpr = Math.min(raw, maxByPixels, 3);
       })();
+      // Capture PWA install prompt before Angular boots
+      window.addEventListener('beforeinstallprompt', function(e) {
+        e.preventDefault();
+        window.__pwaPrompt = e;
+      });
     </script>
     <title>Angular</title>
     <base href="/" />

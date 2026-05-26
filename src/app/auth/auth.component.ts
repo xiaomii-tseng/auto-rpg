@@ -17,6 +17,26 @@ export class AuthComponent {
 
   private auth = inject(AuthService);
 
+  // ── PWA install panel ──────────────────────────────────
+  readonly isStandalone = window.matchMedia('(display-mode: standalone)').matches
+                       || (navigator as any).standalone === true;
+  readonly isIOS     = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  readonly isAndroid = /android/i.test(navigator.userAgent);
+  readonly showPwaPanel = !this.isStandalone;
+
+  canInstall = signal(!!(window as any).__pwaPrompt && !this.isIOS);
+
+  async installPWA() {
+    const prompt = (window as any).__pwaPrompt;
+    if (!prompt) return;
+    prompt.prompt();
+    const result = await prompt.userChoice;
+    if (result.outcome === 'accepted') {
+      (window as any).__pwaPrompt = null;
+      this.canInstall.set(false);
+    }
+  }
+
   tab = signal<Tab>('login');
 
   // login fields
