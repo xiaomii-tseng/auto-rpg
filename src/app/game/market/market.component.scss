@@ -20,7 +20,7 @@
 
     // 旋轉後 vw/vh 語意對調，panel 尺寸改用對應的軸
     .market-panel {
-      width: min(820px, 96vh);
+      width: min(820px, 88vh);
       height: min(500px, 90vw);
     }
   }
