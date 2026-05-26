@@ -2702,7 +2702,8 @@ export class GameScene extends Phaser.Scene {
       bloodRageMult  = 1.10 + 0.40 * t;
       bloodRageLeech = 0.005 + 0.025 * t;
     }
-    const dmg = Math.round((stats.atk + lowHpAtk) * Phaser.Math.FloatBetween(0.85, 1.15) * dmgMult * (isCrit ? (1 + stats.critDmg) : 1) * elemMult * targetMult * allMult * atkBuffMult * blazingMult * bloodlustDmgMult * impaleMult * bloodRageMult);
+    const tutorialAtkBonus = this._isTutorial ? 250 : 0;
+    const dmg = Math.round((stats.atk + lowHpAtk + tutorialAtkBonus) * Phaser.Math.FloatBetween(0.85, 1.15) * dmgMult * (isCrit ? (1 + stats.critDmg) : 1) * elemMult * targetMult * allMult * atkBuffMult * blazingMult * bloodlustDmgMult * impaleMult * bloodRageMult);
     const pen = stats.penetration ?? 0;
 
     if (isBoss && (this.boss as any).isGuarding) {
@@ -7500,16 +7501,26 @@ export class GameScene extends Phaser.Scene {
     const cx = bx + bw / 2;
     const cy = by + bh / 2;
 
-    this.exitBtnGfx.clear();
+    this.exitBtnGfx.setVisible(true).clear();
     this.exitBtnGfx.fillStyle(0x3a2a00, 0.95);
     this.exitBtnGfx.fillRoundedRect(bx, by, bw, bh, P(6));
     this.exitBtnGfx.lineStyle(P(2), 0xddaa00, 1);
     this.exitBtnGfx.strokeRoundedRect(bx, by, bw, bh, P(6));
 
-    this.exitBtnTxt.setText('領取獎勵').setColor('#ffe066').setPosition(cx, cy);
+    this.exitBtnTxt.setVisible(true).setText('領取獎勵').setColor('#ffe066').setPosition(cx, cy);
     this.exitBtnHit.setSize(bw, bh).setPosition(cx, cy);
+    this.exitBtnHit.setInteractive({ useHandCursor: true });
     this.exitBtnHit.removeAllListeners('pointerdown');
-    this.exitBtnHit.on('pointerdown', () => this.showRewardPanel());
+
+    if (this._isTutorial) {
+      this.exitBtnHit.on('pointerdown', () => {
+        InventoryStore.addGold(1000);
+        SaveStore.save();
+        this.exitToLobby();
+      });
+    } else {
+      this.exitBtnHit.on('pointerdown', () => this.showRewardPanel());
+    }
 
     this.exitBlinkTween?.stop();
     this.exitBlinkTween = this.tweens.add({
