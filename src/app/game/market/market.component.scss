@@ -18,10 +18,15 @@
     transform-origin: top left;
     transform: rotate(90deg) translateY(-100%);
 
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
     // 旋轉後 vw/vh 語意對調，panel 尺寸改用對應的軸
     .market-panel {
-      width: min(820px, 88vh);
+      width: min(820px, 80vh);
       height: min(500px, 90vw);
+      margin: auto;
     }
   }
 }
