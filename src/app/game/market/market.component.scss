@@ -8,18 +8,27 @@
   justify-content: center;
 
   // 手機直拿時，只旋轉 panel，overlay 維持全螢幕背景不動
+  // 直向時：overlay 整個旋轉（同 #game-wrapper 做法），panel 不轉
   @media (orientation: portrait) {
-    display: block; // 不用 flex，panel 自己定位
+    inset: unset;
+    top: 0;
+    left: 0;
+    width: 100vh;   // CSS 寬 = portrait 螢幕高，旋轉後成為視覺寬
+    height: 100vw;  // CSS 高 = portrait 螢幕寬，旋轉後成為視覺高
+    transform-origin: top left;
+    transform: rotate(90deg) translateY(-100%);
+    display: flex;  // 維持 flex 置中
 
     .market-panel {
-      // 旋轉後 visual-width = pre-height，visual-height = pre-width，故對調軸
-      position: fixed;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%) rotate(90deg);
-      transform-origin: center center;
-      width: min(500px, 90vw);   // 旋轉後成為視覺高度
-      height: min(820px, 80vh);  // 旋轉後成為視覺寬度
+      // 不旋轉，由 overlay 的旋轉帶動
+      position: static;
+      transform: none;
+      // 在 overlay 的 CSS 座標系：CSS 寬 → 視覺高，CSS 高 → 視覺寬
+      width: min(500px, 90vw);   // 90vw = portrait 螢幕寬的 90% → 視覺高
+      height: min(820px, 96vh);  // 96vh = portrait 螢幕高的 96% → 視覺寬
+
+      .filters      { width: 150px; }
+      .mine-sidebar { width: 120px; }
     }
   }
 }

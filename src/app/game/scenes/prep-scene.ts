@@ -1208,21 +1208,33 @@ export class PrepScene extends Phaser.Scene {
   ): void {
     if (TutorialStore.isDone(key)) { then(); return; }
 
-    const vw = Math.min(window.innerWidth, window.innerHeight) < 500
-      ? window.innerWidth : window.innerWidth;
-    const bw = Math.min(vw - 32, 320);
+    const isPortrait = window.innerHeight > window.innerWidth;
+    const visualW    = isPortrait ? window.innerHeight : window.innerWidth;
+    const visualH    = isPortrait ? window.innerWidth  : window.innerHeight;
+    const bw = Math.min(visualW - 32, 320);
 
     const overlay = document.createElement('div');
-    Object.assign(overlay.style, {
-      position: 'fixed', inset: '0', zIndex: '99000',
-      background: 'rgba(0,0,0,0.72)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-    });
+    if (isPortrait) {
+      Object.assign(overlay.style, {
+        position: 'fixed', top: '0', left: '0', zIndex: '99000',
+        width: '100vh', height: '100vw',
+        transformOrigin: 'top left',
+        transform: 'rotate(90deg) translateY(-100%)',
+        background: 'rgba(0,0,0,0.72)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      });
+    } else {
+      Object.assign(overlay.style, {
+        position: 'fixed', inset: '0', zIndex: '99000',
+        background: 'rgba(0,0,0,0.72)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      });
+    }
 
     const box = document.createElement('div');
     Object.assign(box.style, {
       width: `${bw}px`,
-      maxHeight: `${window.innerHeight * 0.8}px`,
+      maxHeight: `${visualH * 0.8}px`,
       background: '#160e04',
       border: '2px solid #a06810',
       borderRadius: '12px',

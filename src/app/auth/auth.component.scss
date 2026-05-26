@@ -17,16 +17,6 @@ $border:     rgba(200, 169, 110, 0.35);
   background: rgba(0,0,0,0.55);
   font-family: 'Segoe UI', '微軟正黑體', sans-serif;
 
-  // 手機直拿時旋轉 90°，與遊戲畫面方向一致
-  @media (orientation: portrait) {
-    inset: unset;
-    top: 0;
-    left: 0;
-    width: 100vh;
-    height: 100vw;
-    transform-origin: top left;
-    transform: rotate(90deg) translateY(-100%);
-  }
 }
 
 .auth-layout {
