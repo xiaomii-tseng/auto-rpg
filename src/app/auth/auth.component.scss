@@ -117,6 +117,20 @@ $border:     rgba(200, 169, 110, 0.35);
   padding-top: 12px;
 }
 
+.pwa-safari-warning {
+  background: rgba(180, 100, 0, 0.2);
+  border: 1px solid rgba(200, 140, 0, 0.5);
+  border-radius: 4px;
+  padding: 10px 12px;
+  font-size: 13px;
+  color: #e0a040;
+  text-align: center;
+  line-height: 1.6;
+  margin-bottom: 14px;
+
+  strong { color: #f0c060; }
+}
+
 .pwa-install-btn {
   width: 100%;
   padding: 12px;
