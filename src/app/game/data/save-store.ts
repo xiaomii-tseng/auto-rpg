@@ -144,7 +144,7 @@ export const SaveStore = {
       if (!raw) return false;
       const data: SaveData = JSON.parse(decryptSave(raw));
       const majorVer = parseInt(String(data.version).split('.')[0], 10);
-      if (isNaN(majorVer) || majorVer < 17) return false;
+      if (isNaN(majorVer) || majorVer !== 1) return false;
 
       // Restore consolidated fields so existing getPlayerName() / SkinStore.get() still work
       if (data.playerName) localStorage.setItem('playerName', data.playerName);
