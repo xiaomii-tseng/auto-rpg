@@ -17,18 +17,20 @@
     height: 100vw;  // CSS 高 = portrait 螢幕寬，旋轉後成為視覺高
     transform-origin: top left;
     transform: rotate(90deg) translateY(-100%);
-    display: flex;  // 維持 flex 置中
+    display: flex;
+    align-items: center;
+    justify-content: center;
 
     .market-panel {
       // 不旋轉，由 overlay 的旋轉帶動
       position: static;
       transform: none;
-      // 在 overlay 的 CSS 座標系：CSS 寬 → 視覺高，CSS 高 → 視覺寬
-      width: min(500px, 90vw);   // 90vw = portrait 螢幕寬的 90% → 視覺高
-      height: min(820px, 96vh);  // 96vh = portrait 螢幕高的 96% → 視覺寬
+      // overlay 旋轉後：CSS width（本地 X 軸）→ 視覺橫向；CSS height（本地 Y 軸）→ 視覺縱向
+      width: min(820px, 80vh);   // 80vh → 視覺橫向（景觀寬）
+      height: min(500px, 90vw);  // 90vw ≈ 351px → 視覺縱向（景觀高）
 
-      .filters      { width: 150px; }
-      .mine-sidebar { width: 120px; }
+      .filters      { width: 200px; }
+      .mine-sidebar { width: 160px; }
     }
   }
 }
