@@ -215,14 +215,7 @@ export class TowerScene extends GameScene {
     // ── Input ────────────────────────────────────────────────
     this.input.addPointer(3);
     const kb = this.input.keyboard!;
-    this.keys = {
-      ...kb.createCursorKeys(),
-      w:     kb.addKey(Phaser.Input.Keyboard.KeyCodes.W),
-      a:     kb.addKey(Phaser.Input.Keyboard.KeyCodes.A),
-      s:     kb.addKey(Phaser.Input.Keyboard.KeyCodes.S),
-      d:     kb.addKey(Phaser.Input.Keyboard.KeyCodes.D),
-      space: kb.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE),
-    };
+    this.keys = kb.createCursorKeys();
     this.joystick = new VirtualJoystick(this);
 
     // ── HUD ──────────────────────────────────────────────────
@@ -270,16 +263,11 @@ export class TowerScene extends GameScene {
 
     const joy = this.joystick.value;
     let vx = joy.x, vy = joy.y;
-    if (this.keys.left.isDown  || this.keys.a.isDown)  vx = -1;
-    else if (this.keys.right.isDown || this.keys.d.isDown) vx =  1;
-    if (this.keys.up.isDown    || this.keys.w.isDown)  vy = -1;
-    else if (this.keys.down.isDown  || this.keys.s.isDown) vy =  1;
+    if (this.keys.left.isDown)  vx = -1;
+    else if (this.keys.right.isDown) vx =  1;
+    if (this.keys.up.isDown)  vy = -1;
+    else if (this.keys.down.isDown) vy =  1;
     this.player.move(vx, vy);
-
-    if (Phaser.Input.Keyboard.JustDown(this.keys.space)) {
-      const { x: tx, y: ty } = this.getAttackTarget();
-      this.meleeAttack(tx, ty);
-    }
 
     const SHOW_DIST_SQ = P(500) * P(500);
     for (const m of this.allMinions) {

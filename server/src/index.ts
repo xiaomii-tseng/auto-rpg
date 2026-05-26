@@ -244,12 +244,12 @@ app.post('/save', limiterSave, requireAuth, async (req: any, res) => {
   const { saveData, version, sessionId } = req.body ?? {};
   if (!saveData) { res.status(400).json({ error: 'saveData required' }); return; }
 
-  // 驗證 session：有 session_id 的帳號，提供的 sessionId 必須匹配
-  const { data: profile } = await supabase
-    .from('profiles').select('session_id').eq('id', req.userId).single();
-  if (profile?.session_id && sessionId !== profile.session_id) {
-    res.status(409).json({ error: '已在其他裝置登入' }); return;
-  }
+  // TODO: 單裝置限制暫時關閉
+  // const { data: profile } = await supabase
+  //   .from('profiles').select('session_id').eq('id', req.userId).single();
+  // if (profile?.session_id && sessionId !== profile.session_id) {
+  //   res.status(409).json({ error: '已在其他裝置登入' }); return;
+  // }
 
   const validationError = validateSave(saveData);
   if (validationError) { res.status(400).json({ error: validationError }); return; }

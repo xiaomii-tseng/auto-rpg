@@ -51,9 +51,10 @@ export class SaveSyncService {
         body,
       });
 
-      if (res.status === 409) {
-        this._forceLogout('此帳號已在其他裝置登入，你已被登出'); return;
-      }
+      // TODO: 單裝置限制暫時關閉
+      // if (res.status === 409) {
+      //   this._forceLogout('此帳號已在其他裝置登入，你已被登出'); return;
+      // }
 
       if (res.status === 401) {
         // Token 過期 → 嘗試 refresh 再重試一次

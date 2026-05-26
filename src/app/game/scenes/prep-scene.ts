@@ -192,7 +192,6 @@ export class PrepScene extends Phaser.Scene {
   private _townBuildingRects: { cx: number; cy: number; hw: number; hh: number }[] = [];
   private _townJoystick?: VirtualJoystick;
   private _townCursors?: Phaser.Types.Input.Keyboard.CursorKeys;
-  private _townWASD?: { up: Phaser.Input.Keyboard.Key; down: Phaser.Input.Keyboard.Key; left: Phaser.Input.Keyboard.Key; right: Phaser.Input.Keyboard.Key };
   private _townLocalNameLabel?: Phaser.GameObjects.Text;
   private _townPlayerDebug?: Phaser.GameObjects.Graphics;
   private _townAnimals: Array<{
@@ -7723,12 +7722,6 @@ export class PrepScene extends Phaser.Scene {
     // Input
     if (this.input.keyboard) {
       this._townCursors  = this.input.keyboard.createCursorKeys();
-      this._townWASD = {
-        up:    this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.W),
-        down:  this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.S),
-        left:  this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.A),
-        right: this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.D),
-      };
     }
 
     // D-pad for mobile
@@ -8943,14 +8936,14 @@ export class PrepScene extends Phaser.Scene {
     const SPEED  = Math.min(VW, VH) * 0.45 * dt;
     const MARGIN = P(20);
 
-    const keys = this._townCursors, wasd = this._townWASD;
+    const keys = this._townCursors;
     const joy  = this._townJoystick?.value;
     let dx = joy?.x ?? 0;
     let dy = joy?.y ?? 0;
-    if (keys?.left.isDown  || wasd?.left.isDown)  dx -= 1;
-    if (keys?.right.isDown || wasd?.right.isDown) dx += 1;
-    if (keys?.up.isDown    || wasd?.up.isDown)    dy -= 1;
-    if (keys?.down.isDown  || wasd?.down.isDown)  dy += 1;
+    if (keys?.left.isDown)  dx -= 1;
+    if (keys?.right.isDown) dx += 1;
+    if (keys?.up.isDown)    dy -= 1;
+    if (keys?.down.isDown)  dy += 1;
     const dlen = Math.sqrt(dx * dx + dy * dy);
     if (dlen > 1) { dx /= dlen; dy /= dlen; }
 

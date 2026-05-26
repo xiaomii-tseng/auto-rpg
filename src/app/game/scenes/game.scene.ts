@@ -143,13 +143,7 @@ export class GameScene extends Phaser.Scene {
   protected player!: Player;
   protected boss!: Boss;
   protected joystick!: VirtualJoystick;
-  protected keys!: Phaser.Types.Input.Keyboard.CursorKeys & {
-    w: Phaser.Input.Keyboard.Key;
-    a: Phaser.Input.Keyboard.Key;
-    s: Phaser.Input.Keyboard.Key;
-    d: Phaser.Input.Keyboard.Key;
-    space: Phaser.Input.Keyboard.Key;
-  };
+  protected keys!: Phaser.Types.Input.Keyboard.CursorKeys;
   protected bossHpGfx!: Phaser.GameObjects.Graphics;
   protected bossHpLabel!: Phaser.GameObjects.Text;
   protected bossDebuffGfx!: Phaser.GameObjects.Graphics;
@@ -199,7 +193,6 @@ export class GameScene extends Phaser.Scene {
   private _atkDirGfx?: Phaser.GameObjects.Graphics;
   private _atkDragThreshold = 0;  // 初始化後設為 P(15)
   private _holdAttackTimer?: Phaser.Time.TimerEvent;
-  private _spaceHoldTimer?: Phaser.Time.TimerEvent;
   private _forceAttackAngle: number | null = null;  // 手動拖動攻擊方向（rad），null = 自動
   private _atkDragAngle: number | null = null;       // 目前正在拖動的角度，null = 未拖動
   protected _allyMinions: MinionSlime[] = [];          // 有序陣列，上限 3，最舊的先移除
@@ -1057,26 +1050,7 @@ export class GameScene extends Phaser.Scene {
     this._initBossBar();
 
     const kb = this.input.keyboard!;
-    this.keys = {
-      ...kb.createCursorKeys(),
-      w: kb.addKey(Phaser.Input.Keyboard.KeyCodes.W),
-      a: kb.addKey(Phaser.Input.Keyboard.KeyCodes.A),
-      s: kb.addKey(Phaser.Input.Keyboard.KeyCodes.S),
-      d: kb.addKey(Phaser.Input.Keyboard.KeyCodes.D),
-      space: kb.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE),
-    };
-
-    // ── 空白鍵持續攻擊（同攻擊鍵按住行為）──────────────────────────────
-    this.keys.space.on('down', () => {
-      this._fireHoldAttack();
-      this._spaceHoldTimer = this.time.addEvent({
-        delay: 100, loop: true, callback: () => this._fireHoldAttack(),
-      });
-    });
-    this.keys.space.on('up', () => {
-      this._spaceHoldTimer?.destroy();
-      this._spaceHoldTimer = undefined;
-    });
+    this.keys = kb.createCursorKeys();
 
     // ── 測試快捷鍵：按 ` 直接傳送至 BOSS 戰（請在準備場選吸血鬼伯爵）──
     kb.on('keydown-BACKTICK', () => {
@@ -2243,10 +2217,10 @@ export class GameScene extends Phaser.Scene {
     let vx = joy.x;
     let vy = joy.y;
 
-    if (this.keys.left.isDown || this.keys.a.isDown) vx = -1;
-    else if (this.keys.right.isDown || this.keys.d.isDown) vx = 1;
-    if (this.keys.up.isDown || this.keys.w.isDown) vy = -1;
-    else if (this.keys.down.isDown || this.keys.s.isDown) vy = 1;
+    if (this.keys.left.isDown) vx = -1;
+    else if (this.keys.right.isDown) vx = 1;
+    if (this.keys.up.isDown) vy = -1;
+    else if (this.keys.down.isDown) vy = 1;
 
     const isDashBehavior = (SkillTreeStore.getAttackMode()) === 'dashPierce';
     const isFlowerMode = (CardStore.getTotalStats().flowerSummonMode ?? 0) > 0 || SkillTreeStore.getAttackMode() === 'flowerMode';

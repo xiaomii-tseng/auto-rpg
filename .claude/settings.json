@@ -118,7 +118,11 @@
       "Bash(git push *)",
       "Bash(Get-ChildItem \"C:\\\\MyCode\\\\auto-rpg\\\\src\\\\app\\\\game\\\\scenes\" -Filter \"*.ts\")",
       "PowerShell(Get-ChildItem \"C:\\\\MyCode\\\\auto-rpg\\\\src\\\\app\\\\game\\\\scenes\" | Where-Object { $_.Extension -eq \".ts\" })",
-      "Bash(Get-ChildItem -Path \"C:\\\\MyCode\\\\auto-rpg\\\\src\\\\app\\\\game\\\\\" -Recurse | Select-Object FullName | head -50)"
+      "Bash(Get-ChildItem -Path \"C:\\\\MyCode\\\\auto-rpg\\\\src\\\\app\\\\game\\\\\" -Recurse | Select-Object FullName | head -50)",
+      "Bash(node scripts/create-test-account.mjs)",
+      "Bash(findstr :3001)",
+      "Bash(findstr LISTEN)",
+      "Bash(findstr \"300\")"
     ],
     "additionalDirectories": [
       "\\MyCode\\auto-rpg\\src\\app\\game\\scenes",

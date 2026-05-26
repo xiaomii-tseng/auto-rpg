@@ -16,6 +16,17 @@ $border:     rgba(200, 169, 110, 0.35);
   overflow: hidden;
   background: rgba(0,0,0,0.55);
   font-family: 'Segoe UI', '微軟正黑體', sans-serif;
+
+  // 手機直拿時旋轉 90°，與遊戲畫面方向一致
+  @media (orientation: portrait) {
+    inset: unset;
+    top: 0;
+    left: 0;
+    width: 100vh;
+    height: 100vw;
+    transform-origin: top left;
+    transform: rotate(90deg) translateY(-100%);
+  }
 }
 
 .auth-layout {
@@ -23,35 +34,23 @@ $border:     rgba(200, 169, 110, 0.35);
   flex-direction: row;
   align-items: center;
   justify-content: center;
-  gap: 24px;
+  gap: 16px;
   z-index: 2;
   width: 100%;
-  max-width: 960px;
-
-  @media (max-width: 700px) {
-    flex-direction: column;
-    overflow-y: auto;
-    max-height: 100dvh;
-    padding: 8px 0;
-  }
+  max-width: 900px;
+  padding: 0 8px;
 }
 
 // ── PWA 安裝面板 ───────────────────────────────────────────
 .pwa-panel {
-  flex: 0 0 auto;
-  width: 280px;
+  flex: 0 0 240px;
+  width: 240px;
   background: rgba(10, 7, 2, 0.88);
   border: 1px solid rgba(200, 169, 110, 0.4);
   border-radius: 6px;
-  padding: 24px 20px;
+  padding: 20px 16px;
   color: #c8a96e;
   animation: cardIn 0.45s cubic-bezier(0.16,1,0.3,1) both;
-
-  @media (max-width: 700px) {
-    width: 100%;
-    max-width: calc(min(580px, 100% - 24px));
-    padding: 16px;
-  }
 }
 
 .pwa-panel-title {
