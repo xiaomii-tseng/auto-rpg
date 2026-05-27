@@ -19,10 +19,13 @@ export class AuthComponent {
 
   // ── PWA install panel ──────────────────────────────────
   readonly isStandalone = window.matchMedia('(display-mode: standalone)').matches
+                       || window.matchMedia('(display-mode: fullscreen)').matches
                        || (navigator as any).standalone === true;
   readonly isIOS     = /iphone|ipad|ipod/i.test(navigator.userAgent);
   readonly isAndroid = /android/i.test(navigator.userAgent);
-  readonly showPwaPanel = !this.isStandalone;
+  // 已安裝且在瀏覽器開啟時（canInstall=false 且非 iOS）也隱藏安裝面板
+  readonly showPwaPanel = !this.isStandalone
+    && (this.isIOS || !!(window as any).__pwaPrompt);
 
   canInstall = signal(!!(window as any).__pwaPrompt && !this.isIOS);
 

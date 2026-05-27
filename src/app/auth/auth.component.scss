@@ -29,12 +29,24 @@ $border:     rgba(200, 169, 110, 0.35);
   width: 100%;
   max-width: 900px;
   padding: 0 8px;
+
+  @media (orientation: portrait) {
+    flex-direction: column;
+    align-items: stretch;
+    max-width: 420px;
+    gap: 12px;
+  }
 }
 
 // ── PWA 安裝面板 ───────────────────────────────────────────
 .pwa-panel {
   flex: 0 0 240px;
   width: 240px;
+
+  @media (orientation: portrait) {
+    flex: none;
+    width: 100%;
+  }
   background: rgba(10, 7, 2, 0.88);
   border: 1px solid rgba(200, 169, 110, 0.4);
   border-radius: 6px;
