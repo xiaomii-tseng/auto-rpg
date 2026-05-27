@@ -33,6 +33,13 @@ export class SaveSyncService {
     this._upload();
   }
 
+  /** 不管 dirty flag，強制上傳並等待完成 — 登出前用 */
+  async uploadNow(): Promise<void> {
+    if (this._timer) { clearTimeout(this._timer); this._timer = null; }
+    this._dirty = true;
+    await this._upload();
+  }
+
   private async _upload(): Promise<void> {
     const token = this.auth.getToken();
     if (!token || this._uploading) return;

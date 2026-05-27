@@ -2,6 +2,7 @@ import { PlayerStore } from './player-store';
 import { CARD_DEFS, MONSTER_DEFS } from './monster-data';
 import { generateEquipment, randomQuality, EquipmentItem, EquipSlot } from './equipment-data';
 import { getMaxNaturalStar, BOSS_MIN_STAR, STAR_EQUIP_QUALITY } from './quest-store';
+import { t } from '../i18n/i18n';
 
 export type DailyQuestType =
   | 'kill_normal' | 'kill_elite' | 'kill_boss' | 'kill_specific'
@@ -36,51 +37,50 @@ export interface DailyQuest {
 interface QuestTemplate {
   type:          DailyQuestType;
   target:        number;
-  label:         string;
   specificType?: 'normal' | 'elite' | 'boss';
 }
 
 const EASY_POOL: QuestTemplate[] = [
-  { type: 'kill_normal',    target: 50,    label: '擊殺 50 隻普通怪' },
-  { type: 'kill_specific',  target: 40,    label: '擊殺 40 隻普通怪（指定）', specificType: 'normal' },
-  { type: 'kill_elite',     target: 5,     label: '擊殺 5 隻精英怪' },
-  { type: 'kill_boss',      target: 1,     label: '擊殺 1 隻 BOSS' },
-  { type: 'deal_damage',    target: 0,     label: '累計造成 {lv}×1000 點傷害' },
-  { type: 'clear_no_death', target: 1,     label: '不死亡通關 1 場' },
-  { type: 'pickup_loot',    target: 30,    label: '拾取 30 個掉落物' },
-  { type: 'open_chest',     target: 5,     label: '開啟 5 個寶箱' },
-  { type: 'enhance_success',target: 2,     label: '精煉成功 2 次' },
-  { type: 'shop_purchase',  target: 3,     label: '在商店購買 3 次' },
-  { type: 'use_potion',     target: 5,     label: '使用藥水 5 次' },
+  { type: 'kill_normal',    target: 50  },
+  { type: 'kill_specific',  target: 40,    specificType: 'normal' },
+  { type: 'kill_elite',     target: 5   },
+  { type: 'kill_boss',      target: 1   },
+  { type: 'deal_damage',    target: 0   },
+  { type: 'clear_no_death', target: 1   },
+  { type: 'pickup_loot',    target: 30  },
+  { type: 'open_chest',     target: 5   },
+  { type: 'enhance_success',target: 2   },
+  { type: 'shop_purchase',  target: 3   },
+  { type: 'use_potion',     target: 5   },
 ];
 
 const NORMAL_POOL: QuestTemplate[] = [
-  { type: 'kill_normal',    target: 120,    label: '擊殺 120 隻普通怪' },
-  { type: 'kill_specific',  target: 8,      label: '擊殺 8 隻精英怪（指定）', specificType: 'elite' },
-  { type: 'kill_elite',     target: 12,     label: '擊殺 12 隻精英怪' },
-  { type: 'kill_boss',      target: 2,      label: '擊殺 2 隻 BOSS' },
-  { type: 'deal_damage',    target: 0,      label: '累計造成 {lv}×1000 點傷害' },
-  { type: 'clear_no_death', target: 2,      label: '不死亡通關 2 場' },
-  { type: 'clear_no_potion',target: 1,      label: '不使用藥水通關 1 場' },
-  { type: 'pickup_loot',    target: 60,     label: '拾取 60 個掉落物' },
-  { type: 'open_chest',     target: 12,     label: '開啟 12 個寶箱' },
-  { type: 'enhance_success',target: 5,      label: '精煉成功 5 次' },
-  { type: 'shop_purchase',  target: 6,      label: '在商店購買 6 次' },
-  { type: 'use_potion',     target: 12,     label: '使用藥水 12 次' },
+  { type: 'kill_normal',    target: 120 },
+  { type: 'kill_specific',  target: 8,     specificType: 'elite' },
+  { type: 'kill_elite',     target: 12  },
+  { type: 'kill_boss',      target: 2   },
+  { type: 'deal_damage',    target: 0   },
+  { type: 'clear_no_death', target: 2   },
+  { type: 'clear_no_potion',target: 1   },
+  { type: 'pickup_loot',    target: 60  },
+  { type: 'open_chest',     target: 12  },
+  { type: 'enhance_success',target: 5   },
+  { type: 'shop_purchase',  target: 6   },
+  { type: 'use_potion',     target: 12  },
 ];
 
 const HARD_POOL: QuestTemplate[] = [
-  { type: 'kill_normal',    target: 220,    label: '擊殺 220 隻普通怪' },
-  { type: 'kill_specific',  target: 2,      label: '擊殺 2 隻 BOSS（指定）', specificType: 'boss' },
-  { type: 'kill_elite',     target: 25,     label: '擊殺 25 隻精英怪' },
-  { type: 'kill_boss',      target: 3,      label: '擊殺 3 隻 BOSS' },
-  { type: 'deal_damage',    target: 0,      label: '累計造成 {lv}×1000 點傷害' },
-  { type: 'clear_no_death', target: 3,      label: '不死亡通關 3 場' },
-  { type: 'pickup_loot',    target: 100,    label: '拾取 100 個掉落物' },
-  { type: 'open_chest',     target: 20,     label: '開啟 20 個寶箱' },
-  { type: 'enhance_success',target: 10,     label: '精煉成功 10 次' },
-  { type: 'shop_purchase',  target: 10,     label: '在商店購買 10 次' },
-  { type: 'use_potion',     target: 20,     label: '使用藥水 20 次' },
+  { type: 'kill_normal',    target: 220 },
+  { type: 'kill_specific',  target: 2,     specificType: 'boss' },
+  { type: 'kill_elite',     target: 25  },
+  { type: 'kill_boss',      target: 3   },
+  { type: 'deal_damage',    target: 0   },
+  { type: 'clear_no_death', target: 3   },
+  { type: 'pickup_loot',    target: 100 },
+  { type: 'open_chest',     target: 20  },
+  { type: 'enhance_success',target: 10  },
+  { type: 'shop_purchase',  target: 10  },
+  { type: 'use_potion',     target: 20  },
 ];
 
 const EQUIP_SLOTS: EquipSlot[] = ['hat', 'outfit', 'shoes', 'ring1', 'sword'];
@@ -135,26 +135,26 @@ function buildReward(difficulty: DailyQuestDifficulty): DailyReward {
   if (difficulty === 'easy') {
     const r = Math.floor(Math.random() * 4);
     if (r === 0) return { gold: 1000 };
-    if (r === 1) return { items: [{ id: 'stone_broken', name: '破損強化石', qty: 3 }] };
-    if (r === 2) return { gold: 200, items: [{ id: 'potion_health_m', name: '中型回復藥水', qty: 1 }] };
+    if (r === 1) return { items: [{ id: 'stone_broken', name: t('item.stone_broken'), qty: 3 }] };
+    if (r === 2) return { gold: 200, items: [{ id: 'potion_health_m', name: t('item.potion_health_m'), qty: 1 }] };
     const { cardId, cardName } = pickCard('easy');
     return { cardId, cardName };
   }
   if (difficulty === 'normal') {
     const r = Math.floor(Math.random() * 6);
     if (r === 0) return { gold: 2000 };
-    if (r === 1) return { items: [{ id: 'stone_broken', name: '破損強化石', qty: 5 }] };
-    if (r === 2) return { gold: 500, items: [{ id: 'stone_intact', name: '完整強化石', qty: 1 }] };
-    if (r === 3) return { gold: 500, items: [{ id: 'potion_health_l', name: '大型回復藥水', qty: 1 }] };
+    if (r === 1) return { items: [{ id: 'stone_broken', name: t('item.stone_broken'), qty: 5 }] };
+    if (r === 2) return { gold: 500, items: [{ id: 'stone_intact', name: t('item.stone_intact'), qty: 1 }] };
+    if (r === 3) return { gold: 500, items: [{ id: 'potion_health_l', name: t('item.potion_health_l'), qty: 1 }] };
     if (r === 4) { const { cardId, cardName } = pickCard('normal'); return { cardId, cardName }; }
     return { equip: pickEquip('normal') };
   }
   // hard
   const r = Math.floor(Math.random() * 6);
   if (r === 0) return { gold: 3000 };
-  if (r === 1) return { items: [{ id: 'stone_intact', name: '完整強化石', qty: 3 }] };
-  if (r === 2) return { gold: 1000, items: [{ id: 'stone_guard', name: '重鑄石', qty: 1 }] };
-  if (r === 3) return { gold: 300, items: [{ id: 'potion_revive', name: '復活藥水', qty: 1 }] };
+  if (r === 1) return { items: [{ id: 'stone_intact', name: t('item.stone_intact'), qty: 3 }] };
+  if (r === 2) return { gold: 1000, items: [{ id: 'stone_guard', name: t('item.stone_guard'), qty: 1 }] };
+  if (r === 3) return { gold: 300, items: [{ id: 'potion_revive', name: t('item.potion_revive'), qty: 1 }] };
   if (r === 4) { const { cardId, cardName } = pickCard('hard'); return { cardId, cardName }; }
   return { equip: pickEquip('hard') };
 }
@@ -182,18 +182,21 @@ function generateQuests(): DailyQuest[] {
   return Array.from({ length: 3 }, () => {
     const [diff, pool] = ALL_POOLS[Math.floor(Math.random() * ALL_POOLS.length)];
     const tmpl = pickFrom(pool);
-    let label = tmpl.label;
     let specificMonsterId: string | undefined;
+    let target = tmpl.target;
+
+    let label: string;
     if (tmpl.type === 'kill_specific' && tmpl.specificType) {
       const monster = pickSpecificMonster(tmpl.specificType);
       specificMonsterId = monster.id;
-      label = `擊殺 ${tmpl.target} 隻 ${monster.name}`;
-    }
-    let target = tmpl.target;
-    if (tmpl.type === 'deal_damage') {
+      label = t('quest.kill_specific', { count: tmpl.target, name: monster.name });
+    } else if (tmpl.type === 'deal_damage') {
       target = PlayerStore.getLevel() * 1000;
-      label  = `累計造成 ${target.toLocaleString()} 點傷害`;
+      label  = t('quest.deal_damage', { amount: target.toLocaleString() });
+    } else {
+      label = t(`quest.${tmpl.type}` as any, { count: tmpl.target });
     }
+
     return {
       id:                `dq_${diff}_${Date.now()}_${Math.random().toString(36).slice(2)}`,
       type:              tmpl.type,
@@ -207,6 +210,17 @@ function generateQuests(): DailyQuest[] {
       specificMonsterId,
     };
   });
+}
+
+export function getQuestDisplayLabel(q: DailyQuest): string {
+  if (q.type === 'kill_specific' && q.specificMonsterId) {
+    const monsterName = MONSTER_DEFS.find(m => m.id === q.specificMonsterId)?.name ?? q.specificMonsterId;
+    return t('quest.kill_specific', { count: q.target, name: monsterName });
+  }
+  if (q.type === 'deal_damage') {
+    return t('quest.deal_damage', { amount: q.target.toLocaleString() });
+  }
+  return t((`quest.${q.type}`) as any, { count: q.target });
 }
 
 // ── Persistence ────────────────────────────────────────────────────────────

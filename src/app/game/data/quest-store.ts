@@ -1,6 +1,7 @@
 import { MONSTER_DEFS } from './monster-data';
 import { PlayerStore } from './player-store';
 import { generateEquipment, randomQuality, EquipmentItem, EquipSlot } from './equipment-data';
+import { t } from '../i18n/i18n';
 
 export type QuestStatus = 'available' | 'accepted' | 'completed' | 'claimed';
 
@@ -12,6 +13,7 @@ export interface Quest {
   status:        QuestStatus;
   star:          number;   // 1~5
   isEquipReward: boolean;
+  flavorIdx?:    number;
 }
 
 export interface QuestSaveData {
@@ -116,15 +118,22 @@ const BOSS_MIN_STAR: Record<string, number> = {
 };
 
 const FLAVOR_TEMPLATES: Array<(name: string, star: number) => string> = [
-  (n, s) => `國王下令：${n}橫行東方森林，急需${s >= 3 ? '精英' : ''}勇者前往討伐！`,
-  (n)    => `懸賞通告：北方山脈出現${n}，嚴重威脅居民安全。`,
-  (n)    => `緊急召集：${n}侵擾邊境村莊，徵召勇者出征！`,
-  (n)    => `王室令：${n}盤踞古代遺跡阻斷商道，懸賞討伐。`,
-  (n)    => `民間疾苦：${n}為禍西部荒野，勇者速往解決！`,
-  (n)    => `冒險者公會：消滅出沒於南方沼澤的${n}。`,
-  (n, s) => `急件！${s >= 4 ? '【高危】' : ''}${n}對王都周邊村莊發動突襲，請速馳援。`,
-  (n, s) => `邊境守備隊求援：${s >= 3 ? '強化版' : ''}${n}攻佔了要塞入口，危在旦夕！`,
+  (n, s) => t('quest.flavor.0', { n, tier: s >= 3 ? t('quest.flavor.elite') : '' }),
+  (n)    => t('quest.flavor.1', { n }),
+  (n)    => t('quest.flavor.2', { n }),
+  (n)    => t('quest.flavor.3', { n }),
+  (n)    => t('quest.flavor.4', { n }),
+  (n)    => t('quest.flavor.5', { n }),
+  (n, s) => t('quest.flavor.6', { n, danger: s >= 4 ? t('quest.flavor.highDanger') : '' }),
+  (n, s) => t('quest.flavor.7', { n, prefix: s >= 3 ? t('quest.flavor.enhanced') : '' }),
 ];
+
+export function getQuestFlavorText(quest: Quest): string {
+  if (quest.flavorIdx == null) return quest.flavorText;
+  const def = MONSTER_DEFS.find(m => m.id === quest.bossId);
+  if (!def) return quest.flavorText;
+  return FLAVOR_TEMPLATES[quest.flavorIdx](def.name, quest.star);
+}
 
 export function getMaxNaturalStar(playerLevel: number): number {
   return Math.max(...Object.entries(getStarWeights(playerLevel))
@@ -155,17 +164,18 @@ function generateQuests(): Quest[] {
   const picked   = shuffled.slice(0, 3);
 
   return picked.map((bossId, i) => {
-    const def  = MONSTER_DEFS.find(m => m.id === bossId)!;
-    const tmpl = FLAVOR_TEMPLATES[Math.floor(Math.random() * FLAVOR_TEMPLATES.length)];
-    const star = Math.max(BOSS_MIN_STAR[bossId] ?? 1, pickStar(playerLevel));
-    const base = (Math.floor(Math.random() * 21) + 30) * 10;
-    const reward = Math.round(base * STAR_REWARD_MULT[star] / 10) * 10;
+    const def      = MONSTER_DEFS.find(m => m.id === bossId)!;
+    const flavorIdx = Math.floor(Math.random() * FLAVOR_TEMPLATES.length);
+    const star     = Math.max(BOSS_MIN_STAR[bossId] ?? 1, pickStar(playerLevel));
+    const base     = (Math.floor(Math.random() * 21) + 30) * 10;
+    const reward   = Math.round(base * STAR_REWARD_MULT[star] / 10) * 10;
 
     return {
       id:            `q_${Date.now()}_${i}`,
       bossId,
       reward,
-      flavorText:    tmpl(def.name, star),
+      flavorText:    FLAVOR_TEMPLATES[flavorIdx](def.name, star),
+      flavorIdx,
       status:        'available' as QuestStatus,
       star,
       isEquipReward: false,
@@ -245,15 +255,16 @@ export const QuestStore = {
     const bossId  = choices.length > 0
       ? choices[Math.floor(Math.random() * choices.length)]
       : pool[Math.floor(Math.random() * pool.length)];
-    const def    = MONSTER_DEFS.find(m => m.id === bossId)!;
-    const star   = Math.max(BOSS_MIN_STAR[bossId] ?? 1, pickStar(PlayerStore.getLevel()));
-    const base   = (Math.floor(Math.random() * 21) + 30) * 10;
-    const tmpl   = FLAVOR_TEMPLATES[Math.floor(Math.random() * FLAVOR_TEMPLATES.length)];
+    const def       = MONSTER_DEFS.find(m => m.id === bossId)!;
+    const star      = Math.max(BOSS_MIN_STAR[bossId] ?? 1, pickStar(PlayerStore.getLevel()));
+    const base      = (Math.floor(Math.random() * 21) + 30) * 10;
+    const flavorIdx = Math.floor(Math.random() * FLAVOR_TEMPLATES.length);
     _quests[idx] = {
       id: `q_${Date.now()}_r`,
       bossId,
       reward: Math.round(base * STAR_REWARD_MULT[star] / 10) * 10,
-      flavorText: tmpl(def.name, star),
+      flavorText: FLAVOR_TEMPLATES[flavorIdx](def.name, star),
+      flavorIdx,
       status: 'available',
       star,
       isEquipReward: false,

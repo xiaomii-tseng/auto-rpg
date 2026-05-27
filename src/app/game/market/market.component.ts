@@ -4,23 +4,24 @@ import { FormsModule } from '@angular/forms';
 import { MarketVisibilityService } from './market-visibility.service';
 import { MarketService, MarketListing, MyListing, MarketItemType, ListingsFilter } from './market.service';
 import { AuthService } from '../../auth/auth.service';
-import { EquipQuality, StatKey, fmtAffixValue, STAT_NAMES } from '../data/equipment-data';
+import { EquipQuality, StatKey, fmtAffixValue, STAT_NAMES, getEquipDisplayName } from '../data/equipment-data';
 import { decryptSave } from '../data/save-store';
 import { getCardDef } from '../data/monster-data';
+import { t } from '../i18n/i18n';
 
 type Tab = 'browse' | 'mine';
 type ListStep = null | 'select-item' | 'set-price';
 
 const QUALITY_LABELS: Record<EquipQuality, string> = {
-  normal: '普通', good: '良好', fine: '精良', perfect: '完美', legendary: '傳說',
+  normal: t('equip.quality.normal'), good: t('equip.quality.good'), fine: t('equip.quality.fine'), perfect: t('equip.quality.perfect'), legendary: t('equip.quality.legendary'),
 };
 const QUALITY_COLORS: Record<EquipQuality, string> = {
   normal: '#aabbcc', good: '#55cc55', fine: '#4499ff', perfect: '#cc44ff', legendary: '#ffaa22',
 };
 const AFFIX_LABELS: Partial<Record<StatKey, string>> = {
-  atk: '攻擊力', hp: '最大HP', def: '防禦力', crit: '爆擊率', critDmg: '爆擊傷害',
-  atkSpeed: '攻擊速度', lifesteal: '吸血', speed: '移動速度', evasion: '閃避率',
-  penetration: '穿甲', hpRegen: 'HP恢復', dotBonus: '持續傷害',
+  atk: t('stat.atk'), hp: t('stat.hp'), def: t('stat.def'), crit: t('stat.crit'), critDmg: t('stat.critDmg'),
+  atkSpeed: t('stat.atkSpeed'), lifesteal: t('stat.lifesteal'), speed: t('stat.speed'), evasion: t('stat.evasion'),
+  penetration: t('stat.penetration'), hpRegen: t('stat.hpRegen'), dotBonus: t('stat.dotBonus'),
 };
 const QUICK_AFFIXES = Object.keys(AFFIX_LABELS) as StatKey[];
 const QUALITIES = Object.keys(QUALITY_LABELS) as EquipQuality[];
@@ -71,12 +72,12 @@ export class MarketComponent implements OnInit, OnDestroy {
   // Equipment slot filter (used in listing picker)
   slotFilter = signal<string>('');
   readonly slotTabs = [
-    { key: '',       label: '全部' },
-    { key: 'sword',  label: '武器' },
-    { key: 'hat',    label: '頭盔' },
-    { key: 'outfit', label: '盔甲' },
-    { key: 'shoes',  label: '鞋靴' },
-    { key: 'ring',   label: '戒指' },
+    { key: '',       label: t('market.filter.slot.all')    },
+    { key: 'sword',  label: t('market.filter.slot.sword')  },
+    { key: 'hat',    label: t('market.filter.slot.hat')    },
+    { key: 'outfit', label: t('market.filter.slot.outfit') },
+    { key: 'shoes',  label: t('market.filter.slot.shoes')  },
+    { key: 'ring',   label: t('market.filter.slot.ring')   },
   ];
   filteredEquips = computed(() => {
     const f = this.slotFilter();
@@ -138,6 +139,7 @@ export class MarketComponent implements OnInit, OnDestroy {
   buyTarget     = signal<MarketListing | null>(null);
   buyQty        = 1;
 
+  readonly t             = t;
   readonly qualityLabels = QUALITY_LABELS;
   readonly qualityColors = QUALITY_COLORS;
   readonly affixLabels   = AFFIX_LABELS;
@@ -219,7 +221,7 @@ export class MarketComponent implements OnInit, OnDestroy {
       this.listings.set(data);
       this.hasMore.set(data.length === 20);
     } catch (e: any) {
-      this.browseError.set(e.message ?? '讀取失敗');
+      this.browseError.set(e.message ?? t('market.error.loadFail'));
     } finally {
       this.browseLoading.set(false);
     }
@@ -274,21 +276,21 @@ export class MarketComponent implements OnInit, OnDestroy {
 
   affixLabel(idx: number): string {
     const val = [this.filterAffix1, this.filterAffix2, this.filterAffix3, this.filterAffix4][idx]();
-    return val ? (AFFIX_LABELS[val] ?? val) : `詞墜 ${idx + 1}`;
+    return val ? (AFFIX_LABELS[val] ?? val) : t('market.affix.placeholder', { n: idx + 1 });
   }
   listAffixLabel(idx: number): string {
     const val = [this.listPickerAffix1, this.listPickerAffix2, this.listPickerAffix3, this.listPickerAffix4][idx]();
-    return val ? (AFFIX_LABELS[val] ?? val) : `詞墜 ${idx + 1}`;
+    return val ? (AFFIX_LABELS[val] ?? val) : t('market.affix.placeholder', { n: idx + 1 });
   }
 
   get qualityFilterLabel(): string {
-    const q = this.filterQuality(); return q ? QUALITY_LABELS[q] : '品質（全部）';
+    const q = this.filterQuality(); return q ? QUALITY_LABELS[q] : t('market.filter.quality');
   }
   get listQualityFilterLabel(): string {
-    const q = this.listPickerQuality(); return q ? QUALITY_LABELS[q] : '品質（全部）';
+    const q = this.listPickerQuality(); return q ? QUALITY_LABELS[q] : t('market.listing.qualityFilter');
   }
   get listSlotLabel(): string {
-    return this.slotTabs.find(t => t.key === this.slotFilter())?.label ?? '部位（全部）';
+    return this.slotTabs.find(s => s.key === this.slotFilter())?.label ?? t('market.listing.slotFilter');
   }
 
   onSearch(): void { this.loadBrowse(); }
@@ -326,11 +328,11 @@ export class MarketComponent implements OnInit, OnDestroy {
       }
     } catch (e: any) {
       const map: Record<string, string> = {
-        listing_not_active: '商品已被購買',
-        insufficient_gold:  '金幣不足',
-        cannot_buy_own:     '不能購買自己的商品',
+        listing_not_active: t('market.error.bought'),
+        insufficient_gold:  t('market.error.noGold'),
+        cannot_buy_own:     t('market.error.ownItem'),
       };
-      this.actionError.set(map[e.message] ?? e.message ?? '購買失敗');
+      this.actionError.set(map[e.message] ?? e.message ?? t('market.error.buyFail'));
     } finally { this.actionPending.set(null); }
   }
 
@@ -338,7 +340,7 @@ export class MarketComponent implements OnInit, OnDestroy {
   async loadMine(): Promise<void> {
     this.mineLoading.set(true); this.mineError.set('');
     try { this.myListings.set(await this.svc.getMyListings()); }
-    catch (e: any) { this.mineError.set(e.message ?? '讀取失敗'); }
+    catch (e: any) { this.mineError.set(e.message ?? t('market.error.loadFail')); }
     finally { this.mineLoading.set(false); }
   }
 
@@ -347,7 +349,7 @@ export class MarketComponent implements OnInit, OnDestroy {
     try {
       await this.svc.cancelListing(listing.id);
       this.myListings.update(ls => ls.map(l => l.id === listing.id ? { ...l, status: 'cancelled' as const } : l));
-    } catch (e: any) { this.actionError.set(e.message ?? '下架失敗'); }
+    } catch (e: any) { this.actionError.set(e.message ?? t('market.error.cancelFail')); }
     finally { this.actionPending.set(null); }
   }
 
@@ -355,7 +357,7 @@ export class MarketComponent implements OnInit, OnDestroy {
   openListFlow(): void {
     const activeCount = this.myListings().filter(l => l.status === 'active').length;
     if (activeCount >= 8) {
-      this.mineError.set('上架商品已達上限（最多 8 件），請先下架商品');
+      this.mineError.set(t('market.error.limitFull'));
       return;
     }
     this.mineError.set('');
@@ -414,12 +416,13 @@ export class MarketComponent implements OnInit, OnDestroy {
     const item = this.listSelected();
     if (!item) return '';
     if (this.listType() === 'card') return this.cardName(item.cardId);
+    if (item.slot) return getEquipDisplayName(item);
     return item.name ?? '';
   }
 
   async confirmList(): Promise<void> {
-    if (!this.listPrice || this.listPrice <= 0) { this.listError.set('請輸入售價'); return; }
-    if (!this.listQty   || this.listQty   <= 0) { this.listError.set('請輸入數量'); return; }
+    if (!this.listPrice || this.listPrice <= 0) { this.listError.set(t('market.error.noPrice')); return; }
+    if (!this.listQty   || this.listQty   <= 0) { this.listError.set(t('market.error.noQty')); return; }
     this.listSubmitting.set(true); this.listError.set('');
     try {
       await this.svc.listItem({ itemType: this.listType(), itemId: this.listItemId, qty: this.listQty, price: this.listPrice });
@@ -427,9 +430,9 @@ export class MarketComponent implements OnInit, OnDestroy {
       await this.loadMine();
     } catch (e: any) {
       const errMap: Record<string, string> = {
-        listing_limit_exceeded: '上架商品已達上限（最多 8 件）',
+        listing_limit_exceeded: t('market.error.listLimit'),
       };
-      this.listError.set(errMap[e.message] ?? e.message ?? '上架失敗');
+      this.listError.set(errMap[e.message] ?? e.message ?? t('market.error.listFail'));
     }
     finally { this.listSubmitting.set(false); }
   }
@@ -444,11 +447,13 @@ export class MarketComponent implements OnInit, OnDestroy {
     return q ? (QUALITY_LABELS[q as EquipQuality] ?? q) : '';
   }
   statusLabel(s: string): string {
-    return s === 'active' ? '上架中' : s === 'sold' ? '已售出' : '已下架';
+    return s === 'active' ? t('market.status.active') : s === 'sold' ? t('market.status.sold') : t('market.status.cancelled');
   }
   statusColor(s: string): string {
     return s === 'active' ? '#55cc55' : s === 'sold' ? '#4499ff' : '#667788';
   }
+
+  equipName(eq: SaveEquipItem): string { return getEquipDisplayName(eq); }
 
   equipImgUrl(texture: string): string {
     const m = texture.match(/^equip_([a-z]+)(\d+)$/);

@@ -2,6 +2,7 @@ import { Component, Output, EventEmitter, signal, computed, inject } from '@angu
 import { CommonModule } from '@angular/common';
 import { FormsModule }  from '@angular/forms';
 import { AuthService }  from './auth.service';
+import { t, getLang, setLang } from '../game/i18n/i18n';
 
 type Tab = 'login' | 'register';
 
@@ -16,6 +17,13 @@ export class AuthComponent {
   @Output() loggedIn = new EventEmitter<void>();
 
   private auth = inject(AuthService);
+
+  readonly t = t;
+  readonly currentLang = getLang();
+
+  toggleLang(): void {
+    setLang(this.currentLang === 'zh' ? 'en' : 'zh');
+  }
 
   // ── PWA install panel ──────────────────────────────────
   readonly isStandalone = window.matchMedia('(display-mode: standalone)').matches
@@ -71,18 +79,18 @@ export class AuthComponent {
     if (this.loading()) return;
     // 前端驗證（不需要連線）
     if (this.tab() === 'login') {
-      if (!this.loginAccount || !this.loginPassword) { this.showError('請填寫帳號與密碼'); return; }
+      if (!this.loginAccount || !this.loginPassword) { this.showError(t('auth.error.fillAccount')); return; }
     } else {
-      if (!this.regPlayerName || !this.regAccount || !this.regPassword || !this.regEmail) { this.showError('請填寫必填欄位'); return; }
-      if (this.regPassword.length < 6) { this.showError('密碼至少需要 6 個字元'); return; }
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(this.regEmail)) { this.showError('請輸入有效的電子郵件'); return; }
+      if (!this.regPlayerName || !this.regAccount || !this.regPassword || !this.regEmail) { this.showError(t('auth.error.fillRequired')); return; }
+      if (this.regPassword.length < 6) { this.showError(t('auth.error.shortPassword')); return; }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(this.regEmail)) { this.showError(t('auth.error.badEmail')); return; }
     }
 
     this.error.set('');
     this.loadingHint.set('');
     this.loading.set(true);
     try {
-      await this.auth.waitForServer(() => { this.loadingHint.set('伺服器啟動中，請稍候...'); });
+      await this.auth.waitForServer(() => { this.loadingHint.set(t('auth.loading.server')); });
       this.loadingHint.set('');
       if (this.tab() === 'login') {
         await this.auth.login(this.loginAccount, this.loginPassword, this.rememberMe);
@@ -91,7 +99,7 @@ export class AuthComponent {
       }
       this.loggedIn.emit();
     } catch (e: any) {
-      this.error.set(e.message ?? '發生錯誤');
+      this.error.set(e.message ?? t('auth.error.general'));
     } finally {
       this.loading.set(false);
       this.loadingHint.set('');

@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { getMonsterDef } from '../data/monster-data';
 import { clearBattleSkins, queueBattleAssets } from '../data/scene-assets';
+import { t } from '../i18n/i18n';
 
 const DPR = (window as any).__gameDpr as number;
 const P = (n: number) => Math.round(n * DPR);
@@ -76,7 +77,7 @@ export class BattleLoadScene extends Phaser.Scene {
     };
     drawBar(0);
 
-    const loadingTxt = this.add.text(W / 2, barY + P(18), '準備出發…', {
+    const loadingTxt = this.add.text(W / 2, barY + P(18), t('battle.loading.hint'), {
       fontSize: F(13), color: '#886644',
     }).setOrigin(0.5).setAlpha(0);
 

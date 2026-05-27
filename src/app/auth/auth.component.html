@@ -2,55 +2,58 @@
   <img class="auth-bg-img" src="other/town-loading.png" alt="" />
   <div class="vignette"></div>
 
+  <!-- Language toggle -->
+  <button class="lang-btn" (click)="toggleLang()">{{ t('ui.langBtn') }}</button>
+
   <div class="auth-layout">
 
   @if (showPwaPanel) {
     <div class="pwa-panel">
-      <div class="pwa-panel-title">📱 安裝遊戲 App</div>
+      <div class="pwa-panel-title">{{ t('pwa.title') }}</div>
 
       @if (isIOS) {
         <div class="pwa-safari-warning">
-          ⚠️ 請先用 <strong>Safari</strong> 開啟本頁<br>
-          <span class="pwa-icon-hint">LINE、IG、Chrome 無法安裝</span>
+          {{ t('pwa.ios.warning') }}<br>
+          <span class="pwa-icon-hint">{{ t('pwa.ios.browserHint') }}</span>
         </div>
         <div class="pwa-steps">
           <div class="pwa-step">
             <span class="pwa-step-num">1</span>
-            <span>點擊底部的 <strong>分享</strong> 圖示<br><span class="pwa-icon-hint">（方框加上箭頭 ⎋）</span></span>
+            <span>{{ t('pwa.ios.step1') }}<br><span class="pwa-icon-hint">{{ t('pwa.ios.step1hint') }}</span></span>
           </div>
           <div class="pwa-step">
             <span class="pwa-step-num">2</span>
-            <span>選擇「<strong>加入主畫面</strong>」</span>
+            <span>{{ t('pwa.ios.step2') }}</span>
           </div>
           <div class="pwa-step">
             <span class="pwa-step-num">3</span>
-            <span>點擊右上角「<strong>加入</strong>」</span>
+            <span>{{ t('pwa.ios.step3') }}</span>
           </div>
         </div>
-        <div class="pwa-benefit">安裝後全螢幕遊玩，效能更佳！</div>
+        <div class="pwa-benefit">{{ t('pwa.ios.benefit') }}</div>
       } @else if (isAndroid) {
         @if (canInstall()) {
-          <div class="pwa-desc">安裝到主畫面，享受全螢幕、更流暢的遊戲體驗！</div>
-          <button class="pwa-install-btn" (click)="installPWA()">立即安裝</button>
+          <div class="pwa-desc">{{ t('pwa.android.desc') }}</div>
+          <button class="pwa-install-btn" (click)="installPWA()">{{ t('pwa.android.install') }}</button>
         } @else {
           <div class="pwa-steps">
             <div class="pwa-step">
               <span class="pwa-step-num">1</span>
-              <span>點擊瀏覽器右上角 <strong>⋮ 選單</strong></span>
+              <span>{{ t('pwa.android.step1') }}</span>
             </div>
             <div class="pwa-step">
               <span class="pwa-step-num">2</span>
-              <span>選擇「<strong>新增至主畫面</strong>」</span>
+              <span>{{ t('pwa.android.step2') }}</span>
             </div>
             <div class="pwa-step">
               <span class="pwa-step-num">3</span>
-              <span>點擊「<strong>新增</strong>」確認</span>
+              <span>{{ t('pwa.android.step3') }}</span>
             </div>
           </div>
-          <div class="pwa-benefit">安裝後全螢幕遊玩，效能更佳！</div>
+          <div class="pwa-benefit">{{ t('pwa.ios.benefit') }}</div>
         }
       } @else {
-        <div class="pwa-desc">本遊戲專為手機設計，<br>建議使用手機開啟以獲得最佳體驗。</div>
+        <div class="pwa-desc">{{ t('pwa.desktop.desc') }}</div>
       }
     </div>
   }
@@ -65,10 +68,10 @@
 
     <div class="tab-bar">
       <button class="tab-btn" [class.active]="isLogin()" (click)="switchTab('login')">
-        <span>登入</span>
+        <span>{{ t('auth.login') }}</span>
       </button>
       <button class="tab-btn" [class.active]="isRegister()" (click)="switchTab('register')">
-        <span>註冊</span>
+        <span>{{ t('auth.register') }}</span>
       </button>
       <div class="tab-indicator" [class.right]="isRegister()"></div>
     </div>
@@ -78,45 +81,45 @@
 
         @if (isLogin()) {
           <div class="field-group">
-            <label class="field-label">帳號</label>
-            <input type="text" class="field-input" placeholder="請輸入帳號"
+            <label class="field-label">{{ t('auth.account') }}</label>
+            <input type="text" class="field-input" [placeholder]="t('auth.placeholder.account')"
                    [(ngModel)]="loginAccount" name="loginAccount" autocomplete="username" />
           </div>
           <div class="field-group">
-            <label class="field-label">密碼</label>
-            <input type="password" class="field-input" placeholder="請輸入密碼"
+            <label class="field-label">{{ t('auth.password') }}</label>
+            <input type="password" class="field-input" [placeholder]="t('auth.placeholder.password')"
                    [(ngModel)]="loginPassword" name="loginPassword" autocomplete="current-password" />
           </div>
           <label class="remember-label">
             <input type="checkbox" class="remember-check" [(ngModel)]="rememberMe" name="rememberMe" />
-            <span class="remember-text">自動登入</span>
+            <span class="remember-text">{{ t('auth.autoLogin') }}</span>
           </label>
         }
 
         @if (isRegister()) {
           <div class="field-group">
-            <label class="field-label">玩家名稱 <span class="required">*</span></label>
-            <input type="text" class="field-input" placeholder="遊戲內顯示的名稱"
+            <label class="field-label">{{ t('auth.playerName') }} <span class="required">{{ t('auth.required') }}</span></label>
+            <input type="text" class="field-input" [placeholder]="t('auth.placeholder.name')"
                    [(ngModel)]="regPlayerName" name="regPlayerName" maxlength="16" />
           </div>
           <div class="field-group">
-            <label class="field-label">帳號 <span class="required">*</span></label>
-            <input type="text" class="field-input" placeholder="登入用的帳號"
+            <label class="field-label">{{ t('auth.account') }} <span class="required">{{ t('auth.required') }}</span></label>
+            <input type="text" class="field-input" [placeholder]="t('auth.placeholder.loginAccount')"
                    [(ngModel)]="regAccount" name="regAccount" autocomplete="username" />
           </div>
           <div class="field-group">
-            <label class="field-label">密碼 <span class="required">*</span></label>
-            <input type="password" class="field-input" placeholder="至少 6 個字元"
+            <label class="field-label">{{ t('auth.password') }} <span class="required">{{ t('auth.required') }}</span></label>
+            <input type="password" class="field-input" [placeholder]="t('auth.placeholder.minPassword')"
                    [(ngModel)]="regPassword" name="regPassword" autocomplete="new-password" />
           </div>
           <div class="field-group">
-            <label class="field-label">電子郵件 <span class="required">*</span></label>
-            <input type="email" class="field-input" placeholder="協助找回密碼用"
+            <label class="field-label">{{ t('auth.email') }} <span class="required">{{ t('auth.required') }}</span></label>
+            <input type="email" class="field-input" [placeholder]="t('auth.placeholder.email')"
                    [(ngModel)]="regEmail" name="regEmail" autocomplete="email" />
           </div>
           <div class="field-group">
-            <label class="field-label">測試人 <span class="optional">（選填）</span></label>
-            <input type="text" class="field-input" placeholder="真實姓名或備註"
+            <label class="field-label">{{ t('auth.tester') }} <span class="optional">{{ t('auth.optional') }}</span></label>
+            <input type="text" class="field-input" [placeholder]="t('auth.placeholder.tester')"
                    [(ngModel)]="regNickname" name="regNickname" maxlength="32" />
           </div>
         }
@@ -125,7 +128,7 @@
           @if (loading()) {
             <span class="spinner"></span>
           } @else {
-            <span class="btn-text">{{ isLogin() ? '進入遊戲' : '建立帳號' }}</span>
+            <span class="btn-text">{{ isLogin() ? t('auth.enterGame') : t('auth.createAccount') }}</span>
             <span class="btn-shine"></span>
           }
         </button>
@@ -140,12 +143,11 @@
       <span class="divider-gem small"></span>
     </div>
 
-    <!-- 錯誤彈窗 -->
     @if (error()) {
       <div class="err-overlay">
         <div class="err-box">
           <p class="err-text">{{ error() }}</p>
-          <button class="err-btn" (click)="error.set('')">確定</button>
+          <button class="err-btn" (click)="error.set('')">{{ t('ui.confirm') }}</button>
         </div>
       </div>
     }

@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { queueTownAssets } from '../data/scene-assets';
+import { t } from '../i18n/i18n';
 
 const DPR = (window as any).__gameDpr as number;
 const P = (n: number) => Math.round(n * DPR);
@@ -41,7 +42,7 @@ export class TownLoadingScene extends Phaser.Scene {
     divG.lineBetween(W / 2 - P(106), H * 0.38, W / 2 - P(66), H * 0.38);
     divG.lineBetween(W / 2 + P(66),  H * 0.38, W / 2 + P(106), H * 0.38);
 
-    const nameTxt = this.add.text(W / 2, H * 0.48, '亞特', {
+    const nameTxt = this.add.text(W / 2, H * 0.48, t('town.loading.name'), {
       fontSize: F(38), fontStyle: 'bold',
       color: '#e8d4a0', stroke: '#1a1000', strokeThickness: P(4),
       shadow: { offsetX: 0, offsetY: 0, color: '#7a5c20', blur: P(20), fill: true },
@@ -69,7 +70,7 @@ export class TownLoadingScene extends Phaser.Scene {
     };
     drawBar(0);
 
-    const loadingTxt = this.add.text(W / 2, barY + P(18), '進入亞特…', {
+    const loadingTxt = this.add.text(W / 2, barY + P(18), t('town.loading.hint'), {
       fontSize: F(13), color: '#7a9c55',
     }).setOrigin(0.5).setAlpha(0);
 

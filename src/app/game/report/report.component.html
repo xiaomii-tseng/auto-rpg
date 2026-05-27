@@ -2,7 +2,7 @@
   <div class="report-overlay">
     <div class="report-panel">
       <div class="panel-header">
-        <span class="panel-title">回報問題</span>
+        <span class="panel-title">{{ t('ui.report') }}</span>
         <button class="close-btn" (click)="close()">✕</button>
       </div>
 
@@ -11,32 +11,32 @@
           <textarea
             class="msg-input"
             [(ngModel)]="message"
-            placeholder="請描述遇到的問題…"
+            [placeholder]="t('report.placeholder')"
             [disabled]="state() === 'loading'">
           </textarea>
 
           <label class="file-label" [class.has-file]="!!selectedFile">
             <input type="file" accept="image/*" (change)="onFileChange($event)" style="display:none" #fileInput />
             <span (click)="fileInput.click()">
-              {{ selectedFile ? ('✔ ' + fileName) : '📎 附上截圖（選填）' }}
+              {{ selectedFile ? ('✔ ' + fileName) : t('report.attach') }}
             </span>
           </label>
 
           @if (state() === 'error') {
             <div class="error-msg">
-              送出失敗，請稍後再試
-              <button class="retry-btn" (click)="retry()">重試</button>
+              {{ t('report.error') }}
+              <button class="retry-btn" (click)="retry()">{{ t('report.retry') }}</button>
             </div>
           }
 
           <button class="submit-btn"
             [disabled]="state() === 'loading' || !message.trim()"
             (click)="submit()">
-            {{ state() === 'loading' ? '傳送中…' : '送出' }}
+            {{ state() === 'loading' ? t('report.submitting') : t('report.submit') }}
           </button>
         </div>
       } @else {
-        <div class="done-msg">✔ 感謝回報！</div>
+        <div class="done-msg">{{ t('report.done') }}</div>
       }
     </div>
   </div>

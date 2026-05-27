@@ -126,7 +126,16 @@
       "Bash(Get-ChildItem -Path \"C:\\\\MyCode\\\\auto-rpg\\\\src\" -Recurse -Force)",
       "PowerShell(Get-ChildItem -Path \"c:\\\\MyCode\\\\auto-rpg\" -Force | Select-Object Name, @{Name=\"Type\";Expression={if\\($_.PSIsContainer\\){\"DIR\"}else{\"FILE\"}}} | Format-Table -AutoSize)",
       "Bash(node -e \"const wp = require\\('web-push'\\); const k = wp.generateVAPIDKeys\\(\\); console.log\\('PUBLIC:', k.publicKey\\); console.log\\('PRIVATE:', k.privateKey\\);\")",
-      "Bash(Get-ChildItem -Path c:\\\\MyCode\\\\auto-rpg\\\\src\\\\app\\\\game -Recurse -Include *.ts)"
+      "Bash(Get-ChildItem -Path c:\\\\MyCode\\\\auto-rpg\\\\src\\\\app\\\\game -Recurse -Include *.ts)",
+      "Bash(Get-ChildItem -Path \"c:\\\\MyCode\\\\auto-rpg\" -Recurse -Include \"*i18n*\", \"*locale*\", \"*lang*\", \"*translate*\" -ErrorAction SilentlyContinue)",
+      "Bash(grep -v '^\\\\s*//')",
+      "Bash(grep -n '`[^`]*[一-鿿][^`]*`' c:/MyCode/auto-rpg/src/app/game/scenes/prep-scene.ts)",
+      "Bash(node scripts/i18n-replace.js)",
+      "Bash(grep -n '`[^`]*[一-鿿][^`]*`' c:/MyCode/auto-rpg/src/app/game/scenes/game.scene.ts)",
+      "Bash(grep -v \"^[0-9]*:[ ]*//\")",
+      "Bash(grep -c \"PostToolUse\\\\|error\" /dev/null)",
+      "Bash(node -e \"const f = require\\('fs'\\); const c = f.readFileSync\\('src/app/game/i18n/en.ts','utf8'\\); console.log\\('en.ts lines:', c.split\\('\\\\n'\\).length\\)\")",
+      "Bash(grep -n \"blank_card\\\\|item\\\\\\\\.blank\" src/app/game/data/monster-data.ts)"
     ],
     "additionalDirectories": [
       "\\MyCode\\auto-rpg\\src\\app\\game\\scenes",

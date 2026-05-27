@@ -3,10 +3,10 @@
 
     <!-- Header -->
     <div class="panel-header">
-      <span class="panel-title">交易市場</span>
+      <span class="panel-title">{{ t('market.title') }}</span>
       <div class="tabs">
-        <button class="tab-btn" [class.active]="tab() === 'browse'" (click)="setTab('browse')">市集</button>
-        <button class="tab-btn" [class.active]="tab() === 'mine'"   (click)="setTab('mine')">我的上架</button>
+        <button class="tab-btn" [class.active]="tab() === 'browse'" (click)="setTab('browse')">{{ t('market.tab.browse') }}</button>
+        <button class="tab-btn" [class.active]="tab() === 'mine'"   (click)="setTab('mine')">{{ t('market.tab.mine') }}</button>
       </div>
       <button class="close-btn" (click)="close()">✕</button>
     </div>
@@ -17,15 +17,15 @@
         <div class="filters">
           <!-- Type filter -->
           <div class="type-row">
-            <button class="chip" [class.active]="filterType() === 'equipment'"  (click)="setTypeFilter('equipment')">裝備</button>
-            <button class="chip" [class.active]="filterType() === 'consumable'" (click)="setTypeFilter('consumable')">道具</button>
-            <button class="chip" [class.active]="filterType() === 'card'"       (click)="setTypeFilter('card')">卡片</button>
+            <button class="chip" [class.active]="filterType() === 'equipment'"  (click)="setTypeFilter('equipment')">{{ t('market.filter.equipment') }}</button>
+            <button class="chip" [class.active]="filterType() === 'consumable'" (click)="setTypeFilter('consumable')">{{ t('market.filter.consumable') }}</button>
+            <button class="chip" [class.active]="filterType() === 'card'"       (click)="setTypeFilter('card')">{{ t('market.filter.card') }}</button>
           </div>
 
           <!-- Search -->
           <div class="search-wrap">
-            <input class="search-input" [(ngModel)]="filterName" placeholder="搜尋物品名稱…" (keydown.enter)="onSearch()" />
-            <button class="search-btn" (click)="onSearch()">搜尋</button>
+            <input class="search-input" [(ngModel)]="filterName" [placeholder]="t('market.filter.search')" (keydown.enter)="onSearch()" />
+            <button class="search-btn" (click)="onSearch()">{{ t('market.btn.search') }}</button>
           </div>
 
           <!-- Equipment-only: quality + 4 affix dropdowns -->
@@ -66,32 +66,32 @@
               [style.width.px]="dropdownPos()!.width"
               (click)="$event.stopPropagation()">
               @if (openDropdown() === 'q') {
-                <div class="dd-item" [class.active]="filterQuality() === ''" (click)="pickQuality('', $event)">品質（全部）</div>
+                <div class="dd-item" [class.active]="filterQuality() === ''" (click)="pickQuality('', $event)">{{ t('market.filter.quality') }}</div>
                 @for (q of qualities; track q) {
                   <div class="dd-item" [class.active]="filterQuality() === q"
                     [style.color]="qualityColor(q)" (click)="pickQuality(q, $event)">{{ qualityLabels[q] }}</div>
                 }
               }
               @if (openDropdown() === 'a1') {
-                <div class="dd-item" [class.active]="filterAffix1() === ''" (click)="pickAffix(0, '', $event)">詞墜 1</div>
+                <div class="dd-item" [class.active]="filterAffix1() === ''" (click)="pickAffix(0, '', $event)">{{ t('market.affix.placeholder', {n: 1}) }}</div>
                 @for (a of affixOptions; track a.key) {
                   <div class="dd-item" [class.active]="filterAffix1() === a.key" (click)="pickAffix(0, a.key, $event)">{{ a.label }}</div>
                 }
               }
               @if (openDropdown() === 'a2') {
-                <div class="dd-item" [class.active]="filterAffix2() === ''" (click)="pickAffix(1, '', $event)">詞墜 2</div>
+                <div class="dd-item" [class.active]="filterAffix2() === ''" (click)="pickAffix(1, '', $event)">{{ t('market.affix.placeholder', {n: 2}) }}</div>
                 @for (a of affixOptions; track a.key) {
                   <div class="dd-item" [class.active]="filterAffix2() === a.key" (click)="pickAffix(1, a.key, $event)">{{ a.label }}</div>
                 }
               }
               @if (openDropdown() === 'a3') {
-                <div class="dd-item" [class.active]="filterAffix3() === ''" (click)="pickAffix(2, '', $event)">詞墜 3</div>
+                <div class="dd-item" [class.active]="filterAffix3() === ''" (click)="pickAffix(2, '', $event)">{{ t('market.affix.placeholder', {n: 3}) }}</div>
                 @for (a of affixOptions; track a.key) {
                   <div class="dd-item" [class.active]="filterAffix3() === a.key" (click)="pickAffix(2, a.key, $event)">{{ a.label }}</div>
                 }
               }
               @if (openDropdown() === 'a4') {
-                <div class="dd-item" [class.active]="filterAffix4() === ''" (click)="pickAffix(3, '', $event)">詞墜 4</div>
+                <div class="dd-item" [class.active]="filterAffix4() === ''" (click)="pickAffix(3, '', $event)">{{ t('market.affix.placeholder', {n: 4}) }}</div>
                 @for (a of affixOptions; track a.key) {
                   <div class="dd-item" [class.active]="filterAffix4() === a.key" (click)="pickAffix(3, a.key, $event)">{{ a.label }}</div>
                 }
@@ -105,13 +105,13 @@
             <div class="error-bar">{{ actionError() }}</div>
           }
           @if (!browseStarted) {
-            <div class="center-msg muted">請選擇類型或搜尋以查看商品</div>
+            <div class="center-msg muted">{{ t('market.hint.browse') }}</div>
           } @else if (browseLoading() && listings().length === 0) {
-            <div class="center-msg">讀取中…</div>
+            <div class="center-msg">{{ t('ui.loading') }}</div>
           } @else if (browseError()) {
             <div class="center-msg error">{{ browseError() }}</div>
           } @else if (listings().length === 0) {
-            <div class="center-msg muted">目前沒有商品</div>
+            <div class="center-msg muted">{{ t('market.hint.noItems') }}</div>
           } @else {
             <div class="equip-grid browse-grid">
               @for (item of listings(); track item.id) {
@@ -152,7 +152,7 @@
                       [class.btn-own]="item.seller_user_id === myUserId"
                       [disabled]="actionPending() === item.id || item.seller_user_id === myUserId"
                       (click)="initBuy(item, $event)">
-                      {{ actionPending() === item.id ? '…' : '購買' }}
+                      {{ actionPending() === item.id ? '…' : t('market.btn.buy') }}
                     </button>
                   </div>
                 </div>
@@ -160,7 +160,7 @@
             </div>
             @if (hasMore()) {
               <button class="load-more-btn" [disabled]="browseLoading()" (click)="loadMore()">
-                {{ browseLoading() ? '讀取中…' : '載入更多' }}
+                {{ browseLoading() ? t('ui.loading') : t('market.btn.loadMore') }}
               </button>
             }
           }
@@ -177,9 +177,9 @@
           <div class="filters">
             <!-- Type -->
             <div class="type-row">
-              <button class="chip" [class.active]="listType() === 'equipment'"  (click)="setListType('equipment')">裝備</button>
-              <button class="chip" [class.active]="listType() === 'consumable'" (click)="setListType('consumable')">道具</button>
-              <button class="chip" [class.active]="listType() === 'card'"       (click)="setListType('card')">卡片</button>
+              <button class="chip" [class.active]="listType() === 'equipment'"  (click)="setListType('equipment')">{{ t('market.filter.equipment') }}</button>
+              <button class="chip" [class.active]="listType() === 'consumable'" (click)="setListType('consumable')">{{ t('market.filter.consumable') }}</button>
+              <button class="chip" [class.active]="listType() === 'card'"       (click)="setListType('card')">{{ t('market.filter.card') }}</button>
             </div>
 
             @if (listType() === 'equipment') {
@@ -227,37 +227,37 @@
                 [style.width.px]="dropdownPos()!.width"
                 (click)="$event.stopPropagation()">
                 @if (openDropdown() === 'ls') {
-                  @for (t of slotTabs; track t.key) {
-                    <div class="dd-item" [class.active]="slotFilter() === t.key" (click)="pickListSlot(t.key, $event)">{{ t.label }}</div>
+                  @for (tab of slotTabs; track tab.key) {
+                    <div class="dd-item" [class.active]="slotFilter() === tab.key" (click)="pickListSlot(tab.key, $event)">{{ tab.label }}</div>
                   }
                 }
               @if (openDropdown() === 'lq') {
-                  <div class="dd-item" [class.active]="listPickerQuality() === ''" (click)="pickListQuality('', $event)">品質（全部）</div>
+                  <div class="dd-item" [class.active]="listPickerQuality() === ''" (click)="pickListQuality('', $event)">{{ t('market.listing.qualityFilter') }}</div>
                   @for (q of qualities; track q) {
                     <div class="dd-item" [class.active]="listPickerQuality() === q"
                       [style.color]="qualityColor(q)" (click)="pickListQuality(q, $event)">{{ qualityLabels[q] }}</div>
                   }
                 }
                 @if (openDropdown() === 'la1') {
-                  <div class="dd-item" [class.active]="listPickerAffix1() === ''" (click)="pickListAffix(0, '', $event)">詞墜 1</div>
+                  <div class="dd-item" [class.active]="listPickerAffix1() === ''" (click)="pickListAffix(0, '', $event)">{{ t('market.affix.placeholder', {n: 1}) }}</div>
                   @for (a of affixOptions; track a.key) {
                     <div class="dd-item" [class.active]="listPickerAffix1() === a.key" (click)="pickListAffix(0, a.key, $event)">{{ a.label }}</div>
                   }
                 }
                 @if (openDropdown() === 'la2') {
-                  <div class="dd-item" [class.active]="listPickerAffix2() === ''" (click)="pickListAffix(1, '', $event)">詞墜 2</div>
+                  <div class="dd-item" [class.active]="listPickerAffix2() === ''" (click)="pickListAffix(1, '', $event)">{{ t('market.affix.placeholder', {n: 2}) }}</div>
                   @for (a of affixOptions; track a.key) {
                     <div class="dd-item" [class.active]="listPickerAffix2() === a.key" (click)="pickListAffix(1, a.key, $event)">{{ a.label }}</div>
                   }
                 }
                 @if (openDropdown() === 'la3') {
-                  <div class="dd-item" [class.active]="listPickerAffix3() === ''" (click)="pickListAffix(2, '', $event)">詞墜 3</div>
+                  <div class="dd-item" [class.active]="listPickerAffix3() === ''" (click)="pickListAffix(2, '', $event)">{{ t('market.affix.placeholder', {n: 3}) }}</div>
                   @for (a of affixOptions; track a.key) {
                     <div class="dd-item" [class.active]="listPickerAffix3() === a.key" (click)="pickListAffix(2, a.key, $event)">{{ a.label }}</div>
                   }
                 }
                 @if (openDropdown() === 'la4') {
-                  <div class="dd-item" [class.active]="listPickerAffix4() === ''" (click)="pickListAffix(3, '', $event)">詞墜 4</div>
+                  <div class="dd-item" [class.active]="listPickerAffix4() === ''" (click)="pickListAffix(3, '', $event)">{{ t('market.affix.placeholder', {n: 4}) }}</div>
                   @for (a of affixOptions; track a.key) {
                     <div class="dd-item" [class.active]="listPickerAffix4() === a.key" (click)="pickListAffix(3, a.key, $event)">{{ a.label }}</div>
                   }
@@ -269,23 +269,23 @@
           <!-- Right: item grid -->
           <div class="main-area">
             <div class="pick-bar">
-              <span class="pick-title">選擇要上架的物品</span>
-              <button class="pick-cancel-btn" (click)="cancelListFlow()">取消</button>
+              <span class="pick-title">{{ t('market.listing.selectItem') }}</span>
+              <button class="pick-cancel-btn" (click)="cancelListFlow()">{{ t('ui.cancel') }}</button>
             </div>
             <div class="list-body picker-body">
 
               @if (listType() === 'equipment') {
                 <div class="equip-grid">
                   @if (filteredListEquips().length === 0) {
-                    <div class="equip-empty">沒有符合的裝備</div>
+                    <div class="equip-empty">{{ t('market.hint.noEquips') }}</div>
                   }
                   @for (eq of filteredListEquips(); track eq.id) {
                     <button class="equip-card" (click)="selectListItem(eq)">
                       <div class="equip-img-wrap">
-                        <img class="equip-img" [src]="equipImgUrl(eq.texture)" [alt]="eq.name" />
+                        <img class="equip-img" [src]="equipImgUrl(eq.texture)" [alt]="equipName(eq)" />
                       </div>
                       <div class="equip-info">
-                        <span class="equip-name" [style.color]="qualityColor(eq.quality)">{{ eq.name }} +{{ eq.enhancement }}</span>
+                        <span class="equip-name" [style.color]="qualityColor(eq.quality)">{{ equipName(eq) }} +{{ eq.enhancement }}</span>
                         @for (a of affixDetails(eq); track a.name) {
                           <span class="equip-affix-row">{{ a.name }} +{{ a.val }}</span>
                         }
@@ -298,7 +298,7 @@
               @if (listType() === 'consumable') {
                 <div class="equip-grid">
                   @if (ownedItems().length === 0) {
-                    <div class="equip-empty">背包沒有道具</div>
+                    <div class="equip-empty">{{ t('market.hint.noBag') }}</div>
                   }
                   @for (it of ownedItems(); track it.id) {
                     <button class="equip-card" (click)="selectListItem(it)">
@@ -317,7 +317,7 @@
               @if (listType() === 'card') {
                 <div class="equip-grid">
                   @if (ownedCards().length === 0) {
-                    <div class="equip-empty">卡片欄位是空的</div>
+                    <div class="equip-empty">{{ t('market.hint.noCards') }}</div>
                   }
                   @for (c of ownedCards(); track c.cardId) {
                     <button class="equip-card" (click)="selectListItem(c)">
@@ -342,18 +342,18 @@
       @if (listStep() === null) {
         <div class="tab-content">
           <div class="mine-sidebar">
-            <button class="list-new-btn" (click)="openListFlow()">＋ 上架物品</button>
+            <button class="list-new-btn" (click)="openListFlow()">＋ {{ t('market.btn.list') }}</button>
           </div>
           <div class="main-area">
             @if (actionError()) {
               <div class="error-bar">{{ actionError() }}</div>
             }
             @if (mineLoading()) {
-              <div class="center-msg">讀取中…</div>
+              <div class="center-msg">{{ t('ui.loading') }}</div>
             } @else if (mineError()) {
               <div class="center-msg error">{{ mineError() }}</div>
             } @else if (myListings().length === 0) {
-              <div class="center-msg muted">尚無上架商品</div>
+              <div class="center-msg muted">{{ t('market.hint.noMine') }}</div>
             } @else {
               <div class="equip-grid browse-grid">
                 @for (item of myListings(); track item.id) {
@@ -395,7 +395,7 @@
                         <button class="cancel-btn browse-buy-btn"
                           [disabled]="actionPending() === item.id"
                           (click)="cancel(item)">
-                          {{ actionPending() === item.id ? '…' : '下架' }}
+                          {{ actionPending() === item.id ? '…' : t('market.btn.cancel') }}
                         </button>
                       }
                     </div>
@@ -414,20 +414,20 @@
   @if (buyTarget()) {
     <div class="sub-modal" (click)="$event.stopPropagation()">
       <div class="sub-panel">
-        <div class="sub-title">確認購買</div>
+        <div class="sub-title">{{ t('market.btn.confirm') }}</div>
         <div class="price-form">
           <div class="price-item-name">{{ buyTarget()!.item_name }}</div>
-          <label class="price-label">購買數量
+          <label class="price-label">{{ t('market.buy.qty') }}
             <input class="price-input" type="number" [(ngModel)]="buyQty" min="1" [max]="buyTarget()!.qty" />
-            <span class="price-hint">最多 {{ buyTarget()!.qty }}</span>
+            <span class="price-hint">{{ t('market.buy.max', {n: buyTarget()!.qty}) }}</span>
           </label>
           <div class="price-item-name" style="color: var(--color-gold)">
-            總計：{{ formatGold(buyTarget()!.price * buyQty) }} G
+            {{ t('market.buy.total', {gold: formatGold(buyTarget()!.price * buyQty)}) }}
           </div>
           <div class="price-actions">
-            <button class="sub-cancel" (click)="cancelBuy()">取消</button>
+            <button class="sub-cancel" (click)="cancelBuy()">{{ t('ui.cancel') }}</button>
             <button class="confirm-btn" [disabled]="actionPending() !== null" (click)="confirmBuy()">
-              {{ actionPending() !== null ? '…' : '確認購買' }}
+              {{ actionPending() !== null ? '…' : t('market.btn.confirm') }}
             </button>
           </div>
         </div>
@@ -439,7 +439,7 @@
   @if (listStep() === 'set-price') {
     <div class="sub-modal" (click)="$event.stopPropagation()">
       <div class="sub-panel">
-        <div class="sub-title">設定售價</div>
+        <div class="sub-title">{{ t('market.listing.setPrice') }}</div>
         <div class="price-form">
           <div class="price-item-name" [style.color]="qualityColor(listSelected()?.quality)">
             {{ listItemName }}
@@ -447,14 +447,14 @@
           </div>
 
           @if (listType() !== 'equipment') {
-            <label class="price-label">數量
+            <label class="price-label">{{ t('market.listing.qtyLabel') }}
               <input class="price-input" type="number" [(ngModel)]="listQty" min="1" [max]="maxListQty" />
-              <span class="price-hint">最多 {{ maxListQty }}</span>
+              <span class="price-hint">{{ t('market.listing.maxHint', {n: maxListQty}) }}</span>
             </label>
           }
 
-          <label class="price-label">售價（金幣）
-            <input class="price-input" type="number" [(ngModel)]="listPrice" min="1" max="999999999" placeholder="輸入金額" />
+          <label class="price-label">{{ t('market.listing.priceLabel') }}
+            <input class="price-input" type="number" [(ngModel)]="listPrice" min="1" max="999999999" [placeholder]="t('market.listing.pricePlaceholder')" />
           </label>
 
           @if (listError()) {
@@ -462,9 +462,9 @@
           }
 
           <div class="price-actions">
-            <button class="sub-cancel" (click)="backToSelectItem()">返回</button>
+            <button class="sub-cancel" (click)="backToSelectItem()">{{ t('market.btn.back') }}</button>
             <button class="confirm-btn" [disabled]="listSubmitting()" (click)="confirmList()">
-              {{ listSubmitting() ? '上架中…' : '確認上架' }}
+              {{ listSubmitting() ? t('market.listing.submitting') : t('market.btn.confirmList') }}
             </button>
           </div>
         </div>

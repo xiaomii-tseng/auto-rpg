@@ -13,6 +13,7 @@ import {
   ITEM_POTION_REVIVE, ITEM_POTION_ATK, ITEM_POTION_DEF, ITEM_POTION_SPEED,
 } from '../data/monster-data';
 import { GameScene } from './game.scene';
+import { t as tr } from '../i18n/i18n';
 
 const DPR = (window as any).__gameDpr as number;
 const P   = (n: number): number => Math.round(n * DPR);
@@ -553,10 +554,10 @@ export class TowerScene extends GameScene {
   }
 
   private _updateFloorLabel(): void {
-    const label = this._isBoss ? `第 ${this._globalFloor} 層  BOSS` : `第 ${this._globalFloor} 層`;
+    const label = this._isBoss ? `${tr('game.tower.floor', { floor: this._globalFloor })}  BOSS` : tr('game.tower.floor', { floor: this._globalFloor });
     this._floorLabel?.setText(label);
     const alive = this._slot?.enemyAlive ?? 0;
-    this._enemyCountTxt?.setText(alive > 0 ? `剩餘：${alive}` : '');
+    this._enemyCountTxt?.setText(alive > 0 ? tr('game.tower.remaining', { n: alive }) : '');
   }
 
   // ════════════════════════════════════════════════════════════
@@ -680,7 +681,7 @@ export class TowerScene extends GameScene {
       this._advanceFloor();
     });
 
-    this.add.text(px, py - P(24), '下一層', {
+    this.add.text(px, py - P(24), tr('game.nextFloor'), {
       fontSize: F(9), color: '#dd99ff', stroke: '#000', strokeThickness: 1,
     }).setOrigin(0.5).setDepth(7);
   }

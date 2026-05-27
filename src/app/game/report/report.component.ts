@@ -1,6 +1,7 @@
 import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ReportVisibilityService } from './report-visibility.service';
+import { t } from '../i18n/i18n';
 
 @Component({
   selector: 'app-report',
@@ -13,6 +14,7 @@ export class ReportComponent {
   private vis = inject(ReportVisibilityService);
   readonly visible = this.vis.visible;
 
+  readonly t = t;
   message = '';
   selectedFile: File | null = null;
   state = signal<'idle' | 'loading' | 'done' | 'error'>('idle');

@@ -2,6 +2,7 @@ import { StatBonus } from './equipment-data';
 import { PlayerStore, EffectiveStats } from './player-store';
 import { getCardDef } from './monster-data';
 import { SkillTreeStore } from './skill-tree-store';
+import { t } from '../i18n/i18n';
 
 export const CARD_SLOT_COUNT = 3;
 
@@ -55,7 +56,7 @@ function detectCombos(slots: ReadonlyArray<string | null>): ComboInfo[] {
     if (cnt >= getCardStackLimit(cardId)) {
       masteryCombo = {
         id: `combo5_${cardId}`,
-        name: `${def.name}精通`,
+        name: `${def.name}${t('card.mastery.suffix')}`,
         bonus: scaleBonusByFactor(def.effect, 0.5),
       };
       break;
@@ -119,44 +120,44 @@ function scaleBonusByFactor(src: StatBonus, factor: number): StatBonus {
 
 // ── 組合一加成表（每個家族的專屬效果）──
 const COMBO1_BONUSES: Record<string, { name: string; bonus: StatBonus }> = {
-  slime_green: { name: '綠史萊姆家族：生命強化', bonus: { hpPct: 0.15 } },
-  slime_red:   { name: '紅史萊姆家族：爆擊強化', bonus: { critDmgMult: 1.25 } },
-  slime_blue:  { name: '藍史萊姆家族：防禦轉換', bonus: { defToEvasion: 30 } },  // 每30防禦+3%迴避
-  slime_white: { name: '白史萊姆家族：迅捷強化', bonus: { atkSpeedMult: 1.20 } },
-  slime_zombie:{ name: '殭屍史萊姆家族：燃燒延長', bonus: { burnMaxStackBonus: 3 } },
-  slime_lava:  { name: '熔岩史萊姆家族：穿透爆發', bonus: { condPenAtk: 28 } },  // 穿透≥100時攻擊+28
-  plant1:      { name: '食人花家族：強攻陣容', bonus: { atk: 15, dmgVsEliteOrBoss: 0.08 } },
-  plant2:      { name: '藤蔓花家族：危機本能', bonus: { evasion: 0.06 } },
-  plant3:      { name: '不死花家族：召喚強化', bonus: { summonDmgMult: 1.20 } },
-  orc1:        { name: '獸人 菁英獸人 獸人族長：蠻力法則', bonus: { critToAtk: 1.0, allDmgPct: 0.10 } },
-  orc2:        { name: '獸人戰士 菁英獸人戰士 獸人戰士長：業火狂潮', bonus: { blazingShieldChance: 0.15, blazingShieldAtkPct: 0.15 } },
-  orc3:        { name: '獸人武士 菁英獸人武士 獸人武士長：一閃共鳴', bonus: { impaleDmgPct: 0.60, atkSpeedMult: 1.15 } },
-  vampire1:    { name: '吸血鬼家族：靈魂收割', bonus: { soulHarvest: 1 } },
-  vampire2:    { name: '吸血鬼法師家族：恐懼光環', bonus: { fearAura: 1 } },
-  vampire3:    { name: '吸血鬼術士家族：血脈噴張', bonus: { bloodRage: 1 } },
+  slime_green: { name: t('combo1.slime_green.name'), bonus: { hpPct: 0.15 } },
+  slime_red:   { name: t('combo1.slime_red.name'),   bonus: { critDmgMult: 1.25 } },
+  slime_blue:  { name: t('combo1.slime_blue.name'),  bonus: { defToEvasion: 30 } },
+  slime_white: { name: t('combo1.slime_white.name'), bonus: { atkSpeedMult: 1.20 } },
+  slime_zombie:{ name: t('combo1.slime_zombie.name'),bonus: { burnMaxStackBonus: 3 } },
+  slime_lava:  { name: t('combo1.slime_lava.name'),  bonus: { condPenAtk: 28 } },
+  plant1:      { name: t('combo1.plant1.name'),      bonus: { atk: 15, dmgVsEliteOrBoss: 0.08 } },
+  plant2:      { name: t('combo1.plant2.name'),      bonus: { evasion: 0.06 } },
+  plant3:      { name: t('combo1.plant3.name'),      bonus: { summonDmgMult: 1.20 } },
+  orc1:        { name: t('combo1.orc1.name'),        bonus: { critToAtk: 1.0, allDmgPct: 0.10 } },
+  orc2:        { name: t('combo1.orc2.name'),        bonus: { blazingShieldChance: 0.15, blazingShieldAtkPct: 0.15 } },
+  orc3:        { name: t('combo1.orc3.name'),        bonus: { impaleDmgPct: 0.60, atkSpeedMult: 1.15 } },
+  vampire1:    { name: t('combo1.vampire1.name'),    bonus: { soulHarvest: 1 } },
+  vampire2:    { name: t('combo1.vampire2.name'),    bonus: { fearAura: 1 } },
+  vampire3:    { name: t('combo1.vampire3.name'),    bonus: { bloodRage: 1 } },
 };
 
 // ── 組合二加成表（同種族 N+E+B 不同家族）──
 const COMBO2_BONUSES: Record<string, { name: string; bonus: StatBonus }> = {
-  slime:   { name: '史萊姆跨族陣容', bonus: { dmgVsAnyElement: 0.10, condCritDmgBonus: 0.10 } },
-  flower:  { name: '花怪跨族陣容',   bonus: { hpRegen: 2.0, takenDmgPct: -0.08 } },
-  orc:     { name: '獸人跨族狂戰陣容', bonus: { allDmgPct: 0.10, takenDmgPct: 0.05 } },
-  vampire: { name: '吸血鬼跨族共鳴', bonus: { lifesteal: 0.025, allDmgPct: 0.08 } },
+  slime:   { name: t('combo2.slime.name'),   bonus: { dmgVsAnyElement: 0.10, condCritDmgBonus: 0.10 } },
+  flower:  { name: t('combo2.flower.name'),  bonus: { hpRegen: 2.0, takenDmgPct: -0.08 } },
+  orc:     { name: t('combo2.orc.name'),     bonus: { allDmgPct: 0.10, takenDmgPct: 0.05 } },
+  vampire: { name: t('combo2.vampire.name'), bonus: { lifesteal: 0.025, allDmgPct: 0.08 } },
 };
 
 // ── 組合四加成表（同階級×3）──
 const COMBO4_BONUSES: Record<string, { name: string; bonus: StatBonus }> = {
-  n: { name: '普通卡陣容', bonus: { allDmgPct: 0.10 } },
-  e: { name: '菁英卡陣容', bonus: { dmgVsEliteOrBoss: 0.15 } },
-  b: { name: 'Boss卡陣容',  bonus: { dmgVsBoss: 0.25 } },
+  n: { name: t('combo4.n.name'), bonus: { allDmgPct: 0.10 } },
+  e: { name: t('combo4.e.name'), bonus: { dmgVsEliteOrBoss: 0.15 } },
+  b: { name: t('combo4.b.name'), bonus: { dmgVsBoss: 0.25 } },
 };
 
 // ── 組合三加成表（同種族任意三張）──
 const COMBO3_BONUSES: Record<string, { name: string; bonus: StatBonus }> = {
-  slime:   { name: '史萊姆族共鳴', bonus: { dmgVsAnyElement: 0.08 } },
-  flower:  { name: '花怪族共鳴',   bonus: { hpRegen: 1.5 } },
-  orc:     { name: '獸人族共鳴',   bonus: { atk: 10, penetration: 10 } },
-  vampire: { name: '吸血鬼族共鳴', bonus: { lifesteal: 0.02, dmgVsNone: 0.10 } },
+  slime:   { name: t('combo3.slime.name'),   bonus: { dmgVsAnyElement: 0.08 } },
+  flower:  { name: t('combo3.flower.name'),  bonus: { hpRegen: 1.5 } },
+  orc:     { name: t('combo3.orc.name'),     bonus: { atk: 10, penetration: 10 } },
+  vampire: { name: t('combo3.vampire.name'), bonus: { lifesteal: 0.02, dmgVsNone: 0.10 } },
 };
 
 export const CardStore = {

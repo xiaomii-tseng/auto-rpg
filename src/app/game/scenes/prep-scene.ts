@@ -3,22 +3,23 @@ import { InventoryStore } from '../data/inventory-store';
 import { PlayerStore } from '../data/player-store';
 import { PotionBarStore } from '../data/potion-bar-store';
 import { ITEM_POTION_HEALTH_S, ITEM_POTION_HEALTH_M, ITEM_POTION_HEALTH_L, ITEM_POTION_REVIVE, ITEM_POTION_ATK, ITEM_POTION_DEF, ITEM_POTION_SPEED, ITEM_STONE_BROKEN, ITEM_STONE_INTACT, ITEM_BLANK_CARD, ITEM_QUEST_REROLL, ITEM_TICKET_SLIME, ITEM_TICKET_FLOWER, ITEM_TICKET_ORC, ITEM_TICKET_VAMPIRE } from '../data/monster-data';
-import { generateEquipment, randomQuality, QUALITY_NAMES, QUALITY_COLORS, SLOT_NAMES, STAT_NAMES, BEHAVIOR_INFO, BEHAVIOR_NAMES, EquipSlot, EquipmentItem, applyEnhancement, recastItem, ENHANCE_COST, ENHANCE_RATE, ENHANCE_COMPLETE_BONUS, ENHANCE_MAX, fmtAffixValue, StatBonus, REFINE_INCREMENT_RANGE, calcEquipSellPrice, LEGENDARY_BOSS_WEAPON, generateLegendaryWeapon } from '../data/equipment-data';
+import { generateEquipment, randomQuality, QUALITY_NAMES, QUALITY_COLORS, SLOT_NAMES, STAT_NAMES, BEHAVIOR_INFO, BEHAVIOR_NAMES, EquipSlot, EquipmentItem, applyEnhancement, recastItem, ENHANCE_COST, ENHANCE_RATE, ENHANCE_COMPLETE_BONUS, ENHANCE_MAX, fmtAffixValue, StatBonus, REFINE_INCREMENT_RANGE, calcEquipSellPrice, LEGENDARY_BOSS_WEAPON, generateLegendaryWeapon, getEquipDisplayName } from '../data/equipment-data';
 import { SaveStore } from '../data/save-store';
 import { CardStore, CARD_SLOT_COUNT } from '../data/card-store';
 
 import { getCardDef, getMonsterDef, getCardDisplayName, monsterCardScale, monsterDetailScale, CARD_DEFS, CardDef } from '../data/monster-data';
-import { QuestStore, Quest, STAR_EQUIP_QUALITY, getStarWeights, BOSS_POOL } from '../data/quest-store';
+import { QuestStore, Quest, STAR_EQUIP_QUALITY, getStarWeights, BOSS_POOL, getQuestFlavorText } from '../data/quest-store';
 import { TutorialStore, TutorialKey } from '../data/tutorial-store';
 import { SkillTreeStore, SKILL_NODES, SKILL_NODE_MAP, ATTACK_MODES, MODE_COLORS } from '../data/skill-tree-store';
 import { NetworkService } from '../network/network.service';
 import { AudioService } from '../data/audio.service';
-import { DailyQuestStore } from '../data/daily-quest-store';
+import { DailyQuestStore, getQuestDisplayLabel } from '../data/daily-quest-store';
 import { DismantlePrefsStore as _DismantlePrefsStore } from '../data/dismantle-prefs-store';
 import { SkinStore, SKINS, getSkinFile } from '../data/skin-store';
 import { VirtualJoystick } from '../ui/joystick';
 import { VERSION } from '../version';
 import { TowerStore } from '../data/tower-store';
+import { t as tr, getLang } from '../i18n/i18n';
 
 
 const DPR = (window as any).__gameDpr as number;
@@ -192,6 +193,7 @@ export class PrepScene extends Phaser.Scene {
   private _townBuildingRects: { cx: number; cy: number; hw: number; hh: number }[] = [];
   private _townJoystick?: VirtualJoystick;
   private _townCursors?: Phaser.Types.Input.Keyboard.CursorKeys;
+  private _townWasd?: { up: Phaser.Input.Keyboard.Key; down: Phaser.Input.Keyboard.Key; left: Phaser.Input.Keyboard.Key; right: Phaser.Input.Keyboard.Key };
   private _townLocalNameLabel?: Phaser.GameObjects.Text;
   private _townPlayerDebug?: Phaser.GameObjects.Graphics;
   private _townAnimals: Array<{
@@ -208,6 +210,11 @@ export class PrepScene extends Phaser.Scene {
   private _animalSyncTimer = 2000;
 
   static fmtGold(n: number): string {
+    if (getLang() === 'en') {
+      if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+      if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+      return n.toLocaleString();
+    }
     if (n >= 100_000_000) return `${(n / 100_000_000).toFixed(1)}億`;
     if (n >= 10_000) return `${(n / 10_000).toFixed(1)}萬`;
     return n.toLocaleString();
@@ -424,7 +431,7 @@ export class PrepScene extends Phaser.Scene {
       // 新玩家：隨機送一把普通品質武器
       const startSword = generateEquipment('sword', 'normal');
       PlayerStore.equipDirect('sword', startSword);
-      InventoryStore.addItem('quest_reroll', '任務重製石', 10);
+      InventoryStore.addItem('quest_reroll', tr('item.quest_reroll'), 10);
     }
 
     // 新玩家：自動進入教學關卡（1 星隨機地圖）
@@ -488,7 +495,7 @@ export class PrepScene extends Phaser.Scene {
         // Pre-populate _partyMembers from current room state so panel renders immediately
         this._partyMembers = sorted
           .filter((p: any) => p.sessionId)
-          .map((p: any) => ({ sid: p.sessionId, nick: p.nickname ?? '隊友', level: p.level ?? 0 }));
+          .map((p: any) => ({ sid: p.sessionId, nick: p.nickname ?? tr('prep.party.ally'), level: p.level ?? 0 }));
         this._setupGameRoomCallbacks();
         // sendPlayerInfo triggers server to re-send all partners' partnerJoined → names update
         NetworkService.sendPlayerInfo(getPlayerName(), PlayerStore.getLevel(), SkinStore.get());
@@ -502,7 +509,7 @@ export class PrepScene extends Phaser.Scene {
           this.refreshRoomOverlay();
         });
         NetworkService.onPartnerLeft(() => { this._partnerIn = false; this.refreshRoomOverlay(); });
-        NetworkService.onRoomClosed(() => { NetworkService.disconnect(); this._partnerIn = false; this.refreshRoomOverlay(); this._showToast('房主已離開，房間關閉'); });
+        NetworkService.onRoomClosed(() => { NetworkService.disconnect(); this._partnerIn = false; this.refreshRoomOverlay(); this._showToast(tr('prep.party.hostLeft')); });
         NetworkService.onGameStart(p => {
           if (NetworkService.isHost) {
             AudioService.playSfx(this, 'sfx_battle_start');
@@ -602,7 +609,7 @@ export class PrepScene extends Phaser.Scene {
 
     // Title
     const TITLE_CY = PY + P(23);
-    track(this.add.text(W / 2, TITLE_CY, '更新日誌', {
+    track(this.add.text(W / 2, TITLE_CY, tr('prep.changelog.title'), {
       fontSize: F(15), fontStyle: 'bold', color: '#d4a044',
       stroke: '#1a0e06', strokeThickness: P(3),
     }).setOrigin(0.5).setDepth(DEPTH + 3));
@@ -719,7 +726,7 @@ export class PrepScene extends Phaser.Scene {
     };
     drawBtn(false);
 
-    track(this.add.text(BCX, BCY, '確  定', {
+    track(this.add.text(BCX, BCY, tr('ui.confirm'), {
       fontSize: F(15), fontStyle: 'bold', color: '#d4a044',
       stroke: '#1a0e06', strokeThickness: P(2),
     }).setOrigin(0.5).setDepth(DEPTH + 4));
@@ -872,13 +879,13 @@ export class PrepScene extends Phaser.Scene {
     const QB_S   = SET_S * 1.5;
     const QB_GAP = P(6);
     const qbItems: { label: string; onClick: () => void }[] = [
-      { label: '裝備', onClick: () => this.showEquipmentPanel(W, H) },
-      { label: '技能', onClick: () => this._showTutorialHint('skill', '✦', '技能樹',
-          '每達到 5 等可獲得一個技能點。你也可以在這裡切換攻擊模式（投射／近戰／範圍），找到最適合你的打法！',
+      { label: tr('prep.btn.equip'), onClick: () => this.showEquipmentPanel(W, H) },
+      { label: tr('prep.tab.skill'), onClick: () => this._showTutorialHint('skill', '✦', tr('prep.tab.skill'),
+          tr('prep.skill.tutorial'),
           () => this.showSkillTree(W, H)) },
-      { label: '卡片', onClick: () => this.openCardWindow(W, H) },
-      { label: '物品', onClick: () => this.showItemPanel(W, H) },
-      { label: '任務', onClick: () => { AudioService.suppressClickSfx(); this.showDailyQuestPanel(W, H); } },
+      { label: tr('prep.tab.card'), onClick: () => this.openCardWindow(W, H) },
+      { label: tr('prep.btn.item'), onClick: () => this.showItemPanel(W, H) },
+      { label: tr('prep.tab.quest'), onClick: () => { AudioService.suppressClickSfx(); this.showDailyQuestPanel(W, H); } },
     ];
     const qbGfx = this.add.graphics().setDepth(30);
     const QB_BOT = H - P(8);
@@ -901,7 +908,7 @@ export class PrepScene extends Phaser.Scene {
         .on('pointerdown', item.onClick);
     });
 
-    // 任務紅點（'任務' is at ri=0, rightmost position）
+    // 任務紅點（tr('prep.tab.quest') is at ri=0, rightmost position）
     const dqBx = W - P(8) - QB_S;
     const dqBy = QB_BOT - QB_S;
     const dqDot = this.add.graphics().setDepth(36);
@@ -955,7 +962,7 @@ export class PrepScene extends Phaser.Scene {
     bg.lineStyle(1.5, 0xffd060, 0.6);
     bg.strokeRoundedRect(px - panelW / 2, py - panelH / 2, panelW, panelH, P(12));
     wardObjs.push(bg);
-    const title = this.add.text(px, py - panelH / 2 + P(14), '選擇造型', {
+    const title = this.add.text(px, py - panelH / 2 + P(14), tr('prep.skinSelect.title'), {
       fontSize: F(15), color: '#ffd060', fontStyle: 'bold',
     }).setOrigin(0.5, 0).setDepth(61);
     wardObjs.push(title);
@@ -993,7 +1000,7 @@ export class PrepScene extends Phaser.Scene {
         wardObjs.forEach(o => o.destroy());
         if (i === currentSkin) return;
         if (this._partyState !== 'none') {
-          this._showToast('組隊中無法換造型');
+          this._showToast(tr('prep.misc.inPartyNoSkin'));
           return;
         }
         SkinStore.set(i);
@@ -1061,7 +1068,7 @@ export class PrepScene extends Phaser.Scene {
       objs.push(o); return o;
     };
 
-    addTxt('功能選項', px + PW / 2, py + P(10), {
+    addTxt(tr('prep.settings.title'), px + PW / 2, py + P(10), {
       fontSize: F(17), fontStyle: 'bold', color: '#ffe08a', stroke: '#1a0800', strokeThickness: 2,
     });
     const closeX = this.add.text(px + PW - P(8), py + P(8), '✕', {
@@ -1073,9 +1080,9 @@ export class PrepScene extends Phaser.Scene {
     closeXHit.on('pointerup', close);
 
     const STEP = 0.05;
-    const rows: { key: '背景音樂' | '音效'; get: () => number; set: (v: number) => void }[] = [
-      { key: '背景音樂', get: () => AudioService.bgmVolume, set: v => AudioService.setBgmVolume(v) },
-      { key: '音效',    get: () => AudioService.sfxVolume,  set: v => AudioService.setSfxVolume(v)  },
+    const rows: { key: string; get: () => number; set: (v: number) => void }[] = [
+      { key: tr('prep.settings.bgm'), get: () => AudioService.bgmVolume, set: v => AudioService.setBgmVolume(v) },
+      { key: tr('prep.settings.sfx'),    get: () => AudioService.sfxVolume,  set: v => AudioService.setSfxVolume(v)  },
     ];
 
     rows.forEach((row, i) => {
@@ -1143,7 +1150,7 @@ export class PrepScene extends Phaser.Scene {
     cpbg.lineStyle(1, 0x2a8a2a, 0.8);
     cpbg.strokeRoundedRect(BTN_X, CPBTN_Y, BTN_W, BTN_H, P(6));
 
-    const cpTxt = this.add.text(BTN_X + BTN_W / 2, CPBTN_Y + BTN_H / 2, '修改密碼', {
+    const cpTxt = this.add.text(BTN_X + BTN_W / 2, CPBTN_Y + BTN_H / 2, tr('ui.changePass'), {
       fontSize: F(15), fontStyle: 'bold', color: '#77ff99', stroke: '#001a00', strokeThickness: 1,
     }).setOrigin(0.5).setDepth(D + 3);
     objs.push(cpTxt);
@@ -1163,7 +1170,7 @@ export class PrepScene extends Phaser.Scene {
     rbg.lineStyle(1, 0x2a5a8a, 0.8);
     rbg.strokeRoundedRect(BTN_X, RBTN_Y, BTN_W, BTN_H, P(6));
 
-    const rTxt = this.add.text(BTN_X + BTN_W / 2, RBTN_Y + BTN_H / 2, '回報問題', {
+    const rTxt = this.add.text(BTN_X + BTN_W / 2, RBTN_Y + BTN_H / 2, tr('ui.report'), {
       fontSize: F(15), fontStyle: 'bold', color: '#77bbff', stroke: '#001a2a', strokeThickness: 1,
     }).setOrigin(0.5).setDepth(D + 3);
     objs.push(rTxt);
@@ -1186,7 +1193,7 @@ export class PrepScene extends Phaser.Scene {
     lbg.lineStyle(1, 0xa04020, 0.8);
     lbg.strokeRoundedRect(LBTN_X, LBTN_Y, LBTN_W, LBTN_H, P(6));
 
-    const lTxt = this.add.text(LBTN_X + LBTN_W / 2, LBTN_Y + LBTN_H / 2, '登出', {
+    const lTxt = this.add.text(LBTN_X + LBTN_W / 2, LBTN_Y + LBTN_H / 2, tr('ui.logout'), {
       fontSize: F(15), fontStyle: 'bold', color: '#ff9977', stroke: '#1a0800', strokeThickness: 1,
     }).setOrigin(0.5).setDepth(D + 3);
     objs.push(lTxt);
@@ -1195,13 +1202,9 @@ export class PrepScene extends Phaser.Scene {
       .setDepth(D + 4).setAlpha(0.001).setInteractive({ useHandCursor: true });
     objs.push(lHit);
     lHit.on('pointerup', () => {
-      localStorage.removeItem('rg_user');
-      localStorage.removeItem('rg_auto_login');
-      localStorage.removeItem('rg_remember');
-      localStorage.removeItem('auto_rpg_save');
-      localStorage.removeItem('rg_save_ts');
-      localStorage.removeItem('playerName');
-      window.location.reload();
+      lTxt.setText(tr('ui.saving'));
+      lHit.disableInteractive();
+      (window as any).__saveAndLogout?.();
     });
 
     objs.forEach(o => { if ('setScrollFactor' in o) (o as any).setScrollFactor(0); });
@@ -1271,7 +1274,7 @@ export class PrepScene extends Phaser.Scene {
     bodyEl.textContent = body;
 
     const btn = document.createElement('button');
-    btn.textContent = '知道了';
+    btn.textContent = tr('prep.misc.ok');
     Object.assign(btn.style, {
       display: 'block', margin: '0 auto 18px',
       background: '#5a3400', color: '#ffe08a',
@@ -1329,7 +1332,7 @@ export class PrepScene extends Phaser.Scene {
       objs.push(o); return o;
     };
 
-    addTxt('修改密碼', px + PW / 2, py + P(10), {
+    addTxt(tr('ui.changePass'), px + PW / 2, py + P(10), {
       fontSize: F(17), fontStyle: 'bold', color: '#77ff99', stroke: '#001000', strokeThickness: 2,
     });
 
@@ -1376,20 +1379,20 @@ export class PrepScene extends Phaser.Scene {
     const Y2 = Y1 + INP_H + P(8);
     const Y3 = Y2 + INP_H + P(8);
 
-    addTxt('舊密碼', px + P(12), Y1 - P(18), { fontSize: F(13), color: '#99cc99' }, 0);
-    const oldInp = makeInput('請輸入舊密碼', Y1);
+    addTxt(tr('prep.changePass.old'), px + P(12), Y1 - P(18), { fontSize: F(13), color: '#99cc99' }, 0);
+    const oldInp = makeInput(tr('prep.changePass.oldPH'), Y1);
 
-    addTxt('新密碼', px + P(12), Y2 - P(18), { fontSize: F(13), color: '#99cc99' }, 0);
-    const newInp = makeInput('至少 6 個字元', Y2);
+    addTxt(tr('prep.changePass.new'), px + P(12), Y2 - P(18), { fontSize: F(13), color: '#99cc99' }, 0);
+    const newInp = makeInput(tr('prep.changePass.newPH'), Y2);
 
-    addTxt('確認新密碼', px + P(12), Y3 - P(18), { fontSize: F(13), color: '#99cc99' }, 0);
-    const confInp = makeInput('再輸入一次新密碼', Y3);
+    addTxt(tr('prep.changePass.confirm'), px + P(12), Y3 - P(18), { fontSize: F(13), color: '#99cc99' }, 0);
+    const confInp = makeInput(tr('prep.changePass.confirmPH'), Y3);
 
     const SB_Y = py + PH - P(14) - P(36);
     const SB_W = PW - P(24);
     const sbBg  = this.add.graphics().setDepth(D + 2);
     objs.push(sbBg);
-    const sbTxt = addTxt('確認修改', px + P(12) + SB_W / 2, SB_Y + P(9), {
+    const sbTxt = addTxt(tr('prep.changePass.submit'), px + P(12) + SB_W / 2, SB_Y + P(9), {
       fontSize: F(16), fontStyle: 'bold', color: '#ffffff', stroke: '#001000', strokeThickness: 1,
     }) as Phaser.GameObjects.Text;
 
@@ -1407,7 +1410,7 @@ export class PrepScene extends Phaser.Scene {
       sbBg.lineStyle(1, border, 0.9);
       sbBg.strokeRoundedRect(px + P(12), SB_Y, SB_W, P(36), P(8));
       const labels: Record<string, string> = {
-        idle: '確認修改', loading: '更新中…', done: '✔ 密碼已更新！', error: msg ?? '修改失敗',
+        idle: tr('prep.changePass.submit'), loading: tr('prep.changePass.loading'), done: tr('prep.changePass.done'), error: msg ?? tr('prep.changePass.fail'),
       };
       sbTxt.setText(labels[state]);
     };
@@ -1422,9 +1425,9 @@ export class PrepScene extends Phaser.Scene {
       const newPw  = newInp.value.trim();
       const confPw = confInp.value.trim();
 
-      if (!oldPw || !newPw || !confPw) { drawBtn('error', '請填寫所有欄位'); return; }
-      if (newPw.length < 6)            { drawBtn('error', '新密碼至少 6 個字元'); return; }
-      if (newPw !== confPw)            { drawBtn('error', '兩次密碼不一致'); return; }
+      if (!oldPw || !newPw || !confPw) { drawBtn('error', tr('prep.changePass.empty')); return; }
+      if (newPw.length < 6)            { drawBtn('error', tr('prep.changePass.short')); return; }
+      if (newPw !== confPw)            { drawBtn('error', tr('prep.changePass.mismatch')); return; }
 
       drawBtn('loading');
       sbHit.disableInteractive();
@@ -1444,11 +1447,11 @@ export class PrepScene extends Phaser.Scene {
           drawBtn('done');
           this.time.delayedCall(1800, close);
         } else {
-          drawBtn('error', data.error ?? '修改失敗');
+          drawBtn('error', data.error ?? tr('prep.changePass.fail'));
           sbHit.setInteractive({ useHandCursor: true });
         }
       } catch {
-        drawBtn('error', '網路錯誤');
+        drawBtn('error', tr('prep.misc.networkErr'));
         sbHit.setInteractive({ useHandCursor: true });
       }
     });
@@ -1507,7 +1510,7 @@ export class PrepScene extends Phaser.Scene {
     bg.fillRect(px, py, PW, P(18));
 
     // Title
-    tt('每日任務', px + PW / 2, py + P(12), {
+    tt(tr('prep.quest.daily'), px + PW / 2, py + P(12), {
       fontSize: F(17), fontStyle: 'bold', color: '#ffe08a',
       stroke: '#1a0800', strokeThickness: 2,
     }, 0.5, 0);
@@ -1525,10 +1528,10 @@ export class PrepScene extends Phaser.Scene {
 
     const rewardText = (reward: import('../data/daily-quest-store').DailyReward): string => {
       const parts: string[] = [];
-      if (reward.gold)   parts.push(`金幣 ×${reward.gold.toLocaleString()}`);
+      if (reward.gold)   parts.push(tr('prep.quest.rewardGold', { n: reward.gold.toLocaleString() }));
       if (reward.items)  parts.push(...reward.items.map(i => `${i.name} ×${i.qty}`));
-      if (reward.cardId) parts.push('隨機卡片');
-      if (reward.equip)  parts.push('隨機裝備');
+      if (reward.cardId) parts.push(tr('prep.card.random'));
+      if (reward.equip)  parts.push(tr('prep.item.randomEquip'));
       return parts.join(' ') || '—';
     };
 
@@ -1572,14 +1575,14 @@ export class PrepScene extends Phaser.Scene {
       rg.strokeRoundedRect(rx0, ry, INNER_W, ROW_H, P(6));
 
       const tx = rx0 + P(6);
-      const tr = rx0 + INNER_W - P(6);
+      const rightX = rx0 + INNER_W - P(6);
 
-      const countTxt = q.status === 'claimed' ? '已領取'
-        : q.status === 'completed' ? '✔ 完成'
+      const countTxt = q.status === 'claimed' ? tr('prep.quest.claimed')
+        : q.status === 'completed' ? tr('prep.quest.claimed')
         : `${q.progress.toLocaleString()} / ${q.target.toLocaleString()}`;
-      ts(q.label, tx, ry + P(8),
+      ts(getQuestDisplayLabel(q), tx, ry + P(8),
         { fontSize: F(15), fontStyle: 'bold', color: '#e8d8b0', stroke: '#0a0000', strokeThickness: 1 }, 0, 0);
-      ts(countTxt, tr, ry + P(8),
+      ts(countTxt, rightX, ry + P(8),
         { fontSize: F(15), fontStyle: 'bold', color: STATUS_COLOR[q.status] }, 1, 0);
 
       const barX = tx, barW = INNER_W - P(12), barH = P(7), barY = ry + P(30);
@@ -1592,7 +1595,7 @@ export class PrepScene extends Phaser.Scene {
       const rewardY  = ry + P(45);
       const btnW = P(78), btnH = P(24);
       const hasClaim = q.status === 'completed';
-      ts(`獎勵：${rewardText(q.reward)}`, tx, rewardY, {
+      ts(tr('prep.quest.rewardLine', { text: rewardText(q.reward) }), tx, rewardY, {
         fontSize: F(15), fontStyle: 'bold', color: '#c8a860',
         wordWrap: { width: hasClaim ? INNER_W - P(12) - btnW - P(6) : INNER_W - P(12) },
       }, 0, 0);
@@ -1605,7 +1608,7 @@ export class PrepScene extends Phaser.Scene {
         btnG.fillStyle(0x6a4200, 1).fillRoundedRect(btnX, btnY, btnW, btnH, P(5));
         btnG.lineStyle(P(1), GOLD, 0.9).strokeRoundedRect(btnX, btnY, btnW, btnH, P(5));
         scrollCont.add(
-          this.add.text(btnX + btnW / 2, btnY + btnH / 2, '領取獎勵', {
+          this.add.text(btnX + btnW / 2, btnY + btnH / 2, tr('prep.quest.claim'), {
             fontSize: F(15), fontStyle: 'bold', color: '#ffe088', stroke: '#1a0800', strokeThickness: 1,
           }).setOrigin(0.5).setDepth(D + 4),
         );
@@ -1722,7 +1725,7 @@ export class PrepScene extends Phaser.Scene {
     });
 
     // Panel title
-    objs.push(this.add.text(W / 2, panelY + P(22), '✦  懸 賞 告 示  ✦', {
+    objs.push(this.add.text(W / 2, panelY + P(22), tr('prep.questBoard.title'), {
       fontSize: F(16), fontStyle: 'bold',
       color: '#ffe080', stroke: '#2a1000', strokeThickness: 3,
     }).setOrigin(0.5).setDepth(D + 2));
@@ -1905,7 +1908,7 @@ export class PrepScene extends Phaser.Scene {
       cg.strokeRect(flavorClipX + P(2), FLAVOR_TOP + P(2), flavorClipW - P(4), FLAVOR_H - P(4));
 
       const flavorTxt = this.add.text(
-        cx + CARD_W / 2, FLAVOR_TOP + P(5), quest.flavorText, {
+        cx + CARD_W / 2, FLAVOR_TOP + P(5), getQuestFlavorText(quest), {
         fontSize: F(15), fontStyle: 'bold', lineSpacing: 3,
         color: dimmed ? '#6a5030' : '#3a1c04',
         wordWrap: { width: flavorClipW - P(12), useAdvancedWrap: true }, align: 'center',
@@ -1946,7 +1949,7 @@ export class PrepScene extends Phaser.Scene {
       cg.strokeRect(cx + P(6), GOLD_Y - P(12), CARD_W - P(12), P(23));
 
       if (quest.isEquipReward) {
-        objs.push(this.add.text(cx + CARD_W / 2, GOLD_Y, '裝備獎勵', {
+        objs.push(this.add.text(cx + CARD_W / 2, GOLD_Y, tr('prep.equip.rewardTitle'), {
           fontSize: F(16), fontStyle: 'bold',
           color: dimmed ? '#776655' : '#ffe8a0',
           strokeThickness: 0,
@@ -1969,9 +1972,9 @@ export class PrepScene extends Phaser.Scene {
       const btnX = cx + CARD_W / 2;
 
       {
-        let bgC = 0x1a3a0c, ltC = 0x44cc22, txtC = '#88ee44', label = '接  受';
-        if (status === 'completed') { bgC = 0x382000; ltC = 0xddaa00; txtC = '#ffdd44'; label = '領  取'; }
-        if (status === 'claimed') { bgC = 0x1c1810; ltC = 0x554433; txtC = '#665544'; label = '已領取'; }
+        let bgC = 0x1a3a0c, ltC = 0x44cc22, txtC = '#88ee44', label = tr('prep.party.accept');
+        if (status === 'completed') { bgC = 0x382000; ltC = 0xddaa00; txtC = '#ffdd44'; label = tr('prep.quest.claim'); }
+        if (status === 'claimed') { bgC = 0x1c1810; ltC = 0x554433; txtC = '#665544'; label = tr('prep.quest.claimed'); }
 
         const bg2 = this.add.graphics().setDepth(D + 3);
         objs.push(bg2);
@@ -2020,7 +2023,7 @@ export class PrepScene extends Phaser.Scene {
       spBg.lineStyle(P(1.5), 0x7a5020, 1);
       spBg.strokeRect(spX, spY, spW, spH);
 
-      objs.push(this.add.text(spX + spW / 2, spY + P(16), '出現率', {
+      objs.push(this.add.text(spX + spW / 2, spY + P(16), tr('prep.quest.spawnRate'), {
         fontSize: F(15), fontStyle: 'bold', color: '#ffe080',
         stroke: '#2a1000', strokeThickness: 2,
       }).setOrigin(0.5).setDepth(D + 2));
@@ -2088,7 +2091,7 @@ export class PrepScene extends Phaser.Scene {
         cbg.fillStyle(0x7a4a08, 1); cbg.fillRect(rx + P(2), ry + P(2), P(6), P(6));
       });
 
-      co.push(this.add.text(W / 2, cY + P(28), '確定接受這份懸賞？', {
+      co.push(this.add.text(W / 2, cY + P(28), tr('prep.quest.confirm'), {
         fontSize: F(15), fontStyle: 'bold',
         color: '#ffe080', stroke: '#2a1000', strokeThickness: 2,
         padding: { top: 4, bottom: 2 },
@@ -2108,7 +2111,7 @@ export class PrepScene extends Phaser.Scene {
       const yg = this.add.graphics().setDepth(D + 11);
       co.push(yg);
       drawBtn(yg, cX + P(14), cY + P(58), P(96), P(26), 0x1a3a0c, 0x44cc22);
-      co.push(this.add.text(cX + P(62), cY + P(71), '出  發', {
+      co.push(this.add.text(cX + P(62), cY + P(71), tr('prep.quest.goBtn'), {
         fontSize: F(15), fontStyle: 'bold',
         color: '#88ee44', stroke: '#000', strokeThickness: 2,
         padding: { top: 4, bottom: 2 },
@@ -2131,7 +2134,7 @@ export class PrepScene extends Phaser.Scene {
       const ng = this.add.graphics().setDepth(D + 11);
       co.push(ng);
       drawBtn(ng, cX + P(130), cY + P(58), P(96), P(26), 0x3a0808, 0xcc2222);
-      co.push(this.add.text(cX + P(178), cY + P(71), '取  消', {
+      co.push(this.add.text(cX + P(178), cY + P(71), tr('ui.cancel'), {
         fontSize: F(15), fontStyle: 'bold',
         color: '#ff6644', stroke: '#000', strokeThickness: 2,
         padding: { top: 4, bottom: 2 },
@@ -2171,7 +2174,7 @@ export class PrepScene extends Phaser.Scene {
       mg.fillStyle(WB, 1); mg.fillRect(mx, my, MW, P(44));
       mg.lineStyle(1, GOLD, 0.4); mg.lineBetween(mx, my + P(44), mx + MW, my + P(44));
 
-      mo.push(this.add.text(W / 2, my + P(22), '選擇獎勵裝備', {
+      mo.push(this.add.text(W / 2, my + P(22), tr('prep.equip.selectReward'), {
         fontSize: F(16), fontStyle: 'bold',
         color: '#e8c070', stroke: '#1a0800', strokeThickness: 2,
       }).setOrigin(0.5).setDepth(MD + 2));
@@ -2309,7 +2312,7 @@ export class PrepScene extends Phaser.Scene {
     bg.fillStyle(WB, 1); bg.fillRect(px, py + P(42), PW, 1);
     container.add(bg);
 
-    container.add(this.add.text(0, py + P(21), '裝  備', {
+    container.add(this.add.text(0, py + P(21), tr('prep.equip.title'), {
       fontSize: F(17), fontStyle: 'bold', color: '#e8c070', stroke: '#1a0800', strokeThickness: 2,
     }).setOrigin(0.5));
 
@@ -2328,19 +2331,19 @@ export class PrepScene extends Phaser.Scene {
 
     // ── Slot definitions ──────────────────────────────────
     const slotDefs: { label: string; color: number; slotKey: EquipSlot }[] = [
-      { label: '武器', color: 0xdd8844, slotKey: 'sword' },
-      { label: '頭盔', color: 0xddcc88, slotKey: 'hat' },
-      { label: '衣服', color: 0x88aadd, slotKey: 'outfit' },
-      { label: '鞋子', color: 0xaa8866, slotKey: 'shoes' },
-      { label: '飾品1', color: 0xff88cc, slotKey: 'ring1' },
-      { label: '飾品2', color: 0xff66aa, slotKey: 'ring2' },
+      { label: tr('equip.slot.sword'), color: 0xdd8844, slotKey: 'sword' },
+      { label: tr('equip.slot.hat'), color: 0xddcc88, slotKey: 'hat' },
+      { label: tr('equip.slot.outfit'), color: 0x88aadd, slotKey: 'outfit' },
+      { label: tr('equip.slot.shoes'), color: 0xaa8866, slotKey: 'shoes' },
+      { label: tr('equip.slot.ring1'), color: 0xff88cc, slotKey: 'ring1' },
+      { label: tr('equip.slot.ring2'), color: 0xff66aa, slotKey: 'ring2' },
     ];
     const tabDefs: { label: string; color: number; slotKeys: EquipSlot[] }[] = [
-      { label: '武器', color: 0xdd8844, slotKeys: ['sword'] },
-      { label: '頭盔', color: 0xddcc88, slotKeys: ['hat'] },
-      { label: '衣服', color: 0x88aadd, slotKeys: ['outfit'] },
-      { label: '鞋子', color: 0xaa8866, slotKeys: ['shoes'] },
-      { label: '飾品', color: 0xff88cc, slotKeys: ['ring1', 'ring2'] },
+      { label: tr('equip.slot.sword'), color: 0xdd8844, slotKeys: ['sword'] },
+      { label: tr('equip.slot.hat'), color: 0xddcc88, slotKeys: ['hat'] },
+      { label: tr('equip.slot.outfit'), color: 0x88aadd, slotKeys: ['outfit'] },
+      { label: tr('equip.slot.shoes'), color: 0xaa8866, slotKeys: ['shoes'] },
+      { label: tr('equip.slot.ring1'), color: 0xff88cc, slotKeys: ['ring1', 'ring2'] },
     ];
 
     // ── 裝備格子：3 欄 × 2 列 ────────────────────────────
@@ -2407,7 +2410,7 @@ export class PrepScene extends Phaser.Scene {
       g.lineStyle(2, 0x996633, 0.85); g.strokeRect(cx - bw / 2, cy - bh / 2, bw, bh);
       g.fillStyle(0x996633, 0.35); g.fillRect(cx - bw / 2, cy - bh / 2, bw, 2);
       det.add(g);
-      det.add(this.add.text(cx - P(30), cy, '販  售', {
+      det.add(this.add.text(cx - P(30), cy, tr('prep.equip.sell'), {
         fontSize: F(15), fontStyle: 'bold', color: '#cc9955', stroke: '#1a0800', strokeThickness: 2,
       }).setOrigin(0.5));
       det.add(this.add.text(cx + P(6), cy, '+', {
@@ -2437,7 +2440,7 @@ export class PrepScene extends Phaser.Scene {
         .fillStyle(0x1a1208, 0.97).fillRoundedRect(cx - P(180), cy - P(60), P(360), P(120), P(10))
         .lineStyle(P(2), 0x997733, 0.8).strokeRoundedRect(cx - P(180), cy - P(60), P(360), P(120), P(10));
 
-      o(this.add.text(cx, cy - P(38), '選擇操作', {
+      o(this.add.text(cx, cy - P(38), tr('prep.misc.selectOp'), {
         fontSize: F(16), fontStyle: 'bold', color: '#ffe066', stroke: '#1a0800', strokeThickness: 2,
       }).setOrigin(0.5).setDepth(D + 2));
 
@@ -2445,7 +2448,7 @@ export class PrepScene extends Phaser.Scene {
       const refineG = o(this.add.graphics().setDepth(D + 2));
       refineG.fillStyle(0x3a2800, 1).fillRect(cx - bw - gap / 2, cy - bh / 2, bw, bh);
       refineG.lineStyle(P(2), 0xf0c040, 0.8).strokeRect(cx - bw - gap / 2, cy - bh / 2, bw, bh);
-      o(this.add.text(cx - bw / 2 - gap / 2, cy, '強  化', {
+      o(this.add.text(cx - bw / 2 - gap / 2, cy, tr('prep.equip.enhance'), {
         fontSize: F(15), fontStyle: 'bold', color: '#ffe066', stroke: '#1a0800', strokeThickness: 2,
       }).setOrigin(0.5).setDepth(D + 3));
       o(this.add.rectangle(cx - bw / 2 - gap / 2, cy, bw, bh).setDepth(D + 4).setInteractive({ useHandCursor: true }))
@@ -2455,7 +2458,7 @@ export class PrepScene extends Phaser.Scene {
       const recastG = o(this.add.graphics().setDepth(D + 2));
       recastG.fillStyle(0x1a0a2a, 1).fillRect(cx + gap / 2, cy - bh / 2, bw, bh);
       recastG.lineStyle(P(2), 0xbb66ff, 0.8).strokeRect(cx + gap / 2, cy - bh / 2, bw, bh);
-      o(this.add.text(cx + bw / 2 + gap / 2, cy, '重  鑄', {
+      o(this.add.text(cx + bw / 2 + gap / 2, cy, tr('prep.equip.recast'), {
         fontSize: F(15), fontStyle: 'bold', color: '#cc88ff', stroke: '#0a0018', strokeThickness: 2,
       }).setOrigin(0.5).setDepth(D + 3));
       o(this.add.rectangle(cx + bw / 2 + gap / 2, cy, bw, bh).setDepth(D + 4).setInteractive({ useHandCursor: true }))
@@ -2504,7 +2507,7 @@ export class PrepScene extends Phaser.Scene {
       bg.lineBetween(mx, my + TITLE_H, mx + mw, my + TITLE_H);
       bg.lineBetween(mx + lw, my + TITLE_H, mx + lw, my + mh);
 
-      rs(this.add.text(W / 2, my + TITLE_H / 2, '重 鑄 裝 備', {
+      rs(this.add.text(W / 2, my + TITLE_H / 2, tr('prep.equip.recastTitle'), {
         fontSize: F(15), fontStyle: 'bold', color: '#cc88ff', stroke: '#0a0018', strokeThickness: 2,
       }).setOrigin(0.5).setDepth(RD + 2));
       rs(this.add.text(mx + mw - P(16), my + TITLE_H / 2, '✕', {
@@ -2514,7 +2517,7 @@ export class PrepScene extends Phaser.Scene {
 
       // ── 左欄：強化等級 + 詞綴前後對比 ──────────────────────
       rs(this.add.text(mx + lw / 2, my + TITLE_H + LEVEL_H / 2,
-        isRefined ? `+${item.enhancement}  →  +0` : '尚未精煉', {
+        isRefined ? `+${item.enhancement}  →  +0` : tr('prep.equip.notRefined'), {
         fontSize: F(19), fontStyle: 'bold',
         color: isRefined ? '#ffe066' : '#887766', stroke: '#0a0018', strokeThickness: 3,
       }).setOrigin(0.5).setDepth(RD + 2));
@@ -2551,7 +2554,7 @@ export class PrepScene extends Phaser.Scene {
 
       // 成功率（最上方）
       const rateCY = rcy + RATE_H / 2;
-      rs(this.add.text(rx + P(14), rateCY, '成功率', {
+      rs(this.add.text(rx + P(14), rateCY, tr('prep.equip.refineRate'), {
         fontSize: F(15), fontStyle: 'bold', color: '#aaccff', stroke: '#0a0018', strokeThickness: 1,
       }).setOrigin(0, 0.5).setDepth(RD + 2));
       rs(this.add.text(rx + rw - P(14), rateCY, '100%', {
@@ -2566,17 +2569,17 @@ export class PrepScene extends Phaser.Scene {
 
       const matHdrCY = rcy + MAT_HDR_H / 2;
       rs(this.add.image(rx + P(22), matHdrCY, 'icon_stone_guard').setDisplaySize(P(24), P(24)).setDepth(RD + 2));
-      rs(this.add.text(rx + P(40), matHdrCY, '重鑄石', {
+      rs(this.add.text(rx + P(40), matHdrCY, tr('item.stone_guard'), {
         fontSize: F(15), fontStyle: 'bold', color: '#cc88ff', stroke: '#0a0018', strokeThickness: 1,
       }).setOrigin(0, 0.5).setDepth(RD + 2));
       rcy += MAT_HDR_H;
 
       const matQtyCY = rcy + MAT_QTY_H / 2;
       const guardQty = InventoryStore.getItemQty('stone_guard');
-      const matHoldTxt = rs(this.add.text(rx + P(14), matQtyCY, `持有  ${guardQty} 顆`, {
+      const matHoldTxt = rs(this.add.text(rx + P(14), matQtyCY, tr('prep.equip.holding', { n: guardQty }), {
         fontSize: F(14), fontStyle: 'bold', color: guardQty >= 1 ? '#cc88ff' : '#ff6666', stroke: '#0a0018', strokeThickness: 1,
       }).setOrigin(0, 0.5).setDepth(RD + 2));
-      rs(this.add.text(rx + rw - P(14), matQtyCY, '消耗  1 顆', {
+      rs(this.add.text(rx + rw - P(14), matQtyCY, tr('prep.equip.costOne'), {
         fontSize: F(14), fontStyle: 'bold', color: '#888877', stroke: '#0a0018', strokeThickness: 1,
       }).setOrigin(1, 0.5).setDepth(RD + 2));
       rcy += MAT_QTY_H + PAD;
@@ -2594,7 +2597,7 @@ export class PrepScene extends Phaser.Scene {
         btnG.strokeRect(bx, btnY, btnW, BTN_H);
       };
       drawBtn(enabled);
-      const btnLbl = rs(this.add.text(rx + rw / 2, btnY + BTN_H / 2, '重  鑄', {
+      const btnLbl = rs(this.add.text(rx + rw / 2, btnY + BTN_H / 2, tr('prep.equip.recast'), {
         fontSize: F(15), fontStyle: 'bold', color: '#cc88ff', stroke: '#0a0018', strokeThickness: 2,
       }).setOrigin(0.5).setAlpha(enabled ? 1 : 0.35).setDepth(RD + 3));
       const btnHit = rs(this.add.rectangle(rx + rw / 2, btnY + BTN_H / 2, btnW, BTN_H)
@@ -2606,18 +2609,18 @@ export class PrepScene extends Phaser.Scene {
       }).setOrigin(0.5).setDepth(RD + 2));
 
       if (!isRefined) {
-        resultTxt.setText('尚未精煉，無法重鑄').setColor('#887766');
+        resultTxt.setText(tr('prep.equip.cannotRecast')).setColor('#887766');
       } else if (guardQty < 1) {
-        resultTxt.setText('重鑄石不足').setColor('#ff6666');
+        resultTxt.setText(tr('prep.equip.noGuardStone')).setColor('#ff6666');
       }
 
       btnHit.on('pointerdown', () => {
         if (item.quality === 'legendary') {
-          resultTxt.setText('傳說武器無法重鑄').setColor('#ff4444'); return;
+          resultTxt.setText(tr('prep.equip.legendaryNoRecast')).setColor('#ff4444'); return;
         }
         if (InventoryStore.getItemQty('stone_guard') < 1) {
-          matHoldTxt.setText('持有  0 顆').setColor('#ff6666');
-          resultTxt.setText('重鑄石不足！').setColor('#ff4444');
+          matHoldTxt.setText(tr('prep.equip.holding', { n: 0 })).setColor('#ff6666');
+          resultTxt.setText(tr('prep.equip.noGuardStone2')).setColor('#ff4444');
           return;
         }
         InventoryStore.spendItem('stone_guard', 1);
@@ -2627,8 +2630,8 @@ export class PrepScene extends Phaser.Scene {
         btnHit.removeInteractive();
         drawBtn(false);
         btnLbl.setAlpha(0.35);
-        resultTxt.setText('✓ 重鑄完成！').setColor('#cc88ff');
-        matHoldTxt.setText('持有  0 顆').setColor('#ff6666');
+        resultTxt.setText(tr('prep.equip.recastSuccess')).setColor('#cc88ff');
+        matHoldTxt.setText(tr('prep.equip.holding', { n: 0 })).setColor('#ff6666');
       });
     };
 
@@ -2677,7 +2680,7 @@ export class PrepScene extends Phaser.Scene {
       bg.lineBetween(mx, my + TITLE_H, mx + mw, my + TITLE_H);
       bg.lineBetween(mx + lw, my + TITLE_H, mx + lw, my + mh);
 
-      es(this.add.text(W / 2, my + TITLE_H / 2, '強 化 裝 備', {
+      es(this.add.text(W / 2, my + TITLE_H / 2, tr('prep.equip.titleRow'), {
         fontSize: F(15), fontStyle: 'bold', color: '#e8c070', stroke: '#1a0800', strokeThickness: 2,
       }).setOrigin(0.5).setDepth(ED + 2));
       es(this.add.text(mx + mw - P(16), my + TITLE_H / 2, '✕', {
@@ -2731,7 +2734,7 @@ export class PrepScene extends Phaser.Scene {
         const a = item.affixes[selectedAffixIdx];
         if (a) {
           const [lo, hi] = REFINE_INCREMENT_RANGE[a.stat];
-          rangeTxt.setText(`追加範圍：+${fmtAffixValue(a.stat, lo)} ~ +${fmtAffixValue(a.stat, hi)}`);
+          rangeTxt.setText(tr('prep.equip.addRange', { lo: fmtAffixValue(a.stat, lo), hi: fmtAffixValue(a.stat, hi) }));
         }
       };
       updateRangeTxt();
@@ -2757,7 +2760,7 @@ export class PrepScene extends Phaser.Scene {
       // 圖示 + 名稱
       const matHdrCY = rcy + MAT_HDR_H / 2;
       es(this.add.image(rx + P(22), matHdrCY, 'icon_stone_broken').setDisplaySize(P(24), P(24)).setDepth(ED + 2));
-      es(this.add.text(rx + P(40), matHdrCY, '破損強化石', {
+      es(this.add.text(rx + P(40), matHdrCY, tr('item.stone_broken'), {
         fontSize: F(15), fontStyle: 'bold', color: '#ffcc66', stroke: '#1a0800', strokeThickness: 1,
       }).setOrigin(0, 0.5).setDepth(ED + 2));
       rcy += MAT_HDR_H;
@@ -2798,7 +2801,7 @@ export class PrepScene extends Phaser.Scene {
       rcy += OPT_ROW_H;
 
       const optDescCY = rcy + OPT_DESC_H / 2;
-      const optDescTxt = es(this.add.text(rx + P(40), optDescCY, '消耗 1 顆 → 成功率 +8%', {
+      const optDescTxt = es(this.add.text(rx + P(40), optDescCY, tr('prep.equip.optDesc'), {
         fontSize: F(13), fontStyle: 'bold', color: '#aa9977', stroke: '#1a0800', strokeThickness: 1,
       }).setOrigin(0, 0.5).setDepth(ED + 2));
       rcy += OPT_DESC_H;
@@ -2816,7 +2819,7 @@ export class PrepScene extends Phaser.Scene {
         btnG.strokeRect(bx, btnY, bw, BTN_H);
         if (enabled) { btnG.fillStyle(GOLD, 0.3); btnG.fillRect(bx, btnY, bw, P(2)); }
       };
-      const btnLbl = es(this.add.text(rx + rw / 2, btnY + BTN_H / 2, '強  化', {
+      const btnLbl = es(this.add.text(rx + rw / 2, btnY + BTN_H / 2, tr('prep.equip.enhance'), {
         fontSize: F(15), fontStyle: 'bold', color: '#ffe066', stroke: '#1a0800', strokeThickness: 2,
       }).setOrigin(0.5).setDepth(ED + 3));
       const btnHit = es(this.add.rectangle(rx + rw / 2, btnY + BTN_H / 2, bw, BTN_H)
@@ -2840,7 +2843,7 @@ export class PrepScene extends Phaser.Scene {
         const base = maxed ? 0 : ENHANCE_RATE[lv];
         const rate = Math.min(1, base + (useComplete ? ENHANCE_COMPLETE_BONUS : 0));
 
-        levelTxt.setText(`+${lv}${!maxed ? `  →  +${lv + 1}` : '  （最高）'}`);
+        levelTxt.setText(`+${lv}${!maxed ? `  →  +${lv + 1}` : tr('prep.misc.topRecord')}`);
         levelTxt.setColor('#ffe066');
         item.affixes.forEach((a, i) => valTexts[i]?.setText(fmtVal(a.stat, a.value)));
 
@@ -2848,18 +2851,18 @@ export class PrepScene extends Phaser.Scene {
         const brokenQty = InventoryStore.getItemQty('stone_broken');
         const needStones = !maxed ? ENHANCE_COST[lv] : 0;
         const enoughBrk  = brokenQty >= needStones;
-        matHoldTxt.setText(`持有  ${brokenQty} 顆`).setColor(enoughBrk ? '#ffcc66' : '#ff6666');
-        matCostTxt.setText(!maxed ? `消耗  ${needStones} 顆` : '').setColor(enoughBrk ? '#888877' : '#ff6666');
+        matHoldTxt.setText(tr('prep.equip.holding', { n: brokenQty })).setColor(enoughBrk ? '#ffcc66' : '#ff6666');
+        matCostTxt.setText(!maxed ? tr('prep.equip.costing', { n: needStones }) : '').setColor(enoughBrk ? '#888877' : '#ff6666');
 
         // 成功率
         if (!maxed) {
           const rc = rate >= 0.5 ? '#88ff88' : rate >= 0.3 ? '#ffcc44' : '#ff8866';
-          rateTxt.setText('成功率').setColor('#aaccff');
+          rateTxt.setText(tr('prep.equip.refineRate')).setColor('#aaccff');
           ratePctTxt.setText(useComplete
             ? `${(base * 100).toFixed(0)}% +8% = ${(rate * 100).toFixed(0)}%`
             : `${(rate * 100).toFixed(0)}%`).setColor(rc);
         } else {
-          rateTxt.setText('已強化至最高').setColor('#888877');
+          rateTxt.setText(tr('prep.equip.maxLevel')).setColor('#888877');
           ratePctTxt.setText('');
         }
         drawEnhBtn(!maxed);
@@ -2869,7 +2872,7 @@ export class PrepScene extends Phaser.Scene {
         // 可選素材
         const intactQty = InventoryStore.getItemQty('stone_intact');
         const canOpt = !maxed && intactQty > 0;
-        optLbl.setText(`完整強化石  ×${intactQty}`).setColor(intactQty === 0 ? '#ff6666' : '#ccbbaa');
+        optLbl.setText(tr('prep.equip.intactStoneX', { n: intactQty })).setColor(intactQty === 0 ? '#ff6666' : '#ccbbaa');
         optChkG.clear();
         optChkG.fillStyle(useComplete ? 0x1a4428 : 0x15100e, 1);
         optChkG.lineStyle(P(1), useComplete ? 0x44cc88 : 0x554433, 1);
@@ -2903,10 +2906,10 @@ export class PrepScene extends Phaser.Scene {
         if (lv >= ENHANCE_MAX) return;
         const cost = ENHANCE_COST[lv];
         if (InventoryStore.getItemQty('stone_broken') < cost) {
-          resultTxt.setText('破損強化石不足！').setColor('#ff4444'); return;
+          resultTxt.setText(tr('prep.equip.noBrokenStone')).setColor('#ff4444'); return;
         }
         if (useComplete && InventoryStore.getItemQty('stone_intact') < 1) {
-          resultTxt.setText('完整強化石不足！').setColor('#ff4444'); return;
+          resultTxt.setText(tr('prep.equip.noIntactStone')).setColor('#ff4444'); return;
         }
         InventoryStore.spendItem('stone_broken', cost);
         if (useComplete) InventoryStore.spendItem('stone_intact', 1);
@@ -2940,11 +2943,11 @@ export class PrepScene extends Phaser.Scene {
             gainTexts[idx] = gt;
           }
           const names = boosted.map(idx => STAT_NAMES[item.affixes[idx].stat]).join('、');
-          resultTxt.setText(`✓ 成功！${names} 提升`).setColor('#44ff88');
+          resultTxt.setText(tr('prep.equip.enhanceSuccess', { names })).setColor('#44ff88');
         } else {
           AudioService.playSfx(this, 'sfx_enhance_ng');
           playFlash(0xff4422);
-          resultTxt.setText('✗ 強化失敗').setColor('#ff6644');
+          resultTxt.setText(tr('prep.equip.enhanceFail')).setColor('#ff6644');
           SaveStore.save(); refresh();
         }
       });
@@ -2968,7 +2971,7 @@ export class PrepScene extends Phaser.Scene {
       // 只擋右欄，讓左欄裝備格可直接點擊切換
       det.add(this.add.rectangle(rcx, areaTop + areaH / 2, rightColW + P(8), areaH, 0, 0).setInteractive());
 
-      const backBtn = this.add.text(rightColX + P(8), areaTop + P(16), '← 返回', {
+      const backBtn = this.add.text(rightColX + P(8), areaTop + P(16), tr('ui.back'), {
         fontSize: F(15), fontStyle: 'bold', color: '#c49050', stroke: '#1a0800', strokeThickness: 1,
       }).setOrigin(0, 0.5).setInteractive({ useHandCursor: true });
       const closeEquipped = () => { activeDetail = null; det.destroy(); };
@@ -2978,7 +2981,7 @@ export class PrepScene extends Phaser.Scene {
       if (this.textures.exists(item.texture))
         det.add(this.add.image(rightColX + P(32), areaTop + P(60), item.texture).setDisplaySize(P(56), P(56)));
 
-      det.add(this.add.text(rightColX + P(72), areaTop + P(38), item.enhancement > 0 ? `【+${item.enhancement}】${item.name}` : item.name, {
+      det.add(this.add.text(rightColX + P(72), areaTop + P(38), item.enhancement > 0 ? `【+${item.enhancement}】${getEquipDisplayName(item)}` : getEquipDisplayName(item), {
         fontSize: F(16), fontStyle: 'bold', color: '#e8c070', stroke: '#1a0800', strokeThickness: 2,
       }).setOrigin(0, 0.5));
 
@@ -3002,17 +3005,17 @@ export class PrepScene extends Phaser.Scene {
       const btnH = P(38), btnW = P(136), btnGap = P(8);
       const btnY = areaTop + areaH - P(28);
       drawBtn(det, rcx - btnW / 2 - btnGap / 2, btnY - P(46), btnW, btnH,
-        '脫  下', 0x3a1a1a, 0xcc4444, '#ee8888',
+        tr('prep.equip.remove'), 0x3a1a1a, 0xcc4444, '#ee8888',
         () => { PlayerStore.unequip(equipSlot); closeEquipped(); });
       drawBtn(det, rcx + btnW / 2 + btnGap / 2, btnY - P(46), btnW, btnH,
-        '精  煉', 0x3a2800, 0xf0c040, '#ffe066',
+        tr('prep.equip.enhance'), 0x3a2800, 0xf0c040, '#ffe066',
         () => showRefineChoiceModal(item, () => { closeEquipped(); showEquippedDetail(item, equipSlot); }));
       if (item.favorite) {
         const fg = this.add.graphics();
         fg.fillStyle(0x1a1208, 1); fg.fillRect(rcx - P(100), btnY - P(19), P(200), P(38));
         fg.lineStyle(1, 0x554433, 0.6); fg.strokeRect(rcx - P(100), btnY - P(19), P(200), P(38));
         det.add(fg);
-        det.add(this.add.text(rcx, btnY, '★ 已收藏（無法販售）', {
+        det.add(this.add.text(rcx, btnY, tr('prep.misc.favorited'), {
           fontSize: F(13), fontStyle: 'bold', color: '#887755', stroke: '#000', strokeThickness: 1,
         }).setOrigin(0.5));
       } else {
@@ -3060,7 +3063,7 @@ export class PrepScene extends Phaser.Scene {
             .setDisplaySize(P(48), P(48));
           topSlotsLayer.add(eImg);
           sg.fillStyle(0x000000, 0.5); sg.fillRect(sx, sy + slotSz - P(18), slotSz, P(18));
-          topSlotsLayer.add(this.add.text(sx + slotSz / 2, sy + slotSz - P(10), item.enhancement > 0 ? `+${item.enhancement} ${item.name}` : item.name, {
+          topSlotsLayer.add(this.add.text(sx + slotSz / 2, sy + slotSz - P(10), item.enhancement > 0 ? `+${item.enhancement} ${getEquipDisplayName(item)}` : getEquipDisplayName(item), {
             fontSize: F(15), fontStyle: 'bold', color: '#ffe8a0', stroke: '#000000', strokeThickness: 2,
           }).setOrigin(0.5));
 
@@ -3088,17 +3091,17 @@ export class PrepScene extends Phaser.Scene {
       sg.fillStyle(WB, 0.6); sg.fillRect(statsX, statsY, statsW, P(20));
       statsLayer.add(sg);
 
-      statsLayer.add(this.add.text(statsX + statsW / 2, statsY + P(10), '人 物 屬 性', {
+      statsLayer.add(this.add.text(statsX + statsW / 2, statsY + P(10), tr('prep.equip.infoTitle'), {
         fontSize: F(15), fontStyle: 'bold', color: '#d4a044', stroke: '#1a0800', strokeThickness: 1,
       }).setOrigin(0.5));
 
       const allRows = [
-        [{ label: 'HP', value: `${s.maxHp}`, color: '#88ee88' }, { label: '攻擊', value: `${s.atk}`, color: '#ff8855' }],
-        [{ label: 'HP回復', value: `${s.hpRegen.toFixed(2)}/s`, color: '#55ffaa' }, { label: '暴擊', value: `${(s.crit * 100).toFixed(0)}%`, color: '#ffaa44' }],
-        [{ label: '防禦', value: `${s.def}`, color: '#88aaff' }, { label: '攻速', value: `${(s.atkSpeed * 100).toFixed(0)}%`, color: '#ff88ff' }],
-        [{ label: '閃避', value: `${(s.evasion * 100).toFixed(1)}%`, color: '#aaddff' }, { label: '爆傷', value: `${((1 + s.critDmg) * 100).toFixed(0)}%`, color: '#ffdd44' }],
-        [{ label: '吸血', value: `${(s.lifesteal * 100).toFixed(2)}%`, color: '#ff6699' }, { label: '持續傷害', value: `+${(s.dotBonus * 100).toFixed(0)}%`, color: '#cc88ff' }],
-        [{ label: '速度', value: `${s.speed}`, color: '#ffff88' }, { label: '穿甲', value: `${s.penetration}`, color: '#ff9944' }],
+        [{ label: 'HP', value: `${s.maxHp}`, color: '#88ee88' }, { label: tr('stat.atk'), value: `${s.atk}`, color: '#ff8855' }],
+        [{ label: tr('stat.hpRegen'), value: `${s.hpRegen.toFixed(2)}/s`, color: '#55ffaa' }, { label: tr('stat.crit'), value: `${(s.crit * 100).toFixed(0)}%`, color: '#ffaa44' }],
+        [{ label: tr('stat.def'), value: `${s.def}`, color: '#88aaff' }, { label: tr('stat.atkSpeed'), value: `${(s.atkSpeed * 100).toFixed(0)}%`, color: '#ff88ff' }],
+        [{ label: tr('stat.evasion'), value: `${(s.evasion * 100).toFixed(1)}%`, color: '#aaddff' }, { label: tr('stat.critDmg'), value: `${((1 + s.critDmg) * 100).toFixed(0)}%`, color: '#ffdd44' }],
+        [{ label: tr('stat.lifesteal'), value: `${(s.lifesteal * 100).toFixed(2)}%`, color: '#ff6699' }, { label: tr('stat.dotBonus'), value: `+${(s.dotBonus * 100).toFixed(0)}%`, color: '#cc88ff' }],
+        [{ label: tr('stat.speed'), value: `${s.speed}`, color: '#ffff88' }, { label: tr('stat.penetration'), value: `${s.penetration}`, color: '#ff9944' }],
       ];
       const colW2 = statsW / 2;
       const rowH = (statsH - P(20)) / 6;
@@ -3107,7 +3110,7 @@ export class PrepScene extends Phaser.Scene {
         row.forEach((cell, ci) => {
           const cx = statsX + ci * colW2;
           const ry = statsY + P(20) + ri * rowH + rowH / 2;
-          statsLayer.add(this.add.text(cx + P(6), ry, cell.label, { fontSize: F(15), fontStyle: 'bold', color: '#888888', stroke: '#000', strokeThickness: 1 }).setOrigin(0, 0.5));
+          statsLayer.add(this.add.text(cx + P(6), ry, cell.label, { fontSize: getLang() === 'en' ? F(12) : F(15), fontStyle: 'bold', color: '#888888', stroke: '#000', strokeThickness: 1 }).setOrigin(0, 0.5));
           statsLayer.add(this.add.text(cx + colW2 - P(6), ry, cell.value, { fontSize: F(15), fontStyle: 'bold', color: cell.color, stroke: '#000', strokeThickness: 1 }).setOrigin(1, 0.5));
         });
       });
@@ -3127,17 +3130,17 @@ export class PrepScene extends Phaser.Scene {
       };
 
       const QUAL_OPTS = [
-        { key: 'normal',  label: '普通', color: '#aaaaaa' },
-        { key: 'good',    label: '良好', color: '#55cc55' },
-        { key: 'fine',    label: '精良', color: '#4488ff' },
-        { key: 'perfect', label: '完美', color: '#ffdd00' },
+        { key: 'normal',  label: tr('prep.quest.difficulty.normal'), color: '#aaaaaa' },
+        { key: 'good',    label: tr('equip.quality.good'), color: '#55cc55' },
+        { key: 'fine',    label: tr('equip.quality.fine'), color: '#4488ff' },
+        { key: 'perfect', label: tr('equip.quality.perfect'), color: '#ffdd00' },
       ];
       const SLOT_OPTS = [
-        { key: 'sword',  label: '武器' },
-        { key: 'hat',    label: '頭盔' },
-        { key: 'outfit', label: '衣服' },
-        { key: 'shoes',  label: '鞋子' },
-        { key: 'ring',   label: '飾品' },
+        { key: 'sword',  label: tr('equip.slot.sword') },
+        { key: 'hat',    label: tr('equip.slot.hat') },
+        { key: 'outfit', label: tr('equip.slot.outfit') },
+        { key: 'shoes',  label: tr('equip.slot.shoes') },
+        { key: 'ring',   label: tr('equip.slot.ring1') },
       ];
 
       const mw = P(360);
@@ -3163,7 +3166,7 @@ export class PrepScene extends Phaser.Scene {
       bg.fillStyle(WB, 1); bg.fillRect(mx, my, mw, TITLE_H);
       bg.lineStyle(1, GOLD, 0.4); bg.lineBetween(mx, my + TITLE_H, mx + mw, my + TITLE_H);
 
-      o(this.add.text(W / 2, my + TITLE_H / 2, '批 量 販 售', {
+      o(this.add.text(W / 2, my + TITLE_H / 2, tr('prep.equip.selling2'), {
         fontSize: F(16), fontStyle: 'bold', color: '#e8c070', stroke: '#1a0800', strokeThickness: 2,
       }).setOrigin(0.5).setDepth(BD + 2));
 
@@ -3176,7 +3179,7 @@ export class PrepScene extends Phaser.Scene {
 
       // ── Quality row ─────────────────────────────────────
       const qualLabelY = my + TITLE_H + PAD;
-      o(this.add.text(mx + P(12), qualLabelY + LABEL_H / 2, '品質', {
+      o(this.add.text(mx + P(12), qualLabelY + LABEL_H / 2, tr('prep.misc.quality'), {
         fontSize: F(14), fontStyle: 'bold', color: '#d4a044', stroke: '#1a0800', strokeThickness: 1,
       }).setOrigin(0, 0.5).setDepth(BD + 2));
 
@@ -3206,7 +3209,7 @@ export class PrepScene extends Phaser.Scene {
 
       // ── Slot row ─────────────────────────────────────────
       const slotLabelY = qualLabelY + LABEL_H + ROW_H + PAD;
-      o(this.add.text(mx + P(12), slotLabelY + LABEL_H / 2, '種類', {
+      o(this.add.text(mx + P(12), slotLabelY + LABEL_H / 2, tr('prep.misc.type'), {
         fontSize: F(14), fontStyle: 'bold', color: '#d4a044', stroke: '#1a0800', strokeThickness: 1,
       }).setOrigin(0, 0.5).setDepth(BD + 2));
 
@@ -3252,7 +3255,7 @@ export class PrepScene extends Phaser.Scene {
       const cancelG = o(this.add.graphics().setDepth(BD + 2));
       cancelG.fillStyle(0x2a1a0a, 1); cancelG.fillRect(W / 2 - BW - P(8), btnBaseY, BW, BTN_H);
       cancelG.lineStyle(P(2), 0x997733, 0.7); cancelG.strokeRect(W / 2 - BW - P(8), btnBaseY, BW, BTN_H);
-      o(this.add.text(W / 2 - BW / 2 - P(8), btnBaseY + BTN_H / 2, '取  消', {
+      o(this.add.text(W / 2 - BW / 2 - P(8), btnBaseY + BTN_H / 2, tr('ui.cancel'), {
         fontSize: F(14), fontStyle: 'bold', color: '#ffe066', stroke: '#1a0800', strokeThickness: 2,
       }).setOrigin(0.5).setDepth(BD + 3));
       o(this.add.rectangle(W / 2 - BW / 2 - P(8), btnBaseY + BTN_H / 2, BW, BTN_H)
@@ -3262,7 +3265,7 @@ export class PrepScene extends Phaser.Scene {
       const confirmG = o(this.add.graphics().setDepth(BD + 2));
       confirmG.fillStyle(0x3a1008, 1); confirmG.fillRect(W / 2 + P(8), btnBaseY, BW, BTN_H);
       confirmG.lineStyle(P(2), 0xcc4422, 0.85); confirmG.strokeRect(W / 2 + P(8), btnBaseY, BW, BTN_H);
-      o(this.add.text(W / 2 + BW / 2 + P(8), btnBaseY + BTN_H / 2, '確認販售', {
+      o(this.add.text(W / 2 + BW / 2 + P(8), btnBaseY + BTN_H / 2, tr('prep.equip.sellConfirm'), {
         fontSize: F(14), fontStyle: 'bold', color: '#ff8855', stroke: '#1a0800', strokeThickness: 2,
       }).setOrigin(0.5).setDepth(BD + 3));
       o(this.add.rectangle(W / 2 + BW / 2 + P(8), btnBaseY + BTN_H / 2, BW, BTN_H)
@@ -3303,7 +3306,7 @@ export class PrepScene extends Phaser.Scene {
         const items = getEligibleItems();
         const gold = items.reduce((s, i) => s + calcEquipSellPrice(i), 0);
         if (items.length > 0) {
-          previewTxt.setText(`將販售 ${items.length} 件  +`).setColor('#ffcc66').setOrigin(0, 0.5);
+          previewTxt.setText(tr('prep.equip.willSell', { n: items.length })).setColor('#ffcc66').setOrigin(0, 0.5);
           previewGoldTxt.setText(`${gold}`).setVisible(true);
           const coinSz = P(14), gap = P(4);
           const total = previewTxt.width + gap + coinSz + gap + previewGoldTxt.width;
@@ -3312,7 +3315,7 @@ export class PrepScene extends Phaser.Scene {
           previewCoinImg.setX(sx + previewTxt.width + gap + coinSz / 2).setVisible(true);
           previewGoldTxt.setX(sx + previewTxt.width + gap + coinSz + gap);
         } else {
-          previewTxt.setText('尚無符合條件的裝備').setColor('#887766').setOrigin(0.5, 0.5).setX(W / 2);
+          previewTxt.setText(tr('prep.equip.noMatch')).setColor('#887766').setOrigin(0.5, 0.5).setX(W / 2);
           previewCoinImg.setVisible(false);
           previewGoldTxt.setVisible(false);
         }
@@ -3333,7 +3336,7 @@ export class PrepScene extends Phaser.Scene {
         loadBg.fillStyle(0x1a1008, 0.97); loadBg.fillRoundedRect(bx, by, boxW, boxH, P(8));
         loadBg.lineStyle(P(2), 0x997733, 0.85); loadBg.strokeRoundedRect(bx, by, boxW, boxH, P(8));
         loadObjs.push(loadBg);
-        const loadTxt = this.add.text(W / 2, H / 2, '販售中…', {
+        const loadTxt = this.add.text(W / 2, H / 2, tr('prep.equip.selling'), {
           fontSize: F(16), fontStyle: 'bold', color: '#e8c070', stroke: '#1a0800', strokeThickness: 2,
         }).setOrigin(0.5).setDepth(LD + 1);
         loadObjs.push(loadTxt);
@@ -3399,7 +3402,7 @@ export class PrepScene extends Phaser.Scene {
     batchBtnG.fillRect(rightColX, batchBtnCY - batchBtnH / 2, rightColW, batchBtnH);
     batchBtnG.lineStyle(P(1), 0x7a4a22, 0.6);
     batchBtnG.strokeRect(rightColX, batchBtnCY - batchBtnH / 2, rightColW, batchBtnH);
-    const batchBtnTxt = this.add.text(rightColX + rightColW / 2, batchBtnCY, '批量販售', {
+    const batchBtnTxt = this.add.text(rightColX + rightColW / 2, batchBtnCY, tr('prep.equip.batchSell'), {
       fontSize: F(14), fontStyle: 'bold', color: '#aa7744', stroke: '#1a0800', strokeThickness: 1,
     }).setOrigin(0.5);
     const batchBtnHit = this.add.rectangle(rightColX + rightColW / 2, batchBtnCY, rightColW, batchBtnH)
@@ -3466,7 +3469,7 @@ export class PrepScene extends Phaser.Scene {
       bg.fillStyle(WB, 1); bg.fillRect(mx, my, PDW, TITLE_H);
       bg.lineStyle(1, GOLD, 0.4); bg.lineBetween(mx, my + TITLE_H, mx + PDW, my + TITLE_H);
 
-      s(this.add.text(pcx, my + TITLE_H / 2, '替換裝備', {
+      s(this.add.text(pcx, my + TITLE_H / 2, tr('prep.equip.replaceEquip'), {
         fontSize: F(15), fontStyle: 'bold', color: '#e8c070', stroke: '#1a0800', strokeThickness: 2,
       }).setOrigin(0.5).setDepth(compD + 2));
 
@@ -3493,12 +3496,12 @@ export class PrepScene extends Phaser.Scene {
           fontSize: F(15), fontStyle: 'bold', color: labelColor, stroke: '#000', strokeThickness: 1,
         }).setOrigin(0.5, 0).setDepth(compD + 3));
 
-        s(this.add.text(cx, cy - CH / 2 + P(24), item.name, {
+        s(this.add.text(cx, cy - CH / 2 + P(24), getEquipDisplayName(item), {
           fontSize: F(15), fontStyle: 'bold', color: qColorStr, stroke: '#1a0800', strokeThickness: 2,
           wordWrap: { width: CW - P(12) }, align: 'center',
         }).setOrigin(0.5, 0).setDepth(compD + 3));
 
-        s(this.add.text(cx, cy - CH / 2 + P(44), item.enhancement > 0 ? `+${item.enhancement} 強化` : '未強化', {
+        s(this.add.text(cx, cy - CH / 2 + P(44), item.enhancement > 0 ? tr('prep.equip.enhancedN', { n: item.enhancement }) : tr('prep.equip.notEnhanced'), {
           fontSize: F(15), fontStyle: 'bold', color: item.enhancement > 0 ? '#ffd060' : '#667766', stroke: '#000', strokeThickness: 1,
         }).setOrigin(0.5, 0).setDepth(compD + 3));
 
@@ -3524,8 +3527,8 @@ export class PrepScene extends Phaser.Scene {
       };
 
       const cardCX = CW / 2 + GAP / 2;
-      drawItemCard(currentItem, pcx - cardCX, '現有', '#ff9999', 'cur');
-      drawItemCard(newItem, pcx + cardCX, '新增', '#99ff99', 'nxt');
+      drawItemCard(currentItem, pcx - cardCX, tr('prep.equip.current'), '#ff9999', 'cur');
+      drawItemCard(newItem, pcx + cardCX, tr('prep.misc.add'), '#99ff99', 'nxt');
 
       // ── Buttons ─────────────────────────────────────────
       const BW = P(118), BH = P(30);
@@ -3533,7 +3536,7 @@ export class PrepScene extends Phaser.Scene {
       const confirmBg = s(this.add.graphics().setDepth(compD + 2));
       confirmBg.fillStyle(0x0e2a0e, 1); confirmBg.fillRect(pcx - BW - 4, BTN_Y - BH / 2, BW, BH);
       confirmBg.lineStyle(1.5, 0x44cc44, 0.9); confirmBg.strokeRect(pcx - BW - 4, BTN_Y - BH / 2, BW, BH);
-      s(this.add.text(pcx - BW / 2 - 4, BTN_Y, '確認替換', {
+      s(this.add.text(pcx - BW / 2 - 4, BTN_Y, tr('prep.equip.replaceConfirm'), {
         fontSize: F(15), fontStyle: 'bold', color: '#88ff88', stroke: '#000', strokeThickness: 2,
       }).setOrigin(0.5).setDepth(compD + 3));
       s(this.add.rectangle(pcx - BW / 2 - 4, BTN_Y, BW, BH).setInteractive({ useHandCursor: true }).setDepth(compD + 4))
@@ -3542,7 +3545,7 @@ export class PrepScene extends Phaser.Scene {
       const cancelBg = s(this.add.graphics().setDepth(compD + 2));
       cancelBg.fillStyle(0x1a1a1a, 1); cancelBg.fillRect(pcx + 4, BTN_Y - BH / 2, BW, BH);
       cancelBg.lineStyle(1.5, 0x666666, 0.9); cancelBg.strokeRect(pcx + 4, BTN_Y - BH / 2, BW, BH);
-      s(this.add.text(pcx + BW / 2 + 4, BTN_Y, '取  消', {
+      s(this.add.text(pcx + BW / 2 + 4, BTN_Y, tr('ui.cancel'), {
         fontSize: F(15), fontStyle: 'bold', color: '#aaaaaa', stroke: '#000', strokeThickness: 2,
       }).setOrigin(0.5).setDepth(compD + 3));
       s(this.add.rectangle(pcx + BW / 2 + 4, BTN_Y, BW, BH).setInteractive({ useHandCursor: true }).setDepth(compD + 4))
@@ -3566,7 +3569,7 @@ export class PrepScene extends Phaser.Scene {
       // 只擋右欄，讓左欄裝備格可直接點擊切換
       det.add(this.add.rectangle(rcx, areaTop + areaH / 2, rightColW + P(8), areaH, 0, 0).setInteractive());
 
-      const backBtn = this.add.text(rightColX + P(8), areaTop + P(16), '← 返回', {
+      const backBtn = this.add.text(rightColX + P(8), areaTop + P(16), tr('ui.back'), {
         fontSize: F(15), fontStyle: 'bold', color: '#c49050', stroke: '#1a0800', strokeThickness: 1,
       }).setOrigin(0, 0.5).setInteractive({ useHandCursor: true });
       const closeItem = () => { activeDetail = null; det.destroy(); };
@@ -3576,7 +3579,7 @@ export class PrepScene extends Phaser.Scene {
       if (this.textures.exists(item.texture))
         det.add(this.add.image(rightColX + P(32), areaTop + P(60), item.texture).setDisplaySize(P(56), P(56)));
 
-      det.add(this.add.text(rightColX + P(72), areaTop + P(38), item.enhancement > 0 ? `【+${item.enhancement}】${item.name}` : item.name, {
+      det.add(this.add.text(rightColX + P(72), areaTop + P(38), item.enhancement > 0 ? `【+${item.enhancement}】${getEquipDisplayName(item)}` : getEquipDisplayName(item), {
         fontSize: F(16), fontStyle: 'bold', color: '#e8c070', stroke: '#1a0800', strokeThickness: 2,
       }).setOrigin(0, 0.5));
 
@@ -3585,7 +3588,7 @@ export class PrepScene extends Phaser.Scene {
       item.affixes.forEach(a => {
         statParts.push(`${STAT_NAMES[a.stat]} +${fmtAffixValue(a.stat, a.value)}`);
       });
-      if (item.quality === 'legendary') statParts.push('無法精煉');
+      if (item.quality === 'legendary') statParts.push(tr('prep.equip.cannotRefine'));
       det.add(this.add.text(rightColX + P(72), statOffsetY2, statParts.join('\n'), {
         fontSize: F(15), fontStyle: 'bold', color: '#88cc88', stroke: '#1a0800', strokeThickness: 1,
         lineSpacing: 4,
@@ -3605,7 +3608,7 @@ export class PrepScene extends Phaser.Scene {
           fg.fillStyle(0x1a1208, 1); fg.fillRect(rcx - P(100), btnY - P(19), P(200), P(38));
           fg.lineStyle(1, 0x554433, 0.6); fg.strokeRect(rcx - P(100), btnY - P(19), P(200), P(38));
           det.add(fg);
-          det.add(this.add.text(rcx, btnY, '★ 已收藏（無法販售）', {
+          det.add(this.add.text(rcx, btnY, tr('prep.misc.favorited'), {
             fontSize: F(13), fontStyle: 'bold', color: '#887755', stroke: '#000', strokeThickness: 1,
           }).setOrigin(0.5));
           return;
@@ -3640,10 +3643,10 @@ export class PrepScene extends Phaser.Scene {
         drawSlotBtn(slotBtnGfx, cx2, !!eq2);
         det.add(slotBtnGfx);
 
-        det.add(this.add.text(cx1, slotBtnY - P(7), '飾品 1', { fontSize: F(15), fontStyle: 'bold', color: '#e8c070', stroke: '#1a0800', strokeThickness: 2 }).setOrigin(0.5));
-        det.add(this.add.text(cx1, slotBtnY + P(9), eq1 ? eq1.name.slice(0, 6) : '空', { fontSize: F(15), fontStyle: 'bold', color: eq1 ? '#cc8888' : '#558855' }).setOrigin(0.5));
-        det.add(this.add.text(cx2, slotBtnY - P(7), '飾品 2', { fontSize: F(15), fontStyle: 'bold', color: '#e8c070', stroke: '#1a0800', strokeThickness: 2 }).setOrigin(0.5));
-        det.add(this.add.text(cx2, slotBtnY + P(9), eq2 ? eq2.name.slice(0, 6) : '空', { fontSize: F(15), fontStyle: 'bold', color: eq2 ? '#cc8888' : '#558855' }).setOrigin(0.5));
+        det.add(this.add.text(cx1, slotBtnY - P(7), tr('equip.slot.ring1'), { fontSize: F(15), fontStyle: 'bold', color: '#e8c070', stroke: '#1a0800', strokeThickness: 2 }).setOrigin(0.5));
+        det.add(this.add.text(cx1, slotBtnY + P(9), eq1 ? getEquipDisplayName(eq1).slice(0, 6) : tr('prep.misc.empty'), { fontSize: F(15), fontStyle: 'bold', color: eq1 ? '#cc8888' : '#558855' }).setOrigin(0.5));
+        det.add(this.add.text(cx2, slotBtnY - P(7), tr('equip.slot.ring2'), { fontSize: F(15), fontStyle: 'bold', color: '#e8c070', stroke: '#1a0800', strokeThickness: 2 }).setOrigin(0.5));
+        det.add(this.add.text(cx2, slotBtnY + P(9), eq2 ? getEquipDisplayName(eq2).slice(0, 6) : tr('prep.misc.empty'), { fontSize: F(15), fontStyle: 'bold', color: eq2 ? '#cc8888' : '#558855' }).setOrigin(0.5));
 
         const hit1 = this.add.rectangle(cx1, slotBtnY, hW, btnH).setInteractive({ useHandCursor: true });
         hit1.on('pointerdown', () => {
@@ -3658,14 +3661,14 @@ export class PrepScene extends Phaser.Scene {
         });
         det.add(hit2);
         drawBtn(det, rcx, btnY - P(46), btnW, btnH,
-          '精  煉', 0x3a2800, 0xf0c040, '#ffe066',
+          tr('prep.equip.enhance'), 0x3a2800, 0xf0c040, '#ffe066',
           () => showRefineChoiceModal(item, () => { closeItem(); showItemDetail(item); }));
         dismantleBtn();
       } else {
         // ── 一般裝備：裝備 | 精煉 + 分解 ──────────────────────
         const currentEquipped = PlayerStore.getEquipped()[item.slot as import('../data/equipment-data').EquipSlot];
         drawBtn(det, rcx - btnW / 2 - btnGap / 2, btnY - P(46), btnW, btnH,
-          '裝  備', 0x5a3800, GOLD, '#e8c070',
+          tr('prep.equip.title'), 0x5a3800, GOLD, '#e8c070',
           () => {
             if (currentEquipped) {
               showEquipComparison(item, currentEquipped, () => { PlayerStore.equip(item); SaveStore.save(); closeItem(); });
@@ -3674,7 +3677,7 @@ export class PrepScene extends Phaser.Scene {
             }
           });
         drawBtn(det, rcx + btnW / 2 + btnGap / 2, btnY - P(46), btnW, btnH,
-          '精  煉', 0x3a2800, 0xf0c040, '#ffe066',
+          tr('prep.equip.enhance'), 0x3a2800, 0xf0c040, '#ffe066',
           () => showRefineChoiceModal(item, () => { closeItem(); showItemDetail(item); }));
         dismantleBtn();
       }
@@ -3696,7 +3699,7 @@ export class PrepScene extends Phaser.Scene {
       const ownedItems = PlayerStore.getOwned().filter(it => slotKeys.includes(it.slot));
 
       if (equippedItems.length === 0 && ownedItems.length === 0) {
-        gridLayer.add(this.add.text(rightColX + rightColW / 2, gridY + 32, '尚無裝備', {
+        gridLayer.add(this.add.text(rightColX + rightColW / 2, gridY + 32, tr('prep.equip.empty'), {
           fontSize: F(15), fontStyle: 'bold', color: '#5a3820', stroke: '#1a0800', strokeThickness: 1,
         }).setOrigin(0.5));
         return;
@@ -3767,7 +3770,7 @@ export class PrepScene extends Phaser.Scene {
 
         // Name (+enhancement)
         const textX   = cx + P(58);
-        const nameStr = item.enhancement > 0 ? `+${item.enhancement} ${item.name}` : item.name;
+        const nameStr = item.enhancement > 0 ? `+${item.enhancement} ${getEquipDisplayName(item)}` : getEquipDisplayName(item);
         scrollCnt.add(this.add.text(textX, rowY + P(10), nameStr, {
           fontSize: F(14), fontStyle: 'bold', color: qcStr, stroke: '#1a0800', strokeThickness: 2,
           wordWrap: { width: cardW - P(62), useAdvancedWrap: false },
@@ -3784,7 +3787,7 @@ export class PrepScene extends Phaser.Scene {
         if (isEquipped) {
           const badgeW = P(38), badgeH = P(14);
           gg.fillStyle(0x336600, 0.92); gg.fillRoundedRect(cx + P(4), rowY + P(3), badgeW, badgeH, P(3));
-          scrollCnt.add(this.add.text(cx + P(4) + badgeW / 2, rowY + P(3) + badgeH / 2, '裝備中', {
+          scrollCnt.add(this.add.text(cx + P(4) + badgeW / 2, rowY + P(3) + badgeH / 2, tr('prep.equip.equipped'), {
             fontSize: F(10), fontStyle: 'bold', color: '#aaffaa', stroke: '#003300', strokeThickness: 1,
           }).setOrigin(0.5));
         }
@@ -3929,10 +3932,10 @@ export class PrepScene extends Phaser.Scene {
     hdrG.fillStyle(WD, 1); hdrG.fillRect(px, py, PW, hdrH);
     hdrG.lineStyle(1, GOLD, 0.3); hdrG.lineBetween(px, py + hdrH, px + PW, py + hdrH);
     s(this.add.zone(px + PW / 2, py + hdrH / 2, PW, hdrH).setDepth(D + 2).setInteractive());
-    s(this.add.text(px + PW / 2, py + hdrH / 2, '技 能 星 盤', { fontSize: F(17), fontStyle: 'bold', color: '#ffe8a0', stroke: '#0a0400', strokeThickness: 2 }).setOrigin(0.5).setDepth(D + 3));
+    s(this.add.text(px + PW / 2, py + hdrH / 2, tr('prep.skill.title'), { fontSize: F(17), fontStyle: 'bold', color: '#ffe8a0', stroke: '#0a0400', strokeThickness: 2 }).setOrigin(0.5).setDepth(D + 3));
 
     const ptsTxt = s(this.add.text(px + P(12), py + hdrH / 2, '', { fontSize: F(15), fontStyle: 'bold', color: '#88ddff', stroke: '#000', strokeThickness: 2 }).setOrigin(0, 0.5).setDepth(D + 3));
-    const updatePts = () => ptsTxt.setText(`技能點 ${SkillTreeStore.getAvailablePoints()} / ${SkillTreeStore.getTotalPoints()}`);
+    const updatePts = () => ptsTxt.setText(tr('prep.skill.points', { pts: SkillTreeStore.getAvailablePoints(), total: SkillTreeStore.getTotalPoints() }));
     updatePts();
 
     const xBtn = s(this.add.text(px + PW - P(18), py + hdrH / 2, '✕', { fontSize: F(18), fontStyle: 'bold', color: '#cc4444', stroke: '#000', strokeThickness: 2 }).setOrigin(0.5).setDepth(D + 3));
@@ -3944,7 +3947,7 @@ export class PrepScene extends Phaser.Scene {
     const resetBtnW = P(76), resetBtnH = P(28);
     const resetBtnX = px + P(12) + P(170);
     const resetBtnY = py + hdrH / 2;
-    const resetTxt = s(this.add.text(resetBtnX, resetBtnY, '重置技能', { fontSize: F(15), fontStyle: 'bold', color: '#ffcc66', stroke: '#000', strokeThickness: 2 }).setOrigin(0.5).setDepth(D + 4).setInteractive({ useHandCursor: true }));
+    const resetTxt = s(this.add.text(resetBtnX, resetBtnY, tr('prep.skill.resetBtn'), { fontSize: F(15), fontStyle: 'bold', color: '#ffcc66', stroke: '#000', strokeThickness: 2 }).setOrigin(0.5).setDepth(D + 4).setInteractive({ useHandCursor: true }));
     const drawResetBg = (hover: boolean) => {
       resetBg.clear();
       resetBg.fillStyle(hover ? 0x7a3300 : 0x3a1a00, 0.9);
@@ -4004,7 +4007,7 @@ export class PrepScene extends Phaser.Scene {
         ? (ATTACK_MODES.find(a => a.id === SkillTreeStore.getAttackMode())?.label ?? node.label)
         : node.label;
       const tx  = this.add.text(NP(node.x), NP(node.y) + r + P(5), label, {
-        fontSize: F(15), fontStyle: 'bold', color: '#aabbcc', stroke: '#000', strokeThickness: 2,
+        fontSize: getLang() === 'en' ? F(11) : F(15), fontStyle: 'bold', color: '#aabbcc', stroke: '#000', strokeThickness: 2,
       }).setOrigin(0.5, 0);
       mapCnt.add(tx);
       labelTxts.set(node.id, tx);
@@ -4082,7 +4085,7 @@ export class PrepScene extends Phaser.Scene {
     drawMap();
     resetTxt.on('pointerdown', () => {
       if (InventoryStore.getItemQty('stone_guard') < 1) {
-        this._showToast?.('重鑄石不足，無法重置技能星盤');
+        this._showToast?.(tr('prep.equip.noGuardSkill'));
         return;
       }
 
@@ -4101,10 +4104,10 @@ export class PrepScene extends Phaser.Scene {
       cfmG.fillStyle(0x0a0a14, 0.97); cfmG.fillRoundedRect(cx - CW / 2, cy - CH / 2, CW, CH, P(8));
       cfmG.lineStyle(P(1.5), 0xffaa33, 0.8); cfmG.strokeRoundedRect(cx - CW / 2, cy - CH / 2, CW, CH, P(8));
 
-      ca(this.add.text(cx, cy - CH / 2 + P(18), '確認重置技能星盤？', {
+      ca(this.add.text(cx, cy - CH / 2 + P(18), tr('prep.skill.resetConfirm'), {
         fontSize: F(14), fontStyle: 'bold', color: '#ffe8a0', stroke: '#000', strokeThickness: 2,
       }).setOrigin(0.5, 0).setDepth(D2 + 1));
-      ca(this.add.text(cx, cy - CH / 2 + P(38), '將消耗 1 顆重鑄石', {
+      ca(this.add.text(cx, cy - CH / 2 + P(38), tr('prep.equip.willCostGuard'), {
         fontSize: F(13), color: '#aabbcc', stroke: '#000', strokeThickness: 1,
       }).setOrigin(0.5, 0).setDepth(D2 + 1));
 
@@ -4115,7 +4118,7 @@ export class PrepScene extends Phaser.Scene {
       cancelG.fillStyle(0x1a1a2a, 1); cancelG.fillRoundedRect(cx - CW / 2 + P(12), BY, BW, BH, P(5));
       cancelG.lineStyle(P(1), 0x445566, 0.8); cancelG.strokeRoundedRect(cx - CW / 2 + P(12), BY, BW, BH, P(5));
       const cancelHit = ca(this.add.rectangle(cx - CW / 2 + P(12) + BW / 2, BY + BH / 2, BW, BH).setDepth(D2 + 2).setInteractive({ useHandCursor: true }).setAlpha(0.001));
-      ca(this.add.text(cx - CW / 2 + P(12) + BW / 2, BY + BH / 2, '取消', {
+      ca(this.add.text(cx - CW / 2 + P(12) + BW / 2, BY + BH / 2, tr('ui.cancel'), {
         fontSize: F(14), fontStyle: 'bold', color: '#778899', stroke: '#000', strokeThickness: 1,
       }).setOrigin(0.5).setDepth(D2 + 2));
 
@@ -4124,7 +4127,7 @@ export class PrepScene extends Phaser.Scene {
       okG.fillStyle(0x3a1a00, 1); okG.fillRoundedRect(cx + CW / 2 - P(12) - BW, BY, BW, BH, P(5));
       okG.lineStyle(P(1), 0xffaa33, 0.8); okG.strokeRoundedRect(cx + CW / 2 - P(12) - BW, BY, BW, BH, P(5));
       const okHit = ca(this.add.rectangle(cx + CW / 2 - P(12) - BW / 2, BY + BH / 2, BW, BH).setDepth(D2 + 2).setInteractive({ useHandCursor: true }).setAlpha(0.001));
-      ca(this.add.text(cx + CW / 2 - P(12) - BW / 2, BY + BH / 2, '確認重置', {
+      ca(this.add.text(cx + CW / 2 - P(12) - BW / 2, BY + BH / 2, tr('prep.quest.resetConfirm'), {
         fontSize: F(14), fontStyle: 'bold', color: '#ffcc66', stroke: '#000', strokeThickness: 2,
       }).setOrigin(0.5).setDepth(D2 + 2));
 
@@ -4160,7 +4163,7 @@ export class PrepScene extends Phaser.Scene {
       tipT2.setPosition(tx + P(10), ty + P(26)).setText(node.desc);
       const learned   = SkillTreeStore.isLearned(node.id);
       const available = SkillTreeStore.canLearn(node.id);
-      const btnTxt = learned ? '✓ 已學習' : available ? '學習（消耗 1 點）' : '（未解鎖）';
+      const btnTxt = learned ? tr('prep.skill.learned') : available ? tr('prep.skill.learn') : tr('prep.skill.locked');
       const btnCol = learned ? '#aaaaaa' : available ? '#ccffdd' : '#778899';
       // Button geometry
       const BTN_W = P(160), BTN_H = P(30);
@@ -4258,7 +4261,7 @@ export class PrepScene extends Phaser.Scene {
       const sepY = iy + titleH + descH + sepGap;
       const sepG = mi(this.add.graphics().setDepth(D + 12));
       sepG.fillStyle(mc, 0.3); sepG.fillRect(ix + P(10), sepY, IW - P(20), 1);
-      mi(this.add.text(ix + P(14), sepY + P(8), '傷害公式', {
+      mi(this.add.text(ix + P(14), sepY + P(8), tr('prep.skill.dmgFormula'), {
         fontSize: F(15), fontStyle: 'bold', color: mcHex,
       }).setOrigin(0, 0).setDepth(D + 12));
       info.formula.forEach((line, i) => {
@@ -4284,7 +4287,7 @@ export class PrepScene extends Phaser.Scene {
       };
 
       if (!active) {
-        drawInfoBtn(confirmX, '確認使用', 0x1a4030, '#55ffaa', () => {
+        drawInfoBtn(confirmX, tr('prep.equip.usePotion'), 0x1a4030, '#55ffaa', () => {
           SkillTreeStore.setAttackMode(m.id);
           SaveStore.save();
           const hubLbl = labelTxts.get('1');
@@ -4293,7 +4296,7 @@ export class PrepScene extends Phaser.Scene {
           closePicker();
         });
       }
-      drawInfoBtn(active ? W / 2 - btnW2 / 2 : cancelX, active ? '已使用中' : '取  消',
+      drawInfoBtn(active ? W / 2 - btnW2 / 2 : cancelX, active ? tr('prep.misc.inUse') : tr('ui.cancel'),
         active ? 0x2a2a2a : 0x2a1010, active ? '#888888' : '#ff8888', closeModeInfo);
     };
 
@@ -4316,7 +4319,7 @@ export class PrepScene extends Phaser.Scene {
       const mpG = sp(this.add.graphics().setDepth(D + 7));
       mpG.fillStyle(0x060c18, 1); mpG.fillRoundedRect(mpx, mpy, MPW, MPH, P(8));
       mpG.lineStyle(P(1.5), 0x44aaff, 0.7); mpG.strokeRoundedRect(mpx, mpy, MPW, MPH, P(8));
-      sp(this.add.text(W / 2, mpy + P(14), '選擇攻擊模式', {
+      sp(this.add.text(W / 2, mpy + P(14), tr('prep.skill.selectMode'), {
         fontSize: F(15), fontStyle: 'bold', color: '#88ccff', stroke: '#000', strokeThickness: 2,
       }).setOrigin(0.5, 0).setDepth(D + 8));
       ATTACK_MODES.forEach((m, i) => {
@@ -4458,7 +4461,7 @@ export class PrepScene extends Phaser.Scene {
     bg.fillRect(px, py + P(36), PW, P(1));
     container.add(bg);
 
-    container.add(this.add.text(0, py + P(18), '物  品', {
+    container.add(this.add.text(0, py + P(18), tr('prep.equip.itemTitle'), {
       fontSize: F(15), fontStyle: 'bold', color: '#e8c070', stroke: '#1a0800', strokeThickness: 2,
     }).setOrigin(0.5));
 
@@ -4475,18 +4478,18 @@ export class PrepScene extends Phaser.Scene {
     // ── Potion bar config ─────────────────────────────────
     const HEAL_IDS = new Set([ITEM_POTION_HEALTH_S, ITEM_POTION_HEALTH_M, ITEM_POTION_HEALTH_L]);
     const POTION_ITEMS = [
-      { id: ITEM_POTION_HEALTH_S, name: '小型回復藥水' },
-      { id: ITEM_POTION_HEALTH_M, name: '中型回復藥水' },
-      { id: ITEM_POTION_HEALTH_L, name: '大型回復藥水' },
-      { id: ITEM_POTION_ATK, name: '攻擊力藥水' },
-      { id: ITEM_POTION_DEF, name: '防禦力藥水' },
-      { id: ITEM_POTION_SPEED, name: '速度藥水' },
-      { id: ITEM_POTION_REVIVE, name: '復活藥水' },
+      { id: ITEM_POTION_HEALTH_S, name: tr('item.potion_health_s') },
+      { id: ITEM_POTION_HEALTH_M, name: tr('item.potion_health_m') },
+      { id: ITEM_POTION_HEALTH_L, name: tr('item.potion_health_l') },
+      { id: ITEM_POTION_ATK, name: tr('item.potion_atk') },
+      { id: ITEM_POTION_DEF, name: tr('item.potion_def') },
+      { id: ITEM_POTION_SPEED, name: tr('item.potion_speed') },
+      { id: ITEM_POTION_REVIVE, name: tr('item.potion_revive') },
     ];
     const potionSecY = py + P(44);
     const potionSlotSZ = P(80), potionSlotGap = P(8);
 
-    container.add(this.add.text(0, potionSecY + P(10), '快捷藥水配置', {
+    container.add(this.add.text(0, potionSecY + P(10), tr('prep.equip.hotbarTitle'), {
       fontSize: F(13), fontStyle: 'bold', color: '#c49050', stroke: '#1a0800', strokeThickness: 1,
     }).setOrigin(0.5, 0));
 
@@ -4515,7 +4518,7 @@ export class PrepScene extends Phaser.Scene {
           container.add(img);
           obj.icon = img;
         }
-        const itemName = POTION_ITEMS.find(p => p.id === itemId)?.name ?? '（空）';
+        const itemName = POTION_ITEMS.find(p => p.id === itemId)?.name ?? tr('prep.skill.emptySlot');
         obj.lbl.setText(itemName).setPosition(cx2, sy + potionSlotSZ - P(8));
       });
     };
@@ -4565,21 +4568,21 @@ export class PrepScene extends Phaser.Scene {
         pickObjs.push(pickBlocker);
         container.add(pickBlocker);
 
-        const backBtn = this.add.text(px + P(18), py + P(52), '← 返回', {
+        const backBtn = this.add.text(px + P(18), py + P(52), tr('ui.back'), {
           fontSize: F(15), fontStyle: 'bold', color: '#c49050', stroke: '#1a0800', strokeThickness: 1,
         }).setOrigin(0, 0.5).setInteractive({ useHandCursor: true });
         backBtn.on('pointerdown', closePick);
         pickObjs.push(backBtn);
         container.add(backBtn);
 
-        const titleTxt = this.add.text(0, py + P(52), `選擇藥水槽 ${idx + 1}`, {
+        const titleTxt = this.add.text(0, py + P(52), tr('prep.potionSlot', { n: idx + 1 }), {
           fontSize: F(14), fontStyle: 'bold', color: '#ffe066', stroke: '#1a0800', strokeThickness: 2,
         }).setOrigin(0.5, 0.5);
         pickObjs.push(titleTxt);
         container.add(titleTxt);
 
         // "清除" button
-        const clearBtn = this.add.text(px + PW - P(18), py + P(52), '清除', {
+        const clearBtn = this.add.text(px + PW - P(18), py + P(52), tr('ui.clear'), {
           fontSize: F(13), fontStyle: 'bold', color: '#cc4444', stroke: '#1a0800', strokeThickness: 2,
         }).setOrigin(1, 0.5).setInteractive({ useHandCursor: true });
         clearBtn.on('pointerdown', () => {
@@ -4601,7 +4604,7 @@ export class PrepScene extends Phaser.Scene {
           !(otherIsHeal && HEAL_IDS.has(p.id))
         );
         if (available.length === 0) {
-          const empty = this.add.text(0, py + P(100), '背包中沒有藥水', {
+          const empty = this.add.text(0, py + P(100), tr('prep.equip.noPotionBag'), {
             fontSize: F(15), fontStyle: 'bold', color: '#7a5830', stroke: '#1a0800', strokeThickness: 1,
           }).setOrigin(0.5);
           pickObjs.push(empty);
@@ -4650,7 +4653,7 @@ export class PrepScene extends Phaser.Scene {
             }).setMask(listMask);
             listCt.add(nameTxt);
 
-            const qtyTxt = this.add.text(px + P(80), ey + P(38), `數量：${InventoryStore.getItemQty(p.id)}`, {
+            const qtyTxt = this.add.text(px + P(80), ey + P(38), tr('ui.qty', { n: InventoryStore.getItemQty(p.id) }), {
               fontSize: F(13), color: '#ffe866', stroke: '#1a0800', strokeThickness: 1,
             }).setMask(listMask);
             listCt.add(qtyTxt);
@@ -4718,22 +4721,22 @@ export class PrepScene extends Phaser.Scene {
     // ── Item detail overlay ───────────────────────────────
     interface ItemMeta { category: string; categoryColor: string; desc: string; descColor: string }
     const ITEM_META: Record<string, ItemMeta> = {
-      stone_broken:    { category: '精煉材料', categoryColor: '#aaccaa', desc: '精煉裝備的基礎材料', descColor: '#8aaa88' },
-      stone_intact:    { category: '精煉材料', categoryColor: '#aaccaa', desc: '品質較好的精煉材料\n可以增加8%成功率', descColor: '#8aaa88' },
-      stone_guard:     { category: '精煉材料', categoryColor: '#aaccaa', desc: '重鑄石\n將裝備重\n重置技能星盤', descColor: '#8aaa88' },
-      quest_reroll:    { category: '任務道具', categoryColor: '#aacc88', desc: '任務重製石\n可重新抽取懸賞任務', descColor: '#aabb88' },
-      blank_card:      { category: '卡片材料', categoryColor: '#aabbee', desc: '空白卡片\n可用於兌換卡片', descColor: '#88aacc' },
-      potion_health_s: { category: '回復藥水', categoryColor: '#88ddaa', desc: '小型回復藥水\n使用後立即恢復 100 HP', descColor: '#88ccaa' },
-      potion_health_m: { category: '回復藥水', categoryColor: '#88ddaa', desc: '中型回復藥水\n使用後立即恢復 200 HP', descColor: '#88ccaa' },
-      potion_health_l: { category: '回復藥水', categoryColor: '#88ddaa', desc: '大型回復藥水\n使用後立即恢復 300 HP', descColor: '#88ccaa' },
-      potion_revive:   { category: '特殊藥水', categoryColor: '#ddaa88', desc: '復活藥水\n死亡時自動復活並恢復 50% HP', descColor: '#ddaa88' },
-      potion_atk:      { category: '增益藥水', categoryColor: '#ffcc88', desc: '攻擊力藥水\n攻擊力 +20%，持續 30 秒', descColor: '#ffcc66' },
-      potion_def:      { category: '增益藥水', categoryColor: '#ffcc88', desc: '防禦力藥水\n防禦力 +20，持續 30 秒', descColor: '#ffcc66' },
-      potion_speed:    { category: '增益藥水', categoryColor: '#ffcc88', desc: '速度藥水\n移動速度 +20，持續 30 秒', descColor: '#ffcc66' },
-      ticket_slime:    { category: '★  地圖門票', categoryColor: '#ffdd55', desc: '史萊姆系列門票\n可挑戰一次 6 星史萊姆王', descColor: '#ffee88' },
-      ticket_flower:   { category: '★  地圖門票', categoryColor: '#ffdd55', desc: '花怪系列門票\n可挑戰一次 6 星花王', descColor: '#ffee88' },
-      ticket_orc:      { category: '★  地圖門票', categoryColor: '#ffdd55', desc: '獸人系列門票\n可挑戰一次 6 星獸人王', descColor: '#ffee88' },
-      ticket_vampire:  { category: '★  地圖門票', categoryColor: '#ffdd55', desc: '吸血鬼系列門票\n可挑戰一次 6 星吸血鬼王', descColor: '#ffee88' },
+      stone_broken:    { category: tr('prep.equip.material'), categoryColor: '#aaccaa', desc: tr('prep.equip.materialDesc'), descColor: '#8aaa88' },
+      stone_intact:    { category: tr('prep.equip.material'), categoryColor: '#aaccaa', desc: tr('prep.item.intactStoneDesc'), descColor: '#8aaa88' },
+      stone_guard:     { category: tr('prep.equip.material'), categoryColor: '#aaccaa', desc: tr('prep.item.guardStoneDesc2'), descColor: '#8aaa88' },
+      quest_reroll:    { category: tr('prep.equip.questItem'), categoryColor: '#aacc88', desc: tr('prep.item.questRerollDesc'), descColor: '#aabb88' },
+      blank_card:      { category: tr('prep.equip.cardMaterial'), categoryColor: '#aabbee', desc: tr('prep.card.blank'), descColor: '#88aacc' },
+      potion_health_s: { category: tr('prep.equip.potion.heal'), categoryColor: '#88ddaa', desc: tr('prep.item.potionSmallDesc'), descColor: '#88ccaa' },
+      potion_health_m: { category: tr('prep.equip.potion.heal'), categoryColor: '#88ddaa', desc: tr('prep.item.potionMidDesc'), descColor: '#88ccaa' },
+      potion_health_l: { category: tr('prep.equip.potion.heal'), categoryColor: '#88ddaa', desc: tr('prep.item.potionLargeDesc'), descColor: '#88ccaa' },
+      potion_revive:   { category: tr('prep.equip.potion.special'), categoryColor: '#ddaa88', desc: tr('prep.item.potionReviveDesc'), descColor: '#ddaa88' },
+      potion_atk:      { category: tr('prep.equip.potion.buff'), categoryColor: '#ffcc88', desc: tr('prep.item.potionAtkDesc'), descColor: '#ffcc66' },
+      potion_def:      { category: tr('prep.equip.potion.buff'), categoryColor: '#ffcc88', desc: tr('prep.item.potionDefDesc'), descColor: '#ffcc66' },
+      potion_speed:    { category: tr('prep.equip.potion.buff'), categoryColor: '#ffcc88', desc: tr('prep.item.potionSpeedDesc'), descColor: '#ffcc66' },
+      ticket_slime:    { category: tr('prep.quest.mapTicket'), categoryColor: '#ffdd55', desc: tr('prep.item.slimeTicketDesc'), descColor: '#ffee88' },
+      ticket_flower:   { category: tr('prep.quest.mapTicket'), categoryColor: '#ffdd55', desc: tr('prep.item.flowerTicketDesc'), descColor: '#ffee88' },
+      ticket_orc:      { category: tr('prep.quest.mapTicket'), categoryColor: '#ffdd55', desc: tr('prep.item.orcTicketDesc'), descColor: '#ffee88' },
+      ticket_vampire:  { category: tr('prep.quest.mapTicket'), categoryColor: '#ffdd55', desc: tr('prep.item.vampireTicketDesc'), descColor: '#ffee88' },
     };
 
     const showItemDetail = (item: import('../data/inventory-store').InventoryItem) => {
@@ -4753,7 +4756,7 @@ export class PrepScene extends Phaser.Scene {
         .on('pointerdown', (_p: any, _lx: any, _ly: any, ev: any) => ev.stopPropagation());
       det.add(blocker);
 
-      const backBtn = this.add.text(px + P(16), py + P(51), '← 返回', {
+      const backBtn = this.add.text(px + P(16), py + P(51), tr('ui.back'), {
         fontSize: F(15), fontStyle: 'bold', color: '#c49050', stroke: '#1a0800', strokeThickness: 1,
       }).setOrigin(0, 0.5).setInteractive({ useHandCursor: true });
       backBtn.on('pointerdown', () => det.destroy());
@@ -4778,7 +4781,7 @@ export class PrepScene extends Phaser.Scene {
       qtyBg.fillStyle(WM, 1); qtyBg.fillRect(-P(40), py + P(182), P(80), P(26));
       qtyBg.lineStyle(1, WL, 0.4); qtyBg.strokeRect(-P(40), py + P(182), P(80), P(26));
       det.add(qtyBg);
-      det.add(this.add.text(0, py + P(195), `數量：${item.qty}`, {
+      det.add(this.add.text(0, py + P(195), tr('ui.qty', { n: item.qty }), {
         fontSize: F(15), fontStyle: 'bold', color: '#e8e070', stroke: '#1a0800', strokeThickness: 2,
       }).setOrigin(0.5));
 
@@ -4813,7 +4816,7 @@ export class PrepScene extends Phaser.Scene {
         assignBg.strokeRoundedRect(-assignBtnW / 2, assignBtnY - assignBtnH / 2, assignBtnW, assignBtnH, P(6));
         det.add(assignBg);
 
-        det.add(this.add.text(0, assignBtnY, '配置快捷欄', {
+        det.add(this.add.text(0, assignBtnY, tr('prep.equip.hotbarTitle'), {
           fontSize: F(15), fontStyle: 'bold', color: '#e8c070', stroke: '#1a0800', strokeThickness: 2,
         }).setOrigin(0.5));
 
@@ -4846,7 +4849,7 @@ export class PrepScene extends Phaser.Scene {
           container.add(dimGfx);
 
           // 提示文字
-          const hintTxt = this.add.text(0, dimTop + P(6), '點選上方格子以配置\n點其他地方取消', {
+          const hintTxt = this.add.text(0, dimTop + P(6), tr('prep.card.pickSlot'), {
             fontSize: F(12), fontStyle: 'bold', color: '#aaffaa', stroke: '#001a00', strokeThickness: 1,
             align: 'center',
           }).setOrigin(0.5, 0);
@@ -4894,7 +4897,7 @@ export class PrepScene extends Phaser.Scene {
 
       if (allItems.length === 0) {
         gridMaxScroll = 0;
-        gridContainer.add(this.add.text(0, gridY + 40, '背包是空的', {
+        gridContainer.add(this.add.text(0, gridY + 40, tr('prep.equip.emptyBag'), {
           fontSize: F(15), fontStyle: 'bold', color: '#7a5830', stroke: '#1a0800', strokeThickness: 1,
         }).setOrigin(0.5));
         return;
@@ -5021,7 +5024,7 @@ export class PrepScene extends Phaser.Scene {
     bg.fillStyle(WB, 1); bg.fillRect(px, py + P(36), PW, 1);
     container.add(bg);
 
-    container.add(this.add.text(0, py + P(18), '卡  片', {
+    container.add(this.add.text(0, py + P(18), tr('prep.card.title'), {
       fontSize: F(15), fontStyle: 'bold', color: '#e8c070', stroke: '#1a0800', strokeThickness: 2,
     }).setOrigin(0.5));
 
@@ -5052,7 +5055,7 @@ export class PrepScene extends Phaser.Scene {
     const invX0   = leftCX - invTotW / 2;
 
     // ── Equipped slots label ──────────────────────────────
-    container.add(this.add.text(leftCX, slotsY - P(14), '裝備中', {
+    container.add(this.add.text(leftCX, slotsY - P(14), tr('prep.equip.equipped'), {
       fontSize: F(15), fontStyle: 'bold', color: '#b07030', stroke: '#1a0800', strokeThickness: 1,
     }).setOrigin(0.5));
 
@@ -5063,7 +5066,7 @@ export class PrepScene extends Phaser.Scene {
     rightBg.lineStyle(1, WM, 0.5);
     rightBg.lineBetween(RIGHT_X, py + P(36), RIGHT_X, py + PH - P(4));
     container.add(rightBg);
-    container.add(this.add.text(rightCX, py + P(44), '卡片加成', {
+    container.add(this.add.text(rightCX, py + P(44), tr('prep.card.bonus'), {
       fontSize: F(15), fontStyle: 'bold', color: '#b07030', stroke: '#1a0800', strokeThickness: 1,
     }).setOrigin(0.5, 0));
 
@@ -5211,7 +5214,7 @@ export class PrepScene extends Phaser.Scene {
       pbg.lineBetween(-PDW / 2, popY - PDH / 2 + P(26), PDW / 2, popY - PDH / 2 + P(26));
       slotPickLayer.add(pbg);
 
-      slotPickLayer.add(this.add.text(0, popY - PDH / 2 + P(13), '替換卡片', {
+      slotPickLayer.add(this.add.text(0, popY - PDH / 2 + P(13), tr('prep.equip.replaceCard'), {
         fontSize: F(15), fontStyle: 'bold', color: '#e8c070', stroke: '#000', strokeThickness: 2,
       }).setOrigin(0.5));
 
@@ -5263,7 +5266,7 @@ export class PrepScene extends Phaser.Scene {
 
       const cardCX = CW / 2 + GAP / 2;
       drawMiniCard(oldDef, -cardCX, '現有', '#ff9999');
-      drawMiniCard(newDef, cardCX, '新增', '#99ff99');
+      drawMiniCard(newDef, cardCX, tr('prep.misc.add'), '#99ff99');
 
       // ── Buttons (inside frame) ──────────────────────────
       const BW = P(118), BH = P(30);
@@ -5273,7 +5276,7 @@ export class PrepScene extends Phaser.Scene {
       confirmBg.fillStyle(0x0e2a0e, 1); confirmBg.fillRect(-BW - P(4), btnY - BH / 2, BW, BH);
       confirmBg.lineStyle(1.5, 0x44cc44, 0.9); confirmBg.strokeRect(-BW - P(4), btnY - BH / 2, BW, BH);
       slotPickLayer.add(confirmBg);
-      slotPickLayer.add(this.add.text(-BW / 2 - P(4), btnY, '確認替換', {
+      slotPickLayer.add(this.add.text(-BW / 2 - P(4), btnY, tr('prep.equip.replaceConfirm'), {
         fontSize: F(15), fontStyle: 'bold', color: '#88ff88', stroke: '#000', strokeThickness: 2,
       }).setOrigin(0.5));
       const confirmHit = this.add.rectangle(-BW / 2 - P(4), btnY, BW, BH).setInteractive({ useHandCursor: true });
@@ -5289,7 +5292,7 @@ export class PrepScene extends Phaser.Scene {
       cancelBg.fillStyle(0x1a1a1a, 1); cancelBg.fillRect(P(4), btnY - BH / 2, BW, BH);
       cancelBg.lineStyle(1.5, 0x666666, 0.9); cancelBg.strokeRect(P(4), btnY - BH / 2, BW, BH);
       slotPickLayer.add(cancelBg);
-      slotPickLayer.add(this.add.text(BW / 2 + P(4), btnY, '取  消', {
+      slotPickLayer.add(this.add.text(BW / 2 + P(4), btnY, tr('ui.cancel'), {
         fontSize: F(15), fontStyle: 'bold', color: '#aaaaaa', stroke: '#000', strokeThickness: 2,
       }).setOrigin(0.5));
       const cancelHit = this.add.rectangle(BW / 2 + P(4), btnY, BW, BH).setInteractive({ useHandCursor: true });
@@ -5307,7 +5310,7 @@ export class PrepScene extends Phaser.Scene {
       dim.on('pointerdown', clearSlotPick);
       slotPickLayer.add(dim);
 
-      slotPickLayer.add(this.add.text(0, slotsY - P(18), '請選擇要替換進來的卡片　（點擊空白處取消）', {
+      slotPickLayer.add(this.add.text(0, slotsY - P(18), tr('prep.equip.cardPickerHint'), {
         fontSize: F(15), fontStyle: 'bold', color: '#ffee88', stroke: '#000', strokeThickness: 2,
       }).setOrigin(0.5, 1));
 
@@ -5365,7 +5368,7 @@ export class PrepScene extends Phaser.Scene {
       dim.on('pointerdown', clearSlotPick);
       slotPickLayer.add(dim);
 
-      slotPickLayer.add(this.add.text(0, slotsY - P(18), '請選擇要配置的格子　（點擊空白處取消）', {
+      slotPickLayer.add(this.add.text(0, slotsY - P(18), tr('prep.equip.slotPickerHint'), {
         fontSize: F(15), fontStyle: 'bold', color: '#ffee88', stroke: '#000', strokeThickness: 2,
       }).setOrigin(0.5, 1));
 
@@ -5569,11 +5572,11 @@ export class PrepScene extends Phaser.Scene {
 
       // ── Tier & stack limit info ────────────────────────
       const detMonTier = getMonsterDef(def.monsterId)?.tier ?? 1;
-      const detTierName = detMonTier >= 5 ? 'Boss' : detMonTier === 3 ? '菁英' : '一般';
+      const detTierName = detMonTier >= 5 ? 'Boss' : detMonTier === 3 ? tr('prep.monster.elite') : tr('prep.monster.normal');
       const detLimit = CardStore.getStackLimit(cardId);
       const detEquipped = CardStore.getEquipped().filter(s => s === cardId).length;
       const detTierColor = detMonTier >= 5 ? '#ffd060' : detMonTier === 3 ? '#80c8ff' : '#88dd88';
-      pop.add(this.add.text(0, PDH / 2 - P(100), `裝備上限 ${detEquipped}/${detLimit}`, {
+      pop.add(this.add.text(0, PDH / 2 - P(100), tr('prep.card.stackLimit', { n: detEquipped, max: detLimit }), {
         fontSize: F(15), fontStyle: 'bold', color: detTierColor,
         stroke: '#1a0800', strokeThickness: 1, align: 'center',
       }).setOrigin(0.5, 0.5));
@@ -5591,7 +5594,7 @@ export class PrepScene extends Phaser.Scene {
         dg.fillStyle(0x2a1a0a, 1); dg.fillRect(-BW2 / 2, dismantleY - BH / 2, BW2, BH);
         dg.lineStyle(P(1.5), 0x996633, 0.85); dg.strokeRect(-BW2 / 2, dismantleY - BH / 2, BW2, BH);
         pop.add(dg);
-        pop.add(this.add.text(0, dismantleY, `分  解  (+${dismantleQty} 空白卡片)`, {
+        pop.add(this.add.text(0, dismantleY, tr('prep.card.dismantleGain', { n: dismantleQty }), {
           fontSize: F(13), fontStyle: 'bold', color: '#cc9955', stroke: '#000', strokeThickness: 2,
         }).setOrigin(0.5));
         const hit = this.add.rectangle(0, dismantleY, BW2, BH).setInteractive({ useHandCursor: true });
@@ -5599,7 +5602,7 @@ export class PrepScene extends Phaser.Scene {
           ptr.event.stopPropagation();
           if (isEquipped) CardStore.unequip(equippedSlot!);
           else CardStore.removeFromInventory(cardId, 1);
-          InventoryStore.addItem(ITEM_BLANK_CARD, '空白卡片', dismantleQty);
+          InventoryStore.addItem(ITEM_BLANK_CARD, tr('item.blank_card'), dismantleQty);
           SaveStore.save();
           pop.destroy(); detailPopup = null;
         });
@@ -5622,7 +5625,7 @@ export class PrepScene extends Phaser.Scene {
           pop.add(hit);
         };
         const ox0 = -(HBW / 2 + P(4)), ox1 = HBW / 2 + P(4);
-        makeBtn(ox0, '取  下', 0x3a1010, 0xcc4444, '#ff8888', () => {
+        makeBtn(ox0, tr('prep.equip.remove'), 0x3a1010, 0xcc4444, '#ff8888', () => {
           CardStore.unequip(equippedSlot!);
           SaveStore.save();
           pop.destroy(); detailPopup = null;
@@ -5647,7 +5650,7 @@ export class PrepScene extends Phaser.Scene {
         btnBg.lineStyle(1.5, atDetLimit ? 0x666666 : 0x44cc44, 0.9);
         btnBg.strokeRect(-BW / 2, btnY - BH / 2, BW, BH);
         pop.add(btnBg);
-        pop.add(this.add.text(0, btnY, atDetLimit ? '已達上限' : '配  置', {
+        pop.add(this.add.text(0, btnY, atDetLimit ? tr('prep.misc.reached') : tr('prep.equip.put'), {
           fontSize: F(15), fontStyle: 'bold',
           color: atDetLimit ? '#666666' : '#88ff88', stroke: '#000000', strokeThickness: 2,
         }).setOrigin(0.5));
@@ -5760,7 +5763,7 @@ export class PrepScene extends Phaser.Scene {
       sepGfx.fillStyle(WB, 1); sepGfx.fillRect(px + P(8), INV_TOP - P(10), LEFT_W - P(16), 1);
       sepGfx.fillStyle(WH, 0.2); sepGfx.fillRect(px + P(8), INV_TOP - P(9), LEFT_W - P(16), 1);
       contentCnt.add(sepGfx);
-      contentCnt.add(this.add.text(leftCX, INV_TOP - P(5), '持有卡片', {
+      contentCnt.add(this.add.text(leftCX, INV_TOP - P(5), tr('prep.card.held'), {
         fontSize: F(15), fontStyle: 'bold', color: '#b07030', stroke: '#1a0800', strokeThickness: 1,
       }).setOrigin(0.5, 1));
 
@@ -5769,7 +5772,7 @@ export class PrepScene extends Phaser.Scene {
       let applyScroll = (_dy: number) => {};
 
       if (invItems.length === 0) {
-        contentCnt.add(this.add.text(leftCX, INV_TOP + INV_H / 2, '尚未獲得任何卡片', {
+        contentCnt.add(this.add.text(leftCX, INV_TOP + INV_H / 2, tr('prep.card.noCards'), {
           fontSize: F(15), fontStyle: 'bold', color: '#5a3818', stroke: '#1a0800', strokeThickness: 1,
         }).setOrigin(0.5));
       } else {
@@ -5869,41 +5872,41 @@ export class PrepScene extends Phaser.Scene {
         const lines: string[] = [];
         const pct = (v: number) => `${v >= 0 ? '+' : ''}${(v * 100).toFixed(0)}%`;
         const num = (v: number) => `${v >= 0 ? '+' : ''}${v}`;
-        if (b.atk)                lines.push(`攻擊力 ${num(b.atk)}`);
-        if (b.hp)                 lines.push(`最大HP ${num(b.hp)}`);
-        if (b.def)                lines.push(`防禦力 ${num(b.def)}`);
-        if (b.crit)               lines.push(`爆擊率 ${pct(b.crit)}`);
-        if (b.critDmg)            lines.push(`爆擊傷害 ${pct(b.critDmg)}`);
-        if (b.atkSpeed)           lines.push(`攻擊速度 ${pct(b.atkSpeed)}`);
-        if (b.speed)              lines.push(`移動速度 ${num(b.speed)}`);
-        if (b.evasion)            lines.push(`迴避率 ${pct(b.evasion)}`);
-        if (b.penetration)        lines.push(`穿透力 ${num(b.penetration)}`);
-        if (b.dotBonus)           lines.push(`燃燒傷害 ${pct(b.dotBonus)}`);
-        if (b.hpRegen)            lines.push(`HP回復 +${b.hpRegen.toFixed(1)}/s`);
-        if (b.lifesteal)          lines.push(`吸血 ${pct(b.lifesteal)}`);
-        if (b.hpPct)              lines.push(`最大HP ${pct(b.hpPct)}`);
-        if (b.atkPct)             lines.push(`攻擊力 ${pct(b.atkPct)}`);
-        if (b.allDmgPct)          lines.push(`全傷害 ${pct(b.allDmgPct)}`);
-        if (b.takenDmgPct)        lines.push(`受傷 ${pct(b.takenDmgPct)}`);
-        if (b.dmgVsEliteOrBoss)   lines.push(`對菁英/Boss傷 ${pct(b.dmgVsEliteOrBoss)}`);
-        if (b.dmgVsBoss)          lines.push(`對Boss傷 ${pct(b.dmgVsBoss)}`);
-        if (b.dmgVsSlime)         lines.push(`對史萊姆傷 ${pct(b.dmgVsSlime)}`);
-        if (b.dmgVsPlant)         lines.push(`對花怪傷 ${pct(b.dmgVsPlant)}`);
-        if (b.dmgVsAnyElement)    lines.push(`對火/水/草傷 ${pct(b.dmgVsAnyElement)}`);
-        if (b.burnedEnemyDmgAmp)  lines.push(`對燃燒敵人傷 ${pct(b.burnedEnemyDmgAmp)}`);
-        if (b.condLowHpAtk)       lines.push(`低血量時攻擊+${b.condLowHpAtk}`);
-        if (b.burnMaxStackBonus)  lines.push(`燃燒上限 +${b.burnMaxStackBonus}層`);
-        if (b.summonFlowerDmgPct) lines.push(`召喚物傷 ${pct(b.summonFlowerDmgPct)}`);
-        if (b.skillFlowerHpPct)   lines.push(`召喚物血 ${pct(b.skillFlowerHpPct)}`);
-        if (b.freeRevive)         lines.push(`復活 ${b.freeRevive}次/局`);
-        if (b.divineShieldChance) lines.push(`護盾觸發 ${pct(b.divineShieldChance)}`);
-        if (b.executeBelow15)     lines.push(`斬殺 HP<12%`);
-        if (b.critDmgMult  && b.critDmgMult  !== 1) lines.push(`爆擊傷害 ×${b.critDmgMult.toFixed(2)}`);
-        if (b.atkSpeedMult && b.atkSpeedMult !== 1) lines.push(`攻擊速度 ×${b.atkSpeedMult.toFixed(2)}`);
-        if (b.summonDmgMult && b.summonDmgMult !== 1) lines.push(`召喚傷害 ×${b.summonDmgMult.toFixed(2)}`);
-        if (b.defToEvasion)       lines.push(`每${b.defToEvasion}防禦 迴避+3%`);
-        if (b.condPenAtk)         lines.push(`穿透≥100 攻擊+${b.condPenAtk}`);
-        if (b.condCritDmgBonus)   lines.push(`爆擊≥50% 爆傷${pct(b.condCritDmgBonus)}`);
+        if (b.atk)                lines.push(`${tr('stat.atk')} ${num(b.atk)}`);
+        if (b.hp)                 lines.push(`${tr('stat.hp')} ${num(b.hp)}`);
+        if (b.def)                lines.push(`${tr('stat.def')} ${num(b.def)}`);
+        if (b.crit)               lines.push(`${tr('stat.crit')} ${pct(b.crit)}`);
+        if (b.critDmg)            lines.push(`${tr('stat.critDmg')} ${pct(b.critDmg)}`);
+        if (b.atkSpeed)           lines.push(`${tr('stat.atkSpeed')} ${pct(b.atkSpeed)}`);
+        if (b.speed)              lines.push(`${tr('stat.speed')} ${num(b.speed)}`);
+        if (b.evasion)            lines.push(`${tr('stat.evasion')} ${pct(b.evasion)}`);
+        if (b.penetration)        lines.push(`${tr('stat.penetration')} ${num(b.penetration)}`);
+        if (b.dotBonus)           lines.push(`${tr('stat.dotBonus')} ${pct(b.dotBonus)}`);
+        if (b.hpRegen)            lines.push(`${tr('stat.hpRegen')} +${b.hpRegen.toFixed(1)}/s`);
+        if (b.lifesteal)          lines.push(`${tr('stat.lifesteal')} ${pct(b.lifesteal)}`);
+        if (b.hpPct)              lines.push(`${tr('stat.hp')} ${pct(b.hpPct)}`);
+        if (b.atkPct)             lines.push(`${tr('stat.atk')} ${pct(b.atkPct)}`);
+        if (b.allDmgPct)          lines.push(`${tr('stat.allDmgPct')} ${pct(b.allDmgPct)}`);
+        if (b.takenDmgPct)        lines.push(tr('card.stat.takenDmg', { val: pct(b.takenDmgPct) }));
+        if (b.dmgVsEliteOrBoss)   lines.push(tr('card.stat.vsEliteBoss', { val: pct(b.dmgVsEliteOrBoss) }));
+        if (b.dmgVsBoss)          lines.push(tr('card.stat.vsBoss', { val: pct(b.dmgVsBoss) }));
+        if (b.dmgVsSlime)         lines.push(tr('card.stat.vsSlime', { val: pct(b.dmgVsSlime) }));
+        if (b.dmgVsPlant)         lines.push(tr('card.stat.vsPlant', { val: pct(b.dmgVsPlant) }));
+        if (b.dmgVsAnyElement)    lines.push(tr('card.stat.vsElement', { val: pct(b.dmgVsAnyElement) }));
+        if (b.burnedEnemyDmgAmp)  lines.push(tr('card.stat.vsBurned', { val: pct(b.burnedEnemyDmgAmp) }));
+        if (b.condLowHpAtk)       lines.push(tr('card.stat.lowHpAtk', { n: b.condLowHpAtk }));
+        if (b.burnMaxStackBonus)  lines.push(tr('card.stat.burnStack', { n: b.burnMaxStackBonus }));
+        if (b.summonFlowerDmgPct) lines.push(tr('card.stat.summonDmg', { val: pct(b.summonFlowerDmgPct) }));
+        if (b.skillFlowerHpPct)   lines.push(tr('card.stat.summonHp', { val: pct(b.skillFlowerHpPct) }));
+        if (b.freeRevive)         lines.push(tr('card.stat.revive', { n: b.freeRevive }));
+        if (b.divineShieldChance) lines.push(tr('card.stat.shieldChance', { val: pct(b.divineShieldChance) }));
+        if (b.executeBelow15)     lines.push(tr('card.stat.execute'));
+        if (b.critDmgMult  && b.critDmgMult  !== 1) lines.push(tr('card.stat.critDmgMult', { n: b.critDmgMult.toFixed(2) }));
+        if (b.atkSpeedMult && b.atkSpeedMult !== 1) lines.push(tr('card.stat.atkSpeedMult', { n: b.atkSpeedMult.toFixed(2) }));
+        if (b.summonDmgMult && b.summonDmgMult !== 1) lines.push(tr('card.stat.summonDmgMult', { n: b.summonDmgMult.toFixed(2) }));
+        if (b.defToEvasion)       lines.push(tr('card.stat.defToEvasion', { n: b.defToEvasion }));
+        if (b.condPenAtk)         lines.push(tr('card.stat.penAtk', { n: b.condPenAtk }));
+        if (b.condCritDmgBonus)   lines.push(tr('card.stat.condCritDmg', { val: pct(b.condCritDmgBonus) }));
         return lines;
       };
 
@@ -5918,7 +5921,7 @@ export class PrepScene extends Phaser.Scene {
         const cardId = eq[i];
         const def = cardId ? getCardDef(cardId) : null;
         if (!def) {
-          rightScrollCnt.add(this.add.text(RP_TX, ry, `${i + 1}. （空）`, {
+          rightScrollCnt.add(this.add.text(RP_TX, ry, `${i + 1}. ${tr('prep.skill.emptySlot')}`, {
             fontSize: F(15), fontStyle: 'bold', color: '#5a3818',
           }).setOrigin(0, 0));
           ry += LINE_H + P(3);
@@ -5950,13 +5953,13 @@ export class PrepScene extends Phaser.Scene {
       rightScrollCnt.add(sepGfx2);
       ry += P(10);
 
-      rightScrollCnt.add(this.add.text(rightCX, ry, '組合效果', {
+      rightScrollCnt.add(this.add.text(rightCX, ry, tr('prep.card.combo'), {
         fontSize: F(15), fontStyle: 'bold', color: '#b07030', stroke: '#1a0800', strokeThickness: 1,
       }).setOrigin(0.5, 0));
       ry += P(20);
 
       if (combos.length === 0) {
-        rightScrollCnt.add(this.add.text(RP_TX, ry, '（未觸發）', {
+        rightScrollCnt.add(this.add.text(RP_TX, ry, tr('prep.skill.untriggered'), {
           fontSize: F(15), fontStyle: 'bold', color: '#5a3818',
         }).setOrigin(0, 0));
         ry += LINE_H;
@@ -6105,11 +6108,11 @@ export class PrepScene extends Phaser.Scene {
     box.fillStyle(WB, 0.97); box.fillRoundedRect(bx, by, bw, bh, P(8));
     box.lineStyle(P(2), GOLD, 0.85); box.strokeRoundedRect(bx, by, bw, bh, P(8));
 
-    objs.push(this.add.text(W / 2, by + P(18), '設定名稱', {
+    objs.push(this.add.text(W / 2, by + P(18), tr('prep.misc.setName'), {
       fontSize: F(15), fontStyle: 'bold', color: '#ffe080', stroke: '#1a0800', strokeThickness: 2,
     }).setOrigin(0.5).setDepth(D + 2));
 
-    const inp = this.makeTextInput(objs, bx + P(16), by + P(36), bw - P(32), P(30), '名稱（最多8字）', D + 2, getPlayerName());
+    const inp = this.makeTextInput(objs, bx + P(16), by + P(36), bw - P(32), P(30), tr('prep.misc.namePH'), D + 2, getPlayerName());
 
     // Confirm button
     const btnW = P(100), btnH = P(28);
@@ -6118,7 +6121,7 @@ export class PrepScene extends Phaser.Scene {
     objs.push(btnG);
     btnG.fillStyle(0x2a4a10, 1); btnG.fillRoundedRect(btnX - btnW / 2, btnY - btnH / 2, btnW, btnH, P(5));
     btnG.lineStyle(P(1.5), GOLD, 0.7); btnG.strokeRoundedRect(btnX - btnW / 2, btnY - btnH / 2, btnW, btnH, P(5));
-    objs.push(this.add.text(btnX, btnY, '確  定', {
+    objs.push(this.add.text(btnX, btnY, tr('ui.confirm'), {
       fontSize: F(14), fontStyle: 'bold', color: '#ccff88', stroke: '#1a0800', strokeThickness: 2,
     }).setOrigin(0.5).setDepth(D + 3));
     const btnHit = this.add.rectangle(btnX, btnY, btnW, btnH)
@@ -6126,7 +6129,7 @@ export class PrepScene extends Phaser.Scene {
     objs.push(btnHit);
     btnHit.on('pointerdown', () => {
       if (this._partyState !== 'none') {
-        this._showToast('組隊中無法改名');
+        this._showToast(tr('prep.misc.inPartyNoName'));
         close();
         return;
       }
@@ -6153,7 +6156,7 @@ export class PrepScene extends Phaser.Scene {
     const txt = this.add.text(W / 2, H / 2 - 14, `${label}`, {
       fontSize: F(15), fontStyle: 'bold', color: '#e8c070', stroke: '#1a0800', strokeThickness: 2,
     }).setOrigin(0.5).setDepth(D + 2);
-    const sub = this.add.text(W / 2, H / 2 + 14, '功能待開發', {
+    const sub = this.add.text(W / 2, H / 2 + 14, tr('prep.misc.funcWip'), {
       fontSize: F(15), fontStyle: 'bold', color: '#886644', stroke: '#1a0800', strokeThickness: 1,
     }).setOrigin(0.5).setDepth(D + 2);
     const close = () => { bk.destroy(); box.destroy(); txt.destroy(); sub.destroy(); };
@@ -6204,7 +6207,7 @@ export class PrepScene extends Phaser.Scene {
     bg.fillStyle(WB, 1); bg.fillRect(px, py + 36, PW, 1);
     container.add(bg);
 
-    container.add(this.add.text(0, py + 18, '商  店', {
+    container.add(this.add.text(0, py + 18, tr('prep.shop.title'), {
       fontSize: F(15), fontStyle: 'bold', color: '#e8c070', stroke: '#1a0800', strokeThickness: 2,
     }).setOrigin(0.5));
 
@@ -6241,8 +6244,8 @@ export class PrepScene extends Phaser.Scene {
     let blankCardLabel: Phaser.GameObjects.Text;
     const labelY = py + P(48);
     const refreshGold = () => {
-      goldLabel?.setText(`${InventoryStore.getGold().toLocaleString()} 金幣`);
-      blankCardLabel?.setText(`空白卡片 ×${InventoryStore.getItemQty(ITEM_BLANK_CARD)}`);
+      goldLabel?.setText(tr('prep.shop.gold', { n: InventoryStore.getGold().toLocaleString() }));
+      blankCardLabel?.setText(tr('prep.shop.blankCard', { n: InventoryStore.getItemQty(ITEM_BLANK_CARD) }));
     };
     const goldIcon = this.add.image(-PW / 4 - P(36), labelY, 'icon_coin').setDisplaySize(P(14), P(14));
     goldLabel = this.add.text(-PW / 4 - P(24), labelY, '', {
@@ -6261,24 +6264,25 @@ export class PrepScene extends Phaser.Scene {
     // ── Tab definitions ────────────────────────────────────
     type ShopItem = { id: string; name: string; price: number; desc: string; color: number };
     const POTION_ITEMS: ShopItem[] = [
-      { id: ITEM_POTION_HEALTH_S, name: '小型回復藥水', price: 225,  desc: '回復 100 HP', color: 0x44ff88 },
-      { id: ITEM_POTION_HEALTH_M, name: '中型回復藥水', price: 495,  desc: '回復 200 HP', color: 0x44ddff },
-      { id: ITEM_POTION_HEALTH_L, name: '大型回復藥水', price: 1050, desc: '回復 300 HP', color: 0xff88ff },
-      { id: ITEM_POTION_ATK, name: '攻擊力藥水', price: 2000, desc: '傷害+20%，持續30秒', color: 0xff6644 },
-      { id: ITEM_POTION_DEF, name: '防禦力藥水', price: 2000, desc: 'DEF+20，持續30秒', color: 0x44aaff },
-      { id: ITEM_POTION_SPEED, name: '速度藥水', price: 2000, desc: '移動速度+20，持續30秒', color: 0xffdd22 },
-      { id: ITEM_POTION_REVIVE, name: '復活藥水', price: 5000, desc: '戰鬥中自動復活一次', color: 0xffee44 },
+      { id: ITEM_POTION_HEALTH_S, name: tr('item.potion_health_s'), price: 225,  desc: tr('game.potion.heal100'), color: 0x44ff88 },
+      { id: ITEM_POTION_HEALTH_M, name: tr('item.potion_health_m'), price: 495,  desc: tr('game.potion.heal200'), color: 0x44ddff },
+      { id: ITEM_POTION_HEALTH_L, name: tr('item.potion_health_l'), price: 1050, desc: tr('game.potion.heal300'), color: 0xff88ff },
+      { id: ITEM_POTION_ATK, name: tr('item.potion_atk'), price: 2000, desc: '傷害+20%，持續30秒', color: 0xff6644 },
+      { id: ITEM_POTION_DEF, name: tr('item.potion_def'), price: 2000, desc: 'DEF+20，持續30秒', color: 0x44aaff },
+      { id: ITEM_POTION_SPEED, name: tr('item.potion_speed'), price: 2000, desc: '移動速度+20，持續30秒', color: 0xffdd22 },
+      { id: ITEM_POTION_REVIVE, name: tr('item.potion_revive'), price: 5000, desc: tr('game.potion.reviveAuto'), color: 0xffee44 },
     ];
     const STONE_ITEMS: ShopItem[] = [
-      { id: ITEM_STONE_BROKEN, name: '破損強化石', price: 1000, desc: '強化裝備時消耗', color: 0x88ccff },
-      { id: ITEM_STONE_INTACT, name: '完整強化石', price: 1800, desc: '強化成功率 +8%', color: 0x66ffcc },
-      { id: 'stone_guard', name: '重鑄石', price: 4500, desc: '重鑄裝備\n可重置技能星盤', color: 0xbb66ff },
-      { id: ITEM_QUEST_REROLL, name: '任務重製石', price: 250, desc: '重置當前任務列表', color: 0xffcc44 },
+      { id: ITEM_STONE_BROKEN, name: tr('item.stone_broken'), price: 1000, desc: tr('game.stone.enhance'), color: 0x88ccff },
+      { id: ITEM_STONE_INTACT, name: tr('item.stone_intact'), price: 1800, desc: tr('prep.equip.enhanceRate'), color: 0x66ffcc },
+      { id: 'stone_guard', name: tr('item.stone_guard'), price: 4500, desc: tr('prep.item.guardStoneDesc'), color: 0xbb66ff },
+      { id: ITEM_QUEST_REROLL, name: tr('item.quest_reroll'), price: 250, desc: tr('prep.quest.resetList'), color: 0xffcc44 },
+      { id: ITEM_BLANK_CARD, name: tr('item.blank_card'), price: 3000, desc: tr('prep.item.blankCardDesc'), color: 0xcc88ff },
     ];
     const TAB_DEFS: { label: string; items: ShopItem[] | null }[] = [
-      { label: '藥水', items: POTION_ITEMS },
-      { label: '強化石', items: STONE_ITEMS },
-      { label: '卡片交換', items: null },
+      { label: tr('prep.equip.potionTitle'), items: POTION_ITEMS },
+      { label: tr('prep.equip.enhanceStone'), items: STONE_ITEMS },
+      { label: tr('prep.card.exchange2'), items: null },
     ];
 
     // ── Tab bar ───────────────────────────────────────────
@@ -6346,8 +6350,8 @@ export class PrepScene extends Phaser.Scene {
       maskGfx.clear(); maskGfx.fillStyle(0xffffff);
       maskGfx.fillRect(W / 2 + px, H / 2 + py + HEADER_H + FILTER_H, PW, viewH - FILTER_H);
       const filterDefs: { label: string; v: 'small' | 'elite' | 'boss' }[] = [
-        { label: '一般', v: 'small' },
-        { label: '菁英', v: 'elite' }, { label: 'BOSS', v: 'boss' },
+        { label: tr('prep.monster.normal'), v: 'small' },
+        { label: tr('prep.monster.elite'), v: 'elite' }, { label: 'BOSS', v: 'boss' },
       ];
       const FTW = Math.floor(PW / filterDefs.length);
       const FY = py + HEADER_H;
@@ -6472,7 +6476,7 @@ export class PrepScene extends Phaser.Scene {
         };
         drawBtn(false);
         scrollCont.add(btnGfx);
-        scrollCont.add(this.add.text(btnCX, btnCY, '購買', {
+        scrollCont.add(this.add.text(btnCX, btnCY, tr('prep.misc.buy'), {
           fontSize: F(15), fontStyle: 'bold', color: '#e8c870', stroke: '#1a0800', strokeThickness: 2,
         }).setOrigin(0.5));
 
@@ -6481,13 +6485,13 @@ export class PrepScene extends Phaser.Scene {
         hit.on('pointerout', () => drawBtn(false));
         hit.on('pointerdown', () => {
           this.showQtyBuyPopup(item, (qty) => {
-            if (!InventoryStore.spendGold(item.price * qty)) { showToast('金幣不足'); return; }
+            if (!InventoryStore.spendGold(item.price * qty)) { showToast(tr('prep.equip.noGold')); return; }
             InventoryStore.addItem(item.id, item.name, qty);
             SaveStore.save();
             refreshGold();
             DailyQuestStore.addProgress('shop_purchase', 1);
             AudioService.playSfx(this, 'sfx_purchase', 0.7);
-            showToast(`購買成功：${item.name} ×${qty}`, true);
+            showToast(tr('prep.shop.bought', { name: item.name, qty }), true);
           });
         });
         scrollCont.add(hit);
@@ -6629,7 +6633,7 @@ export class PrepScene extends Phaser.Scene {
           };
           drawBtn(false);
           scrollCont.add(btnGfx);
-          scrollCont.add(this.add.text(btnCX, btnCY, '兌換', {
+          scrollCont.add(this.add.text(btnCX, btnCY, tr('prep.card.exchange'), {
             fontSize: F(15), fontStyle: 'bold', color: '#ffe066', stroke: '#1a0800', strokeThickness: 1,
           }).setOrigin(0.5, 0.5));
 
@@ -6637,7 +6641,7 @@ export class PrepScene extends Phaser.Scene {
           hit.on('pointerover', () => drawBtn(true));
           hit.on('pointerout', () => drawBtn(false));
           hit.on('pointerdown', () => {
-            if (InventoryStore.getItemQty(ITEM_BLANK_CARD) < cost) { showToast('空白卡片不足'); return; }
+            if (InventoryStore.getItemQty(ITEM_BLANK_CARD) < cost) { showToast(tr('prep.equip.noBlankCard')); return; }
             InventoryStore.spendItem(ITEM_BLANK_CARD, cost);
             CardStore.addCard(card.id);
             SaveStore.save();
@@ -6719,11 +6723,11 @@ export class PrepScene extends Phaser.Scene {
     }).setOrigin(0.5));
 
     // Player gold
-    const goldText = this.add.text(0, -PH / 2 + P(50), `💰 ${InventoryStore.getGold().toLocaleString()} 金幣`, {
+    const goldText = this.add.text(0, -PH / 2 + P(50), tr('prep.shop.goldIcon', { n: InventoryStore.getGold().toLocaleString() }), {
       fontSize: F(13), color: '#d4a044', stroke: '#1a0800', strokeThickness: 1,
     }).setOrigin(0.5);
     pop.add(goldText);
-    const onGoldChange = () => goldText.setText(`💰 ${InventoryStore.getGold().toLocaleString()} 金幣`);
+    const onGoldChange = () => goldText.setText(tr('prep.shop.goldIcon', { n: InventoryStore.getGold().toLocaleString() }));
     InventoryStore.onChange(onGoldChange);
     pop.once(Phaser.GameObjects.Events.DESTROY, () => InventoryStore.offChange(onGoldChange));
 
@@ -6745,7 +6749,7 @@ export class PrepScene extends Phaser.Scene {
       qtyLabel.setText(qty.toString());
       const total = qty * item.price;
       const canAfford = InventoryStore.getGold() >= total;
-      totalLabel.setText(`合計：${total.toLocaleString()} 金幣`);
+      totalLabel.setText(tr('prep.shop.total', { n: total.toLocaleString() }));
       totalLabel.setColor(canAfford ? '#e8c870' : '#ff5555');
     };
     updateDisplay();
@@ -6789,8 +6793,8 @@ export class PrepScene extends Phaser.Scene {
 
     // Cancel / Confirm
     const CBW = P(108), CBH = P(36), cbY = PH / 2 - P(28);
-    makeBtn(-P(68), cbY, '取消', CBW, CBH, '#cc6666', 0x883333, () => pop.destroy());
-    makeBtn(P(68), cbY, '確認購買', CBW, CBH, '#e8c870', GOLD, () => {
+    makeBtn(-P(68), cbY, tr('ui.cancel'), CBW, CBH, '#cc6666', 0x883333, () => pop.destroy());
+    makeBtn(P(68), cbY, tr('prep.misc.buy'), CBW, CBH, '#e8c870', GOLD, () => {
       if (InventoryStore.getGold() < qty * item.price) return;
       AudioService.playSfx(this, 'sfx_purchase', 0.7);
       DailyQuestStore.addProgress('shop_purchase', 1);
@@ -6896,17 +6900,17 @@ export class PrepScene extends Phaser.Scene {
     pg.fillStyle(WBD, 0.97); pg.fillRoundedRect(px, py, PW, PH, P2(12));
     pg.lineStyle(2, GOLD, 0.6); pg.strokeRoundedRect(px, py, PW, PH, P2(12));
 
-    objs.push(this.add.text(W / 2, py + P2(24), '多人連線', {
+    objs.push(this.add.text(W / 2, py + P2(24), tr('prep.party.multiplay'), {
       fontSize: F(18), fontStyle: 'bold', color: '#ffe080', stroke: '#2a1000', strokeThickness: 2,
     }).setOrigin(0.5).setDepth(D + 2));
 
     // Nickname input
-    objs.push(this.add.text(W / 2, py + P2(56), '你的名稱', {
+    objs.push(this.add.text(W / 2, py + P2(56), tr('prep.misc.yourName'), {
       fontSize: F(13), color: '#aaaaaa',
     }).setOrigin(0.5).setDepth(D + 2));
 
     const nameInput = this.makeTextInput(
-      objs, W / 2 - P2(80), py + P2(70), P2(160), P2(36), '輸入名稱', D + 2,
+      objs, W / 2 - P2(80), py + P2(70), P2(160), P2(36), tr('prep.misc.inputName'), D + 2,
       getPlayerName(),
     );
 
@@ -6919,7 +6923,7 @@ export class PrepScene extends Phaser.Scene {
     const cgfx = this.add.graphics().setDepth(D + 2); objs.push(cgfx);
     cgfx.fillStyle(0x1a3a08, 1); cgfx.fillRoundedRect(W / 2 - P2(130), py + P2(140), P2(120), P2(36), P2(6));
     cgfx.lineStyle(1.5, 0x66aa22, 0.8); cgfx.strokeRoundedRect(W / 2 - P2(130), py + P2(140), P2(120), P2(36), P2(6));
-    objs.push(this.add.text(W / 2 - P2(70), py + P2(158), '建立房間', {
+    objs.push(this.add.text(W / 2 - P2(70), py + P2(158), tr('prep.party.create'), {
       fontSize: F(14), fontStyle: 'bold', color: '#88ee44',
     }).setOrigin(0.5).setDepth(D + 3));
     const cHit = this.add.rectangle(W / 2 - P2(70), py + P2(158), P2(120), P2(36))
@@ -6928,7 +6932,7 @@ export class PrepScene extends Phaser.Scene {
     cHit.on('pointerdown', async () => {
       const nick = nameInput.getValue().trim() || getPlayerName();
       setPlayerName(nick);
-      errTxt.setText('建立中…').setColor('#ffdd44');
+      errTxt.setText(tr('prep.party.creating')).setColor('#ffdd44');
       try {
         await NetworkService.createRoom(nick);
         NetworkService.sendPlayerInfo(nick, PlayerStore.getLevel(), SkinStore.get());
@@ -6941,7 +6945,7 @@ export class PrepScene extends Phaser.Scene {
           this.refreshRoomOverlay();
         });
         NetworkService.onPartnerLeft(() => { this._partnerIn = false; this.refreshRoomOverlay(); });
-        NetworkService.onRoomClosed(() => { NetworkService.disconnect(); this._partnerIn = false; this.refreshRoomOverlay(); this._showToast('房主已離開，房間關閉'); });
+        NetworkService.onRoomClosed(() => { NetworkService.disconnect(); this._partnerIn = false; this.refreshRoomOverlay(); this._showToast(tr('prep.party.hostLeft')); });
         NetworkService.onGameStart(p => {
           AudioService.playSfx(this, 'sfx_battle_start');
           this.scene.start('BattleLoadScene', {
@@ -6953,7 +6957,7 @@ export class PrepScene extends Phaser.Scene {
         });
         this.refreshRoomOverlay();
       } catch {
-        errTxt.setText('建立失敗，請重試').setColor('#ff4444');
+        errTxt.setText(tr('prep.party.createFail')).setColor('#ff4444');
       }
     });
 
@@ -6961,7 +6965,7 @@ export class PrepScene extends Phaser.Scene {
     const jgfx = this.add.graphics().setDepth(D + 2); objs.push(jgfx);
     jgfx.fillStyle(0x0a1a3a, 1); jgfx.fillRoundedRect(W / 2 + P2(10), py + P2(140), P2(120), P2(36), P2(6));
     jgfx.lineStyle(1.5, 0x4488cc, 0.8); jgfx.strokeRoundedRect(W / 2 + P2(10), py + P2(140), P2(120), P2(36), P2(6));
-    objs.push(this.add.text(W / 2 + P2(70), py + P2(158), '加入房間', {
+    objs.push(this.add.text(W / 2 + P2(70), py + P2(158), tr('prep.party.join'), {
       fontSize: F(14), fontStyle: 'bold', color: '#88ccff',
     }).setOrigin(0.5).setDepth(D + 3));
     const jHit = this.add.rectangle(W / 2 + P2(70), py + P2(158), P2(120), P2(36))
@@ -7001,11 +7005,11 @@ export class PrepScene extends Phaser.Scene {
     pg.fillStyle(WBD, 0.97); pg.fillRoundedRect(px, py, PW, PH, P(12));
     pg.lineStyle(2, GOLD, 0.6); pg.strokeRoundedRect(px, py, PW, PH, P(12));
 
-    objs.push(this.add.text(W / 2, py + P(24), '輸入房間代碼', {
+    objs.push(this.add.text(W / 2, py + P(24), tr('prep.party.codeInput'), {
       fontSize: F(16), fontStyle: 'bold', color: '#ffe080', stroke: '#2a1000', strokeThickness: 2,
     }).setOrigin(0.5).setDepth(D + 2));
 
-    const codeInput = this.makeTextInput(objs, W / 2 - P(60), py + P(52), P(120), P(36), '4位代碼', D + 2);
+    const codeInput = this.makeTextInput(objs, W / 2 - P(60), py + P(52), P(120), P(36), tr('prep.party.codeHint'), D + 2);
 
     const errTxt = this.add.text(W / 2, py + P(104), '', {
       fontSize: F(13), color: '#ff6644',
@@ -7015,7 +7019,7 @@ export class PrepScene extends Phaser.Scene {
     const jgfx = this.add.graphics().setDepth(D + 2); objs.push(jgfx);
     jgfx.fillStyle(0x0a1a3a, 1); jgfx.fillRoundedRect(W / 2 - P(55), py + P(124), P(110), P(36), P(6));
     jgfx.lineStyle(1.5, 0x4488cc, 0.8); jgfx.strokeRoundedRect(W / 2 - P(55), py + P(124), P(110), P(36), P(6));
-    objs.push(this.add.text(W / 2, py + P(142), '確認加入', {
+    objs.push(this.add.text(W / 2, py + P(142), tr('prep.party.confirmJoin'), {
       fontSize: F(14), fontStyle: 'bold', color: '#88ccff',
     }).setOrigin(0.5).setDepth(D + 3));
     const jHit = this.add.rectangle(W / 2, py + P(142), P(110), P(36))
@@ -7023,9 +7027,9 @@ export class PrepScene extends Phaser.Scene {
     objs.push(jHit);
     jHit.on('pointerdown', async () => {
       const code = codeInput.getValue().trim();
-      if (!code) { errTxt.setText('請輸入代碼'); return; }
+      if (!code) { errTxt.setText(tr('prep.party.codePH')); return; }
       setPlayerName(nick);
-      errTxt.setText('加入中…').setColor('#ffdd44');
+      errTxt.setText(tr('prep.party.joining')).setColor('#ffdd44');
       try {
         await NetworkService.joinRoom(code, nick);
         // Register callbacks BEFORE sendPlayerInfo — server sends partnerJoined back
@@ -7038,7 +7042,7 @@ export class PrepScene extends Phaser.Scene {
           this.refreshRoomOverlay();
         });
         NetworkService.onPartnerLeft(() => { this._partnerIn = false; this.refreshRoomOverlay(); });
-        NetworkService.onRoomClosed(() => { NetworkService.disconnect(); this._partnerIn = false; this.refreshRoomOverlay(); this._showToast('房主已離開，房間關閉'); });
+        NetworkService.onRoomClosed(() => { NetworkService.disconnect(); this._partnerIn = false; this.refreshRoomOverlay(); this._showToast(tr('prep.party.hostLeft')); });
         NetworkService.onGameStart(payload => {
           try { if (payload.questId) QuestStore.acceptQuest(payload.questId); } catch { /* guest */ }
           AudioService.playSfx(this, 'sfx_battle_start');
@@ -7053,7 +7057,7 @@ export class PrepScene extends Phaser.Scene {
         closePopup();
         this.refreshRoomOverlay();
       } catch {
-        errTxt.setText('加入失敗，代碼錯誤').setColor('#ff4444');
+        errTxt.setText(tr('prep.party.joinFail')).setColor('#ff4444');
       }
     });
 
@@ -7114,11 +7118,11 @@ export class PrepScene extends Phaser.Scene {
     container.add(bg);
 
     // ── Header ────────────────────────────────────────────────────
-    container.add(this.add.text(0, py + P(24), '等級排行榜', {
+    container.add(this.add.text(0, py + P(24), tr('prep.leaderboard.lv2'), {
       fontSize: F(20), fontStyle: 'bold', color: '#ccd8ee',
       stroke: '#080c18', strokeThickness: P(2),
     }).setOrigin(0.5, 0.5));
-    container.add(this.add.text(0, py + P(50), '— 全服玩家 —', {
+    container.add(this.add.text(0, py + P(50), tr('prep.party.online.all'), {
       fontSize: F(11), color: '#667788',
       stroke: '#080c18', strokeThickness: P(1),
     }).setOrigin(0.5, 0.5));
@@ -7139,13 +7143,13 @@ export class PrepScene extends Phaser.Scene {
     footerDivG.lineStyle(P(1), 0x334455, 0.6);
     footerDivG.lineBetween(px + P(20), footerY, px + PW - P(20), footerY);
     container.add(footerDivG);
-    const footerText = this.add.text(0, footerY + P(10), '讀取中…', {
+    const footerText = this.add.text(0, footerY + P(10), tr('ui.loading'), {
       fontSize: F(15), fontStyle: 'bold', color: '#445566',
     }).setOrigin(0.5, 0);
     container.add(footerText);
 
     // ── Loading text ──────────────────────────────────────────────
-    const loadingText = this.add.text(0, BODY_TOP + BODY_H / 2, '讀取中…', {
+    const loadingText = this.add.text(0, BODY_TOP + BODY_H / 2, tr('ui.loading'), {
       fontSize: F(15), fontStyle: 'bold', color: '#667788',
     }).setOrigin(0.5, 0.5);
     container.add(loadingText);
@@ -7171,10 +7175,10 @@ export class PrepScene extends Phaser.Scene {
     // ── Error / empty ─────────────────────────────────────────────
     if (fetchError || entries.length === 0) {
       container.add(this.add.text(0, BODY_TOP + BODY_H / 2,
-        fetchError ? '讀取失敗，請稍後再試' : '暫無資料', {
+        fetchError ? tr('prep.misc.loadFail') : tr('prep.leaderboard.noData'), {
         fontSize: F(15), fontStyle: 'bold', color: '#667788',
       }).setOrigin(0.5, 0.5));
-      footerText.setText('點擊外框關閉');
+      footerText.setText(tr('prep.misc.clickBorderClose'));
       return;
     }
 
@@ -7236,10 +7240,10 @@ export class PrepScene extends Phaser.Scene {
 
     // ── Footer text ───────────────────────────────────────────────
     if (myRank > 0) {
-      footerText.setText(`我的排名：第 ${myRank} 名`);
+      footerText.setText(tr('prep.leaderboard.myRank', { n: myRank }));
       footerText.setColor('#88cc88');
     } else {
-      footerText.setText('點擊外框關閉');
+      footerText.setText(tr('prep.misc.clickBorderClose'));
     }
 
     // ── Scroll logic ──────────────────────────────────────────────
@@ -7325,7 +7329,7 @@ export class PrepScene extends Phaser.Scene {
     container.add(bg);
 
     // 標題
-    container.add(this.add.text(0, py + P(22), '✦  祭 祀 台  ✦', {
+    container.add(this.add.text(0, py + P(22), tr('prep.quest.altar'), {
       fontSize: F(17), fontStyle: 'bold', color: '#ffdd55',
       stroke: '#2a0066', strokeThickness: P(3),
     }).setOrigin(0.5));
@@ -7364,7 +7368,7 @@ export class PrepScene extends Phaser.Scene {
       tbg.lineStyle(P(1), 0xffffff, 0.08); tbg.strokeRoundedRect(-tw/2 + P(2), -th/2 + P(2), tw - P(4), th - P(4), P(5));
       infoTooltip.add(tbg);
 
-      infoTooltip.add(this.add.text(0, 0, '門票來源：5星BOSS機率掉落', {
+      infoTooltip.add(this.add.text(0, 0, tr('prep.quest.ticketSource'), {
         fontSize: F(12), fontStyle: 'bold', color: '#ddbbff',
         stroke: '#0a0018', strokeThickness: P(1),
       }).setOrigin(0.5));
@@ -7386,10 +7390,10 @@ export class PrepScene extends Phaser.Scene {
     container.add(closeBtn);
 
     const SERIES: { itemId: string; iconKey: string; seriesName: string; bossName: string; color: number }[] = [
-      { itemId: ITEM_TICKET_SLIME,   iconKey: 'icon_ticket_slime',   seriesName: '史萊姆黏液',  bossName: '傳說史萊姆王',   color: 0x44ee99 },
-      { itemId: ITEM_TICKET_FLOWER,  iconKey: 'icon_ticket_flower',  seriesName: '植物精隨',    bossName: '傳說花王',       color: 0x99ee44 },
-      { itemId: ITEM_TICKET_ORC,     iconKey: 'icon_ticket_orc',     seriesName: '獸人王冠',    bossName: '傳說獸人王',     color: 0xeebb44 },
-      { itemId: ITEM_TICKET_VAMPIRE, iconKey: 'icon_ticket_vampire', seriesName: '邀請函',      bossName: '傳說吸血鬼王',   color: 0xdd77ff },
+      { itemId: ITEM_TICKET_SLIME,   iconKey: 'icon_ticket_slime',   seriesName: tr('prep.item.slimeSlime'),  bossName: tr('prep.equip.slimeLegendary'),   color: 0x44ee99 },
+      { itemId: ITEM_TICKET_FLOWER,  iconKey: 'icon_ticket_flower',  seriesName: tr('prep.item.plantEssence'),    bossName: tr('prep.equip.flowerLegendary'),       color: 0x99ee44 },
+      { itemId: ITEM_TICKET_ORC,     iconKey: 'icon_ticket_orc',     seriesName: tr('prep.item.orcCrown'),    bossName: tr('prep.equip.orcLegendary'),     color: 0xeebb44 },
+      { itemId: ITEM_TICKET_VAMPIRE, iconKey: 'icon_ticket_vampire', seriesName: tr('prep.party.inviteFunc'),      bossName: tr('prep.equip.vampireLegendary'),   color: 0xdd77ff },
     ];
 
     const ROW_H = P(84), ROW_GAP = P(8);
@@ -7471,17 +7475,17 @@ export class PrepScene extends Phaser.Scene {
       weaponPopup.add(bg);
 
       // ── 標題區 ───────────────────────────────────────────────
-      weaponPopup.add(this.add.text(0, -popH / 2 + P(18), weapon.name, {
+      weaponPopup.add(this.add.text(0, -popH / 2 + P(18), getEquipDisplayName(weapon), {
         fontSize: F(16), fontStyle: 'bold', color: '#e8c070',
         stroke: '#1a0800', strokeThickness: P(2),
       }).setOrigin(0.5, 0.5));
 
-      weaponPopup.add(this.add.text(-popW / 2 + P(12), -popH / 2 + P(36), '傳說武器', {
+      weaponPopup.add(this.add.text(-popW / 2 + P(12), -popH / 2 + P(36), tr('prep.equip.legendary'), {
         fontSize: F(11), fontStyle: 'bold', color: '#ee4444',
         stroke: '#1a0800', strokeThickness: P(1),
       }).setOrigin(0, 0.5));
 
-      weaponPopup.add(this.add.text(popW / 2 - P(12), -popH / 2 + P(36), '掉落率 35%', {
+      weaponPopup.add(this.add.text(popW / 2 - P(12), -popH / 2 + P(36), tr('prep.quest.dropRate'), {
         fontSize: F(11), fontStyle: 'bold', color: '#a87840',
         stroke: '#1a0800', strokeThickness: P(1),
       }).setOrigin(1, 0.5));
@@ -7523,7 +7527,7 @@ export class PrepScene extends Phaser.Scene {
       noEnhDiv.fillStyle(WL, 0.15);
       noEnhDiv.fillRect(-popW / 2 + P(14), noEnhY, popW - P(28), P(1));
       weaponPopup.add(noEnhDiv);
-      weaponPopup.add(this.add.text(-popW / 2 + P(28), noEnhY + rowH / 2, '無法精煉', {
+      weaponPopup.add(this.add.text(-popW / 2 + P(28), noEnhY + rowH / 2, tr('prep.equip.cannotRefine'), {
         fontSize: F(12), fontStyle: 'bold', color: '#7a5830',
         stroke: '#1a0800', strokeThickness: P(1),
       }).setOrigin(0, 0.5));
@@ -7534,7 +7538,7 @@ export class PrepScene extends Phaser.Scene {
       footerG.fillRect(-popW / 2 + P(10), noEnhY + rowH + P(2), popW - P(20), P(1));
       weaponPopup.add(footerG);
 
-      weaponPopup.add(this.add.text(0, popH / 2 - P(14), '點擊任意處關閉', {
+      weaponPopup.add(this.add.text(0, popH / 2 - P(14), tr('prep.misc.clickClose'), {
         fontSize: F(10), fontStyle: 'bold', color: '#6a5030',
         stroke: '#1a0800', strokeThickness: P(1),
       }).setOrigin(0.5, 0.5));
@@ -7585,7 +7589,7 @@ export class PrepScene extends Phaser.Scene {
       infoBg.fillStyle(WH, 0.12);
       infoBg.fillRect(infoBX - infoBW / 2, infoBY - infoBH / 2, infoBW, P(2));
       scrollCnt.add(infoBg);
-      scrollCnt.add(this.add.text(infoBX, infoBY, '掉落裝備', {
+      scrollCnt.add(this.add.text(infoBX, infoBY, tr('prep.quest.dropEquip'), {
         fontSize: F(11), fontStyle: 'bold', color: '#c49050',
         stroke: '#1a0800', strokeThickness: P(1),
       }).setOrigin(0.5, 0.5));
@@ -7615,7 +7619,7 @@ export class PrepScene extends Phaser.Scene {
       }
       scrollCnt.add(btnG);
 
-      scrollCnt.add(this.add.text(BTN_CX, btnY, hasTicket ? '⚔ 挑戰' : '需門票', {
+      scrollCnt.add(this.add.text(BTN_CX, btnY, hasTicket ? tr('prep.tower.enter') : tr('prep.quest.needTicket'), {
         fontSize: F(14), fontStyle: 'bold',
         color: hasTicket ? '#eeccff' : '#2e2244',
         stroke: '#08001a', strokeThickness: P(2),
@@ -7626,7 +7630,7 @@ export class PrepScene extends Phaser.Scene {
         hit.on('pointerup', () => {
           const bossId = LEGENDARY_BOSS_MAP[s.itemId];
           if (!bossId) return;
-          if (InventoryStore.getItemQty(s.itemId) <= 0) { this._showToast('門票不足'); return; }
+          if (InventoryStore.getItemQty(s.itemId) <= 0) { this._showToast(tr('prep.equip.noTicket')); return; }
           InventoryStore.spendItem(s.itemId, 1);
           SaveStore.save();
           AudioService.playSfx(this, 'sfx_battle_start');
@@ -7735,7 +7739,7 @@ export class PrepScene extends Phaser.Scene {
     rpgfx.strokeRoundedRect(panelCX - panelW / 2, panelY, panelW, panelH, P(8));
 
     // "房間代碼" label
-    this.roomOverlayObjs.push(this.add.text(panelCX, panelY + P(14), '房間代碼', {
+    this.roomOverlayObjs.push(this.add.text(panelCX, panelY + P(14), tr('prep.party.code'), {
       fontSize: F(12), color: '#888888',
     }).setOrigin(0.5).setDepth(26));
 
@@ -7754,7 +7758,7 @@ export class PrepScene extends Phaser.Scene {
     lgfx.fillRoundedRect(panelCX - lBtnW / 2, lBtnY - lBtnH / 2, lBtnW, lBtnH, P(5));
     lgfx.lineStyle(1, 0x883322, 0.8);
     lgfx.strokeRoundedRect(panelCX - lBtnW / 2, lBtnY - lBtnH / 2, lBtnW, lBtnH, P(5));
-    this.roomOverlayObjs.push(this.add.text(panelCX, lBtnY, '離開房間', {
+    this.roomOverlayObjs.push(this.add.text(panelCX, lBtnY, tr('prep.party.leave'), {
       fontSize: F(13), color: '#ff8866',
     }).setOrigin(0.5).setDepth(26));
     const lHit = this.add.rectangle(panelCX, lBtnY, lBtnW, lBtnH)
@@ -7803,7 +7807,7 @@ export class PrepScene extends Phaser.Scene {
       this.roomOverlayObjs.push(overlayGfx);
       overlayGfx.fillStyle(0x000000, 0.7);
       overlayGfx.fillRoundedRect(cx - BTN_W / 2, bcy - BTN_H / 2, BTN_W, BTN_H, P(14));
-      const waitTxt = this.add.text(cx, bcy, '等待房主', {
+      const waitTxt = this.add.text(cx, bcy, tr('prep.party.waitHost'), {
         fontSize: F(15), fontStyle: 'bold', color: '#886644', stroke: '#000', strokeThickness: 2,
       }).setOrigin(0.5).setDepth(29);
       this.roomOverlayObjs.push(waitTxt);
@@ -7848,7 +7852,22 @@ export class PrepScene extends Phaser.Scene {
 
     // Input
     if (this.input.keyboard) {
-      this._townCursors  = this.input.keyboard.createCursorKeys();
+      const kb = this.input.keyboard;
+      this._townCursors = kb.createCursorKeys();
+      this._townWasd = {
+        up:    kb.addKey(Phaser.Input.Keyboard.KeyCodes.W),
+        down:  kb.addKey(Phaser.Input.Keyboard.KeyCodes.S),
+        left:  kb.addKey(Phaser.Input.Keyboard.KeyCodes.A),
+        right: kb.addKey(Phaser.Input.Keyboard.KeyCodes.D),
+      };
+      const onFocusIn  = (e: FocusEvent) => { if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) { kb.enabled = false; kb.disableGlobalCapture(); } };
+      const onFocusOut = (e: FocusEvent) => { if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) { kb.enabled = true;  kb.enableGlobalCapture();  } };
+      document.addEventListener('focusin',  onFocusIn);
+      document.addEventListener('focusout', onFocusOut);
+      this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+        document.removeEventListener('focusin',  onFocusIn);
+        document.removeEventListener('focusout', onFocusOut);
+      });
     }
 
     // D-pad for mobile
@@ -8251,42 +8270,42 @@ export class PrepScene extends Phaser.Scene {
       debugBox?: boolean;
       onActivate: () => void;
     }> = [
-      { xf: 0.45, yf: 0.20, icon: '⚔', label: '出戰',  color: 0xcc4400, buildingKey: 'building_battle',
+      { xf: 0.45, yf: 0.20, icon: '⚔', label: tr('prep.quest.activeBtn'),  color: 0xcc4400, buildingKey: 'building_battle',
         tapW: P(80), tapH: P(72), collW: P(120), collH: P(55), shadow: true, buildingScale: 1.4, labelBelow: true, onActivate: () => {
-          if (this._partyState === 'in_party' && !this._amPartyLeader) { this._showToast('你不是隊長'); return; }
-          this._showTutorialHint('quest', '⚔', '選擇關卡',
-            '星數越高，掉落品質越好但難度也越高。\n每個關卡有種族屬性，搭配對應的技能或卡片可獲得大幅加成！',
+          if (this._partyState === 'in_party' && !this._amPartyLeader) { this._showToast(tr('prep.party.notHost')); return; }
+          this._showTutorialHint('quest', '⚔', tr('prep.quest.chooseMap'),
+            tr('prep.quest.starHint'),
             () => this.showQuestPanel(W, H));
         } },
-      { xf: 0.33, yf: 0.65, icon: '✦', label: '商店',  color: 0xd47820, buildingKey: 'building_shop',
+      { xf: 0.33, yf: 0.65, icon: '✦', label: tr('prep.shop.title'),  color: 0xd47820, buildingKey: 'building_shop',
         tapW: P(80), tapH: P(72), collW: P(130), collH: P(55), tent: true, onActivate: () => {
           AudioService.playSfx(this, 'sfx_shop_open', 0.7);
-          this._showTutorialHint('shop', '✦', '商店',
-            '用金幣購買藥水補充戰鬥用品，或購買強化石來提升裝備的精煉等級。',
+          this._showTutorialHint('shop', '✦', tr('prep.shop.title'),
+            tr('prep.shop.desc'),
             () => this.showShopPanel(W, H));
         } },
-      { xf: 0.78, yf: 0.65, icon: '', label: '祭祀台', color: 0xffdd44, buildingKey: 'tx_props', buildingFrame: 'ritual_circle',
+      { xf: 0.78, yf: 0.65, icon: '', label: tr('prep.quest.altarTitle'), color: 0xffdd44, buildingKey: 'tx_props', buildingFrame: 'ritual_circle',
         tapW: P(110), tapH: P(100), collW: P(130), collH: P(60), buildingScale: 0.85,
         shadow: true, shadowKey: 'tx_shadow', shadowFrame: 'ritual_circle_shadow', shadowOX: P(-8), shadowOY: P(-12),
-        onActivate: () => this._showTutorialHint('altar', '🔮', '祭祀台',
-          '擊敗 5 星BOSS，有機率獲得特殊門票，即可挑戰傳說級BOSS取得傳說裝備',
+        onActivate: () => this._showTutorialHint('altar', '🔮', tr('prep.quest.altarTitle'),
+          tr('prep.quest.bossDrop'),
           () => this._showAltarPanel(W, H)) },
-      { xf: 0.60, yf: 0.49, icon: '★', label: '排行榜', color: 0xaabbdd, buildingKey: 'tx_props', buildingFrame: 'stone_pillar',
+      { xf: 0.60, yf: 0.49, icon: '★', label: tr('prep.tab.leaderboard'), color: 0xaabbdd, buildingKey: 'tx_props', buildingFrame: 'stone_pillar',
         tapW: P(40), tapH: P(90), collW: P(44), collH: P(30), buildingScale: 0.8, labelOX: -P(8),
-        onActivate: () => this._showTutorialHint('ranking', '★', '排行榜',
-          '查看所有玩家的等級排名。努力提升，爭取登上榜首！',
+        onActivate: () => this._showTutorialHint('ranking', '★', tr('prep.tab.leaderboard'),
+          tr('prep.leaderboard.desc'),
           () => this._showRankingPanel(W, H)) },
-      { xf: 0.23, yf: 0.30, icon: '⊕', label: '市場',  color: 0x70b858, buildingKey: 'building_warehouse',
+      { xf: 0.23, yf: 0.30, icon: '⊕', label: tr('prep.market.title'),  color: 0x70b858, buildingKey: 'building_warehouse',
         tapW: P(80), tapH: P(60), collW: P(85), collH: P(20), buildingScale: 1.4,
         shadow: true, shadowKey: 'deco_shadow5', shadowOX: P(0), shadowOY: P(10),
         decoKey: 'deco_warehouse_box', decoOX: P(10), decoOY: P(0), decoScale: 1.2,
-        onActivate: () => this._showTutorialHint('market', '⊕', '市場',
-          '市場可以與其他玩家進行裝備/道具/卡片的買賣！',
+        onActivate: () => this._showTutorialHint('market', '⊕', tr('prep.market.title'),
+          tr('prep.market.desc'),
           () => (window as any).__openMarket?.()) },
-      { xf: 0.45, yf: 0.90, icon: '✧', label: '造型',  color: 0xdd88aa, animKey: 'campfire',
+      { xf: 0.45, yf: 0.90, icon: '✧', label: tr('prep.misc.skinStyle'),  color: 0xdd88aa, animKey: 'campfire',
         tapW: P(48), tapH: P(40), collW: P(48), collH: P(20), onActivate: () =>
-          this._showTutorialHint('wardrobe', '✧', '更換造型',
-            '選擇你喜歡的角色外觀。更換造型完全免費，且不影響任何戰力！',
+          this._showTutorialHint('wardrobe', '✧', tr('prep.misc.changeSkin'),
+            tr('prep.misc.skinDesc'),
             () => this._openWardrobePanel()) },
     ];
 
@@ -8588,7 +8607,7 @@ export class PrepScene extends Phaser.Scene {
           this._partyState = 'in_party';
           this._amPartyLeader = false;
           this._buildPartyPanel();
-        } catch { this._showToast('加入房間失敗'); }
+        } catch { this._showToast(tr('prep.party.joinFail2')); }
       });
 
       NetworkService.onPartyDeclined(data => {
@@ -8598,8 +8617,8 @@ export class PrepScene extends Phaser.Scene {
           if (this._partyState === 'open' || this._partyState === 'in_party') this._buildPartyPanel();
         }
         this._showToast(
-          data.reason === 'declined'  ? '對方拒絕了邀請' :
-          data.reason === 'timeout'   ? '邀請逾時未回應' : '對方不在線上',
+          data.reason === 'declined'  ? tr('prep.party.rejected') :
+          data.reason === 'timeout'   ? tr('prep.party.inviteTimeout') : tr('prep.party.inviteOffline'),
         );
       });
 
@@ -8611,7 +8630,7 @@ export class PrepScene extends Phaser.Scene {
           this._partyPendingInvites = [];
           this._destroyPartyPanel();
           NetworkService.disconnect();
-          this._showToast('隊伍已解散');
+          this._showToast(tr('prep.party.disbanded'));
           this._buildPartyCreateBtn(this._sceneW, this._sceneH);
         }
       });
@@ -8655,7 +8674,7 @@ export class PrepScene extends Phaser.Scene {
       this._partyPendingInvites = [];
       this._destroyPartyPanel();
       NetworkService.disconnect();
-      this._showToast('隊伍已解散');
+      this._showToast(tr('prep.party.disbanded'));
       this._buildPartyCreateBtn(this._sceneW, this._sceneH);
     });
     NetworkService.onRoomClosed(() => {
@@ -8664,7 +8683,7 @@ export class PrepScene extends Phaser.Scene {
       this._partyPendingInvites = [];
       this._destroyPartyPanel();
       NetworkService.disconnect();
-      this._showToast('房間已關閉');
+      this._showToast(tr('prep.party.closed'));
       this._buildPartyCreateBtn(this._sceneW, this._sceneH);
     });
     NetworkService.onGameStart(p => {
@@ -8697,9 +8716,9 @@ export class PrepScene extends Phaser.Scene {
 
     // Party open/in_party — leader confirms then invites
     if (!this._amPartyLeader) return;
-    if (alreadyMember)  { this._showToast('對方已是隊員'); return; }
-    if (alreadyPending) { this._showToast('已送出邀請，等待回應中'); return; }
-    if (totalSlots >= 2) { this._showToast('隊伍已滿'); return; }
+    if (alreadyMember)  { this._showToast(tr('prep.party.alreadyMember')); return; }
+    if (alreadyPending) { this._showToast(tr('prep.party.invited')); return; }
+    if (totalSlots >= 2) { this._showToast(tr('prep.party.full')); return; }
 
     // Confirm popup
     this._invitePopupObjs.forEach(o => o.destroy());
@@ -8723,7 +8742,7 @@ export class PrepScene extends Phaser.Scene {
     const BTN_W = P(70), BTN_H = P(26);
     const confirmHit = this.add.rectangle(W / 2 - P(44), py + PH - P(20), BTN_W, BTN_H, 0x336633)
       .setOrigin(0.5).setDepth(D + 1).setInteractive({ useHandCursor: true });
-    const confirmTxt = this.add.text(W / 2 - P(44), py + PH - P(20), '邀請', {
+    const confirmTxt = this.add.text(W / 2 - P(44), py + PH - P(20), tr('prep.party.invite'), {
       fontSize: F(13), fontStyle: 'bold', color: '#aaffaa',
     }).setOrigin(0.5).setDepth(D + 2);
 
@@ -8776,13 +8795,13 @@ export class PrepScene extends Phaser.Scene {
 
     const acceptHit = this.add.rectangle(W / 2 - P(50), py + PH - P(22), P(80), P(28), 0x336633)
       .setOrigin(0.5).setDepth(D + 1).setInteractive({ useHandCursor: true });
-    const acceptTxt = this.add.text(W / 2 - P(50), py + PH - P(22), '接受', {
+    const acceptTxt = this.add.text(W / 2 - P(50), py + PH - P(22), tr('prep.party.accept'), {
       fontSize: F(13), fontStyle: 'bold', color: '#aaffaa',
     }).setOrigin(0.5).setDepth(D + 2);
 
     const declineHit = this.add.rectangle(W / 2 + P(50), py + PH - P(22), P(80), P(28), 0x553333)
       .setOrigin(0.5).setDepth(D + 1).setInteractive({ useHandCursor: true });
-    const declineTxt = this.add.text(W / 2 + P(50), py + PH - P(22), '拒絕', {
+    const declineTxt = this.add.text(W / 2 + P(50), py + PH - P(22), tr('prep.party.reject'), {
       fontSize: F(13), color: '#ffaaaa',
     }).setOrigin(0.5).setDepth(D + 2);
 
@@ -8810,11 +8829,11 @@ export class PrepScene extends Phaser.Scene {
         const leaderInfo = this._townRemotePlayers.get(fromSessionId);
         this._partyMembers = [{
           sid:   fromSessionId,
-          nick:  leaderInfo?.nameLabel.text ?? '隊長',
+          nick:  leaderInfo?.nameLabel.text ?? tr('prep.party.host'),
           level: leaderInfo?.level ?? 0,
         }];
         this._buildPartyPanel();
-      } catch { this._showToast('加入隊伍失敗'); }
+      } catch { this._showToast(tr('prep.party.joinTeamFail')); }
     });
     declineHit.on('pointerup', (_p: any, _lx: any, _ly: any, ev: any) => {
       ev?.stopPropagation?.();
@@ -8828,7 +8847,7 @@ export class PrepScene extends Phaser.Scene {
     this._partyCreateBtnObjs = [];
     if (this._partyState !== 'none') return;
 
-    const BW = P(84), BH = P(32);
+    const BW = getLang() === 'en' ? P(106) : P(84), BH = P(32);
     const SET_S = P(36);
     const bx = W - SET_S - P(4) - P(6) - BW / 2;
     const by = P(4) + SET_S / 2;
@@ -8840,7 +8859,7 @@ export class PrepScene extends Phaser.Scene {
     bg.lineStyle(P(2), 0x44aa33, 0.85);
     bg.strokeRoundedRect(bx - BW / 2, by - BH / 2, BW, BH, P(6));
 
-    const txt = this.add.text(bx, by, '建立隊伍', {
+    const txt = this.add.text(bx, by, tr('prep.party.createTeam'), {
       fontSize: F(14), fontStyle: 'bold', color: '#88ee66', stroke: '#0a1a04', strokeThickness: 2,
     }).setOrigin(0.5).setDepth(D + 1);
 
@@ -8860,7 +8879,7 @@ export class PrepScene extends Phaser.Scene {
         this._partyCreateBtnObjs.forEach(o => o.destroy());
         this._partyCreateBtnObjs = [];
         this._buildPartyPanel();
-      } catch { this._showToast('建立隊伍失敗'); }
+      } catch { this._showToast(tr('prep.party.createTeamFail')); }
     });
 
     this._partyCreateBtnObjs = [bg, txt, hit];
@@ -8889,7 +8908,7 @@ export class PrepScene extends Phaser.Scene {
             ...this._partyPendingInvites.map(p => ({ nick: p.nick, level: 0, pending: true, sid: p.sid })),
           ]
         : [
-            { nick: '你', level: 0 },
+            { nick: tr('prep.misc.you'), level: 0 },
             ...this._partyMembers.slice(1).map(m => ({ nick: m.nick, level: m.level, sid: m.sid })),
           ];
 
@@ -8907,16 +8926,16 @@ export class PrepScene extends Phaser.Scene {
     bg.strokeRoundedRect(px, py, PW, PH, P(6));
 
     // Leader row
-    o(this.add.text(px + P(10), py + P(10), '隊長', {
+    o(this.add.text(px + P(10), py + P(10), tr('prep.party.host'), {
       fontSize: F(11), color: '#aa8833', stroke: '#1a0800', strokeThickness: 1,
     }).setDepth(D + 1));
-    const leaderName = this._amPartyLeader ? '你' : fmtName(this._partyMembers[0]?.nick ?? '隊長', 0);
+    const leaderName = this._amPartyLeader ? tr('prep.misc.you') : fmtName(this._partyMembers[0]?.nick ?? tr('prep.party.host'), 0);
     o(this.add.text(px + P(10), py + P(22), leaderName, {
       fontSize: F(15), fontStyle: 'bold', color: '#ffe066', stroke: '#1a0800', strokeThickness: 2,
     }).setDepth(D + 1));
 
     // Member section
-    o(this.add.text(px + P(10), py + P(44), '隊員', {
+    o(this.add.text(px + P(10), py + P(44), tr('prep.party.member'), {
       fontSize: F(11), color: '#778877', stroke: '#1a0800', strokeThickness: 1,
     }).setDepth(D + 1));
 
@@ -8945,14 +8964,14 @@ export class PrepScene extends Phaser.Scene {
     });
 
     if (confirmedRows.length === 0) {
-      o(this.add.text(px + P(10), py + P(56), '點擊玩家來邀請', {
+      o(this.add.text(px + P(10), py + P(56), tr('prep.party.clickToInvite'), {
         fontSize: F(12), color: '#666655', stroke: '#1a0800', strokeThickness: 1,
       }).setDepth(D + 1));
     }
 
     const disbandHit = o(this.add.rectangle(px + PW - P(34), py + PH - P(27), P(52), P(26), 0x553333)
       .setOrigin(0.5, 0.5).setDepth(D + 1).setInteractive({ useHandCursor: true }));
-    o(this.add.text(px + PW - P(34), py + PH - P(27), '解散', {
+    o(this.add.text(px + PW - P(34), py + PH - P(27), tr('prep.party.dismiss'), {
       fontSize: F(15), fontStyle: 'bold', color: '#ffaaaa', stroke: '#1a0800', strokeThickness: 2,
     }).setOrigin(0.5, 0.5).setDepth(D + 2));
 
@@ -8964,12 +8983,12 @@ export class PrepScene extends Phaser.Scene {
       this._partyPendingInvites = [];
       this._destroyPartyPanel();
       NetworkService.disconnect();
-      this._showToast('已解散隊伍');
+      this._showToast(tr('prep.party.dissolved'));
       this._buildPartyCreateBtn(this._sceneW, this._sceneH);
     });
 
     o(this.add.text(px + P(10), py + PH - P(44),
-      this._amPartyLeader ? '按出戰選關卡' : '等待隊長出發', {
+      this._amPartyLeader ? '按出戰選關卡' : tr('prep.party.waiting'), {
         fontSize: F(15), fontStyle: 'bold', color: '#888866', stroke: '#1a0800', strokeThickness: 1,
       }).setDepth(D + 1));
 
@@ -9067,10 +9086,10 @@ export class PrepScene extends Phaser.Scene {
     const joy  = this._townJoystick?.value;
     let dx = joy?.x ?? 0;
     let dy = joy?.y ?? 0;
-    if (keys?.left.isDown)  dx -= 1;
-    if (keys?.right.isDown) dx += 1;
-    if (keys?.up.isDown)    dy -= 1;
-    if (keys?.down.isDown)  dy += 1;
+    if (keys?.left.isDown  || this._townWasd?.left.isDown)  dx -= 1;
+    if (keys?.right.isDown || this._townWasd?.right.isDown) dx += 1;
+    if (keys?.up.isDown    || this._townWasd?.up.isDown)    dy -= 1;
+    if (keys?.down.isDown  || this._townWasd?.down.isDown)  dy += 1;
     const dlen = Math.sqrt(dx * dx + dy * dy);
     if (dlen > 1) { dx /= dlen; dy /= dlen; }
 

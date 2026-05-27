@@ -160,6 +160,13 @@ export class App implements AfterViewInit {
     (window as any).__gameVersion = VERSION;
     (window as any).__openMarket  = () => this.ngZone.run(() => this.marketVis.open());
     (window as any).__openReport  = () => this.ngZone.run(() => this.reportVis.open());
+    (window as any).__saveAndLogout = async () => {
+      SaveStore.save();
+      await this.saveSync.uploadNow();
+      ['rg_user', 'rg_auto_login', 'rg_remember', 'auto_rpg_save', 'rg_save_ts', 'playerName']
+        .forEach(k => localStorage.removeItem(k));
+      window.location.reload();
+    };
     (window as any).__setGameInputEnabled = (enabled: boolean) => {
       game.scene.getScenes(true).forEach(s => { s.input.enabled = enabled; });
     };

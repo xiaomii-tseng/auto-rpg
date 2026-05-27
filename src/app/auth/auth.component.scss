@@ -4,6 +4,28 @@ $gold-mid:   #c8a96e;
 $card-bg:    rgba(12, 9, 4, 0.90);
 $border:     rgba(200, 169, 110, 0.35);
 
+// ── 語言切換按鈕 ────────────────────────────────────────────
+.lang-btn {
+  position: fixed;
+  top: 12px;
+  right: 14px;
+  z-index: 10001;
+  background: rgba(12, 9, 4, 0.75);
+  border: 1px solid rgba(200, 169, 110, 0.45);
+  border-radius: 4px;
+  color: #c8a96e;
+  font-size: 13px;
+  padding: 4px 10px;
+  cursor: pointer;
+  letter-spacing: 0.5px;
+  transition: background 0.15s, color 0.15s;
+
+  &:hover {
+    background: rgba(200, 169, 110, 0.18);
+    color: #e8d4a0;
+  }
+}
+
 // ── 背景 ───────────────────────────────────────────────────
 .auth-backdrop {
   position: fixed;

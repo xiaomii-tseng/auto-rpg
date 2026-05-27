@@ -1,3 +1,5 @@
+import { t } from '../i18n/i18n';
+
 export type EquipSlot     = 'hat' | 'outfit' | 'shoes' | 'ring1' | 'ring2' | 'sword';
 export type EquipCategory = 'hat' | 'outfit' | 'shoes' | 'ring'  | 'sword';
 export type EquipQuality  = 'normal' | 'good' | 'fine' | 'perfect' | 'legendary';
@@ -9,7 +11,7 @@ export type AttackBehavior = 'slash180' | 'whirlwind' | 'dashPierce' | 'projecti
 export type Element = 'none' | 'water' | 'fire' | 'grass';
 
 export const ELEMENT_NAMES: Record<Element, string> = {
-  none: '無', water: '水', fire: '火', grass: '草',
+  none: t('equip.element.none'), water: t('equip.element.water'), fire: t('equip.element.fire'), grass: t('equip.element.grass'),
 };
 
 export const ELEMENT_COLORS: Record<Element, number> = {
@@ -243,7 +245,7 @@ function rollAtkForQuality(quality: EquipQuality): number {
 }
 
 export const QUALITY_NAMES: Record<EquipQuality, string> = {
-  normal: '普通', good: '良好', fine: '精良', perfect: '完美', legendary: '傳說',
+  normal: t('equip.quality.normal'), good: t('equip.quality.good'), fine: t('equip.quality.fine'), perfect: t('equip.quality.perfect'), legendary: t('equip.quality.legendary'),
 };
 
 export const QUALITY_COLORS: Record<EquipQuality, number> = {
@@ -255,33 +257,33 @@ export const QUALITY_COLORS: Record<EquipQuality, number> = {
 };
 
 export const SLOT_NAMES: Record<EquipSlot, string> = {
-  hat: '頭盔', outfit: '衣服', shoes: '鞋子',
-  ring1: '戒指', ring2: '戒指', sword: '武器',
+  hat: t('equip.slot.hat'), outfit: t('equip.slot.outfit'), shoes: t('equip.slot.shoes'),
+  ring1: t('equip.slot.ring1'), ring2: t('equip.slot.ring2'), sword: t('equip.slot.sword'),
 };
 
 export const STAT_NAMES: Record<StatKey, string> = {
-  atk:       '攻擊力',
-  hp:        '最大HP',
-  def:       '防禦力',
-  crit:      '爆擊率',
-  speed:     '移動速度',
-  atkSpeed:  '攻擊速度',
-  lifesteal: '吸血',
-  evasion:   '閃避率',
-  critDmg:     '爆擊傷害',
-  hpRegen:     'HP恢復',
-  dotBonus:    '持續傷害',
-  penetration: '穿甲',
-  potionHealPct:    '藥水回復量',
-  onKillHeal:       '擊殺回血',
-  eliteKillerPct:   '精英殺手',
-  dropRatePct:      '掉落率加成',
-  rarityBonus:      '稀有率加成',
-  killShieldPerKill:'擊殺護盾',
-  executePct:       '殘血斬殺',
-  regenShieldMax:   '再生護盾',
-  allDmgPct:        '全傷害加成',
-  maxHpPct:         '最大HP%',
+  atk:              t('stat.atk'),
+  hp:               t('stat.hp'),
+  def:              t('stat.def'),
+  crit:             t('stat.crit'),
+  speed:            t('stat.speed'),
+  atkSpeed:         t('stat.atkSpeed'),
+  lifesteal:        t('stat.lifesteal'),
+  evasion:          t('stat.evasion'),
+  critDmg:          t('stat.critDmg'),
+  hpRegen:          t('stat.hpRegen'),
+  dotBonus:         t('stat.dotBonus'),
+  penetration:      t('stat.penetration'),
+  potionHealPct:    t('stat.potionHealPct'),
+  onKillHeal:       t('stat.onKillHeal'),
+  eliteKillerPct:   t('stat.eliteKillerPct'),
+  dropRatePct:      t('stat.dropRatePct'),
+  rarityBonus:      t('stat.rarityBonus'),
+  killShieldPerKill:t('stat.killShieldPerKill'),
+  executePct:       t('stat.executePct'),
+  regenShieldMax:   t('stat.regenShieldMax'),
+  allDmgPct:        t('stat.allDmgPct'),
+  maxHpPct:         t('stat.maxHpPct'),
 };
 
 const PCT_DISPLAY  = new Set(['crit', 'atkSpeed', 'lifesteal', 'evasion', 'critDmg', 'dotBonus',
@@ -295,17 +297,17 @@ export function fmtAffixValue(stat: string, value: number): string {
 }
 
 export const BEHAVIOR_NAMES: Record<AttackBehavior, string> = {
-  slash180:   '半月斬',
-  whirlwind:  '旋風斬',
-  dashPierce: '瞬步斬',
-  projectile: '風刃',
-  aura:       '血環',
-  multiHit:   '五連斬',
-  chargeSlam: '蓄力重擊',
-  boomerang:  '迴旋飛刃',
-  magicFire:   '地獄火',
-  knifeThrow:  '飛刀投擲',
-  flowerMode:  '召喚植物',
+  slash180:   t('behavior.slash180'),
+  whirlwind:  t('behavior.whirlwind'),
+  dashPierce: t('behavior.dashPierce'),
+  projectile: t('behavior.projectile'),
+  aura:       t('behavior.aura'),
+  multiHit:   t('behavior.multiHit'),
+  chargeSlam: t('behavior.chargeSlam'),
+  boomerang:  t('behavior.boomerang'),
+  magicFire:  t('behavior.magicFire'),
+  knifeThrow: t('behavior.knifeThrow'),
+  flowerMode: t('behavior.flowerMode'),
 };
 
 export interface BehaviorInfo {
@@ -316,98 +318,98 @@ export interface BehaviorInfo {
 
 export const BEHAVIOR_INFO: Record<AttackBehavior, BehaviorInfo> = {
   slash180: {
-    desc:    '向目標方向揮出一道扇形斬擊，覆蓋前方180°範圍。',
-    formula: ['傷害：攻擊力 × 100%', '冷卻：650ms', '範圍：扇形 180°'],
+    desc:    t('behavior.slash180.desc'),
+    formula: [t('behavior.slash180.f1'), t('behavior.slash180.f2'), t('behavior.slash180.f3')],
     relatedStats: [
-      { stat: 'atk',      note: '決定傷害' },
-      { stat: 'crit',     note: '觸發暴擊' },
-      { stat: 'atkSpeed', note: '縮短冷卻' },
+      { stat: 'atk',      note: t('stat.atk') },
+      { stat: 'crit',     note: t('stat.crit') },
+      { stat: 'atkSpeed', note: t('stat.atkSpeed') },
     ],
   },
   whirlwind: {
-    desc:    '原地旋轉揮砍，對周圍所有敵人造成傷害。',
-    formula: ['傷害：攻擊力 × 80%', '冷卻：650ms', '範圍：360° 全向'],
+    desc:    t('behavior.whirlwind.desc'),
+    formula: [t('behavior.whirlwind.f1'), t('behavior.whirlwind.f2'), t('behavior.whirlwind.f3')],
     relatedStats: [
-      { stat: 'atk',      note: '決定傷害' },
-      { stat: 'crit',     note: '觸發暴擊' },
-      { stat: 'atkSpeed', note: '縮短冷卻' },
+      { stat: 'atk',      note: t('stat.atk') },
+      { stat: 'crit',     note: t('stat.crit') },
+      { stat: 'atkSpeed', note: t('stat.atkSpeed') },
     ],
   },
   dashPierce: {
-    desc:    '瞬間向前衝刺並刺穿路徑上的所有敵人。',
-    formula: ['傷害：攻擊力 × 91%（每個敵人）', '冷卻：650ms'],
+    desc:    t('behavior.dashPierce.desc'),
+    formula: [t('behavior.dashPierce.f1'), t('behavior.dashPierce.f2')],
     relatedStats: [
-      { stat: 'atk',      note: '決定傷害' },
-      { stat: 'crit',     note: '觸發暴擊' },
-      { stat: 'atkSpeed', note: '縮短冷卻' },
+      { stat: 'atk',      note: t('stat.atk') },
+      { stat: 'crit',     note: t('stat.crit') },
+      { stat: 'atkSpeed', note: t('stat.atkSpeed') },
     ],
   },
   projectile: {
-    desc:    '射出一道飛行刀風，穿透路徑上所有敵人。',
-    formula: ['傷害：攻擊力 × 55%', '冷卻：650ms'],
+    desc:    t('behavior.projectile.desc'),
+    formula: [t('behavior.projectile.f1'), t('behavior.projectile.f2')],
     relatedStats: [
-      { stat: 'atk',      note: '決定傷害' },
-      { stat: 'crit',     note: '觸發暴擊' },
-      { stat: 'atkSpeed', note: '縮短冷卻' },
+      { stat: 'atk',      note: t('stat.atk') },
+      { stat: 'crit',     note: t('stat.crit') },
+      { stat: 'atkSpeed', note: t('stat.atkSpeed') },
     ],
   },
   aura: {
-    desc:    '持續釋放血氣光環，對範圍內的敵人造成持續傷害，無需手動攻擊。選擇此模式時最大HP +40%。',
-    formula: ['傷害：最大HP × 12.5% / 次', '頻率：每 300ms（攻速越高越快）'],
+    desc:    t('behavior.aura.desc'),
+    formula: [t('behavior.aura.f1'), t('behavior.aura.f2'), t('behavior.aura.f3')],
     relatedStats: [
-      { stat: 'hp',       note: '決定傷害' },
-      { stat: 'atkSpeed', note: '提升攻擊頻率' },
+      { stat: 'hp',       note: t('stat.hp') },
+      { stat: 'atkSpeed', note: t('stat.atkSpeed') },
     ],
   },
   multiHit: {
-    desc:    '快速連續揮砍五下，每段都能命中範圍內的敵人。',
-    formula: ['傷害：攻擊力 × 29% × 5段', '總傷：攻擊力 × 145%', '冷卻：650ms'],
+    desc:    t('behavior.multiHit.desc'),
+    formula: [t('behavior.multiHit.f1'), t('behavior.multiHit.f2'), t('behavior.multiHit.f3')],
     relatedStats: [
-      { stat: 'atk',      note: '決定每段傷害' },
-      { stat: 'crit',     note: '每段獨立觸發' },
-      { stat: 'atkSpeed', note: '縮短冷卻' },
+      { stat: 'atk',      note: t('stat.atk') },
+      { stat: 'crit',     note: t('stat.crit') },
+      { stat: 'atkSpeed', note: t('stat.atkSpeed') },
     ],
   },
   chargeSlam: {
-    desc:    '蓄力後釋放強力震地衝擊，對周圍大範圍造成高額傷害。蓄力期間移動速度 -40%。',
-    formula: ['傷害：攻擊力 × 123.5%', '冷卻：650ms（蓄力中）', '範圍：360° 全向 AoE'],
+    desc:    t('behavior.chargeSlam.desc'),
+    formula: [t('behavior.chargeSlam.f1'), t('behavior.chargeSlam.f2')],
     relatedStats: [
-      { stat: 'atk',      note: '決定傷害' },
-      { stat: 'crit',     note: '觸發暴擊' },
-      { stat: 'atkSpeed', note: '縮短冷卻' },
+      { stat: 'atk',      note: t('stat.atk') },
+      { stat: 'crit',     note: t('stat.crit') },
+      { stat: 'atkSpeed', note: t('stat.atkSpeed') },
     ],
   },
   boomerang: {
-    desc:    '投出迴旋飛刃，命中敵人後原地旋轉，再自動飛回。去回程皆可造成傷害。',
-    formula: ['飛出：攻擊力 × 60%', '旋轉：攻擊力 × 30% × 4次', '飛回：攻擊力 × 60%', '冷卻：1500ms'],
+    desc:    t('behavior.boomerang.desc'),
+    formula: [t('behavior.boomerang.f1'), t('behavior.boomerang.f2')],
     relatedStats: [
-      { stat: 'atk',      note: '決定各段傷害' },
-      { stat: 'crit',     note: '每段獨立觸發' },
-      { stat: 'atkSpeed', note: '縮短冷卻' },
+      { stat: 'atk',      note: t('stat.atk') },
+      { stat: 'crit',     note: t('stat.crit') },
+      { stat: 'atkSpeed', note: t('stat.atkSpeed') },
     ],
   },
   magicFire: {
-    desc:    '射出火球，命中後在地面留下火焰區域，使敵人持續疊加燃燒層數造成傷害。',
-    formula: ['火球：攻擊力 × 50%', '燃燒：攻擊力 × 3.2% × 層數 / 400ms', '最大層數：15層', '燃燒持續：4秒', '冷卻：1100ms'],
+    desc:    t('behavior.magicFire.desc'),
+    formula: [t('behavior.magicFire.f1'), t('behavior.magicFire.f2'), t('behavior.magicFire.f3')],
     relatedStats: [
-      { stat: 'atk',      note: '決定燃燒傷害' },
-      { stat: 'atkSpeed', note: '縮短冷卻' },
+      { stat: 'atk',      note: t('stat.atk') },
+      { stat: 'atkSpeed', note: t('stat.atkSpeed') },
     ],
   },
   knifeThrow: {
-    desc:    '投擲出追蹤敵人的飛刀造成傷害。',
-    formula: ['飛刀：攻擊力 × 40%', '飛刀數量：6把', '冷卻：650ms（受攻速影響）'],
+    desc:    t('behavior.knifeThrow.desc'),
+    formula: [t('behavior.knifeThrow.f1'), t('behavior.knifeThrow.f2')],
     relatedStats: [
-      { stat: 'atk',      note: '決定傷害' },
-      { stat: 'atkSpeed', note: '縮短冷卻' },
+      { stat: 'atk',      note: t('stat.atk') },
+      { stat: 'atkSpeed', note: t('stat.atkSpeed') },
     ],
   },
   flowerMode: {
-    desc:    '消耗充能召喚不死花友軍（ATK×35%、HP×180%、存活15秒），朝指定方向生成。',
-    formula: ['不死花傷害：攻擊力 × 35%', '不死花血量：最大HP × 180%', '充能冷卻：3秒 / 格'],
+    desc:    t('behavior.flowerMode.desc'),
+    formula: [t('behavior.flowerMode.f1'), t('behavior.flowerMode.f2')],
     relatedStats: [
-      { stat: 'atk',   note: '決定不死花傷害' },
-      { stat: 'hp',    note: '決定不死花血量' },
+      { stat: 'atk', note: t('stat.atk') },
+      { stat: 'hp',  note: t('stat.hp') },
     ],
   },
 };
@@ -715,19 +717,19 @@ export function revertEnhancement(item: EquipmentItem): void {
 
 const _LEGENDARY_DEFS: Record<string, { name: string; texture: string; affixes: Affix[] }> = {
   legendary_slime_sword: {
-    name: '毒液巨劍', texture: 'equip_legendary_sw1',
+    name: t('item.legendary_slime_sword'), texture: 'equip_legendary_sw1',
     affixes: [{ stat: 'atk', value: 380 }],
   },
   legendary_flower_sword: {
-    name: '光合神劍', texture: 'equip_legendary_sw2',
+    name: t('item.legendary_flower_sword'), texture: 'equip_legendary_sw2',
     affixes: [{ stat: 'atk', value: 230 }, { stat: 'hp', value: 150 }, { stat: 'eliteKillerPct', value: 0.30 }],
   },
   legendary_orc_sword: {
-    name: '血脈巨刃', texture: 'equip_legendary_sw3',
+    name: t('item.legendary_orc_sword'), texture: 'equip_legendary_sw3',
     affixes: [{ stat: 'atk', value: 260 }, { stat: 'atkSpeed', value: 0.30 }],
   },
   legendary_vampire_sword: {
-    name: '水晶匕首', texture: 'equip_legendary_sw4',
+    name: t('item.legendary_vampire_sword'), texture: 'equip_legendary_sw4',
     affixes: [{ stat: 'atk', value: 220 }, { stat: 'speed', value: 25 }, { stat: 'evasion', value: 0.30 }],
   },
 };
@@ -738,6 +740,14 @@ export const LEGENDARY_BOSS_WEAPON: Record<string, string> = {
   boss_orc_legendary:     'legendary_orc_sword',
   boss_vampire_legendary: 'legendary_vampire_sword',
 };
+
+export function getEquipDisplayName(item: { id: string; slot: string; quality: EquipQuality }): string {
+  if (item.quality === 'legendary') {
+    const match = item.id.match(/^(legendary_[a-z_]+)_\d+_\d+$/);
+    if (match) return t((`item.${match[1]}`) as import('../i18n/i18n').LangKey);
+  }
+  return SLOT_NAMES[item.slot as EquipSlot] ?? item.slot;
+}
 
 export function generateLegendaryWeapon(weaponId: string): EquipmentItem {
   const def = _LEGENDARY_DEFS[weaponId];
