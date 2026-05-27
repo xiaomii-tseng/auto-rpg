@@ -56,3 +56,52 @@ console.log('→ Pushing...');
 run(`"${gitExe}" push origin ${BRANCH} --force`, TMP);
 
 console.log('✓ Deployed successfully!');
+
+// ── Push notification ─────────────────────────────────────────────────────────
+await (async () => {
+  let secret, apiUrl;
+  try {
+    const cfg = JSON.parse((await import('fs')).readFileSync('push.local.json', 'utf8'));
+    secret  = cfg.adminSecret;
+    apiUrl  = cfg.apiUrl ?? 'https://minirpg-q1zq.onrender.com/push/notify-version';
+  } catch {
+    return; // push.local.json 不存在 → 跳過推撥
+  }
+
+  // 讀版本號
+  const verLine = (await import('fs')).readFileSync('src/app/game/version.ts', 'utf8');
+  const verMatch = verLine.match(/'(v[^']+)'/);
+  if (!verMatch) return;
+  const version = verMatch[1];
+
+  // 讀 CHANGELOG 最新區塊，整理成一行說明
+  const changelog = (await import('fs')).readFileSync('CHANGELOG.md', 'utf8').split('\n');
+  let collecting = false, noteLines = [];
+  for (const line of changelog) {
+    if (line.startsWith(`## ${version}`)) { collecting = true; continue; }
+    if (collecting) {
+      if (line.startsWith('## ') || line.startsWith('---')) break;
+      noteLines.push(line);
+    }
+  }
+  const notes = noteLines
+    .map(l => l.trim())
+    .filter(l => l && l !== '---')
+    .map(l => l.replace(/^#+\s*/, '').replace(/^\*\*(.+?)\*\*：/, '【$1】').replace(/^- /, ''))
+    .slice(0, 5)
+    .join(' / ') || '新版本已上線，請重新整理遊戲';
+
+  console.log(`→ Sending push: ${version} — ${notes}`);
+  try {
+    const r = await fetch(apiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-admin-secret': secret },
+      body: JSON.stringify({ version, notes }),
+    });
+    const data = await r.json();
+    if (data.ok) console.log(`✓ Push sent: ${data.sent} / ${data.total} devices`);
+    else         console.warn('⚠ Push skipped:', data.error ?? data);
+  } catch (e) {
+    console.warn('⚠ Push failed:', e.message);
+  }
+})();

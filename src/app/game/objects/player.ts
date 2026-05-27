@@ -251,6 +251,9 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   revive(hpPercent: number): void {
+    this.isAttacking = false;
+    this.onCooldown  = false;
+    this.playingHurt = false;
     this.hp = Math.max(1, Math.ceil(this.maxHp * hpPercent));
     this.setActive(true).setVisible(true);
     this.onHpChanged?.(this.hp, this.maxHp);

@@ -18,6 +18,7 @@ import { MarketComponent }          from './game/market/market.component';
 import { MarketVisibilityService }  from './game/market/market-visibility.service';
 import { ReportComponent }          from './game/report/report.component';
 import { ReportVisibilityService }  from './game/report/report-visibility.service';
+import { PushService }              from './game/push/push.service';
 
 @Component({
   selector: 'app-root',
@@ -33,10 +34,12 @@ export class App implements AfterViewInit {
   private readonly saveSync  = inject(SaveSyncService);
   private readonly marketVis = inject(MarketVisibilityService);
   private readonly reportVis = inject(ReportVisibilityService);
+  readonly pushSvc           = inject(PushService);
 
-  showAuth     = true;
-  showUpdate   = signal(false);
-  showMarket   = this.marketVis.visible;
+  showAuth       = true;
+  showUpdate     = signal(false);
+  showPushPrompt = signal(false);
+  showMarket     = this.marketVis.visible;
   private _phaserInited = false;
 
   ngAfterViewInit(): void {
@@ -60,6 +63,25 @@ export class App implements AfterViewInit {
   async onLoggedIn(): Promise<void> {
     this.showAuth = false;
     if (!this._phaserInited) await this._startGame();
+    this._maybeShowPushPrompt();
+  }
+
+  async onPushSubscribe(): Promise<void> {
+    this.showPushPrompt.set(false);
+    await this.pushSvc.subscribe();
+  }
+
+  onPushDismiss(): void {
+    this.pushSvc.dismiss();
+    this.showPushPrompt.set(false);
+  }
+
+  private _maybeShowPushPrompt(): void {
+    if (!this.pushSvc.isSupported) return;
+    if (this.pushSvc.isSubscribed) return;
+    if (this.pushSvc.isDismissed) return;
+    if (Notification.permission === 'denied') return;
+    this.showPushPrompt.set(true);
   }
 
   private async _startGame(): Promise<void> {

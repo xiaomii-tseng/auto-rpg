@@ -45,7 +45,7 @@ const EASY_POOL: QuestTemplate[] = [
   { type: 'kill_specific',  target: 40,    label: '擊殺 40 隻普通怪（指定）', specificType: 'normal' },
   { type: 'kill_elite',     target: 5,     label: '擊殺 5 隻精英怪' },
   { type: 'kill_boss',      target: 1,     label: '擊殺 1 隻 BOSS' },
-  { type: 'deal_damage',    target: 50000, label: '造成 50,000 點傷害' },
+  { type: 'deal_damage',    target: 0,     label: '累計造成 {lv}×1000 點傷害' },
   { type: 'clear_no_death', target: 1,     label: '不死亡通關 1 場' },
   { type: 'pickup_loot',    target: 30,    label: '拾取 30 個掉落物' },
   { type: 'open_chest',     target: 5,     label: '開啟 5 個寶箱' },
@@ -59,7 +59,7 @@ const NORMAL_POOL: QuestTemplate[] = [
   { type: 'kill_specific',  target: 8,      label: '擊殺 8 隻精英怪（指定）', specificType: 'elite' },
   { type: 'kill_elite',     target: 12,     label: '擊殺 12 隻精英怪' },
   { type: 'kill_boss',      target: 2,      label: '擊殺 2 隻 BOSS' },
-  { type: 'deal_damage',    target: 150000, label: '造成 150,000 點傷害' },
+  { type: 'deal_damage',    target: 0,      label: '累計造成 {lv}×1000 點傷害' },
   { type: 'clear_no_death', target: 2,      label: '不死亡通關 2 場' },
   { type: 'clear_no_potion',target: 1,      label: '不使用藥水通關 1 場' },
   { type: 'pickup_loot',    target: 60,     label: '拾取 60 個掉落物' },
@@ -74,7 +74,7 @@ const HARD_POOL: QuestTemplate[] = [
   { type: 'kill_specific',  target: 2,      label: '擊殺 2 隻 BOSS（指定）', specificType: 'boss' },
   { type: 'kill_elite',     target: 25,     label: '擊殺 25 隻精英怪' },
   { type: 'kill_boss',      target: 3,      label: '擊殺 3 隻 BOSS' },
-  { type: 'deal_damage',    target: 300000, label: '造成 300,000 點傷害' },
+  { type: 'deal_damage',    target: 0,      label: '累計造成 {lv}×1000 點傷害' },
   { type: 'clear_no_death', target: 3,      label: '不死亡通關 3 場' },
   { type: 'pickup_loot',    target: 100,    label: '拾取 100 個掉落物' },
   { type: 'open_chest',     target: 20,     label: '開啟 20 個寶箱' },
@@ -189,12 +189,17 @@ function generateQuests(): DailyQuest[] {
       specificMonsterId = monster.id;
       label = `擊殺 ${tmpl.target} 隻 ${monster.name}`;
     }
+    let target = tmpl.target;
+    if (tmpl.type === 'deal_damage') {
+      target = PlayerStore.getLevel() * 1000;
+      label  = `累計造成 ${target.toLocaleString()} 點傷害`;
+    }
     return {
       id:                `dq_${diff}_${Date.now()}_${Math.random().toString(36).slice(2)}`,
       type:              tmpl.type,
       difficulty:        diff,
       label,
-      target:            tmpl.target,
+      target,
       progress:          0,
       status:            'active' as DailyQuestStatus,
       reward:            buildReward(diff),

@@ -2,6 +2,7 @@ import express    from 'express';
 import cors       from 'cors';
 import multer     from 'multer';
 import rateLimit  from 'express-rate-limit';
+import webpush    from 'web-push';
 import { Server } from 'colyseus';
 import { createServer } from 'http';
 import { GameRoom }     from './rooms/GameRoom';
@@ -10,6 +11,17 @@ import { codeMap }      from './codeRegistry';
 import { supabase }     from './supabase';
 
 const PORT = Number(process.env.PORT) || 3001;
+
+// ── Web Push (VAPID) ──────────────────────────────────────────────────────────
+const VAPID_PUBLIC  = process.env.VAPID_PUBLIC_KEY  ?? '';
+const VAPID_PRIVATE = process.env.VAPID_PRIVATE_KEY ?? '';
+if (VAPID_PUBLIC && VAPID_PRIVATE) {
+  webpush.setVapidDetails(
+    process.env.VAPID_SUBJECT ?? 'mailto:admin@game.local',
+    VAPID_PUBLIC,
+    VAPID_PRIVATE,
+  );
+}
 
 // Allow GitHub Pages origin + localhost dev
 const ALLOWED_ORIGINS = [
@@ -648,6 +660,86 @@ app.delete('/market/list/:id', limiterMarket, requireAuth, async (req: any, res)
   }
 
   res.json({ ok: true });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// PUSH NOTIFICATIONS
+// ══════════════════════════════════════════════════════════════════════════════
+
+const limiterPush = rateLimit({
+  windowMs: 60 * 1000, max: 10,
+  message: { error: '操作頻率過高，請稍後再試' },
+  standardHeaders: true, legacyHeaders: false,
+});
+
+// POST /push/subscribe  { endpoint, keys: { p256dh, auth } }
+app.post('/push/subscribe', limiterPush, requireAuth, async (req: any, res) => {
+  const { endpoint, keys } = req.body ?? {};
+  if (!endpoint || !keys?.p256dh || !keys?.auth) {
+    res.status(400).json({ error: 'invalid subscription' }); return;
+  }
+  const { error } = await supabase.from('push_subscriptions').upsert({
+    user_id:  req.userId,
+    endpoint,
+    p256dh:   keys.p256dh,
+    auth_key: keys.auth,
+  }, { onConflict: 'endpoint' });
+  if (error) { res.status(500).json({ error: error.message }); return; }
+  res.json({ ok: true });
+});
+
+// DELETE /push/unsubscribe  { endpoint }
+app.delete('/push/unsubscribe', limiterPush, requireAuth, async (req: any, res) => {
+  const { endpoint } = req.body ?? {};
+  if (!endpoint) { res.status(400).json({ error: 'endpoint required' }); return; }
+  await supabase.from('push_subscriptions')
+    .delete()
+    .eq('user_id', req.userId)
+    .eq('endpoint', endpoint);
+  res.json({ ok: true });
+});
+
+// POST /push/notify-version  { version, notes? }  — admin only (x-admin-secret header)
+app.post('/push/notify-version', async (req, res) => {
+  if (req.headers['x-admin-secret'] !== process.env.ADMIN_SECRET || !process.env.ADMIN_SECRET) {
+    res.status(403).json({ error: 'forbidden' }); return;
+  }
+  if (!VAPID_PUBLIC || !VAPID_PRIVATE) {
+    res.status(503).json({ error: 'push not configured' }); return;
+  }
+  const { version, notes } = req.body ?? {};
+  if (!version) { res.status(400).json({ error: 'version required' }); return; }
+
+  const { data: subs } = await supabase
+    .from('push_subscriptions').select('endpoint, p256dh, auth_key');
+  if (!subs?.length) { res.json({ ok: true, sent: 0 }); return; }
+
+  const payload = JSON.stringify({
+    title: `遊戲更新 ${version}`,
+    body:  notes ?? '新版本已上線，點此重新整理遊戲',
+    icon:  '/icons/icon-192x192.png',
+    badge: '/icons/icon-72x72.png',
+  });
+
+  const results = await Promise.allSettled(
+    subs.map(sub => webpush.sendNotification(
+      { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth_key } },
+      payload,
+    ))
+  );
+
+  // 清除已失效的訂閱 (HTTP 410 Gone)
+  const expired = subs.filter((_, i) => {
+    const r = results[i];
+    return r.status === 'rejected' && (r as any).reason?.statusCode === 410;
+  });
+  if (expired.length) {
+    await supabase.from('push_subscriptions')
+      .delete().in('endpoint', expired.map(s => s.endpoint));
+  }
+
+  const sent = results.filter(r => r.status === 'fulfilled').length;
+  res.json({ ok: true, sent, total: subs.length });
 });
 
 // ══════════════════════════════════════════════════════════════════════════════

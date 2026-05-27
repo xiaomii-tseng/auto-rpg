@@ -180,6 +180,7 @@ export interface EquipmentItem {
   enhancement: number;          // 0~10
   enhanceLog:  number[][];      // 每次強化提升的詞綴 index，用於退階還原
   baseAffixes?: Affix[];        // 第一次精煉前的詞綴快照，供重鑄還原用
+  favorite?:   boolean;         // 最愛標記，防止被販售或市場上架
 }
 
 // ── Constants ──────────────────────────────────────────────────────────────────

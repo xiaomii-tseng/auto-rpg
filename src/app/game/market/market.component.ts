@@ -32,7 +32,7 @@ const POTION_FRAMES: Record<string, number> = {
 
 interface SaveInventoryItem { id: string; name: string; qty: number }
 interface SaveCardEntry    { cardId: string; qty: number }
-interface SaveEquipItem    { id: string; name: string; slot: string; quality: EquipQuality; affixes: { stat: string; value: number }[]; enhancement: number; texture: string }
+interface SaveEquipItem    { id: string; name: string; slot: string; quality: EquipQuality; affixes: { stat: string; value: number }[]; enhancement: number; texture: string; favorite?: boolean }
 
 @Component({
   selector: 'app-market',
@@ -115,7 +115,7 @@ export class MarketComponent implements OnInit, OnDestroy {
   listPickerAffix4  = signal<StatKey | ''>('');
 
   filteredListEquips = computed(() => {
-    let items = this.filteredEquips();
+    let items = this.filteredEquips().filter(e => !e.favorite); // 最愛裝備不可上架
     const q = this.listPickerQuality();
     if (q) items = items.filter(e => e.quality === q);
     const affixes = [this.listPickerAffix1(), this.listPickerAffix2(), this.listPickerAffix3(), this.listPickerAffix4()]

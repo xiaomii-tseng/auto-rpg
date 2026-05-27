@@ -18,6 +18,40 @@
   height: 100%;
 }
 
+.push-prompt {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px 20px;
+  background: #1a1e2e;
+  border-bottom: 1px solid #3a4278;
+  color: #c8d0f0;
+  font-size: 14px;
+
+  &__text { flex: 1; min-width: 180px; }
+
+  &__actions { display: flex; gap: 8px; flex-shrink: 0; }
+
+  &__btn {
+    padding: 6px 16px;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+
+    &--ok  { background: #4a6ee0; color: #fff; &:hover { background: #5a7ef0; } }
+    &--no  { background: #3a3a4a; color: #aaa; &:hover { background: #4a4a5a; } }
+  }
+}
+
 .update-banner {
   position: fixed;
   bottom: 0;

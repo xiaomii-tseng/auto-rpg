@@ -241,6 +241,15 @@ export const PlayerStore = {
     return Object.values(equipped).some(e => e?.id === itemId);
   },
 
+  toggleFavorite(item: EquipmentItem): void {
+    item.favorite = !item.favorite;
+    this.notify();
+  },
+
+  isFavorite(item: EquipmentItem): boolean {
+    return !!item.favorite;
+  },
+
   getStats(): EffectiveStats {
     let atk       = BASE_ATK + (level - 1) * LEVEL_ATK;
     let maxHp     = BASE_HP  + (level - 1) * LEVEL_HP;

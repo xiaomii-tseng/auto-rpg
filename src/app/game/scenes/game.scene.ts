@@ -2709,6 +2709,7 @@ export class GameScene extends Phaser.Scene {
     }
     if (bloodRageLeech > 0) this._leechPool += Math.round(displayDmg * bloodRageLeech);
     this.spawnDamageNumber(target.x, target.y, displayDmg, isCrit, elemMult * targetMult);
+    DailyQuestStore.addProgress('deal_damage', displayDmg);
     if (isCrit) this._pendingHitWeight += 2;
     if (!this._hitShakePending) {
       this._hitShakePending = true;

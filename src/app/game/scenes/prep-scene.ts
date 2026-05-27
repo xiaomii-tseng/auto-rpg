@@ -621,7 +621,14 @@ export class PrepScene extends Phaser.Scene {
 
     // Content
     const ENTRIES: { text: string; header?: boolean }[] = [
-      { text: '── 先行版 ──', header: true },
+      { text: 'v1.0.1', header: true },
+      { text: '【修復】連線復活後有機率無法攻擊，已修正' },
+      { text: '【新功能】裝備長壓可直接開啟替換比較畫面' },
+      { text: '【新功能】裝備欄位現在會顯示穿著中的裝備（置頂＋裝備中標示）' },
+      { text: '【新功能】裝備最愛（★）：最愛裝備無法被販售或市場上架' },
+      { text: '【調整】每日任務「造成傷害」改為累計計算，目標改為等級×1000' },
+      { text: '' },
+      { text: 'v1.0.0', header: true },
       { text: '目前開始不刪檔測試' },
       { text: '如果有BUG請到右上角點選錯誤回報' },
       { text: '有什麼建議也都可以跟我說' },
@@ -2999,14 +3006,24 @@ export class PrepScene extends Phaser.Scene {
       drawBtn(det, rcx + btnW / 2 + btnGap / 2, btnY - P(46), btnW, btnH,
         '精  煉', 0x3a2800, 0xf0c040, '#ffe066',
         () => showRefineChoiceModal(item, () => { closeEquipped(); showEquippedDetail(item, equipSlot); }));
-      drawSellBtn(det, rcx, btnY, P(200), btnH, calcEquipSellPrice(item),
-        () => {
-          PlayerStore.unequip(equipSlot);
-          PlayerStore.removeOwned(item);
-          InventoryStore.addGold(calcEquipSellPrice(item));
-          SaveStore.save();
-          closeEquipped();
-        });
+      if (item.favorite) {
+        const fg = this.add.graphics();
+        fg.fillStyle(0x1a1208, 1); fg.fillRect(rcx - P(100), btnY - P(19), P(200), P(38));
+        fg.lineStyle(1, 0x554433, 0.6); fg.strokeRect(rcx - P(100), btnY - P(19), P(200), P(38));
+        det.add(fg);
+        det.add(this.add.text(rcx, btnY, '★ 已收藏（無法販售）', {
+          fontSize: F(13), fontStyle: 'bold', color: '#887755', stroke: '#000', strokeThickness: 1,
+        }).setOrigin(0.5));
+      } else {
+        drawSellBtn(det, rcx, btnY, P(200), btnH, calcEquipSellPrice(item),
+          () => {
+            PlayerStore.unequip(equipSlot);
+            PlayerStore.removeOwned(item);
+            InventoryStore.addGold(calcEquipSellPrice(item));
+            SaveStore.save();
+            closeEquipped();
+          });
+      }
     };
 
     // ── buildTopSlots：3欄×2列六宮格 ─────────────────────
@@ -3274,6 +3291,7 @@ export class PrepScene extends Phaser.Scene {
             .map(e => e.id),
         );
         return PlayerStore.getOwned().filter(item => {
+          if (item.favorite) return false; // 最愛裝備不可批量販售
           const inSlot = _dismantlePrefs.slots.has(item.slot) ||
             ((item.slot === 'ring1' || item.slot === 'ring2') && _dismantlePrefs.slots.has('ring'));
           return _dismantlePrefs.qualities.has(item.quality) && inSlot && !equippedIds.has(item.id);
@@ -3580,13 +3598,25 @@ export class PrepScene extends Phaser.Scene {
 
       const btnH = P(38), btnW = P(136), btnGap = P(8);
       const btnY = areaTop + areaH - P(28);
-      const dismantleBtn = () => drawSellBtn(det, rcx, btnY, P(200), btnH, calcEquipSellPrice(item),
-        () => {
-          PlayerStore.removeOwned(item);
-          InventoryStore.addGold(calcEquipSellPrice(item));
-          SaveStore.save();
-          closeItem();
-        });
+      const dismantleBtn = () => {
+        if (item.favorite) {
+          const fg = this.add.graphics();
+          fg.fillStyle(0x1a1208, 1); fg.fillRect(rcx - P(100), btnY - P(19), P(200), P(38));
+          fg.lineStyle(1, 0x554433, 0.6); fg.strokeRect(rcx - P(100), btnY - P(19), P(200), P(38));
+          det.add(fg);
+          det.add(this.add.text(rcx, btnY, '★ 已收藏（無法販售）', {
+            fontSize: F(13), fontStyle: 'bold', color: '#887755', stroke: '#000', strokeThickness: 1,
+          }).setOrigin(0.5));
+          return;
+        }
+        drawSellBtn(det, rcx, btnY, P(200), btnH, calcEquipSellPrice(item),
+          () => {
+            PlayerStore.removeOwned(item);
+            InventoryStore.addGold(calcEquipSellPrice(item));
+            SaveStore.save();
+            closeItem();
+          });
+      };
 
       if (item.slot === 'ring1' || item.slot === 'ring2') {
         // ── 飾品：飾品1/2 兩個槽位按鈕 + 強化 + 分解 ────────
@@ -3655,21 +3685,30 @@ export class PrepScene extends Phaser.Scene {
       gridLayer.removeAll(true);
 
       const slotKeys = tabDefs[activeTab].slotKeys;
-      const items = PlayerStore.getOwned().filter(it => slotKeys.includes(it.slot));
+      // 已裝備的裝備置頂顯示
+      const equippedMap = PlayerStore.getEquipped();
+      const equippedItems: { item: import('../data/equipment-data').EquipmentItem; slot: import('../data/equipment-data').EquipSlot }[] = [];
+      for (const sk of slotKeys) {
+        const eq = equippedMap[sk];
+        if (eq) equippedItems.push({ item: eq, slot: sk });
+      }
+      const ownedItems = PlayerStore.getOwned().filter(it => slotKeys.includes(it.slot));
 
-      if (items.length === 0) {
+      if (equippedItems.length === 0 && ownedItems.length === 0) {
         gridLayer.add(this.add.text(rightColX + rightColW / 2, gridY + 32, '尚無裝備', {
           fontSize: F(15), fontStyle: 'bold', color: '#5a3820', stroke: '#1a0800', strokeThickness: 1,
         }).setOrigin(0.5));
         return;
       }
+      const items = ownedItems;
 
       const GCOLS   = 2;
       const CARD_GAP = P(6);
       const cardW   = Math.floor((rightColW - CARD_GAP) / GCOLS);
       const ROW_H   = P(86);
       const ROW_GAP = P(5);
-      const totalRows = Math.ceil(items.length / GCOLS);
+      const totalItems = equippedItems.length + items.length;
+      const totalRows = Math.ceil(totalItems / GCOLS);
       const contentH  = totalRows * (ROW_H + ROW_GAP) - ROW_GAP;
       let scrollY = 0;
       const maxScroll = Math.max(0, contentH - gridH);
@@ -3691,7 +3730,13 @@ export class PrepScene extends Phaser.Scene {
       const gg = this.add.graphics();
       scrollCnt.add(gg);
 
-      items.forEach((item, idx) => {
+      // Helper to render one card row
+      const renderCard = (
+        item: import('../data/equipment-data').EquipmentItem,
+        idx: number,
+        isEquipped: boolean,
+        onTap: () => void,
+      ) => {
         const col  = idx % GCOLS;
         const row  = Math.floor(idx / GCOLS);
         const cx   = rightColX + col * (cardW + CARD_GAP);
@@ -3699,13 +3744,16 @@ export class PrepScene extends Phaser.Scene {
         const qc    = QUALITY_COLORS[item.quality] ?? WL;
         const qcStr = '#' + qc.toString(16).padStart(6, '0');
 
-        // Card background
-        gg.fillStyle(WB, 1);    gg.fillRect(cx, rowY, cardW, ROW_H);
-        gg.fillStyle(WM, 0.85); gg.fillRect(cx + P(2), rowY + P(1), cardW - P(4), ROW_H - P(2));
-        // Quality colour left bar
-        gg.fillStyle(qc, 0.9);  gg.fillRect(cx, rowY, P(3), ROW_H);
-        // Border
-        gg.lineStyle(P(1), qc, 0.45); gg.strokeRect(cx, rowY, cardW, ROW_H);
+        // Card background (equipped items get a slightly different tint)
+        gg.fillStyle(WB, 1); gg.fillRect(cx, rowY, cardW, ROW_H);
+        if (isEquipped) {
+          gg.fillStyle(0x1a2800, 1); gg.fillRect(cx + P(2), rowY + P(1), cardW - P(4), ROW_H - P(2));
+        } else {
+          gg.fillStyle(WM, 0.85); gg.fillRect(cx + P(2), rowY + P(1), cardW - P(4), ROW_H - P(2));
+        }
+        gg.fillStyle(qc, 0.9); gg.fillRect(cx, rowY, P(3), ROW_H);
+        gg.lineStyle(P(1), isEquipped ? 0x66cc44 : qc, isEquipped ? 0.8 : 0.45);
+        gg.strokeRect(cx, rowY, cardW, ROW_H);
 
         // Item image
         const imgX = cx + P(28);
@@ -3731,13 +3779,79 @@ export class PrepScene extends Phaser.Scene {
           }).setOrigin(0, 0));
         });
 
-        // Tap to open detail
-        const tap = this.add.rectangle(cx + cardW / 2, rowY + ROW_H / 2, cardW, ROW_H)
+        // 裝備中 badge
+        if (isEquipped) {
+          const badgeW = P(38), badgeH = P(14);
+          gg.fillStyle(0x336600, 0.92); gg.fillRoundedRect(cx + P(4), rowY + P(3), badgeW, badgeH, P(3));
+          scrollCnt.add(this.add.text(cx + P(4) + badgeW / 2, rowY + P(3) + badgeH / 2, '裝備中', {
+            fontSize: F(10), fontStyle: 'bold', color: '#aaffaa', stroke: '#003300', strokeThickness: 1,
+          }).setOrigin(0.5));
+        }
+
+        // Main card tap zone (added before star hit so star takes priority)
+        const tapCard = this.add.rectangle(cx + cardW / 2, rowY + ROW_H / 2, cardW, ROW_H)
           .setInteractive({ useHandCursor: true });
         let _tapStartY = 0;
-        tap.on('pointerdown', (ptr: Phaser.Input.Pointer) => { _tapStartY = ptr.y; });
-        tap.on('pointerup',   (ptr: Phaser.Input.Pointer) => { if (Math.abs(ptr.y - _tapStartY) < P(8)) showItemDetail(item); });
-        scrollCnt.add(tap);
+        let _longPressTimer: ReturnType<typeof setTimeout> | null = null;
+        tapCard.on('pointerdown', (ptr: Phaser.Input.Pointer) => {
+          _tapStartY = ptr.y;
+          if (!isEquipped) {
+            _longPressTimer = setTimeout(() => {
+              _longPressTimer = null;
+              const eq = PlayerStore.getEquipped();
+              let curEquip: import('../data/equipment-data').EquipmentItem | null = null;
+              if (item.slot === 'ring1' || item.slot === 'ring2') {
+                curEquip = eq['ring1'] ?? eq['ring2'] ?? null;
+              } else {
+                curEquip = eq[item.slot as import('../data/equipment-data').EquipSlot] ?? null;
+              }
+              if (curEquip) {
+                showEquipComparison(item, curEquip, () => { PlayerStore.equip(item); SaveStore.save(); });
+              } else {
+                onTap();
+              }
+            }, 500);
+          }
+        });
+        tapCard.on('pointerup', (ptr: Phaser.Input.Pointer) => {
+          if (_longPressTimer) {
+            clearTimeout(_longPressTimer);
+            _longPressTimer = null;
+            if (Math.abs(ptr.y - _tapStartY) < P(8)) onTap();
+          } else if (isEquipped && Math.abs(ptr.y - _tapStartY) < P(8)) {
+            onTap();
+          }
+        });
+        tapCard.on('pointerout', () => { if (_longPressTimer) { clearTimeout(_longPressTimer); _longPressTimer = null; } });
+        scrollCnt.add(tapCard);
+
+        // Favorite star — text drawn, then hit zone added LAST so it gets input priority over tapCard
+        const isFav = !!item.favorite;
+        scrollCnt.add(this.add.text(cx + cardW - P(14), rowY + P(8), isFav ? '★' : '☆', {
+          fontSize: F(16), fontStyle: 'bold',
+          color: isFav ? '#ffcc00' : '#aa8855',
+          stroke: '#1a0800', strokeThickness: 1,
+        }).setOrigin(0.5, 0));
+        // Hit zone: 40×40 px around the star, covers top-right corner comfortably
+        const starHit = this.add.rectangle(cx + cardW - P(14), rowY + P(20), P(40), P(40))
+          .setInteractive({ useHandCursor: true });
+        starHit.on('pointerdown', (ptr: Phaser.Input.Pointer) => {
+          ptr.event.stopPropagation();
+          if (_longPressTimer) { clearTimeout(_longPressTimer); _longPressTimer = null; }
+          PlayerStore.toggleFavorite(item);
+          SaveStore.save();
+        });
+        scrollCnt.add(starHit);
+      };
+
+      // Render equipped items first
+      equippedItems.forEach(({ item, slot }, idx) => {
+        renderCard(item, idx, true, () => showEquippedDetail(item, slot));
+      });
+      const eqOff = equippedItems.length;
+
+      items.forEach((item, idx) => {
+        renderCard(item, eqOff + idx, false, () => showItemDetail(item));
       });
 
       gridMoveHandler = (ptr: Phaser.Input.Pointer) => {
