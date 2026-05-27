@@ -715,10 +715,8 @@ app.post('/push/notify-version', async (req, res) => {
   if (!subs?.length) { res.json({ ok: true, sent: 0 }); return; }
 
   const payload = JSON.stringify({
-    title: `遊戲更新 ${version}`,
-    body:  notes ?? '新版本已上線，點此重新整理遊戲',
-    icon:  '/icons/icon-192x192.png',
-    badge: '/icons/icon-72x72.png',
+    title: '有新版本上線了！',
+    body:  version,
   });
 
   const results = await Promise.allSettled(
@@ -739,7 +737,10 @@ app.post('/push/notify-version', async (req, res) => {
   }
 
   const sent = results.filter(r => r.status === 'fulfilled').length;
-  res.json({ ok: true, sent, total: subs.length });
+  const errors = results
+    .filter(r => r.status === 'rejected')
+    .map(r => ({ code: (r as any).reason?.statusCode, msg: (r as any).reason?.message }));
+  res.json({ ok: true, sent, total: subs.length, errors });
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
