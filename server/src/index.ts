@@ -715,8 +715,10 @@ app.post('/push/notify-version', async (req, res) => {
   if (!subs?.length) { res.json({ ok: true, sent: 0 }); return; }
 
   const payload = JSON.stringify({
-    title: '有新版本上線了！',
-    body:  version,
+    notification: {
+      title: '有新版本上線了！',
+      body:  version,
+    },
   });
 
   const results = await Promise.allSettled(
