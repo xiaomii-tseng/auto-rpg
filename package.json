@@ -10,7 +10,8 @@
     "server": "ng serve --host 0.0.0.0 --configuration=uat",
     "server-uat": "ng serve --host 0.0.0.0 --configuration=uat",
     "build-uat": "ng build --configuration=uat",
-    "deploy": "ng build --base-href /auto-rpg/ && node deploy.mjs"
+    "deploy": "ng build --base-href /auto-rpg/ && node deploy.mjs",
+    "push": "powershell -ExecutionPolicy Bypass -File push-update.ps1"
   },
   "private": true,
   "packageManager": "npm@11.3.0",
