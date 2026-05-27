@@ -35,6 +35,15 @@
   color: #c8d0f0;
   font-size: 14px;
 
+  @media (orientation: portrait) {
+    inset: unset;
+    top: 0;
+    left: 0;
+    width: 100vh;
+    transform-origin: top left;
+    transform: rotate(90deg) translateY(-100%);
+  }
+
   &__text { flex: 1; min-width: 180px; }
 
   &__actions { display: flex; gap: 8px; flex-shrink: 0; }

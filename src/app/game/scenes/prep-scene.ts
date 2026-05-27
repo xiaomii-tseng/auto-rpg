@@ -218,6 +218,7 @@ export class PrepScene extends Phaser.Scene {
   }
 
   preload(): void {
+    SaveStore.load();   // must run before SkinStore.get() so textures use the saved skin
     const cfg = { frameWidth: 64, frameHeight: 64 };
     const _skin = SKINS[SkinStore.get()];
     // Always remove and reload player textures + animations so they reflect the current skin.
@@ -641,7 +642,7 @@ export class PrepScene extends Phaser.Scene {
       const t = this.make.text({ x: P(2), y: totalH, text: e.text, style: {
         fontSize: F(15), fontStyle: 'bold',
         color: e.header ? '#d4a044' : '#b89060',
-        wordWrap: { width: SW - P(4) },
+        wordWrap: { width: SW - P(4), useAdvancedWrap: true },
       }, add: false });
       content.add(t);
       totalH += t.height + P(6);

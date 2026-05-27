@@ -48,9 +48,10 @@ export class App implements AfterViewInit {
 
     if (this.authSvc.init()) {
       // Defer to next tick to avoid NG0100 (ngAfterViewInit runs after first CD check)
-      Promise.resolve().then(() => {
+      Promise.resolve().then(async () => {
         this.showAuth = false;
-        this._startGame();
+        await this._startGame();
+        this._maybeShowPushPrompt();
       });
       return;
     }
