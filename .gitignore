@@ -47,3 +47,4 @@ Thumbs.db
 
 # Local secrets (never commit)
 push.local.json
+push-update.ps1
