@@ -85,7 +85,7 @@ export class MarketService {
     return data;
   }
 
-  async buyItem(listingId: string, qty = 1): Promise<void> {
+  async buyItem(listingId: string, qty = 0): Promise<{ qty_bought: number; cost: number }> {
     const res = await fetch(`${environment.apiUrl}/market/buy/${listingId}`, {
       method:  'POST',
       headers: this.headers,
@@ -93,6 +93,7 @@ export class MarketService {
     });
     const data = await res.json();
     if (!res.ok || !data.ok) throw new Error(data.error ?? 'buy failed');
+    return { qty_bought: data.qty_bought, cost: data.cost };
   }
 
   async cancelListing(listingId: string): Promise<void> {

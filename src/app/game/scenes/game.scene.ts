@@ -537,29 +537,17 @@ export class GameScene extends Phaser.Scene {
     });
     this._partners.clear();
 
-    // ── 每場藥水使用上限 ─────────────────────────────────────
     this._atkBuffActive = false;
     this._atkBuffTimer?.destroy();
     this._atkBuffTimer = undefined;
     this._buffExpiry.clear();
     this._buffHudTexts.forEach(t => t.destroy());
     this._buffHudTexts = [];
-    const BUFF_CAP = 3;
-    const REVIVE_CAP = 1;
-    // 恢復藥水不限攜帶量，功能藥水上限 3 瓶
-    const capMap: Record<string, number> = {
-      [ITEM_POTION_HEALTH_S]: Infinity,
-      [ITEM_POTION_HEALTH_M]: Infinity,
-      [ITEM_POTION_HEALTH_L]: Infinity,
-      [ITEM_POTION_REVIVE]: REVIVE_CAP,
-      [ITEM_POTION_ATK]: BUFF_CAP,
-      [ITEM_POTION_DEF]: BUFF_CAP,
-      [ITEM_POTION_SPEED]: BUFF_CAP,
-    };
     this._sessionQty.clear();
     this._potionCdUntil.clear();
-    for (const [id, cap] of Object.entries(capMap)) {
-      this._sessionQty.set(id, Math.min(InventoryStore.getItemQty(id), cap));
+    for (const id of [ITEM_POTION_HEALTH_S, ITEM_POTION_HEALTH_M, ITEM_POTION_HEALTH_L,
+                      ITEM_POTION_REVIVE, ITEM_POTION_ATK, ITEM_POTION_DEF, ITEM_POTION_SPEED]) {
+      this._sessionQty.set(id, InventoryStore.getItemQty(id));
     }
 
     if (this._towerFloor > 0) {
@@ -8735,9 +8723,10 @@ export class GameScene extends Phaser.Scene {
     this.playSfx('sfx_potion');
     this._dqPotionThisBattle = true;
     DailyQuestStore.addProgress('use_potion', 1);
-    // 每種藥水獨立 20 秒 CD
-    this._potionCdUntil.set(itemId, this.time.now + 20000);
-    this.time.addEvent({ delay: 500, repeat: 39, callback: () => this._potionBarRedraw?.() });
+    const isBuffPotion = itemId === ITEM_POTION_ATK || itemId === ITEM_POTION_DEF || itemId === ITEM_POTION_SPEED;
+    const cdMs = isBuffPotion ? 60000 : 20000;
+    this._potionCdUntil.set(itemId, this.time.now + cdMs);
+    this.time.addEvent({ delay: 500, repeat: (cdMs / 500) - 1, callback: () => this._potionBarRedraw?.() });
 
     const range = P(this.POTION_RANGE);
     const sealType = itemId === ITEM_POTION_REVIVE ? 'revive' : 'heal';

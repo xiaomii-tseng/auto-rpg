@@ -6853,8 +6853,6 @@ export class PrepScene extends Phaser.Scene {
     makeBtn(-P(68), cbY, tr('ui.cancel'), CBW, CBH, '#cc6666', 0x883333, () => pop.destroy());
     makeBtn(P(68), cbY, tr('prep.misc.buy'), CBW, CBH, '#e8c870', GOLD, () => {
       if (InventoryStore.getGold() < qty * item.price) return;
-      AudioService.playSfx(this, 'sfx_purchase', 0.7);
-      DailyQuestStore.addProgress('shop_purchase', 1);
       onConfirm(qty);
       pop.destroy();
     });

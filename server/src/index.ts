@@ -598,14 +598,17 @@ app.post('/market/buy/:id', limiterMarket, requireAuth, async (req: any, res) =>
   const listingId = req.params.id;
   if (!listingId) { res.status(400).json({ error: 'listingId required' }); return; }
 
+  const reqQty = parseInt(req.body?.qty) || 0;
+
   const { data, error } = await supabase.rpc('buy_listing', {
     p_listing_id:    listingId,
     p_buyer_user_id: req.userId,
+    p_qty:           reqQty,
   });
 
   if (error) { res.status(500).json({ error: error.message }); return; }
   if (!data?.ok) { res.status(400).json({ error: data?.error ?? 'buy failed' }); return; }
-  res.json({ ok: true });
+  res.json({ ok: true, qty_bought: data.qty_bought, cost: data.cost });
 });
 
 // ── DELETE /market/list/:id ───────────────────────────────────────────────────

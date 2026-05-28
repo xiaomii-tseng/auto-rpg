@@ -136,7 +136,9 @@
       "Bash(grep -c \"PostToolUse\\\\|error\" /dev/null)",
       "Bash(node -e \"const f = require\\('fs'\\); const c = f.readFileSync\\('src/app/game/i18n/en.ts','utf8'\\); console.log\\('en.ts lines:', c.split\\('\\\\n'\\).length\\)\")",
       "Bash(grep -n \"blank_card\\\\|item\\\\\\\\.blank\" src/app/game/data/monster-data.ts)",
-      "Bash(Get-ChildItem -Path \"C:\\\\MyCode\\\\auto-rpg\" -Recurse -Filter \"*orc*\" -ErrorAction SilentlyContinue)"
+      "Bash(Get-ChildItem -Path \"C:\\\\MyCode\\\\auto-rpg\" -Recurse -Filter \"*orc*\" -ErrorAction SilentlyContinue)",
+      "Bash(Get-ChildItem -Path \"c:\\\\MyCode\\\\auto-rpg\" -Recurse -Directory)",
+      "Bash(Select-Object -First 20 FullName)"
     ],
     "additionalDirectories": [
       "\\MyCode\\auto-rpg\\src\\app\\game\\scenes",

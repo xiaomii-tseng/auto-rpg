@@ -5,7 +5,10 @@ import { MarketVisibilityService } from './market-visibility.service';
 import { MarketService, MarketListing, MyListing, MarketItemType, ListingsFilter } from './market.service';
 import { AuthService } from '../../auth/auth.service';
 import { EquipQuality, StatKey, fmtAffixValue, STAT_NAMES, getEquipDisplayName } from '../data/equipment-data';
-import { decryptSave } from '../data/save-store';
+import { SaveStore, decryptSave } from '../data/save-store';
+import { InventoryStore } from '../data/inventory-store';
+import { CardStore } from '../data/card-store';
+import { PlayerStore } from '../data/player-store';
 import { getCardDef } from '../data/monster-data';
 import { t } from '../i18n/i18n';
 
@@ -316,15 +319,27 @@ export class MarketComponent implements OnInit, OnDestroy {
 
   cancelBuy(): void { this.buyTarget.set(null); }
 
-  async buy(listing: MarketListing, qty = 1): Promise<void> {
+  async buy(listing: MarketListing, qty = 0): Promise<void> {
     this.actionError.set('');
     this.actionPending.set(listing.id);
     try {
-      await this.svc.buyItem(listing.id, qty);
-      if (qty >= listing.qty) {
+      const { qty_bought, cost } = await this.svc.buyItem(listing.id, qty);
+
+      InventoryStore.addGold(-cost);
+      const snap = listing.item_snapshot;
+      if (listing.item_type === 'consumable') {
+        InventoryStore.addItem(snap.id, listing.item_name, qty_bought);
+      } else if (listing.item_type === 'card') {
+        CardStore.addCard(snap.cardId, qty_bought);
+      } else if (listing.item_type === 'equipment') {
+        PlayerStore.addOwned(snap);
+      }
+      SaveStore.save();
+
+      if (qty_bought >= listing.qty) {
         this.listings.update(ls => ls.filter(l => l.id !== listing.id));
       } else {
-        this.listings.update(ls => ls.map(l => l.id === listing.id ? { ...l, qty: l.qty - qty } : l));
+        this.listings.update(ls => ls.map(l => l.id === listing.id ? { ...l, qty: l.qty - qty_bought } : l));
       }
     } catch (e: any) {
       const map: Record<string, string> = {

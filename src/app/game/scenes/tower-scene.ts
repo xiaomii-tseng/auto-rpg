@@ -19,7 +19,6 @@ const DPR = (window as any).__gameDpr as number;
 const P   = (n: number): number => Math.round(n * DPR);
 const F   = (n: number): string => `${Math.round(n * DPR)}px`;
 
-const POTION_CAP = 5;
 
 // ── Per-floor state ──────────────────────────────────────────
 interface FloorSlot {
@@ -148,11 +147,10 @@ export class TowerScene extends GameScene {
 
     this.cameras.main.startFollow(this.player, true, 0.12, 0.12);
 
-    // ── Potion session limits ────────────────────────────────
     this._sessionQty.clear();
     for (const id of [ITEM_POTION_HEALTH_S, ITEM_POTION_HEALTH_M, ITEM_POTION_HEALTH_L,
                       ITEM_POTION_REVIVE, ITEM_POTION_ATK, ITEM_POTION_DEF, ITEM_POTION_SPEED]) {
-      this._sessionQty.set(id, Math.min(InventoryStore.getItemQty(id), POTION_CAP));
+      this._sessionQty.set(id, InventoryStore.getItemQty(id));
     }
 
     // ── Projectile overlaps ──────────────────────────────────
