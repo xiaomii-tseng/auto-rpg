@@ -323,6 +323,7 @@ export const CardStore = {
       b.damageSplashCount       = (b.damageSplashCount       ?? 0) + (e.damageSplashCount       ?? 0);
       b.lightningStrike      = (b.lightningStrike      ?? 0) + (e.lightningStrike      ?? 0);
       b.onHitLightningChance = (b.onHitLightningChance ?? 0) + (e.onHitLightningChance ?? 0);
+      b.onHitKnifeChance     = (b.onHitKnifeChance     ?? 0) + (e.onHitKnifeChance     ?? 0);
       b.lightningDmgBonus          = (b.lightningDmgBonus          ?? 0) + (e.lightningDmgBonus          ?? 0);
       b.lightningIntervalReduction = (b.lightningIntervalReduction ?? 0) + (e.lightningIntervalReduction ?? 0);
       b.lightningSingleTarget      = (b.lightningSingleTarget      ?? 0) + (e.lightningSingleTarget      ?? 0);
@@ -480,7 +481,7 @@ export const CardStore = {
       rarityBonus:          base.rarityBonus,
       killShieldPerKill:    base.killShieldPerKill,
       executePct:           base.executePct,
-      regenShieldMax:       base.regenShieldMax,
+      regenShieldMax:       Math.round(((base.regenShieldMax ?? 0) + (bonus.regenShieldMax ?? 0)) * (1 + (bonus.regenShieldMaxPct ?? 0))) || undefined,
       condDotStackBonus:    bonus.condDotStackBonus,
       orbitFireBalls:       bonus.orbitFireBalls,
       orbitIceBalls:        bonus.orbitIceBalls,
@@ -539,6 +540,9 @@ export const CardStore = {
       fearAura:             bonus.fearAura,
       bloodRage:            bonus.bloodRage,
       lifestealInstant:     bonus.lifestealInstant,
+      standstillDmgPct:       (bonus.standstillDmgPct ?? 0) || undefined,
+      standstillDmgReductionPct: (bonus.standstillDmgReductionPct ?? 0) || undefined,
+      onHitKnifeChance:     bonus.onHitKnifeChance,
     };
   },
 

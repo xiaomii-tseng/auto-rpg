@@ -303,7 +303,7 @@ export class BossVampire2 extends Boss {
           });
         }
 
-        if (!this.guestMode) this.onMeteorRainHit?.(tx, ty, MRAIN_R * 1.1, dmg);
+        this.onMeteorRainHit?.(tx, ty, MRAIN_R * 1.1, dmg);
       },
     });
   }
@@ -639,9 +639,7 @@ export class BossVampire2 extends Boss {
     }
 
     // 傷害判定
-    if (!this.guestMode) {
-      this.onCometRingHit?.(cx, cy, rInner, rOuter, this.scaleDmg(baseDmg));
-    }
+    this.onCometRingHit?.(cx, cy, rInner, rOuter, this.scaleDmg(baseDmg));
   }
 
   // ════════════════════════════════════════════════════════
@@ -880,7 +878,7 @@ export class BossVampire2 extends Boss {
               onComplete: () => em.destroy(),
             });
           }
-          if (!this.guestMode) this.onElFireHit?.(ex, ey, EL_FIRE_R, dmgFire);
+          this.onElFireHit?.(ex, ey, EL_FIRE_R, dmgFire);
         },
       });
     }
@@ -946,7 +944,7 @@ export class BossVampire2 extends Boss {
         this.scene.tweens.add({
           targets: spike, scaleX: 1, scaleY: 1, duration: 200, ease: 'Back.easeOut',
           onComplete: () => {
-            if (!this.guestMode) this.onElIceHit?.(p.x, p.y, EL_ICE_R, dmgIce);
+            this.onElIceHit?.(p.x, p.y, EL_ICE_R, dmgIce);
             // Ice shards burst outward
             for (let k = 0; k < 7; k++) {
               const sa = Math.PI * 2 * k / 7 + Phaser.Math.FloatBetween(-0.35, 0.35);
@@ -1050,7 +1048,7 @@ export class BossVampire2 extends Boss {
         zap.lineStyle(P(2.5), 0xffff88, 0.90); zap.strokeCircle(0, 0, EL_THUNDER_R);
         zap.lineStyle(P(1.5), 0xffffff, 0.55); zap.strokeCircle(0, 0, EL_THUNDER_R * 0.55);
         this.scene.tweens.add({ targets: zap, alpha: 0, duration: 560, delay: 80, onComplete: () => zap.destroy() });
-        if (!this.guestMode) this.onElThunderHit?.(p.x, p.y, EL_THUNDER_R, dmgThunder);
+        this.onElThunderHit?.(p.x, p.y, EL_THUNDER_R, dmgThunder);
       });
     });
 
@@ -1108,7 +1106,7 @@ export class BossVampire2 extends Boss {
           duration: Phaser.Math.Between(460, 680), ease: 'Quad.Out', onComplete: () => vp.destroy(),
         });
       }
-      if (!this.guestMode) this.onElVoidHit?.(cx, cy, EL_VOID_R, dmgVoid);
+      this.onElVoidHit?.(cx, cy, EL_VOID_R, dmgVoid);
     });
 
     this.stateTimer = this.scene.time.delayedCall(1800, () => this.enterIdle());

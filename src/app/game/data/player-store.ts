@@ -71,7 +71,7 @@ export interface EffectiveStats {
   rarityBonus?:      number;
   killShieldPerKill?:number;
   executePct?:       number;
-  regenShieldMax?:   number;
+  regenShieldMax?:    number;
   // ── 條件 DoT ──
   condDotStackBonus?: number;
   // ── 特殊機制（卡片觸發效果）──
@@ -132,6 +132,9 @@ export interface EffectiveStats {
   fearAura?:    number;
   bloodRage?:   number;
   lifestealInstant?: number;
+  standstillDmgPct?:          number;
+  standstillDmgReductionPct?: number;
+  onHitKnifeChance?:          number;
 }
 
 type EquippedMap = { [K in EquipSlot]: EquipmentItem | null };

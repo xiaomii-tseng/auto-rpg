@@ -137,13 +137,13 @@ export class BossOrc1 extends BossOrcBase {
       lifespan: { min: 120, max: 300 }, frequency: 18, quantity: mq(3),
     }).setDepth(this.depth + 1);
 
-    const hitTimer = !this.guestMode ? this.scene.time.addEvent({
+    const hitTimer = this.scene.time.addEvent({
       delay: 80, repeat: Math.ceil(WHIRL_TOTAL_MS / 80),
       callback: () => {
         if (this.currentState !== BossState.ORC_WHIRLING) return;
         this.onWhirlTick?.(this.x, this.y, WHIRL_HIT_R, this.scaleDmg(WHIRL_DMG));
       },
-    }) : null;
+    });
 
     let elapsed = 0;
     const doStep = () => {
@@ -171,7 +171,18 @@ export class BossOrc1 extends BossOrcBase {
 
   private enterOrcSummonWarn(): void {
     if (this.currentState === BossState.DEAD) return;
-    this.setBossState(BossState.ORC_SUMMON_WARN, {});
+
+    // Pre-generate positions on HOST; GUEST reads from guestPts (set before applyUniqueState fires)
+    const positions = this.guestMode
+      ? (this.guestPts ?? []).map(p => ({ sx: p.x, sy: p.y }))
+      : Array.from({ length: SUMMON_COUNT }, (_, i) => {
+          const a = (i / SUMMON_COUNT) * Math.PI * 2 + Phaser.Math.FloatBetween(-0.4, 0.4);
+          const r = P(140);
+          return { sx: this.x + Math.cos(a) * r, sy: this.y + Math.sin(a) * r };
+        });
+
+    this.setBossState(BossState.ORC_SUMMON_WARN,
+      this.guestMode ? undefined : { pts: positions.map(p => ({ x: p.sx / DPR, y: p.sy / DPR })) });
     (this.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
     this.playDir(`${this.animPrefix}_idle`);
 
@@ -191,14 +202,9 @@ export class BossOrc1 extends BossOrcBase {
     this.stateTimer = this.scene.time.delayedCall(SUMMON_WARN_MS, () => {
       roarEmitter.destroy();
       this.scene.cameras.main.shake(60, 0.006);
-      if (!this.guestMode) {
-        for (let i = 0; i < SUMMON_COUNT; i++) {
-          const a = (i / SUMMON_COUNT) * Math.PI * 2 + Phaser.Math.FloatBetween(-0.4, 0.4);
-          const r = P(140);
-          const sx = this.x + Math.cos(a) * r;
-          const sy = this.y + Math.sin(a) * r;
-          this.scene.time.delayedCall(i * 120, () => this.onSummonOrc?.(sx, sy));
-        }
+      for (let i = 0; i < positions.length; i++) {
+        const { sx, sy } = positions[i];
+        this.scene.time.delayedCall(i * 120, () => this.onSummonOrc?.(sx, sy));
       }
       this.stateTimer = this.scene.time.delayedCall(600, () => this.enterIdle());
     });
@@ -214,9 +220,7 @@ export class BossOrc1 extends BossOrcBase {
 
     // 預覽三道扇形
     const [px, py] = this.getTargetPos();
-    const baseAng = this.guestMode
-      ? this.guestAngle
-      : Phaser.Math.Angle.Between(this.x, this.y, px, py);
+    const baseAng = Phaser.Math.Angle.Between(this.x, this.y, px, py);
     this.setBossState(BossState.ORC_FAN_WARN, { angle: baseAng });
     const warnG = this.scene.add.graphics().setDepth(8);
     const fw2 = { v: 0.3 };
@@ -284,7 +288,7 @@ export class BossOrc1 extends BossOrcBase {
     this.scene.tweens.add({ targets: flashG, alpha: 0, duration: 300, onComplete: () => flashG.destroy() });
     this.scene.cameras.main.shake(30, 0.003);
 
-    if (!this.guestMode) this.onFanSlash?.(this.x, this.y, ang, FAN_HALF, FAN_RANGE, this.scaleDmg(FAN_DMG));
+    this.onFanSlash?.(this.x, this.y, ang, FAN_HALF, FAN_RANGE, this.scaleDmg(FAN_DMG));
 
     if (slashIdx < 2) {
       this.stateTimer = this.scene.time.delayedCall(FAN_INTERVAL, () => this.fireOrcFanSequence(slashIdx + 1, baseAng));
@@ -415,14 +419,14 @@ export class BossOrc1 extends BossOrcBase {
       lifespan: { min: 250, max: 550 }, emitting: false,
     }).setDepth(18).emitParticleAt(0, 0, mq(30));
 
-    if (!this.guestMode) this.onBoulderLand?.(x, y, BOULDER_HIT_R, this.scaleDmg(BOULDER_DMG));
+    this.onBoulderLand?.(x, y, BOULDER_HIT_R, this.scaleDmg(BOULDER_DMG));
 
     // 減速區域（持續 3 秒）
     const zoneG = this.scene.add.graphics().setDepth(5).setPosition(x, y);
     const slowTimer = this.scene.time.addEvent({
       delay: 150, repeat: Math.ceil(BOULDER_SLOW_DUR / 150),
       callback: () => {
-        if (!this.guestMode) this.onSlowZoneTick?.(x, y, BOULDER_SLOW_R);
+        this.onSlowZoneTick?.(x, y, BOULDER_SLOW_R);
       },
     });
     const elapsed = { t: 0 };
@@ -473,7 +477,7 @@ export class BossOrc1 extends BossOrcBase {
     this.stateTimer = this.scene.time.delayedCall(ROAR_WARN_MS, () => {
       if (this.baseTint === 0xffffff) this.clearTint(); else this.setTint(this.baseTint);
       this.scene.cameras.main.shake(120, 0.010);
-      if (!this.guestMode) this.onRoar?.();
+      this.onRoar?.();
       this.stateTimer = this.scene.time.delayedCall(400, () => this.enterIdle());
     });
   }

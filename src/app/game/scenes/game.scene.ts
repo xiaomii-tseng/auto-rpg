@@ -180,6 +180,7 @@ export class GameScene extends Phaser.Scene {
   private _divineShieldGfx?: Phaser.GameObjects.Graphics;
   private _divineShieldRollUntil = 0;  // 每次攻擊動作只判定一次（300ms 鎖）
   private _onHitLightningCooldown = 0;  // 攻擊觸發落雷冷卻
+  private _onHitKnifeCooldown     = 0;  // 攻擊觸發飛刀冷卻
   private _freeRevivesUsed = 0;
   // 業火盾
   private _blazingActive = false;
@@ -293,6 +294,13 @@ export class GameScene extends Phaser.Scene {
   private _sanguineExpiry = 0;
   private _sanguineTickTimer: Phaser.Time.TimerEvent | null = null;
   private _sanguineSwingHandled = false;
+  private _auraTick = 0;
+  private _auraCycleSanguineDone     = false;
+  private _auraCycleBloodlustDone    = false;
+  private _auraCycleKnifeDone        = false;
+  private _auraCycleLightningDone    = false;
+  private _auraCycleDivineShieldDone = false;
+  private _auraCycleSummonDone       = false;
   protected minionProjGroup!: Phaser.Physics.Arcade.Group;
   protected homingProjs: Phaser.Physics.Arcade.Image[] = [];
   protected hitBatches = new Map<number, number>(); // batchId → hitTimestamp
@@ -1040,7 +1048,14 @@ export class GameScene extends Phaser.Scene {
     if (NetworkService.connected && !NetworkService.isHost) {
       NetworkService.onMinionAttack(data => {
         const before = this.minionProjGroup.getLength();
-        this.spawnMinionAttack(data.type, data.mx, data.my, data.tx, data.ty, data.atk, data.isElite);
+        if (data.type === 'blood_channel') {
+          this.bloodChannelFloorWarn(data.mx, data.my, data.tx, data.ty, data.isElite ?? false, MinionSlime.BLOOD_CHANNEL_WARN_MS);
+          this.time.delayedCall(MinionSlime.BLOOD_CHANNEL_WARN_MS, () => {
+            this.spawnMinionAttack(data.type, data.mx, data.my, data.tx, data.ty, data.atk, data.isElite);
+          });
+        } else {
+          this.spawnMinionAttack(data.type, data.mx, data.my, data.tx, data.ty, data.atk, data.isElite);
+        }
         if (data.isAlly) {
           const projs = this.minionProjGroup.getChildren();
           for (let i = before; i < projs.length; i++) {
@@ -1358,7 +1373,7 @@ export class GameScene extends Phaser.Scene {
         if (k.hitTargets.has(t)) continue;
         const khr = P(14); if ((k.x - t.x) * (k.x - t.x) + (k.y - t.y) * (k.y - t.y) > khr * khr) continue;
         k.hitTargets.add(t);
-        this.dealDamage(t, 0.40 * (1 + knifeBaseDmgMult), k.x, k.y, 'down');
+        this.dealDamage(t, 0.40 * (1 + knifeBaseDmgMult), k.x, k.y, 'down', 'none', true);
       }
     }
   }
@@ -1508,13 +1523,13 @@ export class GameScene extends Phaser.Scene {
       this._fxLightningBolt(tx, ty, isSingle);
 
       if (isSingle) {
-        this.dealDamage(target, dmgMult, tx, ty, 'down');
+        this.dealDamage(target, dmgMult, tx, ty, 'down', 'none', true);
       } else {
         const splashR = P(12);
         const splashRSq = splashR * splashR;
         for (const t of this.getHittableTargets()) {
           if ((tx - t.x) * (tx - t.x) + (ty - t.y) * (ty - t.y) <= splashRSq) {
-            this.dealDamage(t, dmgMult, tx, ty, 'down');
+            this.dealDamage(t, dmgMult, tx, ty, 'down', 'none', true);
           }
         }
       }
@@ -1606,7 +1621,7 @@ export class GameScene extends Phaser.Scene {
     ring.lineStyle(P(2), 0xaaddff, 1); ring.strokeCircle(0, 0, P(12));
     this.tweens.add({ targets: ring, scaleX: 2.5, scaleY: 2.5, alpha: 0, duration: 300, onComplete: () => ring.destroy() });
 
-    this.dealDamage(target, dmgMult, this.player.x, this.player.y, 'down');
+    this.dealDamage(target, dmgMult, this.player.x, this.player.y, 'down', 'none', true);
   }
 
   private overkillSplash(ox: number, oy: number, overkill: number): void {
@@ -2649,6 +2664,7 @@ export class GameScene extends Phaser.Scene {
     srcX: number, srcY: number,
     dir: 'down' | 'left' | 'right' | 'up',
     attackElem: import('../data/equipment-data').Element = 'none',
+    skipOnHitProcs = false,
   ): void {
     const stats = CardStore.getTotalStats();
     const isCrit = Math.random() < stats.crit;
@@ -2689,6 +2705,9 @@ export class GameScene extends Phaser.Scene {
     const allMult = 1 + (stats.allDmgPct ?? 0);
     const atkBuffMult = this._atkBuffActive ? 1.2 : 1;
     const blazingMult = this._blazingActive ? (1 + (stats.blazingShieldAtkPct ?? 0)) : 1;
+    const body = this.player.body as Phaser.Physics.Arcade.Body;
+    const isStandstill = body.velocity.x === 0 && body.velocity.y === 0;
+    const standstillMult = isStandstill ? (1 + (stats.standstillDmgPct ?? 0)) : 1;
     const lowHpAtk = (stats.condLowHpAtk && this.player.currentHp / this.player.maxHpValue < 0.4) ? (stats.condLowHpAtk ?? 0) : 0;
     // 蓄勁一閃：計數器達到 impaleCharge 時爆發
     const impaleCharge = stats.impaleCharge ?? 0;
@@ -2711,7 +2730,7 @@ export class GameScene extends Phaser.Scene {
       bloodRageLeech = 0.005 + 0.025 * t;
     }
     const tutorialAtkBonus = this._isTutorial ? 250 : 0;
-    const dmg = Math.round((stats.atk + lowHpAtk + tutorialAtkBonus) * Phaser.Math.FloatBetween(0.85, 1.15) * dmgMult * (isCrit ? (1 + stats.critDmg) : 1) * elemMult * targetMult * allMult * atkBuffMult * blazingMult * bloodlustDmgMult * impaleMult * bloodRageMult);
+    const dmg = Math.round((stats.atk + lowHpAtk + tutorialAtkBonus) * Phaser.Math.FloatBetween(0.85, 1.15) * dmgMult * (isCrit ? (1 + stats.critDmg) : 1) * elemMult * targetMult * allMult * atkBuffMult * blazingMult * bloodlustDmgMult * impaleMult * bloodRageMult * standstillMult);
     const pen = stats.penetration ?? 0;
 
     if (isBoss && (this.boss as any).isGuarding) {
@@ -2742,6 +2761,13 @@ export class GameScene extends Phaser.Scene {
       if (stats.lifestealInstant) this.player.heal(leech); else this._leechPool += leech;
     }
     if (bloodRageLeech > 0) this._leechPool += Math.round(displayDmg * bloodRageLeech);
+    if (!skipOnHitProcs) {
+      const onHitKnife = stats.onHitKnifeChance ?? 0;
+      if (onHitKnife > 0 && this.time.now > this._onHitKnifeCooldown && Math.random() < onHitKnife) {
+        this._onHitKnifeCooldown = this.time.now + 200;
+        this.firePeriodicKnives();
+      }
+    }
     this.spawnDamageNumber(target.x, target.y, displayDmg, isCrit, elemMult * targetMult);
     DailyQuestStore.addProgress('deal_damage', displayDmg);
     if (isCrit) this._pendingHitWeight += 2;
@@ -2794,10 +2820,13 @@ export class GameScene extends Phaser.Scene {
     if (summonChance > 0 && Math.random() < summonChance) this.trySummonAllyFlower();
 
     // 攻擊觸發落雷
-    const onHitLightning = stats.onHitLightningChance ?? 0;
-    if (onHitLightning > 0 && this.time.now > this._onHitLightningCooldown && Math.random() < onHitLightning) {
-      this._onHitLightningCooldown = this.time.now + 200;
-      this.fireOnHitLightning(stats);
+    if (!skipOnHitProcs) {
+      const onHitLightning = stats.onHitLightningChance ?? 0;
+      if (onHitLightning > 0 && this.time.now > this._onHitLightningCooldown && Math.random() < onHitLightning) {
+        this._onHitLightningCooldown = this.time.now + 200;
+        if ((stats.lightningStrike ?? 0) >= 1) this.fireLightningStrike();
+        else this.fireOnHitLightning(stats);
+      }
     }
   }
 
@@ -3291,9 +3320,16 @@ export class GameScene extends Phaser.Scene {
       if (!minionInFire.has(m)) m.burnStacks = applyDecay(m.burnStacks);
       const dotMult = 1 + stats.dotBonus + (condDotActive ? (stats.condDotStackBonus! * m.burnStacks) : 0);
       const dmg = Math.round(stats.atk * 0.030 * m.burnStacks * dotMult);
-      m.takeDamage(dmg);
+      const burnOverkill = m.takeDamage(dmg);
       this.spawnDamageNumber(m.x, m.y, dmg, false, 1);
       if (NetworkService.connected) NetworkService.sendMinionHit(m.minionId, dmg);
+      // 燃燒擊殺觸發（護盾/回血/靈魂收割，不觸發落雷/飛刀）
+      if (m.isDead) {
+        if ((stats.overkillSplash ?? 0) > 0 && burnOverkill > 0) this.overkillSplash(m.x, m.y, burnOverkill);
+        if ((stats.soulHarvest ?? 0) >= 1) this._soulHarvestProc(m.x, m.y);
+        if ((stats.onKillHeal ?? 0) > 0) this.player.heal(Math.round(stats.onKillHeal!));
+        if ((stats.killShieldPerKill ?? 0) > 0) this.player.addKillShield(Math.round(stats.killShieldPerKill!));
+      }
     }
     if (this.bossActive && this.boss.active && this.boss.burnStacks > 0) {
       if (now >= this.boss.burnExpiresAt) { this.boss.burnStacks = 0; this.refreshBossBar(); return; }
@@ -3313,6 +3349,18 @@ export class GameScene extends Phaser.Scene {
     if (this.gameOver) return;
     if ((SkillTreeStore.getAttackMode()) !== 'aura') return;
 
+    // 每 3 tick 為一個週期，週期開始時重置觸發旗標
+    this._auraTick++;
+    if (this._auraTick >= 3) {
+      this._auraTick = 0;
+      this._auraCycleSanguineDone     = false;
+      this._auraCycleBloodlustDone    = false;
+      this._auraCycleKnifeDone        = false;
+      this._auraCycleLightningDone    = false;
+      this._auraCycleDivineShieldDone = false;
+      this._auraCycleSummonDone       = false;
+    }
+
     const stats = CardStore.getTotalStats();
     const RANGE = this.AURA_RANGE * (1 + (stats.auraRadiusPct ?? 0));
     const baseDmg = this.player.maxHpValue * 0.125 * (1 + (stats.auraDmgPct ?? 0));
@@ -3331,7 +3379,41 @@ export class GameScene extends Phaser.Scene {
       this.spawnDamageNumber(m.x, m.y, dmg, isCrit, 1);
       if (isCrit) this._pendingHitWeight += 2;
       if (NetworkService.connected) NetworkService.sendMinionHit(m.minionId, dmg);
-      // 擊殺類詞墜
+      // 嗜血/暴徒（每週期各只觸發一次）
+      if ((stats.sanguine ?? 0) >= 1 && !this._auraCycleSanguineDone) {
+        this._auraCycleSanguineDone = true;
+        this.addSanguineStack(Math.round(stats.sanguineMaxStacks ?? 5));
+      }
+      if ((stats.bloodlust ?? 0) >= 1 && isCrit && !this._auraCycleBloodlustDone) {
+        this._auraCycleBloodlustDone = true;
+        this.addBloodlustStack(Math.round(stats.bloodlustMaxStacks ?? 5));
+      }
+      // 攻擊觸發散射飛刀（每週期最多一次）
+      const onHitKnife = stats.onHitKnifeChance ?? 0;
+      if (onHitKnife > 0 && !this._auraCycleKnifeDone && Math.random() < onHitKnife) {
+        this._auraCycleKnifeDone = true;
+        this.firePeriodicKnives();
+      }
+      // 攻擊觸發落雷（每週期最多一次）
+      const onHitLightning = stats.onHitLightningChance ?? 0;
+      if (onHitLightning > 0 && !this._auraCycleLightningDone && Math.random() < onHitLightning) {
+        this._auraCycleLightningDone = true;
+        if ((stats.lightningStrike ?? 0) >= 1) this.fireLightningStrike();
+        else this.fireOnHitLightning(stats);
+      }
+      // 神盾護體（每週期最多一次）
+      const shieldChance = stats.divineShieldChance ?? 0;
+      if (shieldChance > 0 && !this._auraCycleDivineShieldDone && Math.random() < shieldChance) {
+        this._auraCycleDivineShieldDone = true;
+        this.triggerDivineShield();
+      }
+      // 召喚友軍花怪（每週期最多一次）
+      const summonChance = (stats.summonFlowerChance ?? 0) + (stats.skillFlowerChance ?? 0);
+      if (summonChance > 0 && !this._auraCycleSummonDone && Math.random() < summonChance) {
+        this._auraCycleSummonDone = true;
+        this.trySummonAllyFlower();
+      }
+      // 擊殺類詞墜（每個擊殺都觸發，不受週期限制）
       if (m.isDead) {
         if ((stats.overkillSplash ?? 0) > 0 && overkill > 0) this.overkillSplash(m.x, m.y, overkill);
         if ((stats.soulHarvest ?? 0) >= 1) this._soulHarvestProc(m.x, m.y);
@@ -3486,7 +3568,7 @@ export class GameScene extends Phaser.Scene {
     const PAD = P(500);
     let cx = 0, cy = 0;
     let dir = mp ? mp.angle0 : rng.float(0, Math.PI * 2);
-    const count = mp ? mp.segments.length : rng.between(3, 5);
+    const count = mp ? mp.segments.length : rng.between(4, 8);
     const raw: Phaser.Math.Vector2[] = [new Phaser.Math.Vector2(cx, cy)];
 
     for (let i = 0; i < count; i++) {
@@ -8565,7 +8647,7 @@ export class GameScene extends Phaser.Scene {
 
   // ── Potion slots ──────────────────────────────────────
 
-  private readonly POTION_RANGE = 35;
+  private readonly POTION_RANGE = 50;
 
   private createPotionSlots(): void {
     const SZ = P(40), GAP = P(20), D = 100;

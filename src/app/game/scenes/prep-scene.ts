@@ -537,8 +537,8 @@ export class PrepScene extends Phaser.Scene {
       this.time.delayedCall(100, () => this.refreshRoomOverlay());
     }
 
-    if (!sessionStorage.getItem('changelog_shown')) {
-      sessionStorage.setItem('changelog_shown', '1');
+    if (!sessionStorage.getItem(`changelog_shown_${VERSION}`)) {
+      sessionStorage.setItem(`changelog_shown_${VERSION}`, '1');
       this.showChangelog();
     } else {
       AudioService.playBgm(this, 'sfx_town_bgm', 0.5);
@@ -629,6 +629,20 @@ export class PrepScene extends Phaser.Scene {
 
     // Content
     const ENTRIES: { text: string; header?: boolean }[] = [
+      { text: 'v1.0.2', header: true },
+      { text: '【新功能】WASD + 空白鍵桌面控制' },
+      { text: '【新功能】商店新增空白卡片（3000金幣）' },
+      { text: '【新功能】新增四張傳說王卡片（只能從傳說王掉落）' },
+      { text: '【新功能】祭祀台新增「掉落卡片」資訊頁' },
+      { text: '【調整】獸人族卡片效果大改版（7張）' },
+      { text: '【調整】菁英吸血鬼法師卡增加旋轉火球+1' },
+      { text: '【調整】血族法王卡落雷+60%，移除旋轉火球' },
+      { text: '【調整】白史萊姆卡增加移動速度+5' },
+      { text: '【修復】登出前未儲存導致資料丟失' },
+      { text: '【修復】攻擊觸發飛刀機率無法疊加' },
+      { text: '【修復】攻擊觸發飛刀/落雷會連鎖觸發' },
+      { text: '【修復】有天罰雷霆時攻擊觸發落雷未升級為大落雷' },
+      { text: '' },
       { text: 'v1.0.1', header: true },
       { text: '【修復】連線復活後有機率無法攻擊，已修正' },
       { text: '【新功能】裝備長壓可直接開啟替換比較畫面' },
@@ -5170,6 +5184,31 @@ export class PrepScene extends Phaser.Scene {
       g.lineBetween(x + P(10), y + h - P(8), x + w - P(10), y + h - P(8));
     };
 
+    const drawLegendaryCard = (
+      g: Phaser.GameObjects.Graphics,
+      cx: number, cy: number, w: number, h: number,
+    ) => {
+      const x = cx - w / 2, y = cy - h / 2;
+      const RED = 0xff2244;
+      g.fillStyle(0x000000, 0.5);
+      g.fillRect(x + P(3), y + P(3), w, h);
+      g.fillStyle(WMI, 1);
+      g.fillRect(x, y, w, h);
+      g.lineStyle(2.5, RED, 0.95);
+      g.strokeRect(x, y, w, h);
+      g.lineStyle(1, RED, 0.45);
+      g.strokeRect(x + P(3), y + P(3), w - P(6), h - P(6));
+      const cr = P(3);
+      g.fillStyle(RED, 0.9);
+      g.fillCircle(x + cr + P(1), y + cr + P(1), cr);
+      g.fillCircle(x + w - cr - P(1), y + cr + P(1), cr);
+      g.fillCircle(x + cr + P(1), y + h - cr - P(1), cr);
+      g.fillCircle(x + w - cr - P(1), y + h - cr - P(1), cr);
+      g.lineStyle(1.5, RED, 0.55);
+      g.lineBetween(x + P(10), y + P(8), x + w - P(10), y + P(8));
+      g.lineBetween(x + P(10), y + h - P(8), x + w - P(10), y + h - P(8));
+    };
+
     // ── Slot-pick overlay ─────────────────────────────────
     let slotPickLayer: Phaser.GameObjects.Container | null = null;
 
@@ -5332,7 +5371,7 @@ export class PrepScene extends Phaser.Scene {
 
         const cg = this.add.graphics();
         const monTier = getMonsterDef(def.monsterId)?.tier ?? 1;
-        monTier >= 5 ? drawBossCard(cg, cx, cy, CARD_W, CARD_H) : monTier === 3 ? drawEliteCard(cg, cx, cy, CARD_W, CARD_H) : drawInvCard(cg, cx, cy, CARD_W, CARD_H);
+        def.cardType === 'l' ? drawLegendaryCard(cg, cx, cy, CARD_W, CARD_H) : monTier >= 5 ? drawBossCard(cg, cx, cy, CARD_W, CARD_H) : monTier === 3 ? drawEliteCard(cg, cx, cy, CARD_W, CARD_H) : drawInvCard(cg, cx, cy, CARD_W, CARD_H);
         slotPickLayer!.add(cg);
         drawCardFace(slotPickLayer!, def, cx, cy, '', qty);
 
@@ -5437,11 +5476,12 @@ export class PrepScene extends Phaser.Scene {
       // ── Card body ─────────────────────────────────────
       const monDefPre = getMonsterDef(def.monsterId);
       const monTierPre = monDefPre?.tier ?? 1;
-      const isBoss = monTierPre >= 5;
+      const isLegendary = def.cardType === 'l';
+      const isBoss = !isLegendary && monTierPre >= 5;
       const isElite = monTierPre === 3;
-      // Boss=金, 菁英=銀, 小怪=銅
-      const FRAME_CLR = isBoss ? 0xf0c040 : isElite ? 0x9aacb8 : 0xb87333;
-      const FRAME_CLR2 = isBoss ? 0xffee88 : isElite ? 0xc8d8e0 : 0xd4a070;
+      // 傳說=紅, Boss=金, 菁英=銀, 小怪=銅
+      const FRAME_CLR = isLegendary ? 0xff2244 : isBoss ? 0xf0c040 : isElite ? 0x9aacb8 : 0xb87333;
+      const FRAME_CLR2 = isLegendary ? 0xff8899 : isBoss ? 0xffee88 : isElite ? 0xc8d8e0 : 0xd4a070;
       const cg = this.add.graphics();
 
       // 陰影
@@ -5500,7 +5540,7 @@ export class PrepScene extends Phaser.Scene {
         const spriteKey = `${monDef.spriteKey}_idle`;
         const animKey = `card_idle_${def.monsterId}`;
         const spriteScale = monsterDetailScale(monDef.tier);
-        const idleEnd = monDef.spriteKey.startsWith('plant') ? 3 : 5;
+        const idleEnd = (monDef.spriteKey.startsWith('plant') || monDef.spriteKey.startsWith('orc') || monDef.spriteKey.startsWith('vampire')) ? 3 : 5;
         try {
           if (!this.anims.exists(animKey) && this.textures.exists(spriteKey)) {
             this.anims.create({
@@ -5696,7 +5736,7 @@ export class PrepScene extends Phaser.Scene {
       if (monDef) {
         const spriteKey = `${monDef.spriteKey}_idle`;
         const animKey = `card_idle_${def.monsterId}`;
-        const idleEnd = monDef.spriteKey.startsWith('plant') ? 3 : 5;
+        const idleEnd = (monDef.spriteKey.startsWith('plant') || monDef.spriteKey.startsWith('orc') || monDef.spriteKey.startsWith('vampire')) ? 3 : 5;
         try {
           if (!this.anims.exists(animKey) && this.textures.exists(spriteKey)) {
             this.anims.create({
@@ -5737,7 +5777,7 @@ export class PrepScene extends Phaser.Scene {
         const slotGfx = this.add.graphics();
         if (def) {
           const monTier = getMonsterDef(def.monsterId)?.tier ?? 1;
-          monTier >= 5 ? drawBossCard(slotGfx, cx, cy, CARD_W, CARD_H) : monTier === 3 ? drawEliteCard(slotGfx, cx, cy, CARD_W, CARD_H) : drawInvCard(slotGfx, cx, cy, CARD_W, CARD_H);
+          def.cardType === 'l' ? drawLegendaryCard(slotGfx, cx, cy, CARD_W, CARD_H) : monTier >= 5 ? drawBossCard(slotGfx, cx, cy, CARD_W, CARD_H) : monTier === 3 ? drawEliteCard(slotGfx, cx, cy, CARD_W, CARD_H) : drawInvCard(slotGfx, cx, cy, CARD_W, CARD_H);
         } else {
           slotGfx.lineStyle(1, WM, 0.5);
           slotGfx.strokeRect(cx - CARD_W / 2, cy - CARD_H / 2, CARD_W, CARD_H);
@@ -5809,7 +5849,7 @@ export class PrepScene extends Phaser.Scene {
 
           const cg = this.add.graphics();
           const monTier = getMonsterDef(def.monsterId)?.tier ?? 1;
-          monTier >= 5 ? drawBossCard(cg, cx, cy, CARD_W, CARD_H) : monTier === 3 ? drawEliteCard(cg, cx, cy, CARD_W, CARD_H) : drawInvCard(cg, cx, cy, CARD_W, CARD_H);
+          def.cardType === 'l' ? drawLegendaryCard(cg, cx, cy, CARD_W, CARD_H) : monTier >= 5 ? drawBossCard(cg, cx, cy, CARD_W, CARD_H) : monTier === 3 ? drawEliteCard(cg, cx, cy, CARD_W, CARD_H) : drawInvCard(cg, cx, cy, CARD_W, CARD_H);
           scrollCnt.add(cg);
 
           drawCardFace(scrollCnt, def, cx, cy, '', qty);
@@ -5883,8 +5923,9 @@ export class PrepScene extends Phaser.Scene {
         if (b.penetration)        lines.push(`${tr('stat.penetration')} ${num(b.penetration)}`);
         if (b.dotBonus)           lines.push(`${tr('stat.dotBonus')} ${pct(b.dotBonus)}`);
         if (b.hpRegen)            lines.push(`${tr('stat.hpRegen')} +${b.hpRegen.toFixed(1)}/s`);
-        if (b.lifesteal)          lines.push(`${tr('stat.lifesteal')} ${pct(b.lifesteal)}`);
+        if (b.lifesteal)          lines.push(`${tr('stat.lifesteal')} +${(b.lifesteal * 100).toFixed(1)}%`);
         if (b.hpPct)              lines.push(`${tr('stat.hp')} ${pct(b.hpPct)}`);
+        if (b.maxHpPct)           lines.push(`${tr('stat.maxHpPct')} ${pct(b.maxHpPct)}`);
         if (b.atkPct)             lines.push(`${tr('stat.atk')} ${pct(b.atkPct)}`);
         if (b.allDmgPct)          lines.push(`${tr('stat.allDmgPct')} ${pct(b.allDmgPct)}`);
         if (b.takenDmgPct)        lines.push(tr('card.stat.takenDmg', { val: pct(b.takenDmgPct) }));
@@ -5907,6 +5948,20 @@ export class PrepScene extends Phaser.Scene {
         if (b.defToEvasion)       lines.push(tr('card.stat.defToEvasion', { n: b.defToEvasion }));
         if (b.condPenAtk)         lines.push(tr('card.stat.penAtk', { n: b.condPenAtk }));
         if (b.condCritDmgBonus)   lines.push(tr('card.stat.condCritDmg', { val: pct(b.condCritDmgBonus) }));
+        if (b.blazingShieldChance) lines.push(tr('card.stat.blazingShield', {
+          chance: (b.blazingShieldChance * 100).toFixed(0),
+          atk:    pct(b.blazingShieldAtkPct ?? 0),
+          sec:    ((b.blazingShieldMs ?? 1000) / 1000).toFixed(1),
+        }));
+        if (b.blazingShieldHealPct) lines.push(tr('card.stat.blazingShieldHeal', { val: pct(b.blazingShieldHealPct) }));
+        if (b.critToAtk)          lines.push(tr('card.stat.critToAtk', { n: b.critToAtk }));
+        if (b.impaleDmgPct)       lines.push(tr('card.stat.impaleDmg', { val: pct(b.impaleDmgPct) }));
+        if (b.regenShieldMax)    lines.push(tr('card.stat.regenShieldMax', { n: b.regenShieldMax }));
+        if (b.regenShieldMaxPct) lines.push(tr('card.stat.regenShieldMaxPct', { val: pct(b.regenShieldMaxPct) }));
+        if (b.standstillDmgPct)   lines.push(tr('card.stat.standstillDmg', { val: pct(b.standstillDmgPct) }));
+        if (b.standstillDmgReductionPct) lines.push(tr('card.stat.standstillReduction', { val: pct(b.standstillDmgReductionPct) }));
+        if (b.onHitLightningChance) lines.push(tr('card.stat.onHitLightning', { val: pct(b.onHitLightningChance) }));
+        if (b.onHitKnifeChance)   lines.push(tr('card.stat.onHitKnife', { val: pct(b.onHitKnifeChance) }));
         return lines;
       };
 
@@ -5927,7 +5982,7 @@ export class PrepScene extends Phaser.Scene {
           ry += LINE_H + P(3);
           continue;
         }
-        const nameColor = def.cardType === 'b' ? '#f0c040' : def.cardType === 'e' ? '#aaccdd' : '#c8a060';
+        const nameColor = def.cardType === 'l' ? '#ff66ff' : def.cardType === 'b' ? '#f0c040' : def.cardType === 'e' ? '#aaccdd' : '#c8a060';
         rightScrollCnt.add(this.add.text(RP_TX, ry, `${i + 1}. ${def.name}`, {
           fontSize: F(15), fontStyle: 'bold', color: nameColor,
           stroke: '#1a0800', strokeThickness: 1,
@@ -6500,7 +6555,7 @@ export class PrepScene extends Phaser.Scene {
 
     // ── Card Exchange tab ─────────────────────────────────────
     const getExchangeCost = (monsterId: string) =>
-      monsterId.startsWith('boss') ? 30 : monsterId.startsWith('elite') ? 15 : 3;
+      monsterId.includes('legendary') ? 1 : monsterId.startsWith('boss') ? 30 : monsterId.startsWith('elite') ? 15 : 3;
 
     const buildExchangeContent = (filter: 'small' | 'elite' | 'boss' = 'small') => {
       scrollBaseY = py + HEADER_H + FILTER_H;
@@ -6550,10 +6605,12 @@ export class PrepScene extends Phaser.Scene {
       for (const [monsterId, cards] of groupMap) {
         const monDef = getMonsterDef(monsterId);
         if (!monDef) continue;
+        if (monsterId.includes('legendary')) continue;
         const cost = getExchangeCost(monsterId);
         const tier = monsterId.startsWith('boss') ? 'boss' : monsterId.startsWith('elite') ? 'elite' : 'small';
         if (tier !== filter) continue;
-        const tierColor = tier === 'boss' ? 0xf0c040 : tier === 'elite' ? 0x9aacb8 : 0xb87333;
+        const isLegendaryBoss = monsterId.includes('legendary');
+        const tierColor = isLegendaryBoss ? 0xff2244 : tier === 'boss' ? 0xf0c040 : tier === 'elite' ? 0x9aacb8 : 0xb87333;
 
         if (tier !== lastTier) {
           if (col > 0) { curY += EX_CH + ROW_PAD; col = 0; }
@@ -7544,6 +7601,94 @@ export class PrepScene extends Phaser.Scene {
       }).setOrigin(0.5, 0.5));
     };
 
+    let cardDropPopup: Phaser.GameObjects.Container | null = null;
+
+    const showCardDropPopup = (s: typeof SERIES[0]) => {
+      cardDropPopup?.destroy();
+      const bossId = LEGENDARY_BOSS_MAP[s.itemId];
+      if (!bossId) return;
+      const bossDef = getMonsterDef(bossId);
+      if (!bossDef || !bossDef.cards.length) return;
+      const cardId  = bossDef.cards[0].cardId;
+      const card    = getCardDef(cardId);
+      if (!card) return;
+
+      const popW  = P(240);
+      const iSz   = P(48);
+      const descH = P(60);
+      const popH  = P(48) + P(8) + iSz + P(8) + descH + P(28);
+      const RED   = 0xff2244;
+      const tintHex = `#${card.tint.toString(16).padStart(6, '0')}`;
+
+      cardDropPopup = this.add.container(0, popCenterY).setDepth(D + 20);
+      container.add(cardDropPopup);
+
+      const dim = this.add.rectangle(0, 0, PW - P(6), CLIP_H, 0x000000, 0.6).setInteractive();
+      dim.on('pointerdown', () => { cardDropPopup?.destroy(); cardDropPopup = null; });
+      cardDropPopup.add(dim);
+
+      // ── 外框 + 背景 ──────────────────────────────────────────
+      const pbg = this.add.graphics();
+      pbg.fillStyle(RED, 1);
+      pbg.fillRoundedRect(-popW / 2 - P(2), -popH / 2 - P(2), popW + P(4), popH + P(4), P(11));
+      pbg.fillStyle(WL, 0.5);
+      pbg.fillRoundedRect(-popW / 2 - P(1), -popH / 2 - P(1), popW + P(2), popH + P(2), P(10));
+      pbg.fillStyle(WB, 1);
+      pbg.fillRoundedRect(-popW / 2, -popH / 2, popW, popH, P(9));
+      pbg.fillStyle(WD, 1);
+      pbg.fillRoundedRect(-popW / 2, -popH / 2, popW, P(48), P(9));
+      pbg.fillRect(-popW / 2, -popH / 2 + P(30), popW, P(18));
+      pbg.fillStyle(RED, 0.8);
+      pbg.fillRect(-popW / 2 + P(10), -popH / 2 + P(48), popW - P(20), P(1));
+      pbg.fillStyle(WH, 0.25);
+      pbg.fillRect(-popW / 2 + P(10), -popH / 2 + P(49), popW - P(20), P(1));
+      cardDropPopup.add(pbg);
+
+      // ── 標題 ────────────────────────────────────────────────
+      cardDropPopup.add(this.add.text(0, -popH / 2 + P(18), card.name, {
+        fontSize: F(16), fontStyle: 'bold', color: tintHex,
+        stroke: '#1a0800', strokeThickness: P(2),
+      }).setOrigin(0.5, 0.5));
+
+      cardDropPopup.add(this.add.text(-popW / 2 + P(12), -popH / 2 + P(36), tr('prep.quest.legendaryCard'), {
+        fontSize: F(11), fontStyle: 'bold', color: '#ff6688',
+        stroke: '#1a0800', strokeThickness: P(1),
+      }).setOrigin(0, 0.5));
+
+      cardDropPopup.add(this.add.text(popW / 2 - P(12), -popH / 2 + P(36), tr('prep.quest.cardDropRate'), {
+        fontSize: F(11), fontStyle: 'bold', color: '#a87840',
+        stroke: '#1a0800', strokeThickness: P(1),
+      }).setOrigin(1, 0.5));
+
+      // ── 怪物圖示 ─────────────────────────────────────────────
+      const iconY = -popH / 2 + P(48) + P(8) + iSz / 2;
+      const bossMon = getMonsterDef(bossId);
+      if (bossMon && this.textures.exists(bossMon.spriteKey)) {
+        const spr = this.add.sprite(0, iconY, bossMon.spriteKey, 0);
+        spr.setDisplaySize(iSz, iSz).setTint(card.tint);
+        if (spr.postFX) spr.postFX.addGlow(RED, 4, 0, false, 0.1, 12);
+        cardDropPopup.add(spr);
+      }
+
+      // ── 效果說明 ─────────────────────────────────────────────
+      const descTop = iconY + iSz / 2 + P(8);
+      const divG = this.add.graphics();
+      divG.fillStyle(WL, 0.15).fillRect(-popW / 2 + P(14), descTop, popW - P(28), P(1));
+      cardDropPopup.add(divG);
+      cardDropPopup.add(this.add.text(0, descTop + P(4), card.desc, {
+        fontSize: F(13), fontStyle: 'bold', color: '#a8d0a8',
+        stroke: '#1a0800', strokeThickness: P(1),
+        wordWrap: { width: popW - P(28) },
+        align: 'center',
+      }).setOrigin(0.5, 0));
+
+      // ── Footer ───────────────────────────────────────────────
+      cardDropPopup.add(this.add.text(0, popH / 2 - P(14), tr('prep.misc.clickClose'), {
+        fontSize: F(10), fontStyle: 'bold', color: '#6a5030',
+        stroke: '#1a0800', strokeThickness: P(1),
+      }).setOrigin(0.5, 0.5));
+    };
+
     SERIES.forEach((s, i) => {
       const ry = i * (ROW_H + ROW_GAP);
       const qty = InventoryStore.getItemQty(s.itemId);
@@ -7580,7 +7725,8 @@ export class PrepScene extends Phaser.Scene {
       }).setOrigin(0, 0.5));
 
       // ── 查看掉落按鈕 ────────────────────────────────────────
-      const infoBW = P(88), infoBH = P(22), infoBX = TEXT_X + infoBW / 2, infoBY = ry + P(66);
+      const infoBW = P(84), infoBH = P(22), infoBY = ry + P(66);
+      const infoBX = TEXT_X + infoBW / 2;
       const infoBg = this.add.graphics();
       infoBg.fillStyle(WM, 1);
       infoBg.fillRoundedRect(infoBX - infoBW / 2, infoBY - infoBH / 2, infoBW, infoBH, P(4));
@@ -7594,8 +7740,26 @@ export class PrepScene extends Phaser.Scene {
         stroke: '#1a0800', strokeThickness: P(1),
       }).setOrigin(0.5, 0.5));
       const infoHit = this.add.rectangle(infoBX, infoBY, infoBW, infoBH).setInteractive({ useHandCursor: true });
-      infoHit.on('pointerdown', () => showWeaponPopup(s));
+      infoHit.on('pointerdown', () => { cardDropPopup?.destroy(); cardDropPopup = null; showWeaponPopup(s); });
       scrollCnt.add(infoHit);
+
+      // ── 查看掉落卡片按鈕 ─────────────────────────────────────
+      const cardBX = infoBX + infoBW + P(6), cardBY = infoBY;
+      const cardBBg = this.add.graphics();
+      cardBBg.fillStyle(WM, 1);
+      cardBBg.fillRoundedRect(cardBX - infoBW / 2, cardBY - infoBH / 2, infoBW, infoBH, P(4));
+      cardBBg.lineStyle(P(1.5), 0xff2244, 0.65);
+      cardBBg.strokeRoundedRect(cardBX - infoBW / 2, cardBY - infoBH / 2, infoBW, infoBH, P(4));
+      cardBBg.fillStyle(0xff2244, 0.08);
+      cardBBg.fillRect(cardBX - infoBW / 2, cardBY - infoBH / 2, infoBW, P(2));
+      scrollCnt.add(cardBBg);
+      scrollCnt.add(this.add.text(cardBX, cardBY, tr('prep.quest.dropCard'), {
+        fontSize: F(11), fontStyle: 'bold', color: '#ff8899',
+        stroke: '#1a0800', strokeThickness: P(1),
+      }).setOrigin(0.5, 0.5));
+      const cardHit = this.add.rectangle(cardBX, cardBY, infoBW, infoBH).setInteractive({ useHandCursor: true });
+      cardHit.on('pointerdown', () => { weaponPopup?.destroy(); weaponPopup = null; showCardDropPopup(s); });
+      scrollCnt.add(cardHit);
 
       // ── 數量 ────────────────────────────────────────────────
       scrollCnt.add(this.add.text(BTN_CX, ry + P(20), `×${qty}`, {

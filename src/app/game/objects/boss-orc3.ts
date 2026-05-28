@@ -105,7 +105,7 @@ export class BossOrc3 extends BossOrcBase {
         this.enterBurialWarn();
         break;
       case BossState.ORC3_IRON_WARN:
-        this.enterIronWarn(this.guestAngle);
+        this.enterIronWarn();
         break;
       case BossState.ORC3_VANISH:
         this.enterVanishWarn(this.guestAtkX, this.guestAtkY, this.guestAngle);

@@ -218,7 +218,10 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     const def       = stats.def + this.divineShieldDef + this.defBonus;
     const reduction = def / (def + 65);
     const takenMult = 1 + (stats.takenDmgPct ?? 0);
-    let actual = Math.max(1, Math.round(amount * (1 - reduction) * takenMult));
+    const body = this.body as Phaser.Physics.Arcade.Body;
+    const standstillReduction = (body && body.velocity.x === 0 && body.velocity.y === 0)
+      ? (1 - (stats.standstillDmgReductionPct ?? 0)) : 1;
+    let actual = Math.max(1, Math.round(amount * (1 - reduction) * takenMult * standstillReduction));
     if (stats.damageCap) actual = Math.min(actual, Math.round(this.maxHp * stats.damageCap));
     // Shield absorbs damage first
     this._lastDamageTakenTime = this.scene.time.now;

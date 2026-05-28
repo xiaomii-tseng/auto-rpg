@@ -183,10 +183,10 @@ export class BossVampire1 extends Boss {
               splash.fillStyle(0x440055, 0.75); splash.fillCircle(0, 0, P(16));
               this.scene.tweens.add({ targets: splash, alpha: 0, scaleX: 2.5, scaleY: 2.5, duration: 240, onComplete: () => splash.destroy() });
               bat.destroy();
-              if (!this.guestMode) this.onBatHit?.(ex, ey, BAT_HIT_R, dmg);
+              this.onBatHit?.(ex, ey, BAT_HIT_R, dmg);
               return;
             }
-            const [tx, ty] = this.guestMode ? [this.guestAtkX, this.guestAtkY] : this.getTargetPos();
+            const [tx, ty] = this.getTargetPos();
             const ang = Math.atan2(ty - bat.y, tx - bat.x);
             bat.x += Math.cos(ang) * BAT_SPEED * (TICK / 1000);
             bat.y += Math.sin(ang) * BAT_SPEED * (TICK / 1000);
@@ -288,10 +288,8 @@ export class BossVampire1 extends Boss {
         pool.fillStyle(0x880011, 0.60); pool.fillCircle(0, 0, RAIN_HIT_R);
         pool.lineStyle(P(1.5), 0xff2244, 0.85); pool.strokeCircle(0, 0, RAIN_HIT_R);
         this.scene.tweens.add({ targets: pool, alpha: 0, duration: 600, ease: 'Quad.In', onComplete: () => pool.destroy() });
-        if (!this.guestMode) {
-          this.onCrimsonNeedle?.(tx, ty, RAIN_HIT_R, dmg);
-          this.onNeedleLand?.(tx, ty, RAIN_HIT_R, Math.round(dmg * 0.6));
-        }
+        this.onCrimsonNeedle?.(tx, ty, RAIN_HIT_R, dmg);
+        this.onNeedleLand?.(tx, ty, RAIN_HIT_R, Math.round(dmg * 0.6));
       },
     });
   }
@@ -445,7 +443,7 @@ export class BossVampire1 extends Boss {
       onComplete: () => beamG.destroy(),
     });
 
-    if (!this.guestMode) this.onGazeHit?.(this.x, this.y, tx, ty, GAZE_BEAM_R, this.scaleDmg(GAZE_DMG));
+    this.onGazeHit?.(this.x, this.y, tx, ty, GAZE_BEAM_R, this.scaleDmg(GAZE_DMG));
 
     this.stateTimer = this.scene.time.delayedCall(580, () => this.enterIdle());
   }
@@ -511,14 +509,14 @@ export class BossVampire1 extends Boss {
     this.setBossState(BossState.V1_DARK_NIGHT_ACTIVE, {
       pts: zones.map(z => ({ x: z.x / DPR, y: z.y / DPR })),
     });
-    if (!this.guestMode) this.onDarkNightActivate?.(zones);
+    this.onDarkNightActivate?.(zones);
 
     this.stateTimer = this.scene.time.delayedCall(DARK_NIGHT_MS - 200, () => {
       if (this.currentState === BossState.DEAD) return;
-      if (!this.guestMode) this.onDarkNightLift?.();  // 先撤黑夜
+      this.onDarkNightLift?.();  // 先撤黑夜
       this.scene.time.delayedCall(200, () => {
         if (this.currentState === BossState.DEAD) return;
-        if (!this.guestMode) this.onDarkNightPunish?.();
+        this.onDarkNightPunish?.();
         this.enterIdle();
       });
     });
@@ -608,7 +606,7 @@ export class BossVampire1 extends Boss {
         const sp = this.scene.add.graphics({ x: tx, y: ty }).setDepth(55);
         sp.fillStyle(0x880011, 0.65); sp.fillCircle(0, 0, P(12));
         this.scene.tweens.add({ targets: sp, alpha: 0, scaleX: 2.0, scaleY: 2.0, duration: 200, onComplete: () => sp.destroy() });
-        if (!this.guestMode) this.onNeedleHit?.(tx, ty, NEEDLE_HIT_R, dmg);
+        this.onNeedleHit?.(tx, ty, NEEDLE_HIT_R, dmg);
       },
     });
   }

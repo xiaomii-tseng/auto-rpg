@@ -76,7 +76,7 @@ export class BossOrc2 extends BossOrcBase {
         this.onFieldFracture?.(zones, this.scaleDmg(FRACTURE_DMG), FRACTURE_DURATION, FRACTURE_TICK_MS);
         break;
       }
-      case BossState.ORC2_ROLL_WARN:     this.enterOrc2RollWarn(this.guestAngle); break;
+      case BossState.ORC2_ROLL_WARN:     this.enterOrc2RollWarn(); break;
     }
   }
 
@@ -227,7 +227,7 @@ export class BossOrc2 extends BossOrcBase {
     this.updateDirToTarget();
     this.playDir(`${this.animPrefix}_idle`);
 
-    const [px, py] = this.guestMode ? [this.guestAtkX, this.guestAtkY] : this.getTargetPos();
+    const [px, py] = this.getTargetPos();
     const baseAng = Phaser.Math.Angle.Between(this.x, this.y, px, py);
 
     this.setBossState(BossState.ORC2_FISSURE_WARN, { atkX: px / DPR, atkY: py / DPR });
@@ -269,13 +269,11 @@ export class BossOrc2 extends BossOrcBase {
     this.stateTimer = this.scene.time.delayedCall(FISSURE_WARN_MS, () => {
       this.pulseTween?.stop(); warnG.destroy();
       this.scene.cameras.main.shake(80, 0.008);
-      if (!this.guestMode) {
-        for (let i = 0; i < 3; i++) {
-          const ang = baseAng + (i - 1) * FISSURE_SPREAD;
-          this.scene.time.delayedCall(i * 150, () => {
-            this.onFissure?.(this.x, this.y, ang, FISSURE_LEN, this.scaleDmg(FISSURE_DMG));
-          });
-        }
+      for (let i = 0; i < 3; i++) {
+        const ang = baseAng + (i - 1) * FISSURE_SPREAD;
+        this.scene.time.delayedCall(i * 150, () => {
+          this.onFissure?.(this.x, this.y, ang, FISSURE_LEN, this.scaleDmg(FISSURE_DMG));
+        });
       }
       this.stateTimer = this.scene.time.delayedCall(3 * 150 + 700, () => this.enterIdle());
     });
@@ -388,9 +386,7 @@ export class BossOrc2 extends BossOrcBase {
     this.stateTimer = this.scene.time.delayedCall(ROLL_WARN_MS, () => {
       this.pulseTween?.stop(); warnG.destroy();
       this.scene.cameras.main.shake(50, 0.005);
-      if (!this.guestMode) {
-        this.onBoulderRoll?.(this.x, this.y, ang, ROLL_SPEED, ROLL_R, this.scaleDmg(ROLL_DMG));
-      }
+      this.onBoulderRoll?.(this.x, this.y, ang, ROLL_SPEED, ROLL_R, this.scaleDmg(ROLL_DMG));
       this.stateTimer = this.scene.time.delayedCall(300, () => this.enterIdle());
     });
   }

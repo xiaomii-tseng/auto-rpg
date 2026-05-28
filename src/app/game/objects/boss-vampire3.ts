@@ -318,10 +318,8 @@ export class BossVampire3 extends Boss {
         // Fire damage midway through sweep
         if (!dmgFired && prog.ang >= startA + (endA - startA) * 0.5) {
           dmgFired = true;
-          if (!this.guestMode) {
-            if (isClone) this.onCloneScytheHit?.(cx, cy, R, aimAng, SCYTHE_ARC_DEG, this.scaleDmg(CLONE_SCYTHE_DMG));
-            else          this.onScytheHit?.(cx, cy, R, aimAng, SCYTHE_ARC_DEG, this.scaleDmg(SCYTHE_DMG));
-          }
+          if (isClone) this.onCloneScytheHit?.(cx, cy, R, aimAng, SCYTHE_ARC_DEG, this.scaleDmg(CLONE_SCYTHE_DMG));
+          else          this.onScytheHit?.(cx, cy, R, aimAng, SCYTHE_ARC_DEG, this.scaleDmg(SCYTHE_DMG));
         }
       },
       onComplete: () => {
@@ -364,7 +362,7 @@ export class BossVampire3 extends Boss {
     const tickTimer = this.scene.time.addEvent({
       delay: 500, repeat: Math.floor(SCYTHE_TRAIL_DUR / 500) - 1,
       callback: () => {
-        if (!this.guestMode) this.onScytheTrailTick?.(cx, cy, r, aimAng, SCYTHE_ARC_DEG, this.scaleDmg(SCYTHE_TRAIL_DMG) * dmgMult);
+        this.onScytheTrailTick?.(cx, cy, r, aimAng, SCYTHE_ARC_DEG, this.scaleDmg(SCYTHE_TRAIL_DMG) * dmgMult);
       },
     });
 
@@ -503,7 +501,7 @@ export class BossVampire3 extends Boss {
             orbG.fillStyle(0xffeeff, 0.85);  orbG.fillCircle(0, 0, P(2));
             orbG.lineStyle(P(1.5), 0xff6677, 0.70); orbG.strokeCircle(0, 0, P(10));
             // 飛行中碰撞（每顆只打一次）
-            if (!flyHit && prog.t > 0.05 && !this.guestMode) {
+            if (!flyHit && prog.t > 0.05) {
               if (this.onBurstOrbFly?.(cx, cy, HIT_R, flyDmg)) flyHit = true;
             }
           },
@@ -549,7 +547,7 @@ export class BossVampire3 extends Boss {
     burst.emitParticleAt(0, 0, mq(10));
     this.scene.time.delayedCall(380, () => { if (burst.active) burst.destroy(); });
 
-    if (!this.guestMode) this.onBurstOrbLand?.(x, y, hitR, dmg);
+    this.onBurstOrbLand?.(x, y, hitR, dmg);
   }
 
   // ── 血刺地獄 ───────────────────────────────────────────────
@@ -665,7 +663,7 @@ export class BossVampire3 extends Boss {
     burst.emitParticleAt(0, 0, mq(8));
     this.scene.time.delayedCall(400, () => { if (burst.active) burst.destroy(); });
 
-    if (!this.guestMode) this.onSpikeHit?.(x, y, hitR, dmg);
+    this.onSpikeHit?.(x, y, hitR, dmg);
 
     // Stand for 1.3s then retract
     this.scene.time.delayedCall(1300, () => {
@@ -1116,7 +1114,7 @@ export class BossVampire3 extends Boss {
     const tickTimer = this.scene.time.addEvent({
       delay: RIVER_TICK_MS, repeat: Math.floor(RIVER_DUR / RIVER_TICK_MS) - 1,
       callback: () => {
-        if (!this.guestMode) this.onRiverTick?.(bx, by, ex, ey, halfW, dmg);
+        this.onRiverTick?.(bx, by, ex, ey, halfW, dmg);
       },
     });
 
@@ -1390,7 +1388,7 @@ export class BossVampire3 extends Boss {
       const flowTimer = this.scene.time.addEvent({ delay: 33, loop: true, callback: () => { flowT = (flowT + 0.022) % 1.0; drawR(riverA.v); } });
       const tickTimer = this.scene.time.addEvent({
         delay: RIVER_TICK_MS, repeat: Math.floor(RIVER_DUR / RIVER_TICK_MS) - 1,
-        callback: () => { if (!this.guestMode) this.onRiverTick?.(cx, cy, ex, ey, HW, dmg); },
+        callback: () => { this.onRiverTick?.(cx, cy, ex, ey, HW, dmg); },
       });
 
       this.scene.tweens.add({

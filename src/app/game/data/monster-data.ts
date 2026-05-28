@@ -37,7 +37,7 @@ export interface MonsterDef {
   drops: DropEntry[];
 }
 
-export type CardType = 'n' | 'e' | 'b';  // normal / elite / boss
+export type CardType = 'n' | 'e' | 'b' | 'l';  // normal / elite / boss / legendary
 
 export interface CardDef {
   id: string;
@@ -501,28 +501,28 @@ export const MONSTER_DEFS: MonsterDef[] = [
     id: 'boss_slime_legendary', name: t('monster.boss_slime_legendary'), spriteKey: 'slime2', frameEnd: 5,
     element: 'none', tint: 0xcc44ff, fillTint: true, tier: 6,
     hp: 1476, atk: 29, def: 25, speed: 100, exp: 1500, gold: 500,
-    cards: [],
+    cards: [{ cardId: 'card_slime_legendary', rate: 0.10 }],
     drops: bossDrops,
   },
   {
     id: 'boss_flower_legendary', name: t('monster.boss_flower_legendary'), spriteKey: 'plant1', frameEnd: 9,
     element: 'grass', tint: 0xff2244, fillTint: true, tier: 6,
     hp: 1404, atk: 29, def: 14, speed: 0, exp: 1500, gold: 500,
-    cards: [],
+    cards: [{ cardId: 'card_flower_legendary', rate: 0.10 }],
     drops: bossDrops,
   },
   {
     id: 'boss_orc_legendary', name: t('monster.boss_orc_legendary'), spriteKey: 'orc3', frameEnd: 7,
     element: 'none', tint: 0x2266ff, fillTint: true, tier: 6,
     hp: 1530, atk: 29, def: 30, speed: 115, exp: 1500, gold: 500,
-    cards: [],
+    cards: [{ cardId: 'card_orc_legendary', rate: 0.10 }],
     drops: bossDrops,
   },
   {
     id: 'boss_vampire_legendary', name: t('monster.boss_vampire_legendary'), spriteKey: 'vampire3', frameEnd: 3,
     element: 'none', tint: 0xdd2222, fillTint: true, tier: 6,
     hp: 1422, atk: 29, def: 21, speed: 108, exp: 1500, gold: 500,
-    cards: [],
+    cards: [{ cardId: 'card_vampire_legendary', rate: 0.10 }],
     drops: bossDrops,
   },
 ];
@@ -592,7 +592,7 @@ export const CARD_DEFS: CardDef[] = [
   { id: 'card_slime_white_n', name: t('card.card_slime_white_n'), monsterId: 'slime_white_s',
     family: 'slime_white', race: 'slime', cardType: 'n',
     element: 'none', tint: 0xaaaaaa,
-    effect: { atkSpeed: 0.03 },
+    effect: { atkSpeed: 0.03, speed: 5 },
     desc: t('card.card_slime_white_n.desc') },
   { id: 'card_slime_white_e', name: t('card.card_slime_white_e'), monsterId: 'elite_slime_white',
     family: 'slime_white', race: 'slime', cardType: 'e',
@@ -698,16 +698,16 @@ export const CARD_DEFS: CardDef[] = [
   // 獸人族（3 家族）
   // ════════════════════════════════════════════════════
 
-  // ── 獸人 菁英獸人 獸人族長（蠻力法則：暴擊→攻擊轉換）──
+  // ── 獸人 菁英獸人 獸人族長（盾甲：靜止強化）──
   { id: 'card_orc1_n', name: t('card.card_orc1_n'), monsterId: 'orc1_s',
     family: 'orc1', race: 'orc', cardType: 'n',
     element: 'none', tint: 0xcc8833,
-    effect: { atk: 6, critToAtk: 0.3 },
+    effect: { regenShieldMaxPct: 0.15 },
     desc: t('card.card_orc1_n.desc') },
   { id: 'card_orc1_e', name: t('card.card_orc1_e'), monsterId: 'elite_orc1',
     family: 'orc1', race: 'orc', cardType: 'e',
     element: 'none', tint: 0xdd9944,
-    effect: { atk: 11, critToAtk: 0.7 },
+    effect: { standstillDmgPct: 0.07, standstillDmgReductionPct: 0.07 },
     desc: t('card.card_orc1_e.desc') },
   { id: 'card_orc1_b', name: t('card.card_orc1_b'), monsterId: 'boss_orc1',
     family: 'orc1', race: 'orc', cardType: 'b',
@@ -715,33 +715,33 @@ export const CARD_DEFS: CardDef[] = [
     effect: { atk: 30, critToAtk: 2.2, allDmgPct: 0.15 },
     desc: t('card.card_orc1_b.desc') },
 
-  // ── 獸人戰士家族（業火盾：受擊觸發ATK爆衝）──
+  // ── 獸人戰士家族（靜止強化/飛刀）──
   { id: 'card_orc2_n', name: t('card.card_orc2_n'), monsterId: 'orc2_s',
     family: 'orc2', race: 'orc', cardType: 'n',
     element: 'none', tint: 0x997744,
-    effect: { blazingShieldChance: 0.07, blazingShieldAtkPct: 0.12, blazingShieldMs: 1200 },
+    effect: { standstillDmgPct: 0.05, standstillDmgReductionPct: 0.03 },
     desc: t('card.card_orc2_n.desc') },
   { id: 'card_orc2_e', name: t('card.card_orc2_e'), monsterId: 'elite_orc2',
     family: 'orc2', race: 'orc', cardType: 'e',
     element: 'none', tint: 0xaa8855,
-    effect: { blazingShieldChance: 0.11, blazingShieldAtkPct: 0.22, blazingShieldMs: 1500, hp: 25 },
+    effect: { onHitKnifeChance: 0.20 },
     desc: t('card.card_orc2_e.desc') },
   { id: 'card_orc2_b', name: t('card.card_orc2_b'), monsterId: 'boss_orc2',
     family: 'orc2', race: 'orc', cardType: 'b',
     element: 'none', tint: 0xcc9933,
-    effect: { blazingShieldChance: 0.28, blazingShieldAtkPct: 0.72, blazingShieldMs: 2500, blazingShieldHealPct: 0.10 },
+    effect: { regenShieldMaxPct: 1.0 },
     desc: t('card.card_orc2_b.desc') },
 
-  // ── 獸人武士家族（蓄勁一閃：每N刀蓄力爆發）──
+  // ── 獸人武士家族（吸血/落雷）──
   { id: 'card_orc3_n', name: t('card.card_orc3_n'), monsterId: 'orc3_s',
     family: 'orc3', race: 'orc', cardType: 'n',
     element: 'none', tint: 0x6688aa,
-    effect: { impaleCharge: 7, impaleDmgPct: 0.50 },
+    effect: { lifesteal: 0.007 },
     desc: t('card.card_orc3_n.desc') },
   { id: 'card_orc3_e', name: t('card.card_orc3_e'), monsterId: 'elite_orc3',
     family: 'orc3', race: 'orc', cardType: 'e',
     element: 'none', tint: 0x7799bb,
-    effect: { impaleCharge: 5, impaleDmgPct: 0.75, atkSpeed: 0.05 },
+    effect: { onHitLightningChance: 0.15 },
     desc: t('card.card_orc3_e.desc') },
   { id: 'card_orc3_b', name: t('card.card_orc3_b'), monsterId: 'boss_orc3',
     family: 'orc3', race: 'orc', cardType: 'b',
@@ -779,12 +779,12 @@ export const CARD_DEFS: CardDef[] = [
   { id: 'card_vampire2_e', name: t('card.card_vampire2_e'), monsterId: 'elite_vampire2',
     family: 'vampire2', race: 'vampire', cardType: 'e',
     element: 'none', tint: 0xff6688,
-    effect: { orbitIceBalls: 1 },
+    effect: { orbitIceBalls: 1, orbitFireBalls: 1 },
     desc: t('card.card_vampire2_e.desc') },
   { id: 'card_vampire2_b', name: t('card.card_vampire2_b'), monsterId: 'boss_vampire2',
     family: 'vampire2', race: 'vampire', cardType: 'b',
     element: 'none', tint: 0xff88aa,
-    effect: { lightningDmgBonus: 0.55, orbitFireBalls: 1, atkSpeed: 0.08 },
+    effect: { lightningDmgBonus: 0.60, atkSpeed: 0.08 },
     desc: t('card.card_vampire2_b.desc') },
 
   // ── 吸血鬼術士家族（回血/迴避/受傷上限）──
@@ -803,6 +803,30 @@ export const CARD_DEFS: CardDef[] = [
     element: 'none', tint: 0xccaaff,
     effect: { damageCap: 0.35, hpRegen: 2.0, evasion: 0.08 },
     desc: t('card.card_vampire3_b.desc') },
+
+  // ════════════════════════════════════════════════════
+  // 傳說王卡（祭祀台掉落，極稀有）
+  // ════════════════════════════════════════════════════
+  { id: 'card_slime_legendary', name: t('card.card_slime_legendary'), monsterId: 'boss_slime_legendary',
+    family: 'slime_legendary', race: 'slime', cardType: 'l',
+    element: 'none', tint: 0xcc44ff,
+    effect: { def: 100 },
+    desc: t('card.card_slime_legendary.desc') },
+  { id: 'card_flower_legendary', name: t('card.card_flower_legendary'), monsterId: 'boss_flower_legendary',
+    family: 'flower_legendary', race: 'plant', cardType: 'l',
+    element: 'grass', tint: 0xff2244,
+    effect: { penetration: 9999 },
+    desc: t('card.card_flower_legendary.desc') },
+  { id: 'card_orc_legendary', name: t('card.card_orc_legendary'), monsterId: 'boss_orc_legendary',
+    family: 'orc_legendary', race: 'orc', cardType: 'l',
+    element: 'none', tint: 0x2266ff,
+    effect: { maxHpPct: 0.99 },
+    desc: t('card.card_orc_legendary.desc') },
+  { id: 'card_vampire_legendary', name: t('card.card_vampire_legendary'), monsterId: 'boss_vampire_legendary',
+    family: 'vampire_legendary', race: 'vampire', cardType: 'l',
+    element: 'none', tint: 0xdd2222,
+    effect: { onHitLightningChance: 0.50, onHitKnifeChance: 0.50 },
+    desc: t('card.card_vampire_legendary.desc') },
 ];
 
 // ── Helpers ────────────────────────────────────────────────────────────────

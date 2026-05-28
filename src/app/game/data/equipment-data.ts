@@ -163,6 +163,14 @@ export interface StatBonus {
   fearAura?:    number;  // 恐懼光環：降低周圍敵人攻速和移動速度（1=啟用）
   bloodRage?:   number;  // 血脈噴張：低血量時傷害和吸血量增加（1=啟用）
   lifestealInstant?: number;  // 即時吸血：跳過蓄血池，命中時直接回復（1=啟用）
+  // ── 靜止加成 ──
+  standstillDmgPct?:       number;  // 不移動時傷害加成比例（0.05=+5%）
+  standstillDmgReductionPct?: number;  // 不移動時受傷減少比例（0.03=減3%）
+  // ── 攻擊觸發飛刀 ──
+  onHitKnifeChance?: number;  // 每次攻擊命中有X%機率觸發散射飛刀
+  // ── 再生護盾 ──
+  regenShieldMax?:    number;  // 自動再生護盾上限（HP值，停止受傷2.5s後每秒回填25%）
+  regenShieldMaxPct?: number;  // 自動再生護盾上限（最大HP倍率，0.15=15%）
 }
 
 // ── Affix system ───────────────────────────────────────────────────────────────
