@@ -355,6 +355,7 @@ export class PrepScene extends Phaser.Scene {
     if (!this.textures.exists('potions_sheet')) this.load.spritesheet('potions_sheet', 'items/potions.png', { frameWidth: 16, frameHeight: 16 });
     if (!this.textures.exists('icon_gold')) this.load.image('icon_gold', 'other/coin.webp');
     if (!this.textures.exists('icon_blank_card')) this.load.image('icon_blank_card', 'other/card.webp');
+    if (!this.textures.exists('world_map')) this.load.image('world_map', 'other/map.png');
     // Town decorative animals
     const animalCfg = { frameWidth: 32, frameHeight: 32 };
     const animalDefs: [string, string, string][] = [

@@ -16,6 +16,11 @@ export class BattleLoadScene extends Phaser.Scene {
 
   init(data: any): void { this._gameData = data; }
 
+  preload(): void {
+    if (!this.textures.exists('world_map'))
+      this.load.image('world_map', 'other/map.png');
+  }
+
   create(): void {
     const W = this.scale.width, H = this.scale.height;
     const questStar: number = this._gameData?.questStar     ?? 1;
@@ -23,11 +28,19 @@ export class BattleLoadScene extends Phaser.Scene {
     const bossName:  string = getMonsterDef(bossId)?.name   ?? '???';
 
     // ── Background ───────────────────────────────────────────
-    const bg = this.add.graphics();
-    bg.fillGradientStyle(0x04040e, 0x04040e, 0x0c0c22, 0x0c0c22, 1);
-    bg.fillRect(0, 0, W, H);
+    if (this.textures.exists('world_map')) {
+      const mapScale = Math.max(W / 1536, H / 1024);
+      this.add.image(W / 2, H / 2, 'world_map')
+        .setDisplaySize(1536 * mapScale, 1024 * mapScale);
+    } else {
+      const bg = this.add.graphics();
+      bg.fillGradientStyle(0x04040e, 0x04040e, 0x0c0c22, 0x0c0c22, 1);
+      bg.fillRect(0, 0, W, H);
+    }
 
     const vig = this.add.graphics();
+    vig.fillStyle(0x000000, 0.55);
+    vig.fillRect(0, 0, W, H);
     for (let i = 0; i < 8; i++) {
       vig.fillStyle(0x000000, 0.06 - i * 0.007);
       vig.fillCircle(W / 2, H / 2, Math.min(W, H) * (0.5 + i * 0.08));

@@ -138,7 +138,8 @@
       "Bash(grep -n \"blank_card\\\\|item\\\\\\\\.blank\" src/app/game/data/monster-data.ts)",
       "Bash(Get-ChildItem -Path \"C:\\\\MyCode\\\\auto-rpg\" -Recurse -Filter \"*orc*\" -ErrorAction SilentlyContinue)",
       "Bash(Get-ChildItem -Path \"c:\\\\MyCode\\\\auto-rpg\" -Recurse -Directory)",
-      "Bash(Select-Object -First 20 FullName)"
+      "Bash(Select-Object -First 20 FullName)",
+      "Bash(dir \"C:\\\\MyCode\\\\auto-rpg\\\\public\")"
     ],
     "additionalDirectories": [
       "\\MyCode\\auto-rpg\\src\\app\\game\\scenes",
