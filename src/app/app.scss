@@ -27,6 +27,17 @@
   align-items: center;
   justify-content: center;
 
+  @media (orientation: portrait) {
+    width: 100vh;
+    height: 100vw;
+    top: 0;
+    left: 0;
+    right: unset;
+    bottom: unset;
+    transform-origin: top left;
+    transform: rotate(90deg) translateX(0) translateY(-100%);
+  }
+
   &__box {
     display: flex;
     flex-direction: column;
