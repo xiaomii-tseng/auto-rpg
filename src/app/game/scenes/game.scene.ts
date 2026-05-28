@@ -7982,6 +7982,7 @@ export class GameScene extends Phaser.Scene {
       TutorialStore.markDone('battleDone');
     }
     SaveStore.save();
+    SaveStore.forceUpload();
     const wasMulti = NetworkService.connected;
     if (wasMulti) {
       NetworkService.clearGameCallbacks();

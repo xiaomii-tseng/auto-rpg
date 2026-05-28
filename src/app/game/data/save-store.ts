@@ -48,7 +48,8 @@ export function decryptSave(cipher: string): string {
   for (let i = 0; i < bytes.length; i++) out[i] = bytes[i] ^ _CK[i % _CK.length];
   return new TextDecoder().decode(out);
 }
-let   _onSaveHook: (() => void) | null = null;
+let _onSaveHook:        (() => void) | null = null;
+let _onForceUploadHook: (() => void) | null = null;
 
 interface SaveData {
   version: string | number;
@@ -101,7 +102,9 @@ export function makeInitialSave(playerName = ''): SaveData {
 }
 
 export const SaveStore = {
-  setOnSaveHook(fn: () => void): void { _onSaveHook = fn; },
+  setOnSaveHook(fn: () => void): void        { _onSaveHook = fn; },
+  setOnForceUploadHook(fn: () => void): void { _onForceUploadHook = fn; },
+  forceUpload(): void                        { _onForceUploadHook?.(); },
 
   save(): void {
     const data: SaveData = {

@@ -6,6 +6,18 @@
   <app-auth (loggedIn)="onLoggedIn()"></app-auth>
 }
 
+@if (autoLoginLoading()) {
+  <div class="auto-login-overlay">
+    <div class="auto-login-overlay__box">
+      <div class="auto-login-overlay__spinner"></div>
+      <p class="auto-login-overlay__text">載入中...</p>
+      @if (autoLoginHint()) {
+        <p class="auto-login-overlay__hint">{{ autoLoginHint() }}</p>
+      }
+    </div>
+  </div>
+}
+
 @if (showMarket()) {
   <app-market></app-market>
 }

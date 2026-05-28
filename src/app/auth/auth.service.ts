@@ -146,8 +146,15 @@ export class AuthService {
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
         const res = await fetch(`${environment.apiUrl}/save`, {
-          headers: { Authorization: `Bearer ${token}` },
+          headers: { Authorization: `Bearer ${this.getToken()}` },
         });
+
+        if (res.status === 401) {
+          const refreshed = await this.refreshAccessToken();
+          if (refreshed) continue;
+          return;
+        }
+
         if (!res.ok) break;
 
         const data = await res.json();

@@ -36,10 +36,12 @@ export class App implements AfterViewInit {
   private readonly reportVis = inject(ReportVisibilityService);
   readonly pushSvc           = inject(PushService);
 
-  showAuth       = true;
-  showUpdate     = signal(false);
-  showPushPrompt = signal(false);
-  showMarket     = this.marketVis.visible;
+  showAuth            = true;
+  showUpdate          = signal(false);
+  showPushPrompt      = signal(false);
+  showMarket          = this.marketVis.visible;
+  autoLoginLoading    = signal(false);
+  autoLoginHint       = signal('');
   private _phaserInited = false;
 
   ngAfterViewInit(): void {
@@ -50,7 +52,16 @@ export class App implements AfterViewInit {
       // Defer to next tick to avoid NG0100 (ngAfterViewInit runs after first CD check)
       Promise.resolve().then(async () => {
         this.showAuth = false;
+        this.autoLoginLoading.set(true);
+        try {
+          await this.authSvc.waitForServer(() => {
+            this.autoLoginHint.set('伺服器啟動中，請稍候...');
+          });
+        } catch { /* 伺服器連不到，仍繼續用本機存檔 */ }
+        this.autoLoginHint.set('');
+        await this.authSvc.refreshAccessToken().catch(() => {});
         await this._startGame();
+        this.autoLoginLoading.set(false);
         this._maybeShowPushPrompt();
       });
       return;
@@ -97,10 +108,20 @@ export class App implements AfterViewInit {
 
     // SaveStore 每次本地存檔後通知 sync service
     SaveStore.setOnSaveHook(() => this.saveSync.markDirty());
+    SaveStore.setOnForceUploadHook(() => this.saveSync.forceUpload());
 
-    // 玩家切走 app / 鎖螢幕 → 立刻強制上傳（beforeunload 已在 init() 裡掛）
+    // 每 45 分鐘主動 refresh token，避免長時間遊玩後 token 過期
+    setInterval(() => this.authSvc.refreshAccessToken().catch(() => {}), 45 * 60 * 1000);
+
+    // 玩家切走 app / 鎖螢幕 → 強制上傳；回到前景且離開超過 5 分鐘 → 重新 sync
+    let _hiddenAt = 0;
     document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'hidden') this.saveSync.forceUpload();
+      if (document.visibilityState === 'hidden') {
+        this.saveSync.forceUpload();
+        _hiddenAt = Date.now();
+      } else if (_hiddenAt > 0 && Date.now() - _hiddenAt > 5 * 60 * 1000) {
+        this.authSvc.syncSave().catch(() => {});
+      }
     });
     window.addEventListener('pagehide', () => this.saveSync.forceUpload());
   }

@@ -5,7 +5,8 @@ import { decryptSave } from '../game/data/save-store';
 
 const SAVE_KEY = 'auto_rpg_save';
 const SAVE_TS_KEY = 'rg_save_ts';
-const DEBOUNCE_MS = 30_000;
+const DEBOUNCE_MS  = 10_000;
+const PERIODIC_MS  = 120_000;
 
 @Injectable({ providedIn: 'root' })
 export class SaveSyncService {
@@ -17,6 +18,8 @@ export class SaveSyncService {
 
   init(): void {
     window.addEventListener('beforeunload', () => this.forceUpload());
+    // 每 2 分鐘定時上傳，防止手機未觸發 unload 事件導致資料丟失
+    setInterval(() => { if (this._dirty) this._upload(); }, PERIODIC_MS);
   }
 
   /** SaveStore.save() 之後呼叫，啟動 debounce 計時器 */
@@ -30,7 +33,7 @@ export class SaveSyncService {
   forceUpload(): void {
     if (!this._dirty) return;
     if (this._timer) { clearTimeout(this._timer); this._timer = null; }
-    this._upload();
+    this._upload(true);
   }
 
   /** 不管 dirty flag，強制上傳並等待完成 — 登出前用 */
@@ -40,7 +43,7 @@ export class SaveSyncService {
     await this._upload();
   }
 
-  private async _upload(): Promise<void> {
+  private async _upload(keepalive = false): Promise<void> {
     const token = this.auth.getToken();
     if (!token || this._uploading) return;
     const raw = localStorage.getItem(SAVE_KEY);
@@ -56,6 +59,7 @@ export class SaveSyncService {
         method:  'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body,
+        keepalive,
       });
 
       // TODO: 單裝置限制暫時關閉
@@ -72,6 +76,7 @@ export class SaveSyncService {
             method:  'POST',
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${newToken}` },
             body,
+            keepalive,
           });
           if (res2.ok) {
             localStorage.setItem(SAVE_TS_KEY, String(Date.now()));
