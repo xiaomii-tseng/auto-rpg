@@ -9276,7 +9276,7 @@ export class PrepScene extends Phaser.Scene {
     const dt  = delta / 1000;
     const VW  = this._townViewW, VH = this._townViewH;
     const WW  = this._townWorldW, WH = this._townWorldH;
-    const SPEED  = Math.min(VW, VH) * 0.45 * dt;
+    const SPEED  = PlayerStore.getStats().speed * DPR * dt;
     const MARGIN = P(20);
 
     const keys = this._townCursors;
