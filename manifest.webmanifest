@@ -1,8 +1,9 @@
 {
   "name": "auto-rpg",
   "short_name": "auto-rpg",
-  "display": "fullscreen",
-  "orientation": "landscape",
+  "display_override": ["fullscreen"],
+  "display": "standalone",
+  "orientation": "landscape-primary",
   "scope": "./",
   "start_url": "./",
   "icons": [
