@@ -1,0 +1,105 @@
+<div class="profile-overlay" (click)="close()">
+  <div class="profile-panel" (click)="$event.stopPropagation()">
+
+    <!-- Header -->
+    <div class="panel-header">
+      <div class="header-info">
+        <span class="player-name">{{ profile()?.playerId ?? '...' }}</span>
+        @if (profile()) {
+          <span class="player-level">Lv. {{ profile()!.level }}</span>
+        }
+      </div>
+      <button class="close-btn" (click)="close()">✕</button>
+    </div>
+
+    <!-- Body -->
+    <div class="panel-body">
+
+      <!-- Loading / Error -->
+      @if (loading()) {
+        <div class="state-msg">載入中...</div>
+      } @else if (fetchErr()) {
+        <div class="state-msg err">載入失敗</div>
+      } @else if (profile()) {
+
+        <!-- ═══ LEFT: Equipment ═══ -->
+        <div class="left-col">
+          <div class="section-title">裝備</div>
+          <div class="equip-grid">
+            @for (def of slotDefs; track def.key) {
+              @let item = getItem(def.key);
+              <div class="equip-slot"
+                [style.--slot-color]="item ? qualityColor(item.quality) : def.color"
+                [class.has-item]="!!item">
+                @if (item) {
+                  <div class="slot-icon">
+                    <img [src]="itemImgSrc(item)" [alt]="itemDisplayName(item)"
+                      onerror="this.style.display='none'" />
+                  </div>
+                  <div class="slot-info">
+                    <div class="item-name" [style.color]="qualityColor(item.quality)">
+                      {{ itemEnhancement(item) }}{{ itemDisplayName(item) }}
+                    </div>
+                    <div class="item-affixes">
+                      @for (a of item.affixes; track $index) {
+                        <div class="affix-line">{{ affixLine(a) }}</div>
+                      }
+                    </div>
+                  </div>
+                } @else {
+                  <div class="slot-empty">
+                    <span class="slot-label" [style.color]="def.color">{{ def.label }}</span>
+                  </div>
+                }
+              </div>
+            }
+          </div>
+        </div>
+
+        <!-- ═══ RIGHT col ═══ -->
+        <div class="right-col">
+
+          <!-- Cards -->
+          <div class="cards-section">
+            <div class="section-title">卡片</div>
+            <div class="card-slots">
+              @for (cardId of profile()!.cards.equipped; track $index) {
+                @let def = cardId ? getCardDef(cardId) : null;
+                <div class="card-slot" [class.has-card]="!!def">
+                  @if (def) {
+                    <span class="card-name">{{ def.name }}</span>
+                    <span class="card-type" [style.color]="cardTypeColor(def.cardType)">
+                      {{ cardTypeLabel(def.cardType) }}
+                    </span>
+                  } @else {
+                    <span class="card-empty">—</span>
+                  }
+                </div>
+              }
+            </div>
+          </div>
+
+          <!-- Skills -->
+          <div class="skills-section">
+            <div class="section-title">技能</div>
+            <div class="attack-mode" [style.color]="attackModeColor()">
+              ▶ {{ attackModeLabel() }}
+            </div>
+            <div class="skill-list">
+              @for (node of learnedNodes(); track node.id) {
+                <div class="skill-item" [style.color]="nodeColor(node.attackMode)">
+                  • {{ node.label }}
+                </div>
+              }
+              @if (learnedNodes().length === 0) {
+                <div class="skill-item empty">尚未習得技能</div>
+              }
+            </div>
+          </div>
+
+        </div><!-- /right-col -->
+
+      }<!-- /if profile -->
+    </div><!-- /panel-body -->
+  </div><!-- /profile-panel -->
+</div><!-- /profile-overlay -->

@@ -19,10 +19,12 @@ import { MarketVisibilityService }  from './game/market/market-visibility.servic
 import { ReportComponent }          from './game/report/report.component';
 import { ReportVisibilityService }  from './game/report/report-visibility.service';
 import { PushService }              from './game/push/push.service';
+import { PlayerProfileComponent }         from './game/leaderboard/player-profile.component';
+import { PlayerProfileVisibilityService } from './game/leaderboard/player-profile-visibility.service';
 
 @Component({
   selector: 'app-root',
-  imports: [AuthComponent, MarketComponent, ReportComponent],
+  imports: [AuthComponent, MarketComponent, ReportComponent, PlayerProfileComponent],
   templateUrl: './app.html',
   styleUrl: './app.scss',
 })
@@ -32,14 +34,16 @@ export class App implements AfterViewInit {
   private readonly swUpdate  = inject(SwUpdate);
   private readonly authSvc   = inject(AuthService);
   private readonly saveSync  = inject(SaveSyncService);
-  private readonly marketVis = inject(MarketVisibilityService);
-  private readonly reportVis = inject(ReportVisibilityService);
+  private readonly marketVis      = inject(MarketVisibilityService);
+  private readonly reportVis      = inject(ReportVisibilityService);
+  private readonly playerProfileVis = inject(PlayerProfileVisibilityService);
   readonly pushSvc           = inject(PushService);
 
   showAuth            = true;
   showUpdate          = signal(false);
   showPushPrompt      = signal(false);
   showMarket          = this.marketVis.visible;
+  showPlayerProfile   = this.playerProfileVis.visible;
   autoLoginLoading    = signal(false);
   autoLoginHint       = signal('');
   private _phaserInited = false;
@@ -179,8 +183,9 @@ export class App implements AfterViewInit {
 
     (window as any).__apiUrl      = environment.apiUrl;
     (window as any).__gameVersion = VERSION;
-    (window as any).__openMarket  = () => this.ngZone.run(() => this.marketVis.open());
-    (window as any).__openReport  = () => this.ngZone.run(() => this.reportVis.open());
+    (window as any).__openMarket        = () => this.ngZone.run(() => this.marketVis.open());
+    (window as any).__openReport        = () => this.ngZone.run(() => this.reportVis.open());
+    (window as any).__openPlayerProfile = (id: string) => this.ngZone.run(() => this.playerProfileVis.open(id));
     (window as any).__saveAndLogout = async () => {
       SaveStore.save();
       await this.saveSync.uploadNow();

@@ -395,6 +395,41 @@ app.get('/leaderboard/level', async (req, res) => {
   res.json(ranked);
 });
 
+// GET /leaderboard/player-profile/:playerId  → equipped, cards, skillTree
+app.get('/leaderboard/player-profile/:playerId', async (req, res) => {
+  const { playerId } = req.params;
+  if (!playerId) { res.status(400).json({ error: 'playerId required' }); return; }
+
+  const profileRes = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('player_id', playerId)
+    .maybeSingle();
+
+  if (profileRes.error || !profileRes.data) {
+    res.status(404).json({ error: 'player not found' }); return;
+  }
+
+  const saveRes = await supabase
+    .from('player_saves')
+    .select('save_data')
+    .eq('user_id', profileRes.data.id)
+    .maybeSingle();
+
+  if (saveRes.error || !saveRes.data) {
+    res.status(404).json({ error: 'save not found' }); return;
+  }
+
+  const sd = saveRes.data.save_data as any;
+  res.json({
+    playerId,
+    level:     sd?.player?.level ?? 0,
+    equipped:  sd?.player?.equipped ?? {},
+    cards:     { equipped: sd?.cards?.equipped ?? [null, null, null] },
+    skillTree: { learned: sd?.skillTree?.learned ?? [], attackMode: sd?.skillTree?.attackMode ?? 'projectile' },
+  });
+});
+
 // ══════════════════════════════════════════════════════════════════════════════
 // MARKET
 // ══════════════════════════════════════════════════════════════════════════════

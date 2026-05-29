@@ -7290,10 +7290,41 @@ export class PrepScene extends Phaser.Scene {
 
       // Level
       const lvColor = i < 3 ? RANK_COLORS[i] : (isMe ? '#88cc88' : '#aabbcc');
-      scrollCnt.add(this.add.text(ROW_L + ROW_W - P(12), ry + ROW_H / 2, `Lv. ${entry.level}`, {
+      scrollCnt.add(this.add.text(ROW_L + ROW_W - P(68), ry + ROW_H / 2, `Lv. ${entry.level}`, {
         fontSize: F(15), fontStyle: 'bold', color: lvColor,
         stroke: '#080c18', strokeThickness: P(2),
       }).setOrigin(1, 0.5));
+
+      // View button
+      const viewBtnBg = this.add.graphics();
+      viewBtnBg.fillStyle(0x223344, 1);
+      viewBtnBg.fillRoundedRect(ROW_L + ROW_W - P(62), ry + P(8), P(54), ROW_H - P(16), P(4));
+      viewBtnBg.lineStyle(P(1), 0x4488aa, 0.8);
+      viewBtnBg.strokeRoundedRect(ROW_L + ROW_W - P(62), ry + P(8), P(54), ROW_H - P(16), P(4));
+      scrollCnt.add(viewBtnBg);
+      const viewBtnText = this.add.text(ROW_L + ROW_W - P(35), ry + ROW_H / 2, '查看', {
+        fontSize: F(13), fontStyle: 'bold', color: '#88ccee',
+        stroke: '#080c18', strokeThickness: P(1),
+      }).setOrigin(0.5, 0.5);
+      scrollCnt.add(viewBtnText);
+      const viewBtnHit = this.add.rectangle(ROW_L + ROW_W - P(35), ry + ROW_H / 2, P(58), ROW_H - P(10))
+        .setInteractive({ useHandCursor: true }).setAlpha(0.001);
+      viewBtnHit.on('pointerdown', () => (window as any).__openPlayerProfile?.(entry.playerId));
+      viewBtnHit.on('pointerover', () => {
+        viewBtnBg.clear();
+        viewBtnBg.fillStyle(0x2a4455, 1);
+        viewBtnBg.fillRoundedRect(ROW_L + ROW_W - P(62), ry + P(8), P(54), ROW_H - P(16), P(4));
+        viewBtnBg.lineStyle(P(1), 0x66aacc, 1);
+        viewBtnBg.strokeRoundedRect(ROW_L + ROW_W - P(62), ry + P(8), P(54), ROW_H - P(16), P(4));
+      });
+      viewBtnHit.on('pointerout', () => {
+        viewBtnBg.clear();
+        viewBtnBg.fillStyle(0x223344, 1);
+        viewBtnBg.fillRoundedRect(ROW_L + ROW_W - P(62), ry + P(8), P(54), ROW_H - P(16), P(4));
+        viewBtnBg.lineStyle(P(1), 0x4488aa, 0.8);
+        viewBtnBg.strokeRoundedRect(ROW_L + ROW_W - P(62), ry + P(8), P(54), ROW_H - P(16), P(4));
+      });
+      scrollCnt.add(viewBtnHit);
     });
 
     // ── Footer text ───────────────────────────────────────────────

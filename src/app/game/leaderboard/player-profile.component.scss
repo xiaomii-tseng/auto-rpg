@@ -1,0 +1,336 @@
+// ── CSS Variables ────────────────────────────────────────────────
+:host {
+  --bg-dark:    #0e1219;
+  --bg-mid:     #141a24;
+  --bg-header:  #111928;
+  --border:     #2a3546;
+  --border-lt:  #3a4a60;
+  --text-dim:   #556677;
+  --text-main:  #99aabb;
+  --text-title: #ccd8ee;
+  --gold:       #d4a044;
+}
+
+// ── Overlay ──────────────────────────────────────────────────────
+.profile-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.78);
+  z-index: 9100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  @media (orientation: portrait) {
+    inset: unset;
+    top: 0; left: 0;
+    width: 100vh;
+    height: 100vw;
+    transform-origin: top left;
+    transform: rotate(90deg) translateY(-100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+// ── Panel ────────────────────────────────────────────────────────
+.profile-panel {
+  width:  min(820px, 96vw);
+  height: min(480px, 90vh);
+  background: var(--bg-dark);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.8), 0 0 0 1px rgba(100,140,200,0.15);
+
+  @media (orientation: portrait) {
+    width:  min(820px, 80vh);
+    height: min(480px, 90vw);
+  }
+}
+
+// ── Header ───────────────────────────────────────────────────────
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: var(--bg-header);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.header-info {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.player-name {
+  font-size: 17px;
+  font-weight: bold;
+  color: var(--text-title);
+}
+
+.player-level {
+  font-size: 13px;
+  font-weight: bold;
+  color: var(--gold);
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  color: #667788;
+  font-size: 18px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  line-height: 1;
+  &:hover { color: #cc4444; background: rgba(200,50,50,0.12); }
+}
+
+// ── Body ─────────────────────────────────────────────────────────
+.panel-body {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.state-msg {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-dim);
+  font-size: 15px;
+  &.err { color: #cc5555; }
+}
+
+// ── Section title ─────────────────────────────────────────────────
+.section-title {
+  font-size: 12px;
+  font-weight: bold;
+  color: var(--text-dim);
+  letter-spacing: 1px;
+  padding: 0 0 6px 0;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 8px;
+  text-transform: uppercase;
+}
+
+// ════════════════════════════════════════════════════════════════
+// LEFT COLUMN — Equipment
+// ════════════════════════════════════════════════════════════════
+.left-col {
+  flex: 0 0 55%;
+  padding: 10px 12px;
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+
+// 3×2 grid
+.equip-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(2, 1fr);
+  gap: 6px;
+  flex: 1;
+  min-height: 0;
+}
+
+.equip-slot {
+  border: 1px solid color-mix(in srgb, var(--slot-color) 40%, transparent);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--slot-color) 8%, var(--bg-mid));
+  display: flex;
+  overflow: hidden;
+  position: relative;
+
+  // top accent strip
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: var(--slot-color);
+    opacity: 0.6;
+  }
+
+  &.has-item {
+    border-color: color-mix(in srgb, var(--slot-color) 65%, transparent);
+  }
+}
+
+.slot-icon {
+  flex-shrink: 0;
+  width: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+
+  img {
+    width: 40px;
+    height: 40px;
+    object-fit: contain;
+    image-rendering: pixelated;
+  }
+}
+
+.slot-info {
+  flex: 1;
+  padding: 4px 6px 4px 2px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.item-name {
+  font-size: 12px;
+  font-weight: bold;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 2px;
+}
+
+.item-affixes {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.affix-line {
+  font-size: 10px;
+  color: #88cc88;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.slot-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.slot-label {
+  font-size: 12px;
+  font-weight: bold;
+  opacity: 0.5;
+}
+
+// ════════════════════════════════════════════════════════════════
+// RIGHT COLUMN — Cards + Skills
+// ════════════════════════════════════════════════════════════════
+.right-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+
+// ── Cards ─────────────────────────────────────────────────────────
+.cards-section {
+  flex: 0 0 42%;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.card-slots {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  flex: 1;
+  overflow: hidden;
+  justify-content: center;
+}
+
+.card-slot {
+  background: #0d1218;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 5px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 32px;
+
+  &.has-card {
+    background: #111c2a;
+    border-color: var(--border-lt);
+  }
+}
+
+.card-name {
+  font-size: 13px;
+  font-weight: bold;
+  color: var(--text-title);
+}
+
+.card-type {
+  font-size: 11px;
+  font-weight: bold;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: rgba(255,255,255,0.06);
+  flex-shrink: 0;
+}
+
+.card-empty {
+  color: var(--text-dim);
+  font-size: 14px;
+}
+
+// ── Skills ────────────────────────────────────────────────────────
+.skills-section {
+  flex: 1;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.attack-mode {
+  font-size: 13px;
+  font-weight: bold;
+  margin-bottom: 6px;
+}
+
+.skill-list {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+
+  &::-webkit-scrollbar { width: 4px; }
+  &::-webkit-scrollbar-track { background: transparent; }
+  &::-webkit-scrollbar-thumb { background: var(--border-lt); border-radius: 2px; }
+}
+
+.skill-item {
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+
+  &.empty { color: var(--text-dim); font-style: italic; }
+}

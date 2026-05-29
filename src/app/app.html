@@ -22,6 +22,10 @@
   <app-market></app-market>
 }
 
+@if (showPlayerProfile()) {
+  <app-player-profile></app-player-profile>
+}
+
 <app-report></app-report>
 
 @if (showUpdate()) {
