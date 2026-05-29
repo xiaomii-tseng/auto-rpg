@@ -26,7 +26,7 @@ const DPR = (window as any).__gameDpr as number;
 const F = (n: number): string => `${Math.round(n * DPR)}px`;
 const P = (n: number): number => Math.round(n * DPR);
 
-const TOP_H    = 0;
+const TOP_H = 0;
 const BOTTOM_H = 0;
 
 const QUEST_MAP_THEMES = ['grassland', 'desert', 'snow', 'lava', 'forest', 'dungeon'] as const;
@@ -35,25 +35,25 @@ function randomQuestTheme(): string {
 }
 
 // Wood palette
-const WB   = 0x2e1a0a; // panel bg (dark base)
-const WBD  = 0x1a0e06; // panel bg deeper / shadow fill
-const WD   = 0x3c2210; // dark wood
-const WM   = 0x5a3420; // medium dark
-const WMI  = 0x5c3418; // medium
-const WL   = 0x8b5e3c; // light wood
-const WH   = 0xb07030; // highlight grain
+const WB = 0x2e1a0a; // panel bg (dark base)
+const WBD = 0x1a0e06; // panel bg deeper / shadow fill
+const WD = 0x3c2210; // dark wood
+const WM = 0x5a3420; // medium dark
+const WMI = 0x5c3418; // medium
+const WL = 0x8b5e3c; // light wood
+const WH = 0xb07030; // highlight grain
 const GOLD = 0xd4a044;
 const IRON = 0x4a5560;
 
 // Per-enhancement glow definition: radius (physical px), tint color, optional rainbow flag
 const GLOW_DEF: Record<number, { r: number; color: number; rainbow?: true }> = {
-  3:  { r: P(28), color: 0xffffff },
-  4:  { r: P(28), color: 0x00ff44 },
-  5:  { r: P(28), color: 0x00ffff },
-  6:  { r: P(28), color: 0x0055ff },
-  7:  { r: P(30), color: 0xffdd00 },
-  8:  { r: P(32), color: 0xdd00ff },
-  9:  { r: P(34), color: 0xff0000 },
+  3: { r: P(28), color: 0xffffff },
+  4: { r: P(28), color: 0x00ff44 },
+  5: { r: P(28), color: 0x00ffff },
+  6: { r: P(28), color: 0x0055ff },
+  7: { r: P(30), color: 0xffdd00 },
+  8: { r: P(32), color: 0xdd00ff },
+  9: { r: P(34), color: 0xff0000 },
   10: { r: P(38), color: 0xffffff, rainbow: true },
 };
 
@@ -63,15 +63,15 @@ function _ensureGlowTex(scene: Phaser.Scene, radius: number): string {
   if (scene.textures.exists(key)) return key;
   const size = radius * 2 + 2;
   const canvas = document.createElement('canvas');
-  canvas.width  = size;
+  canvas.width = size;
   canvas.height = size;
-  const ctx  = canvas.getContext('2d')!;
-  const cx   = size / 2;
+  const ctx = canvas.getContext('2d')!;
+  const cx = size / 2;
   const grad = ctx.createRadialGradient(cx, cx, 0, cx, cx, radius);
-  grad.addColorStop(0,    'rgba(255,255,255,1)');
+  grad.addColorStop(0, 'rgba(255,255,255,1)');
   grad.addColorStop(0.35, 'rgba(255,255,255,0.65)');
   grad.addColorStop(0.70, 'rgba(255,255,255,0.20)');
-  grad.addColorStop(1,    'rgba(255,255,255,0)');
+  grad.addColorStop(1, 'rgba(255,255,255,0)');
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, size, size);
   scene.textures.addCanvas(key, canvas);
@@ -81,14 +81,14 @@ function _ensureGlowTex(scene: Phaser.Scene, radius: number): string {
 // Returns an Image aura to be added to the container BEFORE the item image.
 function applyEnhanceGlow(
   scene: Phaser.Scene,
-  item:  import('../data/equipment-data').EquipmentItem,
+  item: import('../data/equipment-data').EquipmentItem,
   x: number, y: number,
 ): Phaser.GameObjects.Image | null {
   const enh = item.quality === 'legendary' ? 10 : (item.enhancement ?? 0);
   const def = GLOW_DEF[enh];
   if (!def) return null;
 
-  const t        = (enh - 3) / 7;
+  const t = (enh - 3) / 7;
   const alphaMax = 0.45 + t * 0.50;   // 0.45 → 0.95
   const alphaMin = 0.12 + t * 0.10;   // 0.12 → 0.22
 
@@ -99,23 +99,23 @@ function applyEnhanceGlow(
 
   // Unified pulse speed: 1200ms all levels
   scene.tweens.add({
-    targets:  sprite,
-    alpha:    alphaMax,
-    yoyo:     true,
-    repeat:   -1,
+    targets: sprite,
+    alpha: alphaMax,
+    yoyo: true,
+    repeat: -1,
     duration: 1200,
-    ease:     'Sine.easeInOut',
+    ease: 'Sine.easeInOut',
   });
 
   // +10 rainbow: cycle hue continuously
   if (def.rainbow) {
     const hue = { v: 0 };
     scene.tweens.add({
-      targets:  hue,
-      v:        1,
+      targets: hue,
+      v: 1,
       duration: 1600,
-      repeat:   -1,
-      ease:     'Linear',
+      repeat: -1,
+      ease: 'Linear',
       onUpdate: () => {
         const c = Phaser.Display.Color.HSVToRGB(hue.v, 1, 1) as { r: number; g: number; b: number };
         sprite.setTint(Phaser.Display.Color.GetColor(c.r, c.g, c.b));
@@ -165,8 +165,8 @@ export class PrepScene extends Phaser.Scene {
   // ── Town world ────────────────────────────────────────────
   private _townContainer?: Phaser.GameObjects.Container;
   private _townPlayer?: Phaser.GameObjects.Sprite;
-  private _townPlayerX  = 0;
-  private _townPlayerY  = 0;
+  private _townPlayerX = 0;
+  private _townPlayerY = 0;
   private _townPlayerDir: 'down' | 'left' | 'right' | 'up' = 'down';
   private _townMoveSendTimer = 0;
   private _townLastSentX = -1;
@@ -206,7 +206,7 @@ export class PrepScene extends Phaser.Scene {
     idleTimer: number;
     kind: string;
   }> = [];
-  private _isAnimalHost  = true;
+  private _isAnimalHost = true;
   private _animalSyncTimer = 2000;
 
   static fmtGold(n: number): string {
@@ -234,11 +234,11 @@ export class PrepScene extends Phaser.Scene {
       if (this.textures.exists(k)) this.textures.remove(k);
     });
     ['player_idle_shadow', '_lobby_idle',
-     'player_idle_down', 'player_idle_left', 'player_idle_right', 'player_idle_up',
-     'player_run_down',  'player_run_left',  'player_run_right',  'player_run_up',
+      'player_idle_down', 'player_idle_left', 'player_idle_right', 'player_idle_up',
+      'player_run_down', 'player_run_left', 'player_run_right', 'player_run_up',
     ].forEach(k => { if (this.anims.exists(k)) this.anims.remove(k); });
     this.load.spritesheet('player_idle_shadow', getSkinFile(_skin, 'idle'), cfg);
-    this.load.spritesheet('player_run_shadow',  getSkinFile(_skin, 'run'),  cfg);
+    this.load.spritesheet('player_run_shadow', getSkinFile(_skin, 'run'), cfg);
     // Load all skin idle + run previews for wardrobe panel and town remote players
     SKINS.forEach((s, i) => {
       const key = `skin_preview_${i}`;
@@ -348,9 +348,9 @@ export class PrepScene extends Phaser.Scene {
     if (!this.textures.exists('icon_stone_intact')) this.load.image('icon_stone_intact', 'other/ore1.webp');
     if (!this.textures.exists('icon_stone_guard')) this.load.image('icon_stone_guard', 'other/ore3.webp');
     if (!this.textures.exists('icon_quest_reroll')) this.load.image('icon_quest_reroll', 'other/ore4.webp');
-    if (!this.textures.exists('icon_ticket_slime'))   this.load.image('icon_ticket_slime',   'icon1/PNG/Transperent/Icon21.png');
-    if (!this.textures.exists('icon_ticket_flower'))  this.load.image('icon_ticket_flower',  'icon1/PNG/Transperent/Icon37.png');
-    if (!this.textures.exists('icon_ticket_orc'))     this.load.image('icon_ticket_orc',     'icon1/PNG/Transperent/Icon44.png');
+    if (!this.textures.exists('icon_ticket_slime')) this.load.image('icon_ticket_slime', 'icon1/PNG/Transperent/Icon21.png');
+    if (!this.textures.exists('icon_ticket_flower')) this.load.image('icon_ticket_flower', 'icon1/PNG/Transperent/Icon37.png');
+    if (!this.textures.exists('icon_ticket_orc')) this.load.image('icon_ticket_orc', 'icon1/PNG/Transperent/Icon44.png');
     if (!this.textures.exists('icon_ticket_vampire')) this.load.image('icon_ticket_vampire', 'icon1/PNG/Transperent/Icon42.png');
     if (!this.textures.exists('potions_sheet')) this.load.spritesheet('potions_sheet', 'items/potions.png', { frameWidth: 16, frameHeight: 16 });
     if (!this.textures.exists('icon_gold')) this.load.image('icon_gold', 'other/coin.webp');
@@ -359,10 +359,10 @@ export class PrepScene extends Phaser.Scene {
     // Town decorative animals
     const animalCfg = { frameWidth: 32, frameHeight: 32 };
     const animalDefs: [string, string, string][] = [
-      ['Fox',          'Fox_Idle_with_shadow.png',          'Fox_walk_with_shadow.png'],
-      ['Deer',         'Deer_Idle_with_shadow.png',         'Deer_Walk_with_shadow.png'],
-      ['Hare',         'Hare_Idle_with_shadow.png',         'Hare_Walk_with_shadow.png'],
-      ['Boar',         'Boar_Idle_with_shadow.png',         'Boar_Walk_with_shadow.png'],
+      ['Fox', 'Fox_Idle_with_shadow.png', 'Fox_walk_with_shadow.png'],
+      ['Deer', 'Deer_Idle_with_shadow.png', 'Deer_Walk_with_shadow.png'],
+      ['Hare', 'Hare_Idle_with_shadow.png', 'Hare_Walk_with_shadow.png'],
+      ['Boar', 'Boar_Idle_with_shadow.png', 'Boar_Walk_with_shadow.png'],
       ['Black_grouse', 'Black_grouse_Idle_with_shadow.png', 'Black_grouse_Walk_with_shadow.png'],
     ];
     for (const [name, idleFile, walkFile] of animalDefs) {
@@ -372,14 +372,14 @@ export class PrepScene extends Phaser.Scene {
       if (!this.textures.exists(`animal_${name}_walk`))
         this.load.spritesheet(`animal_${name}_walk`, `${base}/${walkFile}`, animalCfg);
     }
-    if (!this.cache.audio.exists('sfx_town_bgm'))   this.load.audio('sfx_town_bgm',    'sound/map2.mp3');
-    if (!this.cache.audio.exists('sfx_ui_click'))   this.load.audio('sfx_ui_click',    'sound/plus.mp3');
-    if (!this.cache.audio.exists('sfx_enhance_ok'))    this.load.audio('sfx_enhance_ok',    'sound/test-success.mp3');
-    if (!this.cache.audio.exists('sfx_daily_claim'))   this.load.audio('sfx_daily_claim',   'sound/skill-2.mp3');
-    if (!this.cache.audio.exists('sfx_enhance_ng')) this.load.audio('sfx_enhance_ng',  'sound/test-fail.mp3');
-    if (!this.cache.audio.exists('sfx_purchase'))     this.load.audio('sfx_purchase',     'sound/openChest.mp3');
+    if (!this.cache.audio.exists('sfx_town_bgm')) this.load.audio('sfx_town_bgm', 'sound/map2.mp3');
+    if (!this.cache.audio.exists('sfx_ui_click')) this.load.audio('sfx_ui_click', 'sound/plus.mp3');
+    if (!this.cache.audio.exists('sfx_enhance_ok')) this.load.audio('sfx_enhance_ok', 'sound/test-success.mp3');
+    if (!this.cache.audio.exists('sfx_daily_claim')) this.load.audio('sfx_daily_claim', 'sound/skill-2.mp3');
+    if (!this.cache.audio.exists('sfx_enhance_ng')) this.load.audio('sfx_enhance_ng', 'sound/test-fail.mp3');
+    if (!this.cache.audio.exists('sfx_purchase')) this.load.audio('sfx_purchase', 'sound/openChest.mp3');
     if (!this.cache.audio.exists('sfx_battle_start')) this.load.audio('sfx_battle_start', 'sound/openMap.mp3');
-    if (!this.cache.audio.exists('sfx_shop_open'))    this.load.audio('sfx_shop_open',    'sound/opendoor.mp3');
+    if (!this.cache.audio.exists('sfx_shop_open')) this.load.audio('sfx_shop_open', 'sound/opendoor.mp3');
   }
 
   create(): void {
@@ -438,11 +438,11 @@ export class PrepScene extends Phaser.Scene {
     // 新玩家：自動進入教學關卡（1 星隨機地圖）
     if (TutorialStore.isNewPlayer()) {
       this.scene.start('BattleLoadScene', {
-        ownSkinId:      SkinStore.get(),
-        questStar:      1,
-        bossMonsterId:  BOSS_POOL[0],
-        mapTheme:       randomQuestTheme(),
-        isTutorial:     true,
+        ownSkinId: SkinStore.get(),
+        questStar: 1,
+        bossMonsterId: BOSS_POOL[0],
+        mapTheme: randomQuestTheme(),
+        isTutorial: true,
       });
       return;
     }
@@ -482,13 +482,13 @@ export class PrepScene extends Phaser.Scene {
     if (NetworkService.connected) {
       if (NetworkService.partyMode) {
         // Returned from game via party invite — restore party panel
-        this._partyState    = 'in_party';
+        this._partyState = 'in_party';
         this._amPartyLeader = NetworkService.isHost;
         const partners = NetworkService.getPartnersState() as any[];
-        this._partnerIn   = partners.length > 0;
+        this._partnerIn = partners.length > 0;
         // Sort: leader first so _partyMembers[0] is always the host (guest panel depends on this)
         const hostSid = NetworkService.hostSessionId;
-        const sorted  = [
+        const sorted = [
           ...partners.filter((p: any) => p.sessionId === hostSid),
           ...partners.filter((p: any) => p.sessionId !== hostSid),
         ];
@@ -514,7 +514,7 @@ export class PrepScene extends Phaser.Scene {
         NetworkService.onGameStart(p => {
           if (NetworkService.isHost) {
             AudioService.playSfx(this, 'sfx_battle_start');
-          this.scene.start('BattleLoadScene', {
+            this.scene.start('BattleLoadScene', {
               seed: p.seed, questStar: p.questStar, bossMonsterId: p.bossMonsterId,
               mapParams: p.mapParams, partnerNickname: p.guestNickname,
               ownSkinId: p.hostSkinId, partnerSkinId: p.guestSkinId,
@@ -523,7 +523,7 @@ export class PrepScene extends Phaser.Scene {
           } else {
             try { if (p.questId) QuestStore.acceptQuest(p.questId); } catch { /* guest */ }
             AudioService.playSfx(this, 'sfx_battle_start');
-          this.scene.start('BattleLoadScene', {
+            this.scene.start('BattleLoadScene', {
               seed: p.seed, questStar: p.questStar, bossMonsterId: p.bossMonsterId,
               mapParams: p.mapParams, partnerNickname: p.hostNickname,
               ownSkinId: p.guestSkinId, partnerSkinId: p.hostSkinId,
@@ -630,6 +630,14 @@ export class PrepScene extends Phaser.Scene {
 
     // Content
     const ENTRIES: { text: string; header?: boolean }[] = [
+      { text: 'v1.0.3', header: true },
+      { text: '【調整】傷害溢出重製：基底傷害 ×200% 溢出值' },
+      { text: '【調整】節點2改為溢出強化（提升至 ×400%）' },
+      { text: '【調整】節點3改為連鎖觸發' },
+      { text: '【新功能】傷害溢出節點4：廣域溢出，爆炸範圍 ×2.2' },
+      { text: '【新功能】排行榜可點擊玩家查看資訊' },
+      { text: '【修復】藥水攜帶數量不再有上限' },
+      { text: '' },
       { text: 'v1.0.2', header: true },
       { text: '【新功能】WASD + 空白鍵桌面控制' },
       { text: '【新功能】商店新增空白卡片（3000金幣）' },
@@ -661,11 +669,13 @@ export class PrepScene extends Phaser.Scene {
     let totalH = 0;
     for (const e of ENTRIES) {
       if (!e.text) { totalH += P(10); continue; }
-      const t = this.make.text({ x: P(2), y: totalH, text: e.text, style: {
-        fontSize: F(15), fontStyle: 'bold',
-        color: e.header ? '#d4a044' : '#b89060',
-        wordWrap: { width: SW - P(4), useAdvancedWrap: true },
-      }, add: false });
+      const t = this.make.text({
+        x: P(2), y: totalH, text: e.text, style: {
+          fontSize: F(15), fontStyle: 'bold',
+          color: e.header ? '#d4a044' : '#b89060',
+          wordWrap: { width: SW - P(4), useAdvancedWrap: true },
+        }, add: false
+      });
       content.add(t);
       totalH += t.height + P(6);
     }
@@ -719,8 +729,8 @@ export class PrepScene extends Phaser.Scene {
     };
     this.input.on('pointerdown', onDown);
     this.input.on('pointermove', onMove);
-    this.input.on('pointerup',   onUp);
-    this.input.on('wheel',       onWheel);
+    this.input.on('pointerup', onUp);
+    this.input.on('wheel', onWheel);
 
     // Confirm button
     const BTN_W = P(130), BTN_H = P(38);
@@ -749,12 +759,12 @@ export class PrepScene extends Phaser.Scene {
     const hit = track(this.add.rectangle(BCX, BCY, BTN_W, BTN_H)
       .setDepth(DEPTH + 5).setInteractive({ useHandCursor: true }));
     hit.on('pointerover', () => drawBtn(true));
-    hit.on('pointerout',  () => drawBtn(false));
+    hit.on('pointerout', () => drawBtn(false));
     hit.on('pointerdown', () => {
       this.input.off('pointerdown', onDown);
       this.input.off('pointermove', onMove);
-      this.input.off('pointerup',   onUp);
-      this.input.off('wheel',       onWheel);
+      this.input.off('pointerup', onUp);
+      this.input.off('wheel', onWheel);
       maskGfx.destroy();
       AudioService.playBgm(this, 'sfx_town_bgm', 0.5);
       objs.forEach(o => o.destroy());
@@ -805,7 +815,7 @@ export class PrepScene extends Phaser.Scene {
     // ── Player card (top-left) — level | name / exp / gold ─
     const CARD_W = P(196), CARD_H = P(76);
     const CX = P(4), CY = P(4);
-    const AV_R  = P(22);
+    const AV_R = P(22);
     const AV_CX = CX + P(10) + AV_R;
     const AV_CY = CY + CARD_H / 2;
     const TXT_X = AV_CX + AV_R + P(10);
@@ -891,13 +901,15 @@ export class PrepScene extends Phaser.Scene {
       .on('pointerup', () => { AudioService.suppressClickSfx(); this._showAudioPanel(W, H); });
 
     // ── Quick-access buttons (horizontal, bottom-right) ───
-    const QB_S   = SET_S * 1.5;
+    const QB_S = SET_S * 1.5;
     const QB_GAP = P(6);
     const qbItems: { label: string; onClick: () => void }[] = [
       { label: tr('prep.btn.equip'), onClick: () => this.showEquipmentPanel(W, H) },
-      { label: tr('prep.tab.skill'), onClick: () => this._showTutorialHint('skill', '✦', tr('prep.tab.skill'),
+      {
+        label: tr('prep.tab.skill'), onClick: () => this._showTutorialHint('skill', '✦', tr('prep.tab.skill'),
           tr('prep.skill.tutorial'),
-          () => this.showSkillTree(W, H)) },
+          () => this.showSkillTree(W, H))
+      },
       { label: tr('prep.tab.card'), onClick: () => this.openCardWindow(W, H) },
       { label: tr('prep.btn.item'), onClick: () => this.showItemPanel(W, H) },
       { label: tr('prep.tab.quest'), onClick: () => { AudioService.suppressClickSfx(); this.showDailyQuestPanel(W, H); } },
@@ -1049,11 +1061,11 @@ export class PrepScene extends Phaser.Scene {
   // ── Quest panel (wanted posters, horizontal scroll) ────
 
   private _showAudioPanel(W: number, H: number): void {
-    const D   = 9000;
-    const PW  = Math.min(W - P(16), P(300));
-    const PH  = P(335);
-    const px  = (W - PW) / 2;
-    const py  = (H - PH) / 2;
+    const D = 9000;
+    const PW = Math.min(W - P(16), P(300));
+    const PH = P(335);
+    const px = (W - PW) / 2;
+    const py = (H - PH) / 2;
 
     const objs: Phaser.GameObjects.GameObject[] = [];
     const close = () => objs.forEach(o => o.destroy());
@@ -1097,7 +1109,7 @@ export class PrepScene extends Phaser.Scene {
     const STEP = 0.05;
     const rows: { key: string; get: () => number; set: (v: number) => void }[] = [
       { key: tr('prep.settings.bgm'), get: () => AudioService.bgmVolume, set: v => AudioService.setBgmVolume(v) },
-      { key: tr('prep.settings.sfx'),    get: () => AudioService.sfxVolume,  set: v => AudioService.setSfxVolume(v)  },
+      { key: tr('prep.settings.sfx'), get: () => AudioService.sfxVolume, set: v => AudioService.setSfxVolume(v) },
     ];
 
     rows.forEach((row, i) => {
@@ -1235,8 +1247,8 @@ export class PrepScene extends Phaser.Scene {
     if (TutorialStore.isDone(key)) { then(); return; }
 
     const isPortrait = window.innerHeight > window.innerWidth;
-    const visualW    = isPortrait ? window.innerHeight : window.innerWidth;
-    const visualH    = isPortrait ? window.innerWidth  : window.innerHeight;
+    const visualW = isPortrait ? window.innerHeight : window.innerWidth;
+    const visualH = isPortrait ? window.innerWidth : window.innerHeight;
     const bw = Math.min(visualW - 32, 320);
 
     const overlay = document.createElement('div');
@@ -1315,7 +1327,7 @@ export class PrepScene extends Phaser.Scene {
   }
 
   private _showChangePasswordPanel(W: number, H: number): void {
-    const D  = 9100;
+    const D = 9100;
     const PW = Math.min(W - P(16), P(320));
     const PH = P(310);
     const px = (W - PW) / 2;
@@ -1363,27 +1375,27 @@ export class PrepScene extends Phaser.Scene {
     const domContainer: HTMLElement = (this.sys.game as any).domContainer ?? document.body;
     const INP_W = PW - P(24);
     const INP_H = P(34);
-    const dpr   = window.devicePixelRatio;
+    const dpr = window.devicePixelRatio;
 
     const makeInput = (placeholder: string, yPx: number): HTMLInputElement => {
       const inp = document.createElement('input');
-      inp.type        = 'password';
+      inp.type = 'password';
       inp.placeholder = placeholder;
       Object.assign(inp.style, {
         position: 'absolute',
-        left:     `${(px + P(12)) / dpr}px`,
-        top:      `${yPx / dpr}px`,
-        width:    `${INP_W / dpr}px`,
-        height:   `${INP_H / dpr}px`,
+        left: `${(px + P(12)) / dpr}px`,
+        top: `${yPx / dpr}px`,
+        width: `${INP_W / dpr}px`,
+        height: `${INP_H / dpr}px`,
         fontSize: `${P(14) / dpr}px`,
-        padding:  '4px 8px',
-        background:   '#0a180a',
-        color:        '#c8ffc8',
-        border:       '1px solid #2a8a2a',
+        padding: '4px 8px',
+        background: '#0a180a',
+        color: '#c8ffc8',
+        border: '1px solid #2a8a2a',
         borderRadius: '6px',
-        outline:      'none',
-        zIndex:       String(D + 4),
-        boxSizing:    'border-box',
+        outline: 'none',
+        zIndex: String(D + 4),
+        boxSizing: 'border-box',
       });
       domContainer.appendChild(inp);
       domObjs.push(inp);
@@ -1405,7 +1417,7 @@ export class PrepScene extends Phaser.Scene {
 
     const SB_Y = py + PH - P(14) - P(36);
     const SB_W = PW - P(24);
-    const sbBg  = this.add.graphics().setDepth(D + 2);
+    const sbBg = this.add.graphics().setDepth(D + 2);
     objs.push(sbBg);
     const sbTxt = addTxt(tr('prep.changePass.submit'), px + P(12) + SB_W / 2, SB_Y + P(9), {
       fontSize: F(16), fontStyle: 'bold', color: '#ffffff', stroke: '#001000', strokeThickness: 1,
@@ -1414,10 +1426,10 @@ export class PrepScene extends Phaser.Scene {
     const drawBtn = (state: 'idle' | 'loading' | 'done' | 'error', msg?: string) => {
       sbBg.clear();
       const colors: Record<string, [number, number]> = {
-        idle:    [0x0d3a0d, 0x1a8a1a],
+        idle: [0x0d3a0d, 0x1a8a1a],
         loading: [0x1a3a1a, 0x2a6a2a],
-        done:    [0x0d3a18, 0x1a8a3a],
-        error:   [0x3a0d0d, 0x8a1a1a],
+        done: [0x0d3a18, 0x1a8a3a],
+        error: [0x3a0d0d, 0x8a1a1a],
       };
       const [fill, border] = colors[state];
       sbBg.fillStyle(fill, 1);
@@ -1436,26 +1448,26 @@ export class PrepScene extends Phaser.Scene {
     objs.push(sbHit);
 
     sbHit.on('pointerup', async () => {
-      const oldPw  = oldInp.value.trim();
-      const newPw  = newInp.value.trim();
+      const oldPw = oldInp.value.trim();
+      const newPw = newInp.value.trim();
       const confPw = confInp.value.trim();
 
       if (!oldPw || !newPw || !confPw) { drawBtn('error', tr('prep.changePass.empty')); return; }
-      if (newPw.length < 6)            { drawBtn('error', tr('prep.changePass.short')); return; }
-      if (newPw !== confPw)            { drawBtn('error', tr('prep.changePass.mismatch')); return; }
+      if (newPw.length < 6) { drawBtn('error', tr('prep.changePass.short')); return; }
+      if (newPw !== confPw) { drawBtn('error', tr('prep.changePass.mismatch')); return; }
 
       drawBtn('loading');
       sbHit.disableInteractive();
 
       const rguRaw = localStorage.getItem('rg_user');
-      const token  = rguRaw ? (JSON.parse(rguRaw)?.accessToken ?? '') : '';
+      const token = rguRaw ? (JSON.parse(rguRaw)?.accessToken ?? '') : '';
       const apiUrl = (window as any).__apiUrl as string ?? '';
 
       try {
         const res = await fetch(`${apiUrl}/auth/change-password`, {
-          method:  'POST',
+          method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body:    JSON.stringify({ oldPassword: oldPw, newPassword: newPw }),
+          body: JSON.stringify({ oldPassword: oldPw, newPassword: newPw }),
         });
         const data = await res.json();
         if (res.ok) {
@@ -1476,15 +1488,15 @@ export class PrepScene extends Phaser.Scene {
 
 
   private showDailyQuestPanel(W: number, H: number): void {
-    const PW       = Math.min(W - P(8), P(420));
+    const PW = Math.min(W - P(8), P(420));
     const HEADER_H = P(48);
-    const ROW_PAD  = P(8);
+    const ROW_PAD = P(8);
     const FOOTER_H = P(8);
-    const ROW_H    = P(76);   // fixed height; scroll handles small screens
-    const PH       = Math.min(H - P(16), HEADER_H + 3 * ROW_H + 2 * ROW_PAD + FOOTER_H);
-    const D   = 8000;
-    const px  = (W - PW) / 2;
-    const py  = Math.max(P(4), (H - PH) / 2);
+    const ROW_H = P(76);   // fixed height; scroll handles small screens
+    const PH = Math.min(H - P(16), HEADER_H + 3 * ROW_H + 2 * ROW_PAD + FOOTER_H);
+    const D = 8000;
+    const px = (W - PW) / 2;
+    const py = Math.max(P(4), (H - PH) / 2);
 
     const objs: Phaser.GameObjects.GameObject[] = [];
     const close = () => objs.forEach(o => o.destroy());
@@ -1543,16 +1555,16 @@ export class PrepScene extends Phaser.Scene {
 
     const rewardText = (reward: import('../data/daily-quest-store').DailyReward): string => {
       const parts: string[] = [];
-      if (reward.gold)   parts.push(tr('prep.quest.rewardGold', { n: reward.gold.toLocaleString() }));
-      if (reward.items)  parts.push(...reward.items.map(i => `${i.name} ×${i.qty}`));
+      if (reward.gold) parts.push(tr('prep.quest.rewardGold', { n: reward.gold.toLocaleString() }));
+      if (reward.items) parts.push(...reward.items.map(i => `${i.name} ×${i.qty}`));
       if (reward.cardId) parts.push(tr('prep.card.random'));
-      if (reward.equip)  parts.push(tr('prep.item.randomEquip'));
+      if (reward.equip) parts.push(tr('prep.item.randomEquip'));
       return parts.join(' ') || '—';
     };
 
     const VIEWPORT_H = PH - HEADER_H - FOOTER_H;
-    const CONTENT_H  = 3 * ROW_H + 2 * ROW_PAD;
-    const maxScroll  = Math.max(0, CONTENT_H - VIEWPORT_H);
+    const CONTENT_H = 3 * ROW_H + 2 * ROW_PAD;
+    const maxScroll = Math.max(0, CONTENT_H - VIEWPORT_H);
 
     // Geometry mask: clips container children to the content viewport
     const maskGfx = this.add.graphics();
@@ -1575,10 +1587,10 @@ export class PrepScene extends Phaser.Scene {
       return o;
     };
 
-    const quests  = DailyQuestStore.getQuests();
-    const startY  = py + HEADER_H + P(6);
+    const quests = DailyQuestStore.getQuests();
+    const startY = py + HEADER_H + P(6);
     const INNER_W = PW - P(16);
-    const rx0     = px + P(8);
+    const rx0 = px + P(8);
 
     quests.forEach((q, i) => {
       const ry = startY + i * (ROW_H + ROW_PAD);
@@ -1594,7 +1606,7 @@ export class PrepScene extends Phaser.Scene {
 
       const countTxt = q.status === 'claimed' ? tr('prep.quest.claimed')
         : q.status === 'completed' ? tr('prep.quest.claimed')
-        : `${q.progress.toLocaleString()} / ${q.target.toLocaleString()}`;
+          : `${q.progress.toLocaleString()} / ${q.target.toLocaleString()}`;
       ts(getQuestDisplayLabel(q), tx, ry + P(8),
         { fontSize: F(15), fontStyle: 'bold', color: '#e8d8b0', stroke: '#0a0000', strokeThickness: 1 }, 0, 0);
       ts(countTxt, rightX, ry + P(8),
@@ -1607,7 +1619,7 @@ export class PrepScene extends Phaser.Scene {
       rg.fillStyle(q.status === 'claimed' ? 0x446633 : q.status === 'completed' ? 0xcc9900 : 0x5588cc, 1);
       if (pct > 0) rg.fillRoundedRect(barX, barY, Math.max(barH * 2, Math.round(barW * pct)), barH, P(3));
 
-      const rewardY  = ry + P(45);
+      const rewardY = ry + P(45);
       const btnW = P(78), btnH = P(24);
       const hasClaim = q.status === 'completed';
       ts(tr('prep.quest.rewardLine', { text: rewardText(q.reward) }), tx, rewardY, {
@@ -1633,10 +1645,10 @@ export class PrepScene extends Phaser.Scene {
         btnHit.on('pointerup', () => {
           const reward = DailyQuestStore.claimQuest(q.id);
           if (!reward) return;
-          if (reward.gold)   InventoryStore.addGold(reward.gold);
-          if (reward.items)  reward.items.forEach(it => InventoryStore.addItem(it.id, it.name, it.qty));
+          if (reward.gold) InventoryStore.addGold(reward.gold);
+          if (reward.items) reward.items.forEach(it => InventoryStore.addItem(it.id, it.name, it.qty));
           if (reward.cardId) CardStore.addCard(reward.cardId);
-          if (reward.equip)  PlayerStore.addOwned(reward.equip);
+          if (reward.equip) PlayerStore.addOwned(reward.equip);
           SaveStore.save();
           AudioService.playSfx(this, 'sfx_daily_claim');
           close();
@@ -1652,7 +1664,7 @@ export class PrepScene extends Phaser.Scene {
         .setDepth(D + 1).setInteractive({ draggable: true });
       objs.push(zone);
       zone.on('dragstart', (ptr: Phaser.Input.Pointer) => { dragStart = ptr.y; scrollStart = scrollY; });
-      zone.on('drag',      (ptr: Phaser.Input.Pointer) => {
+      zone.on('drag', (ptr: Phaser.Input.Pointer) => {
         scrollY = Phaser.Math.Clamp(scrollStart - (ptr.y - dragStart), 0, maxScroll);
         applyScroll();
       });
@@ -1872,8 +1884,8 @@ export class PrepScene extends Phaser.Scene {
 
       // Boss sprite
       const spriteKey = def ? `${def.spriteKey}_idle` : 'slime_idle';
-      const isPlantBoss   = def?.spriteKey?.startsWith('plant');
-      const isOrcBoss     = def?.spriteKey?.startsWith('orc');
+      const isPlantBoss = def?.spriteKey?.startsWith('plant');
+      const isOrcBoss = def?.spriteKey?.startsWith('orc');
       const isVampireBoss = def?.spriteKey?.startsWith('vampire');
       const idleFrames = (isPlantBoss || isOrcBoss || isVampireBoss) ? 3 : 5;
       const bossScale = isPlantBoss ? 3.0 * DPR * 0.8 : isOrcBoss ? 3.0 * DPR * 0.85 : 3.0 * DPR;
@@ -2492,18 +2504,18 @@ export class PrepScene extends Phaser.Scene {
       const rs = <T extends Phaser.GameObjects.GameObject>(o: T): T => { ro.push(o); return o; };
       const closeRecast = () => { ro.forEach(o => o.destroy()); onClose(); };
 
-      const TITLE_H  = P(44);
-      const LEVEL_H  = P(38);
+      const TITLE_H = P(44);
+      const LEVEL_H = P(38);
       const AFFIX_ROW = P(30);
       const MAT_HDR_H = P(30);
       const MAT_QTY_H = P(22);
-      const RATE_H    = P(24);
-      const BTN_H     = P(42);
-      const RESULT_H  = P(28);
-      const PAD       = P(10);
+      const RATE_H = P(24);
+      const BTN_H = P(42);
+      const RESULT_H = P(28);
+      const PAD = P(10);
       const lw = P(260);
       const rw = mw - lw;
-      const leftH  = LEVEL_H + PAD + item.affixes.length * AFFIX_ROW + PAD;
+      const leftH = LEVEL_H + PAD + item.affixes.length * AFFIX_ROW + PAD;
       const rightH = PAD + RATE_H + PAD / 2 + MAT_HDR_H + MAT_QTY_H + PAD + BTN_H + RESULT_H + PAD;
       const mh = TITLE_H + Math.max(leftH, rightH);
       const mx = W / 2 - mw / 2;
@@ -2600,11 +2612,11 @@ export class PrepScene extends Phaser.Scene {
       rcy += MAT_QTY_H + PAD;
 
       // ── 重鑄按鈕 ─────────────────────────────────────────────
-      const bx   = rx + P(8);
-      const btnY  = rcy;
-      const btnW  = rw - P(16);
+      const bx = rx + P(8);
+      const btnY = rcy;
+      const btnW = rw - P(16);
       const enabled = isRefined && guardQty >= 1;
-      const btnG  = rs(this.add.graphics().setDepth(RD + 2));
+      const btnG = rs(this.add.graphics().setDepth(RD + 2));
       const drawBtn = (on: boolean) => {
         btnG.clear();
         btnG.fillStyle(on ? 0x2a1040 : 0x150820, 1); btnG.fillRect(bx, btnY, btnW, BTN_H);
@@ -2658,7 +2670,7 @@ export class PrepScene extends Phaser.Scene {
       const es = <T extends Phaser.GameObjects.GameObject>(o: T): T => { eo.push(o); return o; };
       const closeEnhance = () => { eo.forEach(o => o.destroy()); onClose(); };
 
-      const fmtVal  = (stat: string, val: number)  => fmtAffixValue(stat, val);
+      const fmtVal = (stat: string, val: number) => fmtAffixValue(stat, val);
       const fmtGain = (stat: string, gain: number) => `+${fmtAffixValue(stat, gain)}`;
 
       let useComplete = false;
@@ -2668,17 +2680,17 @@ export class PrepScene extends Phaser.Scene {
       const LEVEL_H = P(38);
       const AFFIX_ROW = P(30);
       const BEH_ROW = P(30);
-      const MAT_HDR_H  = P(30);
-      const MAT_QTY_H  = P(22);
-      const RATE_H     = P(24);
-      const OPT_ROW_H  = P(28);
+      const MAT_HDR_H = P(30);
+      const MAT_QTY_H = P(22);
+      const RATE_H = P(24);
+      const OPT_ROW_H = P(28);
       const OPT_DESC_H = P(18);
       const BTN_H = P(42);
       const RESULT_H = P(28);
       const PAD = P(10);
       const lw = P(260);
       const rw = mw - lw;
-      const leftH  = LEVEL_H + PAD + item.affixes.length * AFFIX_ROW + BEH_ROW + PAD;
+      const leftH = LEVEL_H + PAD + item.affixes.length * AFFIX_ROW + BEH_ROW + PAD;
       const rightH = PAD + MAT_HDR_H + MAT_QTY_H + RATE_H + PAD + OPT_ROW_H + OPT_DESC_H + PAD + BTN_H + RESULT_H + PAD;
       const mh = TITLE_H + Math.max(leftH, rightH);
       const mx = W / 2 - mw / 2;
@@ -2806,10 +2818,10 @@ export class PrepScene extends Phaser.Scene {
         fontSize: F(14), fontStyle: 'bold', color: '#ccbbaa', stroke: '#1a0800', strokeThickness: 1,
       }).setOrigin(0, 0.5).setDepth(ED + 2));
       const optChkSz = P(16);
-      const optChkX  = rx + rw - P(12) - optChkSz;
-      const optChkY  = optRowCY - optChkSz / 2;
-      const optChkG  = es(this.add.graphics().setDepth(ED + 2));
-      const optChkT  = es(this.add.text(optChkX + optChkSz / 2, optRowCY, '', {
+      const optChkX = rx + rw - P(12) - optChkSz;
+      const optChkY = optRowCY - optChkSz / 2;
+      const optChkG = es(this.add.graphics().setDepth(ED + 2));
+      const optChkT = es(this.add.text(optChkX + optChkSz / 2, optRowCY, '', {
         fontSize: F(14), fontStyle: 'bold', color: '#44ff88', stroke: '#000', strokeThickness: 1,
       }).setOrigin(0.5).setDepth(ED + 3));
       const optHit = es(this.add.rectangle(rx + rw / 2, optRowCY, rw - P(12), OPT_ROW_H).setDepth(ED + 4));
@@ -2823,9 +2835,9 @@ export class PrepScene extends Phaser.Scene {
 
       // ── 強化按鈕 ────────────────────────────────────────────
       rcy += PAD;
-      const bx  = rx + P(8);
+      const bx = rx + P(8);
       const btnY = rcy;
-      const bw  = rw - P(16);
+      const bw = rw - P(16);
       const btnG = es(this.add.graphics().setDepth(ED + 2));
       const drawEnhBtn = (enabled: boolean) => {
         btnG.clear();
@@ -2865,7 +2877,7 @@ export class PrepScene extends Phaser.Scene {
         // 主素材
         const brokenQty = InventoryStore.getItemQty('stone_broken');
         const needStones = !maxed ? ENHANCE_COST[lv] : 0;
-        const enoughBrk  = brokenQty >= needStones;
+        const enoughBrk = brokenQty >= needStones;
         matHoldTxt.setText(tr('prep.equip.holding', { n: brokenQty })).setColor(enoughBrk ? '#ffcc66' : '#ff6666');
         matCostTxt.setText(!maxed ? tr('prep.equip.costing', { n: needStones }) : '').setColor(enoughBrk ? '#888877' : '#ff6666');
 
@@ -3145,26 +3157,26 @@ export class PrepScene extends Phaser.Scene {
       };
 
       const QUAL_OPTS = [
-        { key: 'normal',  label: tr('prep.quest.difficulty.normal'), color: '#aaaaaa' },
-        { key: 'good',    label: tr('equip.quality.good'), color: '#55cc55' },
-        { key: 'fine',    label: tr('equip.quality.fine'), color: '#4488ff' },
+        { key: 'normal', label: tr('prep.quest.difficulty.normal'), color: '#aaaaaa' },
+        { key: 'good', label: tr('equip.quality.good'), color: '#55cc55' },
+        { key: 'fine', label: tr('equip.quality.fine'), color: '#4488ff' },
         { key: 'perfect', label: tr('equip.quality.perfect'), color: '#ffdd00' },
       ];
       const SLOT_OPTS = [
-        { key: 'sword',  label: tr('equip.slot.sword') },
-        { key: 'hat',    label: tr('equip.slot.hat') },
+        { key: 'sword', label: tr('equip.slot.sword') },
+        { key: 'hat', label: tr('equip.slot.hat') },
         { key: 'outfit', label: tr('equip.slot.outfit') },
-        { key: 'shoes',  label: tr('equip.slot.shoes') },
-        { key: 'ring',   label: tr('equip.slot.ring1') },
+        { key: 'shoes', label: tr('equip.slot.shoes') },
+        { key: 'ring', label: tr('equip.slot.ring1') },
       ];
 
       const mw = P(360);
       const TITLE_H = P(44);
       const LABEL_H = P(22);
-      const ROW_H   = P(38);
-      const PREV_H  = P(28);
-      const BTN_H   = P(40);
-      const PAD     = P(12);
+      const ROW_H = P(38);
+      const PREV_H = P(28);
+      const BTN_H = P(40);
+      const PAD = P(12);
       const mh = TITLE_H + PAD + LABEL_H + ROW_H + PAD + LABEL_H + ROW_H + PAD + PREV_H + PAD + BTN_H + PAD;
       const mx = W / 2 - mw / 2;
       const my = H / 2 - mh / 2;
@@ -3198,8 +3210,8 @@ export class PrepScene extends Phaser.Scene {
         fontSize: F(14), fontStyle: 'bold', color: '#d4a044', stroke: '#1a0800', strokeThickness: 1,
       }).setOrigin(0, 0.5).setDepth(BD + 2));
 
-      const qualRowCY  = qualLabelY + LABEL_H + ROW_H / 2;
-      const qualItemW  = (mw - P(24)) / QUAL_OPTS.length;
+      const qualRowCY = qualLabelY + LABEL_H + ROW_H / 2;
+      const qualItemW = (mw - P(24)) / QUAL_OPTS.length;
 
       type ChkEntry = { key: string; g: Phaser.GameObjects.Graphics; t: Phaser.GameObjects.Text; cx: number; cy: number };
       const qualItems: ChkEntry[] = [];
@@ -3722,14 +3734,14 @@ export class PrepScene extends Phaser.Scene {
       }
       const items = ownedItems;
 
-      const GCOLS   = 2;
+      const GCOLS = 2;
       const CARD_GAP = P(6);
-      const cardW   = Math.floor((rightColW - CARD_GAP) / GCOLS);
-      const ROW_H   = P(86);
+      const cardW = Math.floor((rightColW - CARD_GAP) / GCOLS);
+      const ROW_H = P(86);
       const ROW_GAP = P(5);
       const totalItems = equippedItems.length + items.length;
       const totalRows = Math.ceil(totalItems / GCOLS);
-      const contentH  = totalRows * (ROW_H + ROW_GAP) - ROW_GAP;
+      const contentH = totalRows * (ROW_H + ROW_GAP) - ROW_GAP;
       const maxScroll = Math.max(0, contentH - gridH);
       gridScrollY = Phaser.Math.Clamp(gridScrollY, 0, maxScroll);
 
@@ -3757,11 +3769,11 @@ export class PrepScene extends Phaser.Scene {
         isEquipped: boolean,
         onTap: () => void,
       ) => {
-        const col  = idx % GCOLS;
-        const row  = Math.floor(idx / GCOLS);
-        const cx   = rightColX + col * (cardW + CARD_GAP);
+        const col = idx % GCOLS;
+        const row = Math.floor(idx / GCOLS);
+        const cx = rightColX + col * (cardW + CARD_GAP);
         const rowY = row * (ROW_H + ROW_GAP);
-        const qc    = QUALITY_COLORS[item.quality] ?? WL;
+        const qc = QUALITY_COLORS[item.quality] ?? WL;
         const qcStr = '#' + qc.toString(16).padStart(6, '0');
 
         // Card background (equipped items get a slightly different tint)
@@ -3785,7 +3797,7 @@ export class PrepScene extends Phaser.Scene {
         }
 
         // Name (+enhancement)
-        const textX   = cx + P(58);
+        const textX = cx + P(58);
         const nameStr = item.enhancement > 0 ? `+${item.enhancement} ${getEquipDisplayName(item)}` : getEquipDisplayName(item);
         scrollCnt.add(this.add.text(textX, rowY + P(10), nameStr, {
           fontSize: F(14), fontStyle: 'bold', color: qcStr, stroke: '#1a0800', strokeThickness: 2,
@@ -3940,7 +3952,7 @@ export class PrepScene extends Phaser.Scene {
     const panel = s(this.add.graphics().setDepth(D + 1));
     const PW = W, PH = H;
     const px = 0, py = 0;
-    panel.fillStyle(0x0d0808, 1);   panel.fillRect(px, py, PW, PH);
+    panel.fillStyle(0x0d0808, 1); panel.fillRect(px, py, PW, PH);
     panel.lineStyle(P(1.5), GOLD, 0.5); panel.strokeRect(px, py, PW, PH);
 
     // ── Header ────────────────────────────────────────────────────────────
@@ -3973,15 +3985,15 @@ export class PrepScene extends Phaser.Scene {
       resetBg.strokeRoundedRect(resetBtnX - resetBtnW / 2, resetBtnY - resetBtnH / 2, resetBtnW, resetBtnH, P(4));
     };
     drawResetBg(false);
-    resetTxt.on('pointerover',  () => drawResetBg(true));
-    resetTxt.on('pointerout',   () => drawResetBg(false));
+    resetTxt.on('pointerover', () => drawResetBg(true));
+    resetTxt.on('pointerout', () => drawResetBg(false));
 
     // ── Star map area ─────────────────────────────────────────────────────
-    const mapTop  = py + hdrH + P(6);
-    const mapH    = py + PH - mapTop;
-    const mapW    = PW;
-    const mapCx   = px + mapW / 2;
-    const mapCy   = mapTop + mapH / 2;
+    const mapTop = py + hdrH + P(6);
+    const mapH = py + PH - mapTop;
+    const mapW = PW;
+    const mapCx = px + mapW / 2;
+    const mapCy = mapTop + mapH / 2;
 
     // Clip mask
     const maskShape = this.make.graphics({ x: 0, y: 0 });
@@ -4017,13 +4029,13 @@ export class PrepScene extends Phaser.Scene {
     const NODE_R_ROOT = P(20), NODE_R = P(15);
     const labelTxts: Map<string, Phaser.GameObjects.Text> = new Map();
     // Per-node tap zones live inside mapCnt so Phaser handles the coordinate transform
-    const nodeDownAt  = new Map<string, { x: number; y: number }>();
+    const nodeDownAt = new Map<string, { x: number; y: number }>();
     for (const node of SKILL_NODES) {
-      const r     = (node.isRoot) ? NODE_R_ROOT : NODE_R;
+      const r = (node.isRoot) ? NODE_R_ROOT : NODE_R;
       const label = node.id === '1'
         ? (ATTACK_MODES.find(a => a.id === SkillTreeStore.getAttackMode())?.label ?? node.label)
         : node.label;
-      const tx  = this.add.text(NP(node.x), NP(node.y) + r + P(5), label, {
+      const tx = this.add.text(NP(node.x), NP(node.y) + r + P(5), label, {
         fontSize: getLang() === 'en' ? F(11) : F(15), fontStyle: 'bold', color: '#aabbcc', stroke: '#000', strokeThickness: 2,
       }).setOrigin(0.5, 0);
       mapCnt.add(tx);
@@ -4063,7 +4075,7 @@ export class PrepScene extends Phaser.Scene {
         }
       }
       // Node circles
-      const CLR_LEARNED   = 0xffe066;  // gold — learned
+      const CLR_LEARNED = 0xffe066;  // gold — learned
       const CLR_AVAILABLE = 0x44aaff;  // blue — can learn
       for (const node of SKILL_NODES) {
         const r = node.isRoot ? NODE_R_ROOT : NODE_R;
@@ -4081,7 +4093,7 @@ export class PrepScene extends Phaser.Scene {
           }
           continue;
         }
-        const learned   = SkillTreeStore.isLearned(node.id);
+        const learned = SkillTreeStore.isLearned(node.id);
         const available = SkillTreeStore.canLearn(node.id);
         if (learned) {
           linesGfx.fillStyle(CLR_LEARNED, 1.0);
@@ -4161,13 +4173,13 @@ export class PrepScene extends Phaser.Scene {
 
     // ── Tooltip popup ─────────────────────────────────────────────────────
     const TW = PW - P(20), TH = P(110);
-    const tipG      = s(this.add.graphics().setDepth(D + 5));
+    const tipG = s(this.add.graphics().setDepth(D + 5));
     const tipBlocker = s(this.add.rectangle(0, 0, TW, TH).setDepth(D + 5).setVisible(false).setInteractive());
     tipBlocker.on('pointerdown', Phaser.Utils.NOOP); // 消費事件，防止穿透
     const tipT1 = s(this.add.text(0, 0, '', { fontSize: F(15), fontStyle: 'bold', color: '#ffe8a0', stroke: '#000', strokeThickness: 2 }).setDepth(D + 6));
     const tipT2 = s(this.add.text(0, 0, '', { fontSize: F(15), fontStyle: 'bold', color: '#aaccdd', stroke: '#000', strokeThickness: 1, wordWrap: { width: TW - P(20) } }).setDepth(D + 6));
     const tipBtnG = s(this.add.graphics().setDepth(D + 6));
-    const tipBtn  = s(this.add.text(0, 0, '', { fontSize: F(15), fontStyle: 'bold', color: '#88ffaa', stroke: '#000', strokeThickness: 2 }).setDepth(D + 7).setInteractive({ useHandCursor: true }));
+    const tipBtn = s(this.add.text(0, 0, '', { fontSize: F(15), fontStyle: 'bold', color: '#88ffaa', stroke: '#000', strokeThickness: 2 }).setDepth(D + 7).setInteractive({ useHandCursor: true }));
     let _tipNodeId = '';
     const showTip = (node: import('../data/skill-tree-store').SkillNode) => {
       _tipNodeId = node.id;
@@ -4178,7 +4190,7 @@ export class PrepScene extends Phaser.Scene {
       tipG.lineStyle(P(1.5), 0x44aaff, 0.6); tipG.strokeRoundedRect(tx, ty, TW, TH, P(6));
       tipT1.setPosition(tx + P(10), ty + P(8)).setText(node.label);
       tipT2.setPosition(tx + P(10), ty + P(26)).setText(node.desc);
-      const learned   = SkillTreeStore.isLearned(node.id);
+      const learned = SkillTreeStore.isLearned(node.id);
       const available = SkillTreeStore.canLearn(node.id);
       const btnTxt = learned ? tr('prep.skill.learned') : available ? tr('prep.skill.learn') : tr('prep.skill.locked');
       const btnCol = learned ? '#aaaaaa' : available ? '#ccffdd' : '#778899';
@@ -4187,13 +4199,13 @@ export class PrepScene extends Phaser.Scene {
       const bx = tx + TW / 2 - BTN_W / 2, by = ty + TH - BTN_H - P(8);
       tipBtnG.clear();
       if (available) {
-        tipBtnG.fillStyle(0x1a6633, 1);    tipBtnG.fillRoundedRect(bx, by, BTN_W, BTN_H, P(5));
+        tipBtnG.fillStyle(0x1a6633, 1); tipBtnG.fillRoundedRect(bx, by, BTN_W, BTN_H, P(5));
         tipBtnG.lineStyle(P(1.5), 0x44ff88, 0.9); tipBtnG.strokeRoundedRect(bx, by, BTN_W, BTN_H, P(5));
       } else if (learned) {
-        tipBtnG.fillStyle(0x222222, 1);    tipBtnG.fillRoundedRect(bx, by, BTN_W, BTN_H, P(5));
+        tipBtnG.fillStyle(0x222222, 1); tipBtnG.fillRoundedRect(bx, by, BTN_W, BTN_H, P(5));
         tipBtnG.lineStyle(P(1.5), 0x555555, 0.7); tipBtnG.strokeRoundedRect(bx, by, BTN_W, BTN_H, P(5));
       } else {
-        tipBtnG.fillStyle(0x1a1a2a, 1);    tipBtnG.fillRoundedRect(bx, by, BTN_W, BTN_H, P(5));
+        tipBtnG.fillStyle(0x1a1a2a, 1); tipBtnG.fillRoundedRect(bx, by, BTN_W, BTN_H, P(5));
         tipBtnG.lineStyle(P(1.5), 0x334455, 0.6); tipBtnG.strokeRoundedRect(bx, by, BTN_W, BTN_H, P(5));
       }
       tipBtn.setPosition(tx + TW / 2, by + BTN_H / 2).setText(btnTxt).setStyle({ color: btnCol }).setOrigin(0.5);
@@ -4224,9 +4236,9 @@ export class PrepScene extends Phaser.Scene {
       id === 'hellfire' ? 'magicFire' : id as import('../data/equipment-data').AttackBehavior;
 
     let modePickerObjs: Phaser.GameObjects.GameObject[] = [];
-    let modeInfoObjs:   Phaser.GameObjects.GameObject[] = [];
+    let modeInfoObjs: Phaser.GameObjects.GameObject[] = [];
     const closeModeInfo = () => { modeInfoObjs.forEach(o => o.destroy()); modeInfoObjs = []; };
-    const closePicker   = () => {
+    const closePicker = () => {
       closeModeInfo();
       modePickerObjs.forEach(o => o.destroy()); modePickerObjs = [];
     };
@@ -4235,7 +4247,7 @@ export class PrepScene extends Phaser.Scene {
       closeModeInfo();
       const mi = <T extends Phaser.GameObjects.GameObject>(o: T) => { modeInfoObjs.push(o); objs.push(o); return o; };
       const info = BEHAVIOR_INFO[toBehaviorKey(m.id)];
-      const mc   = MODE_COLORS[m.id] ?? 0xaaaaaa;
+      const mc = MODE_COLORS[m.id] ?? 0xaaaaaa;
       const mcHex = '#' + mc.toString(16).padStart(6, '0');
       const active = SkillTreeStore.getAttackMode() === m.id;
 
@@ -4245,8 +4257,8 @@ export class PrepScene extends Phaser.Scene {
       });
       const descH = probe.height; probe.destroy();
 
-      const titleH   = P(48);
-      const sepGap   = P(12);
+      const titleH = P(48);
+      const sepGap = P(12);
       const formulaH = P(26) + info.formula.length * P(20);
       const closeBtnH = P(48);
       const IH = titleH + descH + sepGap + P(12) + formulaH + closeBtnH;
@@ -4259,7 +4271,7 @@ export class PrepScene extends Phaser.Scene {
 
       const bg = mi(this.add.graphics().setDepth(D + 11));
       bg.fillStyle(0x04090f, 0.98); bg.fillRoundedRect(ix, iy, IW, IH, P(8));
-      bg.lineStyle(P(2), mc, 0.85);  bg.strokeRoundedRect(ix, iy, IW, IH, P(8));
+      bg.lineStyle(P(2), mc, 0.85); bg.strokeRoundedRect(ix, iy, IW, IH, P(8));
       bg.fillStyle(mc, 0.25); bg.fillRect(ix, iy, IW, P(3));
       // 攔截 panel 範圍內的點擊，防止穿透到後方遮罩
       mi(this.add.rectangle(ix + IW / 2, iy + IH / 2, IW, IH, 0x000000, 0)
@@ -4288,10 +4300,10 @@ export class PrepScene extends Phaser.Scene {
       });
 
       // ── 確認 / 取消 ──────────────────────────────────────────
-      const btnY  = iy + IH - P(28);
+      const btnY = iy + IH - P(28);
       const btnW2 = P(100), btnH2 = P(32), gap = P(12);
       const confirmX = W / 2 - btnW2 - gap / 2;
-      const cancelX  = W / 2 + gap / 2;
+      const cancelX = W / 2 + gap / 2;
 
       const drawInfoBtn = (bx: number, label: string, col: number, textCol: string, onTap: () => void) => {
         const g = mi(this.add.graphics().setDepth(D + 12));
@@ -4403,9 +4415,9 @@ export class PrepScene extends Phaser.Scene {
       if (isDrag) { isDrag = false; return; }
       if (modePickerObjs.length > 0) return;
       // Only hide tooltip when tapping empty space; node taps handled by zone events
-      const wp  = this.cameras.main.getWorldPoint(ptr.x, ptr.y);
-      const lx  = wp.x - mapCnt.x;
-      const ly  = wp.y - mapCnt.y;
+      const wp = this.cameras.main.getWorldPoint(ptr.x, ptr.y);
+      const lx = wp.x - mapCnt.x;
+      const ly = wp.y - mapCnt.y;
       const hit = SKILL_NODES.find(n =>
         Math.hypot(NP(n.x) - lx, NP(n.y) - ly) < ((n.isRoot ? NODE_R_ROOT : NODE_R) + P(14))
       );
@@ -4414,14 +4426,14 @@ export class PrepScene extends Phaser.Scene {
 
     this.input.on('pointerdown', onDown);
     this.input.on('pointermove', onMove);
-    this.input.on('pointerup',   onUp);
+    this.input.on('pointerup', onUp);
 
     // Cleanup on close
     const origClose = close;
     objs[0].once('destroy', () => {
       this.input.off('pointerdown', onDown);
       this.input.off('pointermove', onMove);
-      this.input.off('pointerup',   onUp);
+      this.input.off('pointerup', onUp);
     });
     void origClose;
   }
@@ -4729,31 +4741,31 @@ export class PrepScene extends Phaser.Scene {
     gridMaskGfx.fillRect(W / 2 + px, H / 2 + gridY, PW, gridVisH);
     const gridMask = new Phaser.Display.Masks.GeometryMask(this, gridMaskGfx);
 
-    let gridScrollY   = 0;
+    let gridScrollY = 0;
     let gridMaxScroll = 0;
-    let gridDragStartPY     = 0;
+    let gridDragStartPY = 0;
     let gridDragStartScroll = 0;
-    let gridIsDragging      = false;
+    let gridIsDragging = false;
 
     // ── Item detail overlay ───────────────────────────────
     interface ItemMeta { category: string; categoryColor: string; desc: string; descColor: string }
     const ITEM_META: Record<string, ItemMeta> = {
-      stone_broken:    { category: tr('prep.equip.material'), categoryColor: '#aaccaa', desc: tr('prep.equip.materialDesc'), descColor: '#8aaa88' },
-      stone_intact:    { category: tr('prep.equip.material'), categoryColor: '#aaccaa', desc: tr('prep.item.intactStoneDesc'), descColor: '#8aaa88' },
-      stone_guard:     { category: tr('prep.equip.material'), categoryColor: '#aaccaa', desc: tr('prep.item.guardStoneDesc2'), descColor: '#8aaa88' },
-      quest_reroll:    { category: tr('prep.equip.questItem'), categoryColor: '#aacc88', desc: tr('prep.item.questRerollDesc'), descColor: '#aabb88' },
-      blank_card:      { category: tr('prep.equip.cardMaterial'), categoryColor: '#aabbee', desc: tr('prep.card.blank'), descColor: '#88aacc' },
+      stone_broken: { category: tr('prep.equip.material'), categoryColor: '#aaccaa', desc: tr('prep.equip.materialDesc'), descColor: '#8aaa88' },
+      stone_intact: { category: tr('prep.equip.material'), categoryColor: '#aaccaa', desc: tr('prep.item.intactStoneDesc'), descColor: '#8aaa88' },
+      stone_guard: { category: tr('prep.equip.material'), categoryColor: '#aaccaa', desc: tr('prep.item.guardStoneDesc2'), descColor: '#8aaa88' },
+      quest_reroll: { category: tr('prep.equip.questItem'), categoryColor: '#aacc88', desc: tr('prep.item.questRerollDesc'), descColor: '#aabb88' },
+      blank_card: { category: tr('prep.equip.cardMaterial'), categoryColor: '#aabbee', desc: tr('prep.card.blank'), descColor: '#88aacc' },
       potion_health_s: { category: tr('prep.equip.potion.heal'), categoryColor: '#88ddaa', desc: tr('prep.item.potionSmallDesc'), descColor: '#88ccaa' },
       potion_health_m: { category: tr('prep.equip.potion.heal'), categoryColor: '#88ddaa', desc: tr('prep.item.potionMidDesc'), descColor: '#88ccaa' },
       potion_health_l: { category: tr('prep.equip.potion.heal'), categoryColor: '#88ddaa', desc: tr('prep.item.potionLargeDesc'), descColor: '#88ccaa' },
-      potion_revive:   { category: tr('prep.equip.potion.special'), categoryColor: '#ddaa88', desc: tr('prep.item.potionReviveDesc'), descColor: '#ddaa88' },
-      potion_atk:      { category: tr('prep.equip.potion.buff'), categoryColor: '#ffcc88', desc: tr('prep.item.potionAtkDesc'), descColor: '#ffcc66' },
-      potion_def:      { category: tr('prep.equip.potion.buff'), categoryColor: '#ffcc88', desc: tr('prep.item.potionDefDesc'), descColor: '#ffcc66' },
-      potion_speed:    { category: tr('prep.equip.potion.buff'), categoryColor: '#ffcc88', desc: tr('prep.item.potionSpeedDesc'), descColor: '#ffcc66' },
-      ticket_slime:    { category: tr('prep.quest.mapTicket'), categoryColor: '#ffdd55', desc: tr('prep.item.slimeTicketDesc'), descColor: '#ffee88' },
-      ticket_flower:   { category: tr('prep.quest.mapTicket'), categoryColor: '#ffdd55', desc: tr('prep.item.flowerTicketDesc'), descColor: '#ffee88' },
-      ticket_orc:      { category: tr('prep.quest.mapTicket'), categoryColor: '#ffdd55', desc: tr('prep.item.orcTicketDesc'), descColor: '#ffee88' },
-      ticket_vampire:  { category: tr('prep.quest.mapTicket'), categoryColor: '#ffdd55', desc: tr('prep.item.vampireTicketDesc'), descColor: '#ffee88' },
+      potion_revive: { category: tr('prep.equip.potion.special'), categoryColor: '#ddaa88', desc: tr('prep.item.potionReviveDesc'), descColor: '#ddaa88' },
+      potion_atk: { category: tr('prep.equip.potion.buff'), categoryColor: '#ffcc88', desc: tr('prep.item.potionAtkDesc'), descColor: '#ffcc66' },
+      potion_def: { category: tr('prep.equip.potion.buff'), categoryColor: '#ffcc88', desc: tr('prep.item.potionDefDesc'), descColor: '#ffcc66' },
+      potion_speed: { category: tr('prep.equip.potion.buff'), categoryColor: '#ffcc88', desc: tr('prep.item.potionSpeedDesc'), descColor: '#ffcc66' },
+      ticket_slime: { category: tr('prep.quest.mapTicket'), categoryColor: '#ffdd55', desc: tr('prep.item.slimeTicketDesc'), descColor: '#ffee88' },
+      ticket_flower: { category: tr('prep.quest.mapTicket'), categoryColor: '#ffdd55', desc: tr('prep.item.flowerTicketDesc'), descColor: '#ffee88' },
+      ticket_orc: { category: tr('prep.quest.mapTicket'), categoryColor: '#ffdd55', desc: tr('prep.item.orcTicketDesc'), descColor: '#ffee88' },
+      ticket_vampire: { category: tr('prep.quest.mapTicket'), categoryColor: '#ffdd55', desc: tr('prep.item.vampireTicketDesc'), descColor: '#ffee88' },
     };
 
     const showItemDetail = (item: import('../data/inventory-store').InventoryItem) => {
@@ -4960,15 +4972,15 @@ export class PrepScene extends Phaser.Scene {
         const tap = this.add.rectangle(cx2 + cellSz / 2, cy2 + cellSz / 2, cellSz, cellSz)
           .setInteractive({ useHandCursor: true }).setMask(gridMask);
         tap.on('pointerdown', (ptr: Phaser.Input.Pointer) => {
-          gridDragStartPY     = ptr.y;
+          gridDragStartPY = ptr.y;
           gridDragStartScroll = gridScrollY;
-          gridIsDragging      = false;
+          gridIsDragging = false;
         });
         tap.on('pointermove', (ptr: Phaser.Input.Pointer) => {
           if (!ptr.isDown) return;
           if (Math.abs(ptr.y - gridDragStartPY) > P(6)) {
             gridIsDragging = true;
-            gridScrollY    = Phaser.Math.Clamp(gridDragStartScroll - (ptr.y - gridDragStartPY), 0, gridMaxScroll);
+            gridScrollY = Phaser.Math.Clamp(gridDragStartScroll - (ptr.y - gridDragStartPY), 0, gridMaxScroll);
             gridContainer.y = -gridScrollY;
           }
         });
@@ -5063,13 +5075,13 @@ export class PrepScene extends Phaser.Scene {
     const INV_GAP = P(10);
     const invTotW = INV_COLS * CARD_W + (INV_COLS - 1) * INV_GAP;
     // 左右分割：左側卡片區 / 右側加成面板
-    const LEFT_W  = P(440);
-    const leftCX  = px + LEFT_W / 2;
+    const LEFT_W = P(440);
+    const leftCX = px + LEFT_W / 2;
     const RIGHT_X = px + LEFT_W;
     const RIGHT_W = PW - LEFT_W;
     const rightCX = RIGHT_X + RIGHT_W / 2;
     const slotsX0 = leftCX - slotsTotW / 2;
-    const invX0   = leftCX - invTotW / 2;
+    const invX0 = leftCX - invTotW / 2;
 
     // ── Equipped slots label ──────────────────────────────
     container.add(this.add.text(leftCX, slotsY - P(14), tr('prep.equip.equipped'), {
@@ -5812,7 +5824,7 @@ export class PrepScene extends Phaser.Scene {
 
       // ── Inventory scroll area ──────────────────────────
       let maxScroll = 0;
-      let applyScroll = (_dy: number) => {};
+      let applyScroll = (_dy: number) => { };
 
       if (invItems.length === 0) {
         contentCnt.add(this.add.text(leftCX, INV_TOP + INV_H / 2, tr('prep.card.noCards'), {
@@ -5915,63 +5927,63 @@ export class PrepScene extends Phaser.Scene {
         const lines: string[] = [];
         const pct = (v: number) => `${v >= 0 ? '+' : ''}${(v * 100).toFixed(0)}%`;
         const num = (v: number) => `${v >= 0 ? '+' : ''}${v}`;
-        if (b.atk)                lines.push(`${tr('stat.atk')} ${num(b.atk)}`);
-        if (b.hp)                 lines.push(`${tr('stat.hp')} ${num(b.hp)}`);
-        if (b.def)                lines.push(`${tr('stat.def')} ${num(b.def)}`);
-        if (b.crit)               lines.push(`${tr('stat.crit')} ${pct(b.crit)}`);
-        if (b.critDmg)            lines.push(`${tr('stat.critDmg')} ${pct(b.critDmg)}`);
-        if (b.atkSpeed)           lines.push(`${tr('stat.atkSpeed')} ${pct(b.atkSpeed)}`);
-        if (b.speed)              lines.push(`${tr('stat.speed')} ${num(b.speed)}`);
-        if (b.evasion)            lines.push(`${tr('stat.evasion')} ${pct(b.evasion)}`);
-        if (b.penetration)        lines.push(`${tr('stat.penetration')} ${num(b.penetration)}`);
-        if (b.dotBonus)           lines.push(`${tr('stat.dotBonus')} ${pct(b.dotBonus)}`);
-        if (b.hpRegen)            lines.push(`${tr('stat.hpRegen')} +${b.hpRegen.toFixed(1)}/s`);
-        if (b.lifesteal)          lines.push(`${tr('stat.lifesteal')} +${(b.lifesteal * 100).toFixed(1)}%`);
-        if (b.hpPct)              lines.push(`${tr('stat.hp')} ${pct(b.hpPct)}`);
-        if (b.maxHpPct)           lines.push(`${tr('stat.maxHpPct')} ${pct(b.maxHpPct)}`);
-        if (b.atkPct)             lines.push(`${tr('stat.atk')} ${pct(b.atkPct)}`);
-        if (b.allDmgPct)          lines.push(`${tr('stat.allDmgPct')} ${pct(b.allDmgPct)}`);
-        if (b.takenDmgPct)        lines.push(tr('card.stat.takenDmg', { val: pct(b.takenDmgPct) }));
-        if (b.dmgVsEliteOrBoss)   lines.push(tr('card.stat.vsEliteBoss', { val: pct(b.dmgVsEliteOrBoss) }));
-        if (b.dmgVsBoss)          lines.push(tr('card.stat.vsBoss', { val: pct(b.dmgVsBoss) }));
-        if (b.dmgVsSlime)         lines.push(tr('card.stat.vsSlime', { val: pct(b.dmgVsSlime) }));
-        if (b.dmgVsPlant)         lines.push(tr('card.stat.vsPlant', { val: pct(b.dmgVsPlant) }));
-        if (b.dmgVsAnyElement)    lines.push(tr('card.stat.vsElement', { val: pct(b.dmgVsAnyElement) }));
-        if (b.burnedEnemyDmgAmp)  lines.push(tr('card.stat.vsBurned', { val: pct(b.burnedEnemyDmgAmp) }));
-        if (b.condLowHpAtk)       lines.push(tr('card.stat.lowHpAtk', { n: b.condLowHpAtk }));
-        if (b.burnMaxStackBonus)  lines.push(tr('card.stat.burnStack', { n: b.burnMaxStackBonus }));
+        if (b.atk) lines.push(`${tr('stat.atk')} ${num(b.atk)}`);
+        if (b.hp) lines.push(`${tr('stat.hp')} ${num(b.hp)}`);
+        if (b.def) lines.push(`${tr('stat.def')} ${num(b.def)}`);
+        if (b.crit) lines.push(`${tr('stat.crit')} ${pct(b.crit)}`);
+        if (b.critDmg) lines.push(`${tr('stat.critDmg')} ${pct(b.critDmg)}`);
+        if (b.atkSpeed) lines.push(`${tr('stat.atkSpeed')} ${pct(b.atkSpeed)}`);
+        if (b.speed) lines.push(`${tr('stat.speed')} ${num(b.speed)}`);
+        if (b.evasion) lines.push(`${tr('stat.evasion')} ${pct(b.evasion)}`);
+        if (b.penetration) lines.push(`${tr('stat.penetration')} ${num(b.penetration)}`);
+        if (b.dotBonus) lines.push(`${tr('stat.dotBonus')} ${pct(b.dotBonus)}`);
+        if (b.hpRegen) lines.push(`${tr('stat.hpRegen')} +${b.hpRegen.toFixed(1)}/s`);
+        if (b.lifesteal) lines.push(`${tr('stat.lifesteal')} +${(b.lifesteal * 100).toFixed(1)}%`);
+        if (b.hpPct) lines.push(`${tr('stat.hp')} ${pct(b.hpPct)}`);
+        if (b.maxHpPct) lines.push(`${tr('stat.maxHpPct')} ${pct(b.maxHpPct)}`);
+        if (b.atkPct) lines.push(`${tr('stat.atk')} ${pct(b.atkPct)}`);
+        if (b.allDmgPct) lines.push(`${tr('stat.allDmgPct')} ${pct(b.allDmgPct)}`);
+        if (b.takenDmgPct) lines.push(tr('card.stat.takenDmg', { val: pct(b.takenDmgPct) }));
+        if (b.dmgVsEliteOrBoss) lines.push(tr('card.stat.vsEliteBoss', { val: pct(b.dmgVsEliteOrBoss) }));
+        if (b.dmgVsBoss) lines.push(tr('card.stat.vsBoss', { val: pct(b.dmgVsBoss) }));
+        if (b.dmgVsSlime) lines.push(tr('card.stat.vsSlime', { val: pct(b.dmgVsSlime) }));
+        if (b.dmgVsPlant) lines.push(tr('card.stat.vsPlant', { val: pct(b.dmgVsPlant) }));
+        if (b.dmgVsAnyElement) lines.push(tr('card.stat.vsElement', { val: pct(b.dmgVsAnyElement) }));
+        if (b.burnedEnemyDmgAmp) lines.push(tr('card.stat.vsBurned', { val: pct(b.burnedEnemyDmgAmp) }));
+        if (b.condLowHpAtk) lines.push(tr('card.stat.lowHpAtk', { n: b.condLowHpAtk }));
+        if (b.burnMaxStackBonus) lines.push(tr('card.stat.burnStack', { n: b.burnMaxStackBonus }));
         if (b.summonFlowerDmgPct) lines.push(tr('card.stat.summonDmg', { val: pct(b.summonFlowerDmgPct) }));
-        if (b.skillFlowerHpPct)   lines.push(tr('card.stat.summonHp', { val: pct(b.skillFlowerHpPct) }));
-        if (b.freeRevive)         lines.push(tr('card.stat.revive', { n: b.freeRevive }));
+        if (b.skillFlowerHpPct) lines.push(tr('card.stat.summonHp', { val: pct(b.skillFlowerHpPct) }));
+        if (b.freeRevive) lines.push(tr('card.stat.revive', { n: b.freeRevive }));
         if (b.divineShieldChance) lines.push(tr('card.stat.shieldChance', { val: pct(b.divineShieldChance) }));
-        if (b.executeBelow15)     lines.push(tr('card.stat.execute'));
-        if (b.critDmgMult  && b.critDmgMult  !== 1) lines.push(tr('card.stat.critDmgMult', { n: b.critDmgMult.toFixed(2) }));
+        if (b.executeBelow15) lines.push(tr('card.stat.execute'));
+        if (b.critDmgMult && b.critDmgMult !== 1) lines.push(tr('card.stat.critDmgMult', { n: b.critDmgMult.toFixed(2) }));
         if (b.atkSpeedMult && b.atkSpeedMult !== 1) lines.push(tr('card.stat.atkSpeedMult', { n: b.atkSpeedMult.toFixed(2) }));
         if (b.summonDmgMult && b.summonDmgMult !== 1) lines.push(tr('card.stat.summonDmgMult', { n: b.summonDmgMult.toFixed(2) }));
-        if (b.defToEvasion)       lines.push(tr('card.stat.defToEvasion', { n: b.defToEvasion }));
-        if (b.condPenAtk)         lines.push(tr('card.stat.penAtk', { n: b.condPenAtk }));
-        if (b.condCritDmgBonus)   lines.push(tr('card.stat.condCritDmg', { val: pct(b.condCritDmgBonus) }));
+        if (b.defToEvasion) lines.push(tr('card.stat.defToEvasion', { n: b.defToEvasion }));
+        if (b.condPenAtk) lines.push(tr('card.stat.penAtk', { n: b.condPenAtk }));
+        if (b.condCritDmgBonus) lines.push(tr('card.stat.condCritDmg', { val: pct(b.condCritDmgBonus) }));
         if (b.blazingShieldChance) lines.push(tr('card.stat.blazingShield', {
           chance: (b.blazingShieldChance * 100).toFixed(0),
-          atk:    pct(b.blazingShieldAtkPct ?? 0),
-          sec:    ((b.blazingShieldMs ?? 1000) / 1000).toFixed(1),
+          atk: pct(b.blazingShieldAtkPct ?? 0),
+          sec: ((b.blazingShieldMs ?? 1000) / 1000).toFixed(1),
         }));
         if (b.blazingShieldHealPct) lines.push(tr('card.stat.blazingShieldHeal', { val: pct(b.blazingShieldHealPct) }));
-        if (b.critToAtk)          lines.push(tr('card.stat.critToAtk', { n: b.critToAtk }));
-        if (b.impaleDmgPct)       lines.push(tr('card.stat.impaleDmg', { val: pct(b.impaleDmgPct) }));
-        if (b.regenShieldMax)    lines.push(tr('card.stat.regenShieldMax', { n: b.regenShieldMax }));
+        if (b.critToAtk) lines.push(tr('card.stat.critToAtk', { n: b.critToAtk }));
+        if (b.impaleDmgPct) lines.push(tr('card.stat.impaleDmg', { val: pct(b.impaleDmgPct) }));
+        if (b.regenShieldMax) lines.push(tr('card.stat.regenShieldMax', { n: b.regenShieldMax }));
         if (b.regenShieldMaxPct) lines.push(tr('card.stat.regenShieldMaxPct', { val: pct(b.regenShieldMaxPct) }));
-        if (b.standstillDmgPct)   lines.push(tr('card.stat.standstillDmg', { val: pct(b.standstillDmgPct) }));
+        if (b.standstillDmgPct) lines.push(tr('card.stat.standstillDmg', { val: pct(b.standstillDmgPct) }));
         if (b.standstillDmgReductionPct) lines.push(tr('card.stat.standstillReduction', { val: pct(b.standstillDmgReductionPct) }));
         if (b.onHitLightningChance) lines.push(tr('card.stat.onHitLightning', { val: pct(b.onHitLightningChance) }));
-        if (b.onHitKnifeChance)   lines.push(tr('card.stat.onHitKnife', { val: pct(b.onHitKnifeChance) }));
+        if (b.onHitKnifeChance) lines.push(tr('card.stat.onHitKnife', { val: pct(b.onHitKnifeChance) }));
         return lines;
       };
 
-      const RP_PAD  = P(8);
-      const RP_TX   = RIGHT_X + RP_PAD;
-      const RP_W    = RIGHT_W - RP_PAD * 2;
-      const LINE_H  = P(17);
+      const RP_PAD = P(8);
+      const RP_TX = RIGHT_X + RP_PAD;
+      const RP_W = RIGHT_W - RP_PAD * 2;
+      const LINE_H = P(17);
       let ry = py + P(62);
 
       // — 卡片效果 —
@@ -6084,7 +6096,7 @@ export class PrepScene extends Phaser.Scene {
     // Auto-update on card change
     const onCardChange = () => {
       if (cardScrollHandler) this.input.off('pointermove', cardScrollHandler);
-      if (cardWheelHandler)  this.input.off('wheel', cardWheelHandler);
+      if (cardWheelHandler) this.input.off('wheel', cardWheelHandler);
       rebuild();
     };
     CardStore.onChange(onCardChange);
@@ -6092,7 +6104,7 @@ export class PrepScene extends Phaser.Scene {
     const cleanup = () => {
       CardStore.offChange(onCardChange);
       if (cardScrollHandler) this.input.off('pointermove', cardScrollHandler);
-      if (cardWheelHandler)  this.input.off('wheel', cardWheelHandler);
+      if (cardWheelHandler) this.input.off('wheel', cardWheelHandler);
     };
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, cleanup);
   }
@@ -6322,8 +6334,8 @@ export class PrepScene extends Phaser.Scene {
     // ── Tab definitions ────────────────────────────────────
     type ShopItem = { id: string; name: string; price: number; desc: string; color: number };
     const POTION_ITEMS: ShopItem[] = [
-      { id: ITEM_POTION_HEALTH_S, name: tr('item.potion_health_s'), price: 225,  desc: tr('game.potion.heal100'), color: 0x44ff88 },
-      { id: ITEM_POTION_HEALTH_M, name: tr('item.potion_health_m'), price: 495,  desc: tr('game.potion.heal200'), color: 0x44ddff },
+      { id: ITEM_POTION_HEALTH_S, name: tr('item.potion_health_s'), price: 225, desc: tr('game.potion.heal100'), color: 0x44ff88 },
+      { id: ITEM_POTION_HEALTH_M, name: tr('item.potion_health_m'), price: 495, desc: tr('game.potion.heal200'), color: 0x44ddff },
       { id: ITEM_POTION_HEALTH_L, name: tr('item.potion_health_l'), price: 1050, desc: tr('game.potion.heal300'), color: 0xff88ff },
       { id: ITEM_POTION_ATK, name: tr('item.potion_atk'), price: 2000, desc: '傷害+20%，持續30秒', color: 0xff6644 },
       { id: ITEM_POTION_DEF, name: tr('item.potion_def'), price: 2000, desc: 'DEF+20，持續30秒', color: 0x44aaff },
@@ -7135,18 +7147,18 @@ export class PrepScene extends Phaser.Scene {
   }
 
   private async _showRankingPanel(W: number, H: number): Promise<void> {
-    const PW      = Math.min(W - P(8), P(360));
-    const PH      = Math.min(H - P(16), P(460));
-    const D       = 8000;
-    const px      = -PW / 2, py = -PH / 2;
+    const PW = Math.min(W - P(8), P(360));
+    const PH = Math.min(H - P(16), P(460));
+    const D = 8000;
+    const px = -PW / 2, py = -PH / 2;
     const HEADER_H = P(68);
     const FOOTER_H = P(38);
-    const ROW_H   = P(42);
+    const ROW_H = P(42);
     const ROW_PAD = P(3);
-    const ROW_L   = px + P(12);
-    const ROW_W   = PW - P(24);
+    const ROW_L = px + P(12);
+    const ROW_W = PW - P(24);
     const BODY_TOP = py + HEADER_H;   // local Y where body starts
-    const BODY_H  = PH - HEADER_H - FOOTER_H;
+    const BODY_H = PH - HEADER_H - FOOTER_H;
 
     const container = this.add.container(W / 2, H / 2).setDepth(D);
 
@@ -7217,10 +7229,10 @@ export class PrepScene extends Phaser.Scene {
     let entries: LBEntry[] = [];
     let fetchError = false;
     try {
-      const raw    = localStorage.getItem('rg_user');
-      const token  = raw ? (JSON.parse(raw) as { accessToken: string }).accessToken : '';
+      const raw = localStorage.getItem('rg_user');
+      const token = raw ? (JSON.parse(raw) as { accessToken: string }).accessToken : '';
       const apiUrl = (window as any).__apiUrl as string ?? '';
-      const resp   = await fetch(`${apiUrl}/leaderboard/level`, {
+      const resp = await fetch(`${apiUrl}/leaderboard/level`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       if (resp.ok) entries = await resp.json();
@@ -7241,7 +7253,7 @@ export class PrepScene extends Phaser.Scene {
     }
 
     // ── Current player ────────────────────────────────────────────
-    const myRaw      = localStorage.getItem('rg_user');
+    const myRaw = localStorage.getItem('rg_user');
     const myPlayerId = myRaw ? (JSON.parse(myRaw) as any).playerId ?? '' : '';
 
     // ── Scrollable rows container ─────────────────────────────────
@@ -7260,7 +7272,7 @@ export class PrepScene extends Phaser.Scene {
 
     entries.forEach((entry, i) => {
       if (entry.playerId === myPlayerId) myRank = i + 1;
-      const ry   = P(6) + i * (ROW_H + ROW_PAD);
+      const ry = P(6) + i * (ROW_H + ROW_PAD);
       const isMe = entry.playerId === myPlayerId;
 
       const rowBg = this.add.graphics();
@@ -7336,12 +7348,12 @@ export class PrepScene extends Phaser.Scene {
     }
 
     // ── Scroll logic ──────────────────────────────────────────────
-    const totalH   = P(6) + entries.length * (ROW_H + ROW_PAD);
+    const totalH = P(6) + entries.length * (ROW_H + ROW_PAD);
     const maxScroll = Math.max(0, totalH - BODY_H);
 
-    let scrollY    = 0;
+    let scrollY = 0;
     let isDragging = false;
-    let lastPY     = 0;
+    let lastPY = 0;
 
     const inBody = (p: Phaser.Input.Pointer) =>
       p.x >= W / 2 + px && p.x <= W / 2 + px + PW &&
@@ -7354,10 +7366,10 @@ export class PrepScene extends Phaser.Scene {
     const onMove = (p: Phaser.Input.Pointer) => {
       if (!isDragging || !container.active) return;
       scrollY = Phaser.Math.Clamp(scrollY + (lastPY - p.y), 0, maxScroll);
-      lastPY  = p.y;
+      lastPY = p.y;
       scrollCnt.y = BODY_TOP - scrollY;
     };
-    const onUp   = () => { isDragging = false; };
+    const onUp = () => { isDragging = false; };
     const onWheel = (_p: unknown, _go: unknown, _dx: number, dy: number) => {
       if (!container.active) return;
       scrollY = Phaser.Math.Clamp(scrollY + dy * 0.6, 0, maxScroll);
@@ -7366,14 +7378,14 @@ export class PrepScene extends Phaser.Scene {
 
     this.input.on('pointerdown', onDown);
     this.input.on('pointermove', onMove);
-    this.input.on('pointerup',   onUp);
-    this.input.on('wheel',       onWheel);
+    this.input.on('pointerup', onUp);
+    this.input.on('wheel', onWheel);
 
     container.once('destroy', () => {
       this.input.off('pointerdown', onDown);
       this.input.off('pointermove', onMove);
-      this.input.off('pointerup',   onUp);
-      this.input.off('wheel',       onWheel);
+      this.input.off('pointerup', onUp);
+      this.input.off('wheel', onWheel);
       maskGfx.destroy();
     });
   }
@@ -7382,19 +7394,19 @@ export class PrepScene extends Phaser.Scene {
   private _showAltarPanel(W: number, H: number): void {
     const PW = Math.min(P(400), W - P(24));
     const PH = Math.min(P(500), H - P(40));
-    const D  = 600;
+    const D = 600;
     const px = -PW / 2, py = -PH / 2;
 
     const HEADER_H = P(72);
     const FOOTER_H = P(24);
-    const CLIP_TOP  = py + HEADER_H;
-    const CLIP_H    = PH - HEADER_H - FOOTER_H;
+    const CLIP_TOP = py + HEADER_H;
+    const CLIP_H = PH - HEADER_H - FOOTER_H;
 
     // ── 神秘石壇配色 ────────────────────────────────────────────────
-    const AC_BG      = 0x0c0818;  // 極深紫黑
-    const AC_BORDER  = 0x7744cc;  // 外框紫
+    const AC_BG = 0x0c0818;  // 極深紫黑
+    const AC_BORDER = 0x7744cc;  // 外框紫
     const AC_BORDER2 = 0x3a1e88;  // 內框深紫
-    const AC_HEAD    = 0x18083a;  // 標題欄深紫
+    const AC_HEAD = 0x18083a;  // 標題欄深紫
 
     const container = this.add.container(W / 2, H / 2).setDepth(D);
 
@@ -7407,12 +7419,12 @@ export class PrepScene extends Phaser.Scene {
 
     // Panel shell（紫色邊框＋深紫背景）
     const bg = this.add.graphics();
-    bg.fillStyle(AC_BORDER, 1);  bg.fillRoundedRect(px - P(3), py - P(3), PW + P(6), PH + P(6), P(14));
+    bg.fillStyle(AC_BORDER, 1); bg.fillRoundedRect(px - P(3), py - P(3), PW + P(6), PH + P(6), P(14));
     bg.fillStyle(AC_BORDER2, 1); bg.fillRoundedRect(px - P(1), py - P(1), PW + P(2), PH + P(2), P(12));
-    bg.fillStyle(AC_BG, 1);      bg.fillRoundedRect(px, py, PW, PH, P(12));
+    bg.fillStyle(AC_BG, 1); bg.fillRoundedRect(px, py, PW, PH, P(12));
     // 標題欄底色
-    bg.fillStyle(AC_HEAD, 1);    bg.fillRoundedRect(px, py, PW, HEADER_H, P(12));
-    bg.fillStyle(AC_HEAD, 1);    bg.fillRect(px, py + P(8), PW, HEADER_H - P(8));
+    bg.fillStyle(AC_HEAD, 1); bg.fillRoundedRect(px, py, PW, HEADER_H, P(12));
+    bg.fillStyle(AC_HEAD, 1); bg.fillRect(px, py + P(8), PW, HEADER_H - P(8));
     // 標題欄底線
     bg.lineStyle(P(1), AC_BORDER, 0.6); bg.lineBetween(px + P(12), py + HEADER_H, px + PW - P(12), py + HEADER_H);
     container.add(bg);
@@ -7428,16 +7440,18 @@ export class PrepScene extends Phaser.Scene {
     const infoBtnX = px + P(22), infoBtnY = py + P(22);
     const infoBtnSz = P(24);
     const infoBtnGfx = this.add.graphics();
-    infoBtnGfx.fillStyle(0x2a1255, 1); infoBtnGfx.fillRoundedRect(infoBtnX - infoBtnSz/2, infoBtnY - infoBtnSz/2, infoBtnSz, infoBtnSz, P(5));
-    infoBtnGfx.lineStyle(P(1.5), 0xaa66ff, 0.9); infoBtnGfx.strokeRoundedRect(infoBtnX - infoBtnSz/2, infoBtnY - infoBtnSz/2, infoBtnSz, infoBtnSz, P(5));
-    infoBtnGfx.fillStyle(0xaa66ff, 0.15); infoBtnGfx.fillRect(infoBtnX - infoBtnSz/2 + P(2), infoBtnY - infoBtnSz/2 + P(2), infoBtnSz - P(4), P(2));
+    infoBtnGfx.fillStyle(0x2a1255, 1); infoBtnGfx.fillRoundedRect(infoBtnX - infoBtnSz / 2, infoBtnY - infoBtnSz / 2, infoBtnSz, infoBtnSz, P(5));
+    infoBtnGfx.lineStyle(P(1.5), 0xaa66ff, 0.9); infoBtnGfx.strokeRoundedRect(infoBtnX - infoBtnSz / 2, infoBtnY - infoBtnSz / 2, infoBtnSz, infoBtnSz, P(5));
+    infoBtnGfx.fillStyle(0xaa66ff, 0.15); infoBtnGfx.fillRect(infoBtnX - infoBtnSz / 2 + P(2), infoBtnY - infoBtnSz / 2 + P(2), infoBtnSz - P(4), P(2));
     container.add(infoBtnGfx);
     const infoBtn = this.add.text(infoBtnX, infoBtnY, 'ℹ', {
       fontSize: F(13), fontStyle: 'bold', color: '#cc99ff',
       stroke: '#0a0018', strokeThickness: P(1),
-    }).setOrigin(0.5).setInteractive({ useHandCursor: true,
-      hitArea: new Phaser.Geom.Rectangle(-infoBtnSz/2, -infoBtnSz/2, infoBtnSz, infoBtnSz),
-      hitAreaCallback: Phaser.Geom.Rectangle.Contains });
+    }).setOrigin(0.5).setInteractive({
+      useHandCursor: true,
+      hitArea: new Phaser.Geom.Rectangle(-infoBtnSz / 2, -infoBtnSz / 2, infoBtnSz, infoBtnSz),
+      hitAreaCallback: Phaser.Geom.Rectangle.Contains
+    });
     infoBtn.on('pointerdown', () => {
       if (infoTooltip) { infoTooltip.destroy(); infoTooltip = null; return; }
       const tw = P(210), th = P(44);
@@ -7446,15 +7460,15 @@ export class PrepScene extends Phaser.Scene {
 
       const tbg = this.add.graphics();
       // 外發光框
-      tbg.fillStyle(0xaa66ff, 0.5); tbg.fillRoundedRect(-tw/2 - P(3), -th/2 - P(3), tw + P(6), th + P(6), P(9));
+      tbg.fillStyle(0xaa66ff, 0.5); tbg.fillRoundedRect(-tw / 2 - P(3), -th / 2 - P(3), tw + P(6), th + P(6), P(9));
       // 主背景
-      tbg.fillStyle(0x1e0e3a, 1);   tbg.fillRoundedRect(-tw/2, -th/2, tw, th, P(7));
+      tbg.fillStyle(0x1e0e3a, 1); tbg.fillRoundedRect(-tw / 2, -th / 2, tw, th, P(7));
       // 頂部高光條
-      tbg.fillStyle(0xaa66ff, 0.25); tbg.fillRect(-tw/2 + P(2), -th/2 + P(2), tw - P(4), P(3));
+      tbg.fillStyle(0xaa66ff, 0.25); tbg.fillRect(-tw / 2 + P(2), -th / 2 + P(2), tw - P(4), P(3));
       // 外框線
-      tbg.lineStyle(P(1.5), 0xaa66ff, 0.9); tbg.strokeRoundedRect(-tw/2, -th/2, tw, th, P(7));
+      tbg.lineStyle(P(1.5), 0xaa66ff, 0.9); tbg.strokeRoundedRect(-tw / 2, -th / 2, tw, th, P(7));
       // 內細框
-      tbg.lineStyle(P(1), 0xffffff, 0.08); tbg.strokeRoundedRect(-tw/2 + P(2), -th/2 + P(2), tw - P(4), th - P(4), P(5));
+      tbg.lineStyle(P(1), 0xffffff, 0.08); tbg.strokeRoundedRect(-tw / 2 + P(2), -th / 2 + P(2), tw - P(4), th - P(4), P(5));
       infoTooltip.add(tbg);
 
       infoTooltip.add(this.add.text(0, 0, tr('prep.quest.ticketSource'), {
@@ -7479,20 +7493,20 @@ export class PrepScene extends Phaser.Scene {
     container.add(closeBtn);
 
     const SERIES: { itemId: string; iconKey: string; seriesName: string; bossName: string; color: number }[] = [
-      { itemId: ITEM_TICKET_SLIME,   iconKey: 'icon_ticket_slime',   seriesName: tr('prep.item.slimeSlime'),  bossName: tr('prep.equip.slimeLegendary'),   color: 0x44ee99 },
-      { itemId: ITEM_TICKET_FLOWER,  iconKey: 'icon_ticket_flower',  seriesName: tr('prep.item.plantEssence'),    bossName: tr('prep.equip.flowerLegendary'),       color: 0x99ee44 },
-      { itemId: ITEM_TICKET_ORC,     iconKey: 'icon_ticket_orc',     seriesName: tr('prep.item.orcCrown'),    bossName: tr('prep.equip.orcLegendary'),     color: 0xeebb44 },
-      { itemId: ITEM_TICKET_VAMPIRE, iconKey: 'icon_ticket_vampire', seriesName: tr('prep.party.inviteFunc'),      bossName: tr('prep.equip.vampireLegendary'),   color: 0xdd77ff },
+      { itemId: ITEM_TICKET_SLIME, iconKey: 'icon_ticket_slime', seriesName: tr('prep.item.slimeSlime'), bossName: tr('prep.equip.slimeLegendary'), color: 0x44ee99 },
+      { itemId: ITEM_TICKET_FLOWER, iconKey: 'icon_ticket_flower', seriesName: tr('prep.item.plantEssence'), bossName: tr('prep.equip.flowerLegendary'), color: 0x99ee44 },
+      { itemId: ITEM_TICKET_ORC, iconKey: 'icon_ticket_orc', seriesName: tr('prep.item.orcCrown'), bossName: tr('prep.equip.orcLegendary'), color: 0xeebb44 },
+      { itemId: ITEM_TICKET_VAMPIRE, iconKey: 'icon_ticket_vampire', seriesName: tr('prep.party.inviteFunc'), bossName: tr('prep.equip.vampireLegendary'), color: 0xdd77ff },
     ];
 
     const ROW_H = P(84), ROW_GAP = P(8);
     const BTN_W = P(76), BTN_H = P(32);
     const ICON_SZ = P(52);
-    const ROW_L   = px + P(10);
-    const ROW_W   = PW - P(20);
+    const ROW_L = px + P(10);
+    const ROW_W = PW - P(20);
     const ICON_CX = ROW_L + P(10) + ICON_SZ / 2;
-    const TEXT_X  = ROW_L + P(10) + ICON_SZ + P(10);
-    const BTN_CX  = px + PW - P(14) - BTN_W / 2;
+    const TEXT_X = ROW_L + P(10) + ICON_SZ + P(10);
+    const BTN_CX = px + PW - P(14) - BTN_W / 2;
     const CONTENT_H = SERIES.length * ROW_H + (SERIES.length - 1) * ROW_GAP;
     const maxScroll = Math.max(0, CONTENT_H - CLIP_H);
 
@@ -7511,9 +7525,9 @@ export class PrepScene extends Phaser.Scene {
     };
 
     const LEGENDARY_BOSS_MAP: Record<string, string> = {
-      [ITEM_TICKET_SLIME]:   'boss_slime_legendary',
-      [ITEM_TICKET_FLOWER]:  'boss_flower_legendary',
-      [ITEM_TICKET_ORC]:     'boss_orc_legendary',
+      [ITEM_TICKET_SLIME]: 'boss_slime_legendary',
+      [ITEM_TICKET_FLOWER]: 'boss_flower_legendary',
+      [ITEM_TICKET_ORC]: 'boss_orc_legendary',
       [ITEM_TICKET_VAMPIRE]: 'boss_vampire_legendary',
     };
 
@@ -7522,16 +7536,16 @@ export class PrepScene extends Phaser.Scene {
 
     const showWeaponPopup = (s: typeof SERIES[0]) => {
       weaponPopup?.destroy();
-      const bossId   = LEGENDARY_BOSS_MAP[s.itemId];
+      const bossId = LEGENDARY_BOSS_MAP[s.itemId];
       const weaponId = bossId ? LEGENDARY_BOSS_WEAPON[bossId] : undefined;
       if (!weaponId) return;
       const weapon = generateLegendaryWeapon(weaponId);
 
-      const popW   = P(240);
-      const rowH   = P(26);
-      const iSz    = P(52);
-      const bodyH  = (weapon.affixes.length + 1) * rowH;
-      const popH   = P(48) + P(8) + iSz + P(8) + bodyH + P(28);
+      const popW = P(240);
+      const rowH = P(26);
+      const iSz = P(52);
+      const bodyH = (weapon.affixes.length + 1) * rowH;
+      const popH = P(48) + P(8) + iSz + P(8) + bodyH + P(28);
 
       weaponPopup = this.add.container(0, popCenterY).setDepth(D + 20);
       container.add(weaponPopup);
@@ -7641,15 +7655,15 @@ export class PrepScene extends Phaser.Scene {
       if (!bossId) return;
       const bossDef = getMonsterDef(bossId);
       if (!bossDef || !bossDef.cards.length) return;
-      const cardId  = bossDef.cards[0].cardId;
-      const card    = getCardDef(cardId);
+      const cardId = bossDef.cards[0].cardId;
+      const card = getCardDef(cardId);
       if (!card) return;
 
-      const popW  = P(240);
-      const iSz   = P(48);
+      const popW = P(240);
+      const iSz = P(48);
       const descH = P(60);
-      const popH  = P(48) + P(8) + iSz + P(8) + descH + P(28);
-      const RED   = 0xff2244;
+      const popH = P(48) + P(8) + iSz + P(8) + descH + P(28);
+      const RED = 0xff2244;
       const tintHex = `#${card.tint.toString(16).padStart(6, '0')}`;
 
       cardDropPopup = this.add.container(0, popCenterY).setDepth(D + 20);
@@ -8018,13 +8032,13 @@ export class PrepScene extends Phaser.Scene {
 
   private createTownWorld(W: number, H: number): void {
     // BOTTOM_H from global constant
-    const VIEW_Y   = TOP_H;
-    const VIEW_W   = W;
-    const VIEW_H   = H - TOP_H - BOTTOM_H;
+    const VIEW_Y = TOP_H;
+    const VIEW_W = W;
+    const VIEW_H = H - TOP_H - BOTTOM_H;
     this._townViewW = VIEW_W;
     this._townViewH = VIEW_H;
     this._townViewY = VIEW_Y;
-    this._heroY     = VIEW_Y + VIEW_H / 2;
+    this._heroY = VIEW_Y + VIEW_H / 2;
 
     // Container for all scrollable world objects, clipped to viewport
     this._townContainer = this.add.container(0, VIEW_Y).setDepth(2);
@@ -8051,17 +8065,17 @@ export class PrepScene extends Phaser.Scene {
       const kb = this.input.keyboard;
       this._townCursors = kb.createCursorKeys();
       this._townWasd = {
-        up:    kb.addKey(Phaser.Input.Keyboard.KeyCodes.W),
-        down:  kb.addKey(Phaser.Input.Keyboard.KeyCodes.S),
-        left:  kb.addKey(Phaser.Input.Keyboard.KeyCodes.A),
+        up: kb.addKey(Phaser.Input.Keyboard.KeyCodes.W),
+        down: kb.addKey(Phaser.Input.Keyboard.KeyCodes.S),
+        left: kb.addKey(Phaser.Input.Keyboard.KeyCodes.A),
         right: kb.addKey(Phaser.Input.Keyboard.KeyCodes.D),
       };
-      const onFocusIn  = (e: FocusEvent) => { if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) { kb.enabled = false; kb.disableGlobalCapture(); } };
-      const onFocusOut = (e: FocusEvent) => { if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) { kb.enabled = true;  kb.enableGlobalCapture();  } };
-      document.addEventListener('focusin',  onFocusIn);
+      const onFocusIn = (e: FocusEvent) => { if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) { kb.enabled = false; kb.disableGlobalCapture(); } };
+      const onFocusOut = (e: FocusEvent) => { if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) { kb.enabled = true; kb.enableGlobalCapture(); } };
+      document.addEventListener('focusin', onFocusIn);
       document.addEventListener('focusout', onFocusOut);
       this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
-        document.removeEventListener('focusin',  onFocusIn);
+        document.removeEventListener('focusin', onFocusIn);
         document.removeEventListener('focusout', onFocusOut);
       });
     }
@@ -8115,11 +8129,11 @@ export class PrepScene extends Phaser.Scene {
     const POOL: Record<number, number[]> = {
       0b0000: [0, 10, 17, 19, 26],    // interior cobble
       0b1000: [6, 33, 34, 35, 36],    // grass N  (top edge)
-      0b0100: [1,  2,  3],            // grass S  (bottom edge)
+      0b0100: [1, 2, 3],            // grass S  (bottom edge)
       0b0010: [12, 20, 28],           // grass W  (left edge)
-      0b0001: [8,  16, 24],           // grass E  (right edge)
-      0b1010: [5,  9],                // grass N+W (TL outer corner)
-      0b1001: [7,  11],               // grass N+E (TR outer corner)
+      0b0001: [8, 16, 24],           // grass E  (right edge)
+      0b1010: [5, 9],                // grass N+W (TL outer corner)
+      0b1001: [7, 11],               // grass N+E (TR outer corner)
       0b0110: [21, 25],               // grass S+W (BL outer corner)
       0b0101: [23, 27],               // grass S+E (BR outer corner)
       0b1100: [29, 30, 38],           // grass N+S (thin vertical path)
@@ -8131,9 +8145,9 @@ export class PrepScene extends Phaser.Scene {
       0b1111: [46],                   // isolated single tile
     };
 
-    const TS    = Math.round(32 * DPR);
-    const COLS  = Math.ceil(WW / TS);
-    const ROWS  = Math.ceil(WH / TS);
+    const TS = Math.round(32 * DPR);
+    const COLS = Math.ceil(WW / TS);
+    const ROWS = Math.ceil(WH / TS);
 
     // ── Build cobblestone grid ────────────────────────────────────────────────
     const grid = new Uint8Array(COLS * ROWS);
@@ -8149,7 +8163,7 @@ export class PrepScene extends Phaser.Scene {
     // Road widths in tiles so they stay consistent across screen sizes
     const rW = TS / WW;   // 1 tile as fraction of WW
     const rH = TS / WH;   // 1 tile as fraction of WH
-    const R  = 2.0;        // main road width (tiles) — 2 guarantees ≥2 rows/cols regardless of yf alignment
+    const R = 2.0;        // main road width (tiles) — 2 guarantees ≥2 rows/cols regardless of yf alignment
 
     fill(0.42, 0.00, rW * R, 0.93);      // V_main: N-S spine (gate → 出戰 → spawn → 造型)
 
@@ -8174,7 +8188,7 @@ export class PrepScene extends Phaser.Scene {
           (isC(r + 1, c) ? 0 : 4) |
           (isC(r, c - 1) ? 0 : 2) |
           (isC(r, c + 1) ? 0 : 1);
-        const pool  = POOL[mask] ?? POOL[0b0000];
+        const pool = POOL[mask] ?? POOL[0b0000];
         const frame = pool[(r * 7 + c * 13) % pool.length];
         stamper.setFrame(frame).setPosition(c * TS, r * TS);
         rt.batchDraw(stamper);
@@ -8198,9 +8212,9 @@ export class PrepScene extends Phaser.Scene {
 
         const wx = c * TS + TS / 2;
         const wy = r * TS + TS / 2;
-        const h1 = (r * 1619 + c * 3167 + r * c * 7)   % 100;
-        const h2 = (r * 2311 + c * 1447 + r * c * 13)  % 100;
-        const h3 = (r * 3571 + c * 2741 + r * c * 17)  % 100;
+        const h1 = (r * 1619 + c * 3167 + r * c * 7) % 100;
+        const h2 = (r * 2311 + c * 1447 + r * c * 13) % 100;
+        const h3 = (r * 3571 + c * 2741 + r * c * 17) % 100;
 
         // stones ~6 % (decorative only, no collision)
         if (h1 < 6) {
@@ -8248,15 +8262,15 @@ export class PrepScene extends Phaser.Scene {
       if (!this.anims.exists(key))
         this.anims.create({ key, frames: this.anims.generateFrameNumbers(tex, { start: s, end: e }), frameRate: rate, repeat: -1 });
     };
-    mk('player_idle_down',  'player_idle_shadow', 0,  3,  8);
-    mk('player_idle_left',  'player_idle_shadow', 12, 15, 8);
+    mk('player_idle_down', 'player_idle_shadow', 0, 3, 8);
+    mk('player_idle_left', 'player_idle_shadow', 12, 15, 8);
     mk('player_idle_right', 'player_idle_shadow', 24, 27, 8);
-    mk('player_idle_up',    'player_idle_shadow', 36, 39, 8);
+    mk('player_idle_up', 'player_idle_shadow', 36, 39, 8);
     if (this.textures.exists('player_run_shadow')) {
-      mk('player_run_down',  'player_run_shadow', 0,  7,  10);
-      mk('player_run_left',  'player_run_shadow', 8,  15, 10);
+      mk('player_run_down', 'player_run_shadow', 0, 7, 10);
+      mk('player_run_left', 'player_run_shadow', 8, 15, 10);
       mk('player_run_right', 'player_run_shadow', 16, 23, 10);
-      mk('player_run_up',    'player_run_shadow', 24, 31, 10);
+      mk('player_run_up', 'player_run_shadow', 24, 31, 10);
     }
 
     this._townPlayerX = WW * 0.50;
@@ -8284,11 +8298,11 @@ export class PrepScene extends Phaser.Scene {
 
   private _createForestBorder(WW: number, WH: number): void {
     if (!this.textures.exists('tree_oak')) return;
-    const TS   = Math.round(32 * DPR);
+    const TS = Math.round(32 * DPR);
     const STEP = Math.round(TS * 1.5);
     const EDGE = Math.round(TS * 0.6);
 
-    const gateX  = WW * 0.44;
+    const gateX = WW * 0.44;
     const gateHW = TS * 1.2;
 
     // Deterministic pseudo-random from world position + salt
@@ -8362,18 +8376,18 @@ export class PrepScene extends Phaser.Scene {
       placeSide(EDGE * 0.5, y);
     placeSide(EDGE * 0.5, BOTTOM_Y + STEP * 0.6);
     // Corner fill: 2 trees to bridge gap between side column and bottom row
-    place(EDGE * 0.5,  BOTTOM_Y, true);
+    place(EDGE * 0.5, BOTTOM_Y, true);
     place(STEP * 0.35, BOTTOM_Y, true);
 
     for (let y = STEP; y <= BOTTOM_Y + STEP; y += STEP)
       placeSide(WW - EDGE * 0.5, y);
-    place(WW - EDGE * 0.5,  BOTTOM_Y, true);
+    place(WW - EDGE * 0.5, BOTTOM_Y, true);
     place(WW - STEP * 0.35, BOTTOM_Y, true);
 
     // Top wall collision — two rects either side of the gate gap
-    const wallY  = EDGE + TS * 0.5;
-    const wallH  = TS * 1.2;  // collision thickness
-    const leftW  = gateX - gateHW;
+    const wallY = EDGE + TS * 0.5;
+    const wallH = TS * 1.2;  // collision thickness
+    const leftW = gateX - gateHW;
     const rightW = WW - (gateX + gateHW);
     if (leftW > 0)
       this._townBuildingRects.push({ cx: leftW / 2, cy: wallY, hw: leftW / 2, hh: wallH / 2 });
@@ -8385,8 +8399,8 @@ export class PrepScene extends Phaser.Scene {
 
     // Path trees — flank the entrance corridor from gate down to 出戰 building
     const PATH_END_Y = WH * 0.30;         // ↓ 調這裡：停在建築前多高
-    const PATH_L_X   = gateX - gateHW * 2.2;  // ↓ 調這裡：左排 x
-    const PATH_R_X   = gateX + gateHW * 2.8;  // ↓ 調這裡：右排 x
+    const PATH_L_X = gateX - gateHW * 2.2;  // ↓ 調這裡：左排 x
+    const PATH_R_X = gateX + gateHW * 2.8;  // ↓ 調這裡：右排 x
     const PCW = P(20), PCH = P(12); // path tree collision size (same as stumps)
     const placePathTree = (bx: number, by: number) => {
       place(bx, by, false);
@@ -8467,44 +8481,56 @@ export class PrepScene extends Phaser.Scene {
       debugBox?: boolean;
       onActivate: () => void;
     }> = [
-      { xf: 0.45, yf: 0.20, icon: '⚔', label: tr('prep.quest.activeBtn'),  color: 0xcc4400, buildingKey: 'building_battle',
-        tapW: P(80), tapH: P(72), collW: P(120), collH: P(55), shadow: true, buildingScale: 1.4, labelBelow: true, onActivate: () => {
-          if (this._partyState === 'in_party' && !this._amPartyLeader) { this._showToast(tr('prep.party.notHost')); return; }
-          this._showTutorialHint('quest', '⚔', tr('prep.quest.chooseMap'),
-            tr('prep.quest.starHint'),
-            () => this.showQuestPanel(W, H));
-        } },
-      { xf: 0.33, yf: 0.65, icon: '✦', label: tr('prep.shop.title'),  color: 0xd47820, buildingKey: 'building_shop',
-        tapW: P(80), tapH: P(72), collW: P(130), collH: P(55), tent: true, onActivate: () => {
-          AudioService.playSfx(this, 'sfx_shop_open', 0.7);
-          this._showTutorialHint('shop', '✦', tr('prep.shop.title'),
-            tr('prep.shop.desc'),
-            () => this.showShopPanel(W, H));
-        } },
-      { xf: 0.78, yf: 0.65, icon: '', label: tr('prep.quest.altarTitle'), color: 0xffdd44, buildingKey: 'tx_props', buildingFrame: 'ritual_circle',
-        tapW: P(110), tapH: P(100), collW: P(130), collH: P(60), buildingScale: 0.85,
-        shadow: true, shadowKey: 'tx_shadow', shadowFrame: 'ritual_circle_shadow', shadowOX: P(-8), shadowOY: P(-12),
-        onActivate: () => this._showTutorialHint('altar', '🔮', tr('prep.quest.altarTitle'),
-          tr('prep.quest.bossDrop'),
-          () => this._showAltarPanel(W, H)) },
-      { xf: 0.60, yf: 0.49, icon: '★', label: tr('prep.tab.leaderboard'), color: 0xaabbdd, buildingKey: 'tx_props', buildingFrame: 'stone_pillar',
-        tapW: P(40), tapH: P(90), collW: P(44), collH: P(30), buildingScale: 0.8, labelOX: -P(8),
-        onActivate: () => this._showTutorialHint('ranking', '★', tr('prep.tab.leaderboard'),
-          tr('prep.leaderboard.desc'),
-          () => this._showRankingPanel(W, H)) },
-      { xf: 0.23, yf: 0.30, icon: '⊕', label: tr('prep.market.title'),  color: 0x70b858, buildingKey: 'building_warehouse',
-        tapW: P(80), tapH: P(60), collW: P(85), collH: P(20), buildingScale: 1.4,
-        shadow: true, shadowKey: 'deco_shadow5', shadowOX: P(0), shadowOY: P(10),
-        decoKey: 'deco_warehouse_box', decoOX: P(10), decoOY: P(0), decoScale: 1.2,
-        onActivate: () => this._showTutorialHint('market', '⊕', tr('prep.market.title'),
-          tr('prep.market.desc'),
-          () => (window as any).__openMarket?.()) },
-      { xf: 0.45, yf: 0.90, icon: '✧', label: tr('prep.misc.skinStyle'),  color: 0xdd88aa, animKey: 'campfire',
-        tapW: P(48), tapH: P(40), collW: P(48), collH: P(20), onActivate: () =>
-          this._showTutorialHint('wardrobe', '✧', tr('prep.misc.changeSkin'),
-            tr('prep.misc.skinDesc'),
-            () => this._openWardrobePanel()) },
-    ];
+        {
+          xf: 0.45, yf: 0.20, icon: '⚔', label: tr('prep.quest.activeBtn'), color: 0xcc4400, buildingKey: 'building_battle',
+          tapW: P(80), tapH: P(72), collW: P(120), collH: P(55), shadow: true, buildingScale: 1.4, labelBelow: true, onActivate: () => {
+            if (this._partyState === 'in_party' && !this._amPartyLeader) { this._showToast(tr('prep.party.notHost')); return; }
+            this._showTutorialHint('quest', '⚔', tr('prep.quest.chooseMap'),
+              tr('prep.quest.starHint'),
+              () => this.showQuestPanel(W, H));
+          }
+        },
+        {
+          xf: 0.33, yf: 0.65, icon: '✦', label: tr('prep.shop.title'), color: 0xd47820, buildingKey: 'building_shop',
+          tapW: P(80), tapH: P(72), collW: P(130), collH: P(55), tent: true, onActivate: () => {
+            AudioService.playSfx(this, 'sfx_shop_open', 0.7);
+            this._showTutorialHint('shop', '✦', tr('prep.shop.title'),
+              tr('prep.shop.desc'),
+              () => this.showShopPanel(W, H));
+          }
+        },
+        {
+          xf: 0.78, yf: 0.65, icon: '', label: tr('prep.quest.altarTitle'), color: 0xffdd44, buildingKey: 'tx_props', buildingFrame: 'ritual_circle',
+          tapW: P(110), tapH: P(100), collW: P(130), collH: P(60), buildingScale: 0.85,
+          shadow: true, shadowKey: 'tx_shadow', shadowFrame: 'ritual_circle_shadow', shadowOX: P(-8), shadowOY: P(-12),
+          onActivate: () => this._showTutorialHint('altar', '🔮', tr('prep.quest.altarTitle'),
+            tr('prep.quest.bossDrop'),
+            () => this._showAltarPanel(W, H))
+        },
+        {
+          xf: 0.60, yf: 0.49, icon: '★', label: tr('prep.tab.leaderboard'), color: 0xaabbdd, buildingKey: 'tx_props', buildingFrame: 'stone_pillar',
+          tapW: P(40), tapH: P(90), collW: P(44), collH: P(30), buildingScale: 0.8, labelOX: -P(8),
+          onActivate: () => this._showTutorialHint('ranking', '★', tr('prep.tab.leaderboard'),
+            tr('prep.leaderboard.desc'),
+            () => this._showRankingPanel(W, H))
+        },
+        {
+          xf: 0.23, yf: 0.30, icon: '⊕', label: tr('prep.market.title'), color: 0x70b858, buildingKey: 'building_warehouse',
+          tapW: P(80), tapH: P(60), collW: P(85), collH: P(20), buildingScale: 1.4,
+          shadow: true, shadowKey: 'deco_shadow5', shadowOX: P(0), shadowOY: P(10),
+          decoKey: 'deco_warehouse_box', decoOX: P(10), decoOY: P(0), decoScale: 1.2,
+          onActivate: () => this._showTutorialHint('market', '⊕', tr('prep.market.title'),
+            tr('prep.market.desc'),
+            () => (window as any).__openMarket?.())
+        },
+        {
+          xf: 0.45, yf: 0.90, icon: '✧', label: tr('prep.misc.skinStyle'), color: 0xdd88aa, animKey: 'campfire',
+          tapW: P(48), tapH: P(40), collW: P(48), collH: P(20), onActivate: () =>
+            this._showTutorialHint('wardrobe', '✧', tr('prep.misc.changeSkin'),
+              tr('prep.misc.skinDesc'),
+              () => this._openWardrobePanel())
+        },
+      ];
 
     for (const obj of objs) {
       const wx = WW * obj.xf;
@@ -8564,8 +8590,8 @@ export class PrepScene extends Phaser.Scene {
         // ↓ 調這裡：位置 OX/OY，碰撞框 TCW(寬) TCH(高) TCOX/TCOY(框中心偏移)
         if (obj.tent && this.textures.exists('deco_tent')) {
           const TENT_OX = -P(100), TENT_OY = P(0);
-          const TCW = P(70),  TCH = P(15);   // collision half-width / half-height × 2
-          const TCOX = P(0),  TCOY = P(0);   // collision center offset from tent base
+          const TCW = P(70), TCH = P(15);   // collision half-width / half-height × 2
+          const TCOX = P(0), TCOY = P(0);   // collision center offset from tent base
 
           const tx = wx + TENT_OX, ty = wy + TENT_OY;
 
@@ -8662,19 +8688,19 @@ export class PrepScene extends Phaser.Scene {
 
   private _applySkin(skinId: number): void {
     const idleTex = `skin_preview_${skinId}`;
-    const runTex  = `skin_run_preview_${skinId}`;
+    const runTex = `skin_run_preview_${skinId}`;
     if (!this.textures.exists(idleTex)) return;
 
     // Redefine player animations to use the new skin's pre-loaded textures
     const animDefs: [string, string, number, number, number][] = [
-      ['player_idle_down',  idleTex, 0,  3,  8],
-      ['player_idle_left',  idleTex, 12, 15, 8],
+      ['player_idle_down', idleTex, 0, 3, 8],
+      ['player_idle_left', idleTex, 12, 15, 8],
       ['player_idle_right', idleTex, 24, 27, 8],
-      ['player_idle_up',    idleTex, 36, 39, 8],
-      ['player_run_down',   runTex,  0,  7,  10],
-      ['player_run_left',   runTex,  8,  15, 10],
-      ['player_run_right',  runTex,  16, 23, 10],
-      ['player_run_up',     runTex,  24, 31, 10],
+      ['player_idle_up', idleTex, 36, 39, 8],
+      ['player_run_down', runTex, 0, 7, 10],
+      ['player_run_left', runTex, 8, 15, 10],
+      ['player_run_right', runTex, 16, 23, 10],
+      ['player_run_up', runTex, 24, 31, 10],
     ];
     animDefs.forEach(([key, tex, s, e, rate]) => {
       if (!this.textures.exists(tex)) return;
@@ -8718,7 +8744,7 @@ export class PrepScene extends Phaser.Scene {
         r.lerpT = 0;
         r.lerpDur = 110;
         const sk = (r.sprite as any).__skinId ?? 0;
-        const runKey  = `town_remote_run_${sk}_${data.lastDir}`;
+        const runKey = `town_remote_run_${sk}_${data.lastDir}`;
         const idleKey = `town_remote_idle_${sk}_${data.lastDir}`;
         if (this.anims.exists(runKey)) r.sprite.play(runKey, true);
         clearTimeout((r.sprite as any).__idleTimer);
@@ -8784,8 +8810,8 @@ export class PrepScene extends Phaser.Scene {
           );
           if (!alreadyIn) {
             this._partyMembers.push({
-              sid:   data.guestSessionId,
-              nick:  labelNick || pending.nick,
+              sid: data.guestSessionId,
+              nick: labelNick || pending.nick,
               level: guestInfo?.level ?? 0,
             });
           }
@@ -8814,8 +8840,8 @@ export class PrepScene extends Phaser.Scene {
           if (this._partyState === 'open' || this._partyState === 'in_party') this._buildPartyPanel();
         }
         this._showToast(
-          data.reason === 'declined'  ? tr('prep.party.rejected') :
-          data.reason === 'timeout'   ? tr('prep.party.inviteTimeout') : tr('prep.party.inviteOffline'),
+          data.reason === 'declined' ? tr('prep.party.rejected') :
+            data.reason === 'timeout' ? tr('prep.party.inviteTimeout') : tr('prep.party.inviteOffline'),
         );
       });
 
@@ -8907,13 +8933,13 @@ export class PrepScene extends Phaser.Scene {
   private _onTownPlayerClick(sessionId: string, nickname: string): void {
     const totalSlots = this._partyMembers.length + this._partyPendingInvites.length;
     const alreadyPending = this._partyPendingInvites.some(p => p.sid === sessionId);
-    const alreadyMember  = this._partyMembers.some(m => m.sid === sessionId);
+    const alreadyMember = this._partyMembers.some(m => m.sid === sessionId);
 
     if (this._partyState === 'none') return;
 
     // Party open/in_party — leader confirms then invites
     if (!this._amPartyLeader) return;
-    if (alreadyMember)  { this._showToast(tr('prep.party.alreadyMember')); return; }
+    if (alreadyMember) { this._showToast(tr('prep.party.alreadyMember')); return; }
     if (alreadyPending) { this._showToast(tr('prep.party.invited')); return; }
     if (totalSlots >= 2) { this._showToast(tr('prep.party.full')); return; }
 
@@ -9025,8 +9051,8 @@ export class PrepScene extends Phaser.Scene {
         this._partyCreateBtnObjs = [];
         const leaderInfo = this._townRemotePlayers.get(fromSessionId);
         this._partyMembers = [{
-          sid:   fromSessionId,
-          nick:  leaderInfo?.nameLabel.text ?? tr('prep.party.host'),
+          sid: fromSessionId,
+          nick: leaderInfo?.nameLabel.text ?? tr('prep.party.host'),
           level: leaderInfo?.level ?? 0,
         }];
         this._buildPartyPanel();
@@ -9048,7 +9074,7 @@ export class PrepScene extends Phaser.Scene {
     const SET_S = P(36);
     const bx = W - SET_S - P(4) - P(6) - BW / 2;
     const by = P(4) + SET_S / 2;
-    const D  = 56;
+    const D = 56;
 
     const bg = this.add.graphics().setDepth(D);
     bg.fillStyle(0x1a3a10, 0.92);
@@ -9101,13 +9127,13 @@ export class PrepScene extends Phaser.Scene {
     const confirmedRows: { nick: string; level: number; pending?: boolean; sid?: string }[] =
       this._amPartyLeader
         ? [
-            ...this._partyMembers.map(m => ({ nick: m.nick, level: m.level, sid: m.sid })),
-            ...this._partyPendingInvites.map(p => ({ nick: p.nick, level: 0, pending: true, sid: p.sid })),
-          ]
+          ...this._partyMembers.map(m => ({ nick: m.nick, level: m.level, sid: m.sid })),
+          ...this._partyPendingInvites.map(p => ({ nick: p.nick, level: 0, pending: true, sid: p.sid })),
+        ]
         : [
-            { nick: tr('prep.misc.you'), level: 0 },
-            ...this._partyMembers.slice(1).map(m => ({ nick: m.nick, level: m.level, sid: m.sid })),
-          ];
+          { nick: tr('prep.misc.you'), level: 0 },
+          ...this._partyMembers.slice(1).map(m => ({ nick: m.nick, level: m.level, sid: m.sid })),
+        ];
 
     const rowCount = Math.max(confirmedRows.length, 1);
     const PW = P(200), PH = P(58) + P(22) * rowCount + P(46);
@@ -9186,8 +9212,8 @@ export class PrepScene extends Phaser.Scene {
 
     o(this.add.text(px + P(10), py + PH - P(44),
       this._amPartyLeader ? '按出戰選關卡' : tr('prep.party.waiting'), {
-        fontSize: F(15), fontStyle: 'bold', color: '#888866', stroke: '#1a0800', strokeThickness: 1,
-      }).setDepth(D + 1));
+      fontSize: F(15), fontStyle: 'bold', color: '#888866', stroke: '#1a0800', strokeThickness: 1,
+    }).setDepth(D + 1));
 
     this._partyPanelObjs = objs;
   }
@@ -9273,20 +9299,20 @@ export class PrepScene extends Phaser.Scene {
   override update(_time: number, delta: number): void {
     if (!this._townPlayer || !this._townContainer) return;
 
-    const dt  = delta / 1000;
-    const VW  = this._townViewW, VH = this._townViewH;
-    const WW  = this._townWorldW, WH = this._townWorldH;
-    const SPEED  = PlayerStore.getStats().speed * DPR * dt;
+    const dt = delta / 1000;
+    const VW = this._townViewW, VH = this._townViewH;
+    const WW = this._townWorldW, WH = this._townWorldH;
+    const SPEED = PlayerStore.getStats().speed * DPR * dt;
     const MARGIN = P(20);
 
     const keys = this._townCursors;
-    const joy  = this._townJoystick?.value;
+    const joy = this._townJoystick?.value;
     let dx = joy?.x ?? 0;
     let dy = joy?.y ?? 0;
-    if (keys?.left.isDown  || this._townWasd?.left.isDown)  dx -= 1;
+    if (keys?.left.isDown || this._townWasd?.left.isDown) dx -= 1;
     if (keys?.right.isDown || this._townWasd?.right.isDown) dx += 1;
-    if (keys?.up.isDown    || this._townWasd?.up.isDown)    dy -= 1;
-    if (keys?.down.isDown  || this._townWasd?.down.isDown)  dy += 1;
+    if (keys?.up.isDown || this._townWasd?.up.isDown) dy -= 1;
+    if (keys?.down.isDown || this._townWasd?.down.isDown) dy += 1;
     const dlen = Math.sqrt(dx * dx + dy * dy);
     if (dlen > 1) { dx /= dlen; dy /= dlen; }
 
@@ -9326,7 +9352,7 @@ export class PrepScene extends Phaser.Scene {
     if (moving) {
       this._townPlayerDir = Math.abs(dx) >= Math.abs(dy)
         ? (dx > 0 ? 'right' : 'left')
-        : (dy > 0 ? 'down'  : 'up');
+        : (dy > 0 ? 'down' : 'up');
     }
     const hasRun = this.anims.exists(`player_run_${this._townPlayerDir}`);
     const animKey = (moving && hasRun) ? `player_run_${this._townPlayerDir}` : `player_idle_${this._townPlayerDir}`;
