@@ -329,13 +329,23 @@ app.post('/report', limiterReport, upload.single('image'), async (req: any, res)
 app.get('/leaderboard/tower', async (req, res) => {
   const limit = Math.min(Number(req.query.limit) || 50, 100);
 
-  const { data, error } = await supabase
+  const { data: testProfiles } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('is_test_account', true);
+  const excludedIds = (testProfiles ?? []).map((p: any) => p.id as string);
+
+  let query = supabase
     .from('tower_leaderboard')
     .select('player_id, nickname, floor, time_ms, created_at')
     .order('floor', { ascending: false })
     .order('time_ms', { ascending: true })
     .limit(limit);
+  if (excludedIds.length > 0) {
+    query = query.not('user_id', 'in', `(${excludedIds.join(',')})`);
+  }
 
+  const { data, error } = await query;
   if (error) { res.status(500).json({ error: error.message }); return; }
   res.json(data);
 });
@@ -349,9 +359,13 @@ app.post('/leaderboard/tower', requireAuth, async (req: any, res) => {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('player_id, nickname')
+    .select('player_id, nickname, is_test_account')
     .eq('id', req.userId)
     .single();
+
+  if (profile?.is_test_account) {
+    res.json({ ok: true }); return;
+  }
 
   const { error } = await supabase.from('tower_leaderboard').insert({
     user_id:   req.userId,
@@ -375,16 +389,19 @@ app.get('/leaderboard/level', async (req, res) => {
 
   const [savesRes, profilesRes] = await Promise.all([
     supabase.from('player_saves').select('user_id, save_data'),
-    supabase.from('profiles').select('id, player_id'),
+    supabase.from('profiles').select('id, player_id, is_test_account'),
   ]);
 
   if (savesRes.error) { res.status(500).json({ error: savesRes.error.message }); return; }
 
   const profileMap = new Map(
-    (profilesRes.data ?? []).map((p: any) => [p.id as string, p.player_id as string])
+    (profilesRes.data ?? [])
+      .filter((p: any) => !p.is_test_account)
+      .map((p: any) => [p.id as string, p.player_id as string])
   );
 
   const ranked = (savesRes.data ?? [])
+    .filter((s: any) => profileMap.has(s.user_id))
     .map((s: any) => ({
       playerId: profileMap.get(s.user_id) ?? '–',
       level: Number(s.save_data?.player?.level ?? 0),
