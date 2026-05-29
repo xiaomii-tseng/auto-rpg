@@ -141,7 +141,13 @@
       "Bash(Select-Object -First 20 FullName)",
       "Bash(dir \"C:\\\\MyCode\\\\auto-rpg\\\\public\")",
       "Bash(Get-ChildItem -Path \"c:\\\\MyCode\\\\auto-rpg\" -Recurse -Name)",
-      "Bash(Select-String -Pattern \"\\\\.\\(ts|js\\)$\")"
+      "Bash(Select-String -Pattern \"\\\\.\\(ts|js\\)$\")",
+      "Bash(Get-ChildItem -Recurse \"c:/MyCode/auto-rpg/dist/auto-rpg/browser\" -File)",
+      "Bash(Measure-Object)",
+      "Bash(Select-Object -ExpandProperty Count)",
+      "PowerShell(Get-ChildItem -Recurse \"$env:USERPROFILE\\\\Desktop\" -Filter \"butler.exe\" -ErrorAction SilentlyContinue | Select-Object FullName)",
+      "PowerShell(Get-ChildItem \"$env:USERPROFILE\\\\Desktop\" | Select-Object Name, FullName)",
+      "PowerShell(Get-ChildItem \"$env:USERPROFILE\" | Select-Object Name)"
     ],
     "additionalDirectories": [
       "\\MyCode\\auto-rpg\\src\\app\\game\\scenes",

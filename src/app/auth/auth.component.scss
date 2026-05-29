@@ -196,6 +196,7 @@ $border:     rgba(200, 169, 110, 0.35);
 .auth-card {
   position: relative;
   width: min(580px, calc(100% - 24px)); // 橫版比例：盡量填滿直式螢幕寬度
+  height: min(360px, calc(100svh - 80px)); // 固定高度，與登入畫面一致
   background: $card-bg;
   border: 1px solid $border;
   border-radius: 4px;
@@ -323,6 +324,20 @@ $border:     rgba(200, 169, 110, 0.35);
     border-right: none;
     border-left: 1px solid rgba(200,169,110,0.25);
   }
+}
+
+// ── 表單滾動容器 ───────────────────────────────────────────
+.form-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 4px;
+
+  &::-webkit-scrollbar       { width: 4px; }
+  &::-webkit-scrollbar-track { background: transparent; }
+  &::-webkit-scrollbar-thumb { background: rgba(200,169,110,0.3); border-radius: 2px; }
+  scrollbar-width: thin;
+  scrollbar-color: rgba(200,169,110,0.3) transparent;
 }
 
 // ── 表單 ───────────────────────────────────────────────────

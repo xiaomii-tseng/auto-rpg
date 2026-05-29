@@ -147,6 +147,8 @@ export class GameScene extends Phaser.Scene {
   protected keys!: Phaser.Types.Input.Keyboard.CursorKeys;
   private wasd!: { up: Phaser.Input.Keyboard.Key; down: Phaser.Input.Keyboard.Key; left: Phaser.Input.Keyboard.Key; right: Phaser.Input.Keyboard.Key };
   private spaceKey!: Phaser.Input.Keyboard.Key;
+  private qKey!: Phaser.Input.Keyboard.Key;
+  private eKey!: Phaser.Input.Keyboard.Key;
   private _spaceHoldTimer?: Phaser.Time.TimerEvent;
   protected bossHpGfx!: Phaser.GameObjects.Graphics;
   protected bossHpLabel!: Phaser.GameObjects.Text;
@@ -1065,6 +1067,8 @@ export class GameScene extends Phaser.Scene {
       right: kb.addKey(Phaser.Input.Keyboard.KeyCodes.D),
     };
     this.spaceKey = kb.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
+    this.qKey     = kb.addKey(Phaser.Input.Keyboard.KeyCodes.Q);
+    this.eKey     = kb.addKey(Phaser.Input.Keyboard.KeyCodes.E);
 
     // Disable keyboard capture while a text input is focused (e.g. mobile keyboard open)
     const onFocusIn  = (e: FocusEvent) => { if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) { kb.enabled = false; kb.disableGlobalCapture(); } };
@@ -1094,6 +1098,7 @@ export class GameScene extends Phaser.Scene {
 
     this.input.addPointer(3);
     this.joystick = new VirtualJoystick(this);
+    if (!VirtualJoystick.isTouchDevice()) this.joystick.hide();
 
     if (this._isTutorial) {
       this.time.delayedCall(600, () => this._showBattleTutorial(
@@ -2249,6 +2254,16 @@ export class GameScene extends Phaser.Scene {
     else if (this.keys.right.isDown || this.wasd.right.isDown) vx = 1;
     if (this.keys.up.isDown || this.wasd.up.isDown) vy = -1;
     else if (this.keys.down.isDown || this.wasd.down.isDown) vy = 1;
+
+    // Q / E: use potion slot 0 / 1
+    if (Phaser.Input.Keyboard.JustDown(this.qKey)) {
+      const id0 = PotionBarStore.getSlot(0);
+      if (id0) this.usePotionSlot(id0, this.POTION_COLORS[id0] ?? 0xffffff);
+    }
+    if (Phaser.Input.Keyboard.JustDown(this.eKey)) {
+      const id1 = PotionBarStore.getSlot(1);
+      if (id1) this.usePotionSlot(id1, this.POTION_COLORS[id1] ?? 0xffffff);
+    }
 
     // Space bar: start hold-attack timer on press, clear on release
     if (Phaser.Input.Keyboard.JustDown(this.spaceKey) && !this.gameOver) {
@@ -8639,17 +8654,19 @@ export class GameScene extends Phaser.Scene {
 
   private readonly POTION_RANGE = 50;
 
+  protected readonly POTION_COLORS: Record<string, number> = {
+    [ITEM_POTION_HEALTH_S]: 0x44ff88,
+    [ITEM_POTION_HEALTH_M]: 0x44ddff,
+    [ITEM_POTION_HEALTH_L]: 0xff88ff,
+    [ITEM_POTION_REVIVE]:   0xffee44,
+    [ITEM_POTION_ATK]:      0xff6644,
+    [ITEM_POTION_DEF]:      0x44aaff,
+    [ITEM_POTION_SPEED]:    0xffdd22,
+  };
+
   private createPotionSlots(): void {
     const SZ = P(40), GAP = P(20), D = 100;
-    const POTION_COLORS: Record<string, number> = {
-      [ITEM_POTION_HEALTH_S]: 0x44ff88,
-      [ITEM_POTION_HEALTH_M]: 0x44ddff,
-      [ITEM_POTION_HEALTH_L]: 0xff88ff,
-      [ITEM_POTION_REVIVE]: 0xffee44,
-      [ITEM_POTION_ATK]: 0xff6644,
-      [ITEM_POTION_DEF]: 0x44aaff,
-      [ITEM_POTION_SPEED]: 0xffdd22,
-    };
+    const POTION_COLORS = this.POTION_COLORS;
     const W = this.scale.width, H = this.scale.height;
     const slotCy = H - P(164);
     const slotCxBase = W - P(100);

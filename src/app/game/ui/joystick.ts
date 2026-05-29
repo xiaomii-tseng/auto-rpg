@@ -107,4 +107,17 @@ export class VirtualJoystick {
     }
     return this.output;
   }
+
+  hide(): void {
+    this.base.setVisible(false);
+    this.thumb.setVisible(false);
+    this._scene.input.off('pointerdown', this.onDown, this);
+    this._scene.input.off('pointermove', this.onMove, this);
+    this._scene.input.off('pointerup',   this.onUp,   this);
+  }
+
+  static isTouchDevice(): boolean {
+    // pointer: coarse = 觸控/手指；pointer: fine = 滑鼠
+    return window.matchMedia('(pointer: coarse)').matches;
+  }
 }

@@ -8279,6 +8279,7 @@ export class PrepScene extends Phaser.Scene {
 
   private _createTownDpad(_H: number, _VIEW_Y: number, _VIEW_H: number): void {
     this._townJoystick = new VirtualJoystick(this);
+    if (!VirtualJoystick.isTouchDevice()) this._townJoystick.hide();
   }
 
   private _createForestBorder(WW: number, WH: number): void {
