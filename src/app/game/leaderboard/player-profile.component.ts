@@ -7,11 +7,11 @@ import { SKILL_NODES, ATTACK_MODES, MODE_COLORS, AttackModeId } from '../data/sk
 import { t } from '../i18n/i18n';
 
 export const QUALITY_COLORS: Record<EquipQuality, string> = {
-  normal:    '#aabbcc',
-  good:      '#55cc55',
-  fine:      '#4499ff',
-  perfect:   '#cc44ff',
-  legendary: '#ffaa22',
+  normal:    '#aaaaaa',
+  good:      '#44dd44',
+  fine:      '#4488ff',
+  perfect:   '#ffdd00',
+  legendary: '#ee2222',
 };
 
 const QUALITY_BG: Record<EquipQuality, string> = {

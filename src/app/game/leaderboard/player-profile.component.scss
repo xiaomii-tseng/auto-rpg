@@ -11,6 +11,16 @@
   --gold:       #d4a044;
 }
 
+// ── Scrollbar mixin ───────────────────────────────────────────────
+@mixin slim-scroll {
+  overflow-y: auto;
+  &::-webkit-scrollbar       { width: 5px; }
+  &::-webkit-scrollbar-track { background: transparent; }
+  &::-webkit-scrollbar-thumb { background: var(--border-lt); border-radius: 3px; }
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-lt) transparent;
+}
+
 // ── Overlay ──────────────────────────────────────────────────────
 .profile-overlay {
   position: fixed;
@@ -36,8 +46,8 @@
 
 // ── Panel ────────────────────────────────────────────────────────
 .profile-panel {
-  width:  min(820px, 96vw);
-  height: min(480px, 90vh);
+  width:  min(860px, 96vw);
+  height: min(520px, 92vh);
   background: var(--bg-dark);
   border: 1px solid var(--border);
   border-radius: 12px;
@@ -47,8 +57,8 @@
   box-shadow: 0 8px 40px rgba(0,0,0,0.8), 0 0 0 1px rgba(100,140,200,0.15);
 
   @media (orientation: portrait) {
-    width:  min(820px, 80vh);
-    height: min(480px, 90vw);
+    width:  min(860px, 82vh);
+    height: min(520px, 92vw);
   }
 }
 
@@ -57,7 +67,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 14px;
+  padding: 10px 16px;
   background: var(--bg-header);
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
@@ -66,17 +76,17 @@
 .header-info {
   display: flex;
   align-items: baseline;
-  gap: 10px;
+  gap: 12px;
 }
 
 .player-name {
-  font-size: 17px;
+  font-size: 18px;
   font-weight: bold;
   color: var(--text-title);
 }
 
 .player-level {
-  font-size: 13px;
+  font-size: 15px;
   font-weight: bold;
   color: var(--gold);
 }
@@ -85,7 +95,7 @@
   background: none;
   border: none;
   color: #667788;
-  font-size: 18px;
+  font-size: 20px;
   cursor: pointer;
   padding: 2px 6px;
   border-radius: 4px;
@@ -108,26 +118,27 @@
   justify-content: center;
   color: var(--text-dim);
   font-size: 15px;
+  font-weight: bold;
   &.err { color: #cc5555; }
 }
 
 // ── Section title ─────────────────────────────────────────────────
 .section-title {
-  font-size: 12px;
+  font-size: 15px;
   font-weight: bold;
   color: var(--text-dim);
   letter-spacing: 1px;
   padding: 0 0 6px 0;
   border-bottom: 1px solid var(--border);
   margin-bottom: 8px;
-  text-transform: uppercase;
+  flex-shrink: 0;
 }
 
 // ════════════════════════════════════════════════════════════════
 // LEFT COLUMN — Equipment
 // ════════════════════════════════════════════════════════════════
 .left-col {
-  flex: 0 0 55%;
+  flex: 0 0 52%;
   padding: 10px 12px;
   border-right: 1px solid var(--border);
   display: flex;
@@ -136,32 +147,37 @@
   min-height: 0;
 }
 
-// 3×2 grid
+// Single-column scrollable list
 .equip-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  grid-template-rows: repeat(2, 1fr);
+  display: flex;
+  flex-direction: column;
   gap: 6px;
   flex: 1;
   min-height: 0;
+  @include slim-scroll;
+  padding-right: 4px;
 }
 
+// One slot = full-width horizontal row
 .equip-slot {
+  flex-shrink: 0;
   border: 1px solid color-mix(in srgb, var(--slot-color) 40%, transparent);
   border-radius: 6px;
   background: color-mix(in srgb, var(--slot-color) 8%, var(--bg-mid));
   display: flex;
+  align-items: center;
   overflow: hidden;
   position: relative;
+  min-height: 62px;
 
-  // top accent strip
+  // left accent bar
   &::before {
     content: '';
     position: absolute;
-    top: 0; left: 0; right: 0;
-    height: 2px;
+    top: 0; left: 0; bottom: 0;
+    width: 3px;
     background: var(--slot-color);
-    opacity: 0.6;
+    opacity: 0.7;
   }
 
   &.has-item {
@@ -171,15 +187,15 @@
 
 .slot-icon {
   flex-shrink: 0;
-  width: 48px;
+  width: 58px;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 4px;
+  padding: 6px 4px 6px 8px;
 
   img {
-    width: 40px;
-    height: 40px;
+    width: 46px;
+    height: 46px;
     object-fit: contain;
     image-rendering: pixelated;
   }
@@ -187,31 +203,31 @@
 
 .slot-info {
   flex: 1;
-  padding: 4px 6px 4px 2px;
+  padding: 6px 10px 6px 4px;
   display: flex;
   flex-direction: column;
   justify-content: center;
   min-width: 0;
-  overflow: hidden;
 }
 
 .item-name {
-  font-size: 12px;
+  font-size: 15px;
   font-weight: bold;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  margin-bottom: 2px;
+  margin-bottom: 3px;
 }
 
 .item-affixes {
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 2px;
 }
 
 .affix-line {
-  font-size: 10px;
+  font-size: 15px;
+  font-weight: bold;
   color: #88cc88;
   white-space: nowrap;
   overflow: hidden;
@@ -222,13 +238,13 @@
   flex: 1;
   display: flex;
   align-items: center;
-  justify-content: center;
+  padding-left: 12px;
 }
 
 .slot-label {
-  font-size: 12px;
+  font-size: 15px;
   font-weight: bold;
-  opacity: 0.5;
+  opacity: 0.45;
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -256,21 +272,23 @@
 .card-slots {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 6px;
   flex: 1;
-  overflow: hidden;
-  justify-content: center;
+  min-height: 0;
+  @include slim-scroll;
+  padding-right: 4px;
 }
 
 .card-slot {
+  flex-shrink: 0;
   background: #0d1218;
   border: 1px solid var(--border);
-  border-radius: 5px;
-  padding: 5px 10px;
+  border-radius: 6px;
+  padding: 8px 12px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  min-height: 32px;
+  min-height: 42px;
 
   &.has-card {
     background: #111c2a;
@@ -279,23 +297,26 @@
 }
 
 .card-name {
-  font-size: 13px;
+  font-size: 15px;
   font-weight: bold;
   color: var(--text-title);
 }
 
 .card-type {
-  font-size: 11px;
+  font-size: 15px;
   font-weight: bold;
-  padding: 1px 6px;
-  border-radius: 3px;
+  padding: 2px 8px;
+  border-radius: 4px;
   background: rgba(255,255,255,0.06);
   flex-shrink: 0;
 }
 
 .card-empty {
   color: var(--text-dim);
-  font-size: 14px;
+  font-size: 15px;
+  font-weight: bold;
+  width: 100%;
+  text-align: center;
 }
 
 // ── Skills ────────────────────────────────────────────────────────
@@ -309,25 +330,26 @@
 }
 
 .attack-mode {
-  font-size: 13px;
+  font-size: 15px;
   font-weight: bold;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
+  flex-shrink: 0;
 }
 
 .skill-list {
   flex: 1;
-  overflow-y: auto;
+  min-height: 0;
+  @include slim-scroll;
   display: flex;
   flex-direction: column;
-  gap: 2px;
-
-  &::-webkit-scrollbar { width: 4px; }
-  &::-webkit-scrollbar-track { background: transparent; }
-  &::-webkit-scrollbar-thumb { background: var(--border-lt); border-radius: 2px; }
+  gap: 4px;
+  padding-right: 4px;
 }
 
 .skill-item {
-  font-size: 11px;
+  font-size: 15px;
+  font-weight: bold;
+  flex-shrink: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
