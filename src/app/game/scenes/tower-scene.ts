@@ -705,6 +705,9 @@ export class TowerScene extends GameScene {
 
   protected override handleBossDefeated(): void {
     if (this.gameOver) return;
+    const boss1Dead = !this.boss?.active;
+    const boss2Dead = !this._towerBoss2 || !this._towerBoss2.active;
+    if (!boss1Dead || !boss2Dead) return;
     this.bossActive  = false;
     this._towerBoss2 = undefined;
     TowerStore.recordFloor(this._globalFloor);

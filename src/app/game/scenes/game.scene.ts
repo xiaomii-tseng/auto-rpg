@@ -7171,6 +7171,7 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
+    if (!this.bossActive) return;
     this.bossActive = false;
     this._endDarkNight();
     this._clearAllSkillVfx();

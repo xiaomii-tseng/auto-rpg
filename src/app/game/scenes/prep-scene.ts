@@ -3428,6 +3428,7 @@ export class PrepScene extends Phaser.Scene {
     let gridWheelHandler: ((...args: any[]) => void) | null = null;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let gridMoveHandler: ((...args: any[]) => void) | null = null;
+    let gridScrollY = 0;
 
     const gridLayer = this.add.container(0, 0);
     container.add(gridLayer);
@@ -3729,10 +3730,10 @@ export class PrepScene extends Phaser.Scene {
       const totalItems = equippedItems.length + items.length;
       const totalRows = Math.ceil(totalItems / GCOLS);
       const contentH  = totalRows * (ROW_H + ROW_GAP) - ROW_GAP;
-      let scrollY = 0;
       const maxScroll = Math.max(0, contentH - gridH);
+      gridScrollY = Phaser.Math.Clamp(gridScrollY, 0, maxScroll);
 
-      const scrollCnt = this.add.container(0, gridY);
+      const scrollCnt = this.add.container(0, gridY - gridScrollY);
       gridLayer.add(scrollCnt);
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -3742,8 +3743,8 @@ export class PrepScene extends Phaser.Scene {
       scrollCnt.setMask(maskShape.createGeometryMask());
 
       const applyScroll = (dy: number) => {
-        scrollY = Phaser.Math.Clamp(scrollY + dy, 0, maxScroll);
-        scrollCnt.y = gridY - scrollY;
+        gridScrollY = Phaser.Math.Clamp(gridScrollY + dy, 0, maxScroll);
+        scrollCnt.y = gridY - gridScrollY;
       };
 
       const gg = this.add.graphics();
@@ -3901,6 +3902,7 @@ export class PrepScene extends Phaser.Scene {
         activeTab = i;
         tabLabels[activeTab].setStyle({ color: '#e8c070' });
         redrawTabs(activeTab);
+        gridScrollY = 0;
         buildGrid();
       });
       container.add(hit);
