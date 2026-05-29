@@ -141,9 +141,10 @@ export const SKILL_NODES: SkillNode[] = [
   { id: '9-1-1-1-1-1', label: t('skill.9-1-1-1-1-1.label'), desc: t('skill.9-1-1-1-1-1.desc'), x:  140, y: -250, parentId: '9-1-1-1-1' },
 
   // ── Cluster 8: 傷害溢出 (BOTTOM CENTER) ──────────────────────────────────
-  { id: '8',     label: t('skill.8.label'),     desc: t('skill.8.desc'),     x:   0, y:  240, isRoot: true },
-  { id: '8-1',   label: t('skill.8-1.label'),   desc: t('skill.8-1.desc'),   x:   0, y:  305, parentId: '8'   },
-  { id: '8-1-1', label: t('skill.8-1-1.label'), desc: t('skill.8-1-1.desc'), x:   0, y:  370, parentId: '8-1' },
+  { id: '8',       label: t('skill.8.label'),       desc: t('skill.8.desc'),       x:   0, y:  240, isRoot: true },
+  { id: '8-1',     label: t('skill.8-1.label'),     desc: t('skill.8-1.desc'),     x:   0, y:  305, parentId: '8'     },
+  { id: '8-1-1',   label: t('skill.8-1-1.label'),   desc: t('skill.8-1-1.desc'),   x:   0, y:  370, parentId: '8-1'   },
+  { id: '8-1-1-1', label: t('skill.8-1-1-1.label'), desc: t('skill.8-1-1-1.desc'), x:   0, y:  435, parentId: '8-1-1' },
 
   // ── Cluster 10: 吸血天賦 (top-right) ─────────────────────────────────────
   { id: '10',     label: t('skill.10.label'),     desc: t('skill.10.desc'),     x:  305, y:  -95, isRoot: true   },
@@ -267,8 +268,9 @@ export const SkillTreeStore = {
       lightningIntervalReduction: (L('5-2') ? 400 : 0) + (L('5-2-1') ? 700 : 0),
       // ── 傷害溢出 ──────────────────────────────────────────
       overkillSplash:        (L('8') ? 1 : 0),
-      overkillInfiniteChain: (L('8-1') ? 1 : 0),
-      overkillDmgPct:        (L('8-1-1') ? 0.20 : 0),
+      overkillDmgPct:        (L('8-1') ? 2.0 : 0),
+      overkillInfiniteChain: (L('8-1-1') ? 1 : 0),
+      overkillRadiusMult:    (L('8-1-1-1') ? 1.2 : 0),
       // ── 暴徒本能（爆擊→傷害）─────────────────────────────
       bloodlust:                  (L('7') ? 1 : 0),
       bloodlustDmgPerStack:       (L('7') ? 0.005 : 0) + (L('7-1') ? 0.010 : 0),

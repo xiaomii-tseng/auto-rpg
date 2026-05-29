@@ -88,6 +88,7 @@ export interface EffectiveStats {
   overkillSplash?:       number;
   overkillInfiniteChain?: number;
   overkillDmgPct?:        number;
+  overkillRadiusMult?:    number;
   bloodlust?:                  number;
   bloodlustDmgPerStack?:       number;
   bloodlustMaxStacks?:         number;

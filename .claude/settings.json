@@ -147,7 +147,8 @@
       "Bash(Select-Object -ExpandProperty Count)",
       "PowerShell(Get-ChildItem -Recurse \"$env:USERPROFILE\\\\Desktop\" -Filter \"butler.exe\" -ErrorAction SilentlyContinue | Select-Object FullName)",
       "PowerShell(Get-ChildItem \"$env:USERPROFILE\\\\Desktop\" | Select-Object Name, FullName)",
-      "PowerShell(Get-ChildItem \"$env:USERPROFILE\" | Select-Object Name)"
+      "PowerShell(Get-ChildItem \"$env:USERPROFILE\" | Select-Object Name)",
+      "Bash(Get-ChildItem -Path \"c:\\\\MyCode\\\\auto-rpg\\\\src\\\\app\\\\game\" -Recurse -Directory)"
     ],
     "additionalDirectories": [
       "\\MyCode\\auto-rpg\\src\\app\\game\\scenes",

@@ -312,6 +312,7 @@ export const CardStore = {
       b.overkillSplash          = (b.overkillSplash          ?? 0) + (e.overkillSplash          ?? 0);
       b.overkillInfiniteChain   = (b.overkillInfiniteChain   ?? 0) + (e.overkillInfiniteChain   ?? 0);
       b.overkillDmgPct          = (b.overkillDmgPct          ?? 0) + (e.overkillDmgPct          ?? 0);
+      b.overkillRadiusMult      = (b.overkillRadiusMult      ?? 0) + (e.overkillRadiusMult      ?? 0);
       b.bloodlust                  = (b.bloodlust                  ?? 0) + (e.bloodlust                  ?? 0);
       b.bloodlustDmgPerStack       = (b.bloodlustDmgPerStack       ?? 0) + (e.bloodlustDmgPerStack       ?? 0);
       b.bloodlustMaxStacks         = (b.bloodlustMaxStacks         ?? 0) + (e.bloodlustMaxStacks         ?? 0);
@@ -496,6 +497,7 @@ export const CardStore = {
       overkillSplash:          bonus.overkillSplash,
       overkillInfiniteChain:   bonus.overkillInfiniteChain,
       overkillDmgPct:          bonus.overkillDmgPct,
+      overkillRadiusMult:      bonus.overkillRadiusMult,
       bloodlust:                  bonus.bloodlust,
       bloodlustDmgPerStack:       bonus.bloodlustDmgPerStack,
       bloodlustMaxStacks:         bonus.bloodlustMaxStacks,

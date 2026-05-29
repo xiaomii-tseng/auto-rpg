@@ -3933,7 +3933,7 @@ export class PrepScene extends Phaser.Scene {
     const D = 600;
     const objs: Phaser.GameObjects.GameObject[] = [];
     const s = <T extends Phaser.GameObjects.GameObject>(o: T) => { objs.push(o); return o; };
-    const close = () => { objs.forEach(o => o.destroy()); this.tweens.killAll(); };
+    const close = () => { objs.forEach(o => { this.tweens.killTweensOf(o); o.destroy(); }); };
 
     // ── Overlay ──────────────────────────────────────────────────────────
     s(this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.88).setDepth(D).setInteractive());
@@ -7883,7 +7883,7 @@ export class PrepScene extends Phaser.Scene {
     const t = this.add.text(W / 2, baseY, msg, {
       fontSize: F(15), fontStyle: 'bold', color: '#ffcc44',
       stroke: '#000', strokeThickness: 3,
-    }).setOrigin(0.5).setDepth(500);
+    }).setOrigin(0.5).setDepth(1000);
     this._toastStack.push(t);
 
     this.tweens.add({

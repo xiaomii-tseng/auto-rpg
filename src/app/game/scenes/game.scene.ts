@@ -1618,15 +1618,15 @@ export class GameScene extends Phaser.Scene {
   }
 
   private overkillSplash(ox: number, oy: number, overkill: number): void {
-    const R = P(18);
     const stats = CardStore.getTotalStats();
+    const R = P(18) * (1 + (stats.overkillRadiusMult ?? 0));
     const canChain = (stats.overkillSplash ?? 0) >= 2 || (stats.overkillInfiniteChain ?? 0) >= 1;
 
     const RSq = R * R;
     for (const t of this.getHittableTargets()) {
       if ((ox - t.x) * (ox - t.x) + (oy - t.y) * (oy - t.y) > RSq) continue;
       this.dealDamage(t, 0, ox, oy, 'down');
-      const boostedOverkill = Math.floor(overkill * (1 + (stats.overkillDmgPct ?? 0)));
+      const boostedOverkill = Math.floor(overkill * (2 + (stats.overkillDmgPct ?? 0)));
       const chainOverkill = (t as MinionSlime).takeDamage(boostedOverkill);
       this.spawnDamageNumber(t.x, t.y, boostedOverkill, false, 1);
       if (canChain && chainOverkill > 0) {

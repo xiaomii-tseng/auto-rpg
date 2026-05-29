@@ -108,6 +108,7 @@ export interface StatBonus {
   overkillSplash?:      number;  // 溢出傷害AOE（1=啟用，半徑15px）
   overkillInfiniteChain?: number; // 溢出可無限連鎖
   overkillDmgPct?:        number; // 溢出傷害加成
+  overkillRadiusMult?:    number; // 溢出範圍倍率
   bloodlust?:                  number; // 暴徒本能（1=啟用）
   bloodlustDmgPerStack?:       number; // 暴徒：每層傷害加成
   bloodlustMaxStacks?:         number; // 暴徒層數上限
