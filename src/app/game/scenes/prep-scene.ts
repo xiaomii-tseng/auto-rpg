@@ -417,9 +417,9 @@ export class PrepScene extends Phaser.Scene {
       AudioService.playSfx(this, 'sfx_ui_click', 0.5, 100);
     });
 
-    // 瀏覽器執行時嘗試觸控觸發全螢幕；PWA 已由 manifest 處理，失敗時靜默忽略
+    // 瀏覽器執行時嘗試觸控觸發全螢幕；僅限觸控裝置（Android PWA 用），電腦不觸發
     // 使用 document.documentElement 而非 game-container，讓 Angular overlay 在全螢幕下仍可存取
-    if (!document.fullscreenElement) {
+    if (!document.fullscreenElement && VirtualJoystick.isTouchDevice()) {
       this.input.once('pointerdown', () => {
         try {
           if (!document.fullscreenElement) document.documentElement.requestFullscreen();
