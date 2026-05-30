@@ -3,7 +3,7 @@ import { InventoryStore } from '../data/inventory-store';
 import { PlayerStore } from '../data/player-store';
 import { PotionBarStore } from '../data/potion-bar-store';
 import { ITEM_POTION_HEALTH_S, ITEM_POTION_HEALTH_M, ITEM_POTION_HEALTH_L, ITEM_POTION_REVIVE, ITEM_POTION_ATK, ITEM_POTION_DEF, ITEM_POTION_SPEED, ITEM_STONE_BROKEN, ITEM_STONE_INTACT, ITEM_BLANK_CARD, ITEM_QUEST_REROLL, ITEM_TICKET_SLIME, ITEM_TICKET_FLOWER, ITEM_TICKET_ORC, ITEM_TICKET_VAMPIRE } from '../data/monster-data';
-import { generateEquipment, randomQuality, QUALITY_NAMES, QUALITY_COLORS, SLOT_NAMES, STAT_NAMES, BEHAVIOR_INFO, BEHAVIOR_NAMES, EquipSlot, EquipmentItem, applyEnhancement, recastItem, ENHANCE_COST, ENHANCE_RATE, ENHANCE_COMPLETE_BONUS, ENHANCE_MAX, fmtAffixValue, StatBonus, REFINE_INCREMENT_RANGE, calcEquipSellPrice, LEGENDARY_BOSS_WEAPON, generateLegendaryWeapon, getEquipDisplayName } from '../data/equipment-data';
+import { generateEquipment, randomQuality, QUALITY_NAMES, QUALITY_COLORS, SLOT_NAMES, STAT_NAMES, BEHAVIOR_INFO, BEHAVIOR_NAMES, EquipSlot, EquipmentItem, applyEnhancement, recastItem, ENHANCE_COST, ENHANCE_RATE, ENHANCE_ALL_AFFIX_CHANCE, ENHANCE_MAX, fmtAffixValue, StatBonus, REFINE_INCREMENT_RANGE, calcEquipSellPrice, LEGENDARY_BOSS_WEAPON, generateLegendaryWeapon, getEquipDisplayName } from '../data/equipment-data';
 import { SaveStore } from '../data/save-store';
 import { CardStore, CARD_SLOT_COUNT } from '../data/card-store';
 
@@ -2684,9 +2684,9 @@ export class PrepScene extends Phaser.Scene {
       const MAT_QTY_H = P(22);
       const RATE_H = P(24);
       const OPT_ROW_H = P(28);
-      const OPT_DESC_H = P(18);
+      const OPT_DESC_H = P(32);
       const BTN_H = P(42);
-      const RESULT_H = P(28);
+      const RESULT_H = P(40);
       const PAD = P(10);
       const lw = P(260);
       const rw = mw - lw;
@@ -2868,7 +2868,7 @@ export class PrepScene extends Phaser.Scene {
         const lv = item.enhancement;
         const maxed = lv >= ENHANCE_MAX || item.quality === 'legendary';
         const base = maxed ? 0 : ENHANCE_RATE[lv];
-        const rate = Math.min(1, base + (useComplete ? ENHANCE_COMPLETE_BONUS : 0));
+        const rate = Math.min(1, base);
 
         levelTxt.setText(`+${lv}${!maxed ? `  →  +${lv + 1}` : tr('prep.misc.topRecord')}`);
         levelTxt.setColor('#ffe066');
@@ -2940,11 +2940,12 @@ export class PrepScene extends Phaser.Scene {
         }
         InventoryStore.spendItem('stone_broken', cost);
         if (useComplete) InventoryStore.spendItem('stone_intact', 1);
-        const rate = Math.min(1, ENHANCE_RATE[lv] + (useComplete ? ENHANCE_COMPLETE_BONUS : 0));
+        const rate = Math.min(1, ENHANCE_RATE[lv]);
 
         if (Math.random() < rate) {
           const beforeVals = item.affixes.map(a => a.value);
-          const boosted = applyEnhancement(item, selectedAffixIdx);
+          const allAffixTriggered = useComplete && Math.random() < ENHANCE_ALL_AFFIX_CHANCE;
+          const boosted = applyEnhancement(item, allAffixTriggered ? undefined : selectedAffixIdx, allAffixTriggered);
           PlayerStore.notify(); SaveStore.save(); refresh();
           AudioService.playSfx(this, 'sfx_enhance_ok');
           DailyQuestStore.addProgress('enhance_success', 1);
@@ -2969,8 +2970,12 @@ export class PrepScene extends Phaser.Scene {
             }).setOrigin(1, 0.5).setDepth(ED + 10));
             gainTexts[idx] = gt;
           }
-          const names = boosted.map(idx => STAT_NAMES[item.affixes[idx].stat]).join('、');
-          resultTxt.setText(tr('prep.equip.enhanceSuccess', { names })).setColor('#44ff88');
+          if (allAffixTriggered) {
+            resultTxt.setText(tr('prep.equip.enhanceSuccessAll')).setColor('#ffdd44');
+          } else {
+            const names = boosted.map(idx => STAT_NAMES[item.affixes[idx].stat]).join('、');
+            resultTxt.setText(tr('prep.equip.enhanceSuccess', { names })).setColor('#44ff88');
+          }
         } else {
           AudioService.playSfx(this, 'sfx_enhance_ng');
           playFlash(0xff4422);
@@ -4179,7 +4184,8 @@ export class PrepScene extends Phaser.Scene {
     const tipT1 = s(this.add.text(0, 0, '', { fontSize: F(15), fontStyle: 'bold', color: '#ffe8a0', stroke: '#000', strokeThickness: 2 }).setDepth(D + 6));
     const tipT2 = s(this.add.text(0, 0, '', { fontSize: F(15), fontStyle: 'bold', color: '#aaccdd', stroke: '#000', strokeThickness: 1, wordWrap: { width: TW - P(20) } }).setDepth(D + 6));
     const tipBtnG = s(this.add.graphics().setDepth(D + 6));
-    const tipBtn = s(this.add.text(0, 0, '', { fontSize: F(15), fontStyle: 'bold', color: '#88ffaa', stroke: '#000', strokeThickness: 2 }).setDepth(D + 7).setInteractive({ useHandCursor: true }));
+    const tipBtn = s(this.add.text(0, 0, '', { fontSize: F(15), fontStyle: 'bold', color: '#88ffaa', stroke: '#000', strokeThickness: 2 }).setDepth(D + 7));
+    const tipBtnHit = s(this.add.rectangle(0, 0, 1, 1, 0x000000, 0).setDepth(D + 8).setVisible(false));
     let _tipNodeId = '';
     const showTip = (node: import('../data/skill-tree-store').SkillNode) => {
       _tipNodeId = node.id;
@@ -4209,17 +4215,18 @@ export class PrepScene extends Phaser.Scene {
         tipBtnG.lineStyle(P(1.5), 0x334455, 0.6); tipBtnG.strokeRoundedRect(bx, by, BTN_W, BTN_H, P(5));
       }
       tipBtn.setPosition(tx + TW / 2, by + BTN_H / 2).setText(btnTxt).setStyle({ color: btnCol }).setOrigin(0.5);
-      // Expand interactive hit area to cover the full button rect
-      tipBtn.setInteractive(new Phaser.Geom.Rectangle(-BTN_W / 2, -BTN_H / 2, BTN_W, BTN_H), Phaser.Geom.Rectangle.Contains);
+      tipBtnHit.setPosition(bx + BTN_W / 2, by + BTN_H / 2).setSize(BTN_W, BTN_H).setVisible(true);
+      if (available) tipBtnHit.setInteractive({ useHandCursor: true }); else tipBtnHit.removeInteractive();
     };
     const hideTip = () => {
       _tipNodeId = '';
       tipG.clear(); tipBtnG.clear(); tipT1.setText(''); tipT2.setText(''); tipBtn.setText('');
+      tipBtnHit.setVisible(false).removeInteractive();
       tipBlocker.setVisible(false).removeInteractive();
     };
     hideTip();
 
-    tipBtn.on('pointerdown', () => {
+    tipBtnHit.on('pointerdown', () => {
       if (!_tipNodeId) return;
       const node = SKILL_NODE_MAP[_tipNodeId];
       if (!node || !SkillTreeStore.canLearn(_tipNodeId)) return;
@@ -6343,8 +6350,8 @@ export class PrepScene extends Phaser.Scene {
       { id: ITEM_POTION_REVIVE, name: tr('item.potion_revive'), price: 5000, desc: tr('game.potion.reviveAuto'), color: 0xffee44 },
     ];
     const STONE_ITEMS: ShopItem[] = [
-      { id: ITEM_STONE_BROKEN, name: tr('item.stone_broken'), price: 1000, desc: tr('game.stone.enhance'), color: 0x88ccff },
-      { id: ITEM_STONE_INTACT, name: tr('item.stone_intact'), price: 1800, desc: tr('prep.equip.enhanceRate'), color: 0x66ffcc },
+      { id: ITEM_STONE_BROKEN, name: tr('item.stone_broken'), price: 500, desc: tr('game.stone.enhance'), color: 0x88ccff },
+      { id: ITEM_STONE_INTACT, name: tr('item.stone_intact'), price: 900, desc: tr('prep.equip.enhanceRate'), color: 0x66ffcc },
       { id: 'stone_guard', name: tr('item.stone_guard'), price: 4500, desc: tr('prep.item.guardStoneDesc'), color: 0xbb66ff },
       { id: ITEM_QUEST_REROLL, name: tr('item.quest_reroll'), price: 250, desc: tr('prep.quest.resetList'), color: 0xffcc44 },
       { id: ITEM_BLANK_CARD, name: tr('item.blank_card'), price: 3000, desc: tr('prep.item.blankCardDesc'), color: 0xcc88ff },

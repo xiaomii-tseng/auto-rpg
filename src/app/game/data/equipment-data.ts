@@ -636,7 +636,7 @@ export const ENHANCE_RATE: Record<number, number> = {
   5: 0.35, 6: 0.22, 7: 0.14, 8: 0.10, 9: 0.06,
 };
 
-export const ENHANCE_COMPLETE_BONUS = 0.08;
+export const ENHANCE_ALL_AFFIX_CHANCE = 0.40;
 
 // 每次精煉各詞綴的隨機增幅範圍（線性，套用於基底值，對標現行 +10 水準）
 export const REFINE_INCREMENT_RANGE: Record<StatKey, [number, number]> = {
@@ -664,14 +664,16 @@ export const REFINE_INCREMENT_RANGE: Record<StatKey, [number, number]> = {
   maxHpPct:         [0.008, 0.012 ],
 };
 
-// 精煉成功：提升指定詞綴，若未指定則隨機抽一條
-export function applyEnhancement(item: EquipmentItem, forcedIndex?: number): number[] {
+// 精煉成功：提升指定詞綴，若未指定則隨機抽一條；boostAll=true 時提升全部詞綴
+export function applyEnhancement(item: EquipmentItem, forcedIndex?: number, boostAll?: boolean): number[] {
   if (item.enhancement >= ENHANCE_MAX) return [];
   if (!item.baseAffixes) item.baseAffixes = item.affixes.map(a => ({ ...a }));
 
   const indices: number[] = [];
 
-  if (forcedIndex !== undefined && forcedIndex < item.affixes.length) {
+  if (boostAll) {
+    for (let i = 0; i < item.affixes.length; i++) indices.push(i);
+  } else if (forcedIndex !== undefined && forcedIndex < item.affixes.length) {
     indices.push(forcedIndex);
   } else {
     const pool = item.affixes.map((_, i) => i);
