@@ -3477,7 +3477,7 @@ export class GameScene extends Phaser.Scene {
       this.player.startAttackAnim(`player_attack_${dir}`);
       this.time.delayedCall(50, () => this.playSfx('sfx_swing4'));
 
-      const dmgMult    = 1.235 * (1 + (slamStats.chargeSlamDmgPct ?? 0)) * (isGiant ? 1.3 : 1.0);
+      const dmgMult    = 0.80 * (1 + (slamStats.chargeSlamDmgPct ?? 0)) * (isGiant ? 1.35 : 1.0);
       const stunChance = slamStats.chargeSlamStunChance ?? 0;
       const tx = tgtX, ty = tgtY;
 
@@ -3487,7 +3487,7 @@ export class GameScene extends Phaser.Scene {
           // 找主落點附近最近的怪，最多3顆，各自瞄準
           const nearby = this.getHittableTargets()
             .map(t => ({ t, d: Phaser.Math.Distance.Between(tx, ty, t.x, t.y) }))
-            .filter(e => e.d > 1 && e.d <= P(100))
+            .filter(e => e.d > 1 && e.d <= P(130))
             .sort((a, b) => b.d - a.d)
             .slice(0, 3);
           nearby.forEach(({ t }, i) => {
