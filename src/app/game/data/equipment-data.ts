@@ -77,9 +77,10 @@ export interface StatBonus {
   dashDoubleHit?:       number;  // 瞬步二連（1 = 啟用，每次 65%）
   multiHitNoStagger?:   number;  // 五連斬無僵直（1 = 啟用）
   multiHitDmgPct?:      number;  // 五連斬傷害 ×(1+X)
-  chargeSlamStunChance?:number;  // 蓄力重擊暈眩機率
-  chargeSlamDmgPct?:    number;  // 蓄力重擊傷害 ×(1+X)
-  chargeSlamOverload?:  number;  // 超載蓄力（1=啟用，蓄力時間×2，傷害×1.5）
+  chargeSlamStunChance?:number;  // 隕石術緩速（1=啟用，60%緩速3秒）
+  chargeSlamDmgPct?:    number;  // 隕石術傷害 ×(1+X)
+  chargeSlamOverload?:  number;  // 流星雨（1=啟用，蓄力時間×1.5，額外3顆隕石）
+  meteorGiant?:         number;  // 巨型隕石（1=啟用，覆蓋流星雨，傷害×1.4）
   boomerangRangePct?:   number;  // 迴旋飛刃範圍 ×(1+X)
   boomerangDmgPct?:     number;  // 迴旋飛刃傷害 ×(1+X)
   auraRadiusPct?:       number;  // 血環半徑 ×(1+X)

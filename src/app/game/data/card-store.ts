@@ -285,6 +285,7 @@ export const CardStore = {
       b.chargeSlamStunChance = (b.chargeSlamStunChance ?? 0) + (e.chargeSlamStunChance ?? 0);
       b.chargeSlamDmgPct     = (b.chargeSlamDmgPct     ?? 0) + (e.chargeSlamDmgPct     ?? 0);
       b.chargeSlamOverload   = (b.chargeSlamOverload   ?? 0) + (e.chargeSlamOverload   ?? 0);
+      b.meteorGiant          = (b.meteorGiant          ?? 0) + (e.meteorGiant          ?? 0);
       b.boomerangRangePct    = (b.boomerangRangePct    ?? 0) + (e.boomerangRangePct    ?? 0);
       b.boomerangDmgPct      = (b.boomerangDmgPct      ?? 0) + (e.boomerangDmgPct      ?? 0);
       b.auraRadiusPct        = (b.auraRadiusPct        ?? 0) + (e.auraRadiusPct        ?? 0);
@@ -465,6 +466,7 @@ export const CardStore = {
       chargeSlamStunChance: bonus.chargeSlamStunChance,
       chargeSlamDmgPct:     bonus.chargeSlamDmgPct,
       chargeSlamOverload:   bonus.chargeSlamOverload,
+      meteorGiant:          bonus.meteorGiant,
       boomerangRangePct:    bonus.boomerangRangePct,
       boomerangDmgPct:      bonus.boomerangDmgPct,
       auraRadiusPct:        bonus.auraRadiusPct,

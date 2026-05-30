@@ -630,6 +630,15 @@ export class PrepScene extends Phaser.Scene {
 
     // Content
     const ENTRIES: { text: string; header?: boolean }[] = [
+      { text: 'v1.0.4', header: true },
+      { text: '【調整】蓄力重擊全面重製為隕石術' },
+      { text: '【調整】節點1（震盪墜星）：小怪/菁英緩速60%持續3秒' },
+      { text: '【調整】節點2（隕石強化）：傷害+25%' },
+      { text: '【調整】節點3（流星雨）：命中後額外召喚3顆隕石' },
+      { text: '【調整】節點4（巨型隕石）：傷害×1.3，緩速BOSS 1.5秒' },
+      { text: '【調整】完整強化石：成功時40%機率提升全部詞綴（售價900）' },
+      { text: '【調整】破損強化石：售價調整為500金幣' },
+      { text: '' },
       { text: 'v1.0.3', header: true },
       { text: '【調整】傷害溢出重製：基底傷害 ×200% 溢出值' },
       { text: '【調整】節點2改為溢出強化（提升至 ×400%）' },

@@ -158,6 +158,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
   burnExpiresAt = 0;
   stunUntil     = 0;
   def           = 0;
+  slowMult      = 1;
 
   applyBurn(gameTime: number, maxStacks = 15, duration = 4000): void {
     if (this.burnStacks < maxStacks) this.burnStacks++;
@@ -258,7 +259,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     } else {
       const angle = Phaser.Math.Angle.Between(this.x, this.y, tx, ty);
       (this.scene.physics as Phaser.Physics.Arcade.ArcadePhysics).velocityFromAngle(
-        Phaser.Math.RadToDeg(angle), this.idleChaseSpeed, body.velocity,
+        Phaser.Math.RadToDeg(angle), this.idleChaseSpeed * this.slowMult, body.velocity,
       );
       if (this.bossDir !== prevDir) this.playDir(`${this.animPrefix}_${this.walkAnimSuffix}`);
     }

@@ -52,6 +52,7 @@ export interface EffectiveStats {
   chargeSlamStunChance?: number;
   chargeSlamDmgPct?:     number;
   chargeSlamOverload?:   number;
+  meteorGiant?:          number;
   boomerangRangePct?:    number;
   boomerangDmgPct?:      number;
   auraRadiusPct?:        number;

@@ -3452,69 +3452,235 @@ export class GameScene extends Phaser.Scene {
   // ── 蓄力重擊 chargeSlam ───────────────────────────────────
 
   private attackChargeSlam(_tx: number, _ty: number): void {
-    const slamStats = CardStore.getTotalStats();
-    const spd = 1 + this.getEffectiveAtkSpeed();
-    const isOverload = (slamStats.chargeSlamOverload ?? 0) >= 1;
-    const cd = Math.round(650 / spd) * (isOverload ? 2 : 1);
+    const slamStats   = CardStore.getTotalStats();
+    const spd         = 1 + this.getEffectiveAtkSpeed();
+    const isMultiShot = (slamStats.chargeSlamOverload ?? 0) >= 1;
+    const isGiant     = (slamStats.meteorGiant ?? 0) >= 1;
+    const hasCharge   = isGiant;
+    const baseMs      = Math.round(650 / spd);
+    const chargeMs    = hasCharge ? Math.round(baseMs * 0.54) : 0;
+    const cd          = baseMs + chargeMs;
     if (!this.player.lockCooldown(cd)) return;
 
-    const { dir } = this.resolveAttackDir(MELEE_RANGE * 3);
-    const SLAM_RANGE = MELEE_RANGE * 1.152;
-    this.player.speedMult = 0.6;
-    this.player.noInterrupt = true;
+    const METEOR_RANGE = P(200);
+    const { dir, tx: fallbackX, ty: fallbackY } = this.resolveAttackDir(METEOR_RANGE);
 
-    // ── 蓄力視覺 ──────────────────────────────────────────────
-    const chargeGfx = this.add.graphics().setDepth(this.player.depth + 1);
-    let chargeT = 0;
-    const updateCharge = () => {
-      if (!chargeGfx.active) return;
-      chargeT += 16;
-      const prog = Math.min(chargeT / cd, 1);
-      chargeGfx.clear();
-      // 外層暈（隨蓄力擴大）
-      const outerR = P(8) + prog * P(isOverload ? 44 : 28);
-      chargeGfx.lineStyle(P(3), isOverload ? 0xff6600 : 0xffaa00, 0.25 + prog * 0.35);
-      chargeGfx.strokeCircle(this.player.x, this.player.y, outerR);
-      // 中層（微脈動）
-      const pulse = Math.sin(chargeT / 80) * P(3);
-      chargeGfx.lineStyle(P(2), isOverload ? 0xff9900 : 0xffdd44, 0.5 + prog * 0.4);
-      chargeGfx.strokeCircle(this.player.x, this.player.y, P(10) + pulse + prog * P(isOverload ? 20 : 12));
-      // 內核小點
-      chargeGfx.fillStyle(0xffffff, 0.6 + prog * 0.4);
-      chargeGfx.fillCircle(this.player.x, this.player.y, P(3) + prog * P(3));
-    };
-    const chargeTicker = this.time.addEvent({ delay: 16, repeat: Math.ceil(cd / 16), callback: updateCharge });
-
-    this.time.delayedCall(cd, () => {
-      this.player.speedMult = 1;
-      this.player.noInterrupt = false;
-      chargeTicker.destroy();
-      chargeGfx.destroy();
+    const fire = () => {
+      // 找最近的敵人；無敵人時打面向最遠處
+      let tgtX = fallbackX, tgtY = fallbackY;
+      let minDist = Infinity;
+      for (const t of this.getHittableTargets()) {
+        const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, t.x, t.y);
+        if (d <= METEOR_RANGE && d < minDist) { minDist = d; tgtX = t.x; tgtY = t.y; }
+      }
 
       this.player.startAttackAnim(`player_attack_${dir}`);
       this.time.delayedCall(50, () => this.playSfx('sfx_swing4'));
-      this.time.delayedCall(150, () => {
-        const px = this.player.x, py = this.player.y;
-        const D = this.player.depth;
-        this.fxChargeSlam(px, py, SLAM_RANGE, D);
-        const overloadMult = isOverload ? 1.5 : 1.0;
-        this.hitInArea(px, py, SLAM_RANGE, 1.235 * (1 + (slamStats.chargeSlamDmgPct ?? 0)) * overloadMult, 360, 0, dir);
 
-        // 暈眩效果
-        if ((slamStats.chargeSlamStunChance ?? 0) > 0 && Math.random() < slamStats.chargeSlamStunChance!) {
+      const dmgMult    = 1.235 * (1 + (slamStats.chargeSlamDmgPct ?? 0)) * (isGiant ? 1.3 : 1.0);
+      const stunChance = slamStats.chargeSlamStunChance ?? 0;
+      const tx = tgtX, ty = tgtY;
+
+      this.time.delayedCall(150, () => {
+        this.playerMeteorAt(tx, ty, dmgMult, isGiant, stunChance);
+        if (isMultiShot && !isGiant) {
+          // 找主落點附近最近的怪，最多3顆，各自瞄準
+          const nearby = this.getHittableTargets()
+            .map(t => ({ t, d: Phaser.Math.Distance.Between(tx, ty, t.x, t.y) }))
+            .filter(e => e.d > 1 && e.d <= P(100))
+            .sort((a, b) => b.d - a.d)
+            .slice(0, 3);
+          nearby.forEach(({ t }, i) => {
+            const ex = t.x, ey = t.y;
+            this.time.delayedCall((i + 1) * 120, () => {
+              this.playerMeteorAt(ex, ey, dmgMult, false, stunChance);
+            });
+          });
+        }
+      });
+    };
+
+    if (hasCharge) {
+      // 節點3+ 才有蓄力：緩速 + 綠色充能特效
+      this.player.speedMult = 0.6;
+      this.player.noInterrupt = true;
+      const chargeGfx = this.add.graphics().setDepth(this.player.depth + 1);
+      let chargeT = 0;
+      const updateCharge = () => {
+        if (!chargeGfx.active) return;
+        chargeT += 16;
+        const prog = Math.min(chargeT / chargeMs, 1);
+        chargeGfx.clear();
+        const outerR = P(8) + prog * P(isGiant ? 44 : 36);
+        chargeGfx.lineStyle(P(3), 0x00cc44, 0.25 + prog * 0.35);
+        chargeGfx.strokeCircle(this.player.x, this.player.y, outerR);
+        const pulse = Math.sin(chargeT / 80) * P(3);
+        chargeGfx.lineStyle(P(2), 0x44ff88, 0.5 + prog * 0.4);
+        chargeGfx.strokeCircle(this.player.x, this.player.y, P(10) + pulse + prog * P(isGiant ? 22 : 18));
+        chargeGfx.fillStyle(0xaaffcc, 0.6 + prog * 0.4);
+        chargeGfx.fillCircle(this.player.x, this.player.y, P(3) + prog * P(3));
+      };
+      const chargeTicker = this.time.addEvent({ delay: 16, repeat: Math.ceil(chargeMs / 16), callback: updateCharge });
+      this.time.delayedCall(chargeMs, () => {
+        this.player.speedMult = 1;
+        this.player.noInterrupt = false;
+        chargeTicker.destroy();
+        chargeGfx.destroy();
+        fire();
+      });
+    } else {
+      fire();
+    }
+  }
+
+  private playerMeteorAt(wtx: number, wty: number, dmgMult: number, isGiant: boolean, stunChance: number, rOverride?: number): void {
+    const R       = rOverride ?? P(isGiant ? 55 : 30);
+    const fallMs  = 520;
+    const startY  = wty - P(130);
+    const hitR    = R * 1.1;
+
+    // 地板綠圈提示（落點預警）
+    const indicator = this.add.graphics({ x: wtx, y: wty }).setDepth(16);
+    let indT = 0;
+    const indEvt = this.time.addEvent({
+      delay: 40, repeat: Math.ceil(fallMs / 40),
+      callback: () => {
+        if (!indicator.active) return;
+        indT += 40;
+        indicator.clear();
+        const alpha = 0.35 + Math.sin(indT / 70) * 0.25;
+        indicator.lineStyle(P(2), 0x44ff88, alpha);
+        indicator.strokeCircle(0, 0, hitR);
+        indicator.fillStyle(0x00ff44, 0.06);
+        indicator.fillCircle(0, 0, hitR);
+      },
+    });
+
+    const shadow = this.add.graphics({ x: wtx, y: wty }).setDepth(48);
+
+    // 隕石主體（綠色）
+    const meteor = this.add.graphics({ x: wtx, y: startY }).setDepth(61);
+    meteor.fillStyle(0x33bb55, 0.95);
+    meteor.fillCircle(0, 0, R);
+    meteor.fillStyle(0x001100, 0.50);
+    meteor.fillCircle(R * 0.22, R * 0.18, R * 0.52);
+    meteor.lineStyle(P(3.5), 0x66ff88, 0.90);
+    meteor.strokeCircle(0, 0, R);
+    meteor.lineStyle(P(1.5), 0xaaffcc, 0.50);
+    meteor.strokeCircle(0, 0, R * 0.55);
+    meteor.setScale(0.3);
+
+    // 墜落火焰軌跡（綠色）
+    const fireEvt = this.time.addEvent({
+      delay: 80, repeat: Math.floor(fallMs / 80),
+      callback: () => {
+        if (!meteor.active) return;
+        const s      = meteor.scaleX;
+        const streak = this.add.graphics({ x: meteor.x, y: meteor.y }).setDepth(60);
+        const sLen   = P(30) * s;
+        for (let j = 0; j < 3; j++) {
+          const a = -Math.PI / 2 + (j - 1) * 0.22 + (Math.random() - 0.5) * 0.12;
+          streak.lineStyle(P(2.5 - j * 0.5), j === 0 ? 0x44ff66 : 0x22cc44, 0.65 - j * 0.12);
+          streak.beginPath(); streak.moveTo(0, 0);
+          streak.lineTo(Math.cos(a) * sLen, Math.sin(a) * sLen); streak.strokePath();
+        }
+        this.tweens.add({ targets: streak, alpha: 0, duration: 200, ease: 'Quad.Out', onComplete: () => streak.destroy() });
+      },
+    });
+
+    this.tweens.add({
+      targets: meteor, y: wty, scaleX: 1, scaleY: 1,
+      duration: fallMs, ease: 'Quad.In',
+      onUpdate: () => {
+        const t = Math.max(0, (meteor.y - startY) / (wty - startY));
+        shadow.clear();
+        shadow.fillStyle(0x003300, 0.38 * t);
+        shadow.fillEllipse(0, 0, R * 2.4 * t, R * 0.75 * t);
+      },
+      onComplete: () => {
+        fireEvt.destroy();
+        indEvt.destroy();
+        indicator.destroy();
+        meteor.destroy();
+        shadow.destroy();
+
+        // ① 焦痕坑洞
+        const crater = this.add.graphics({ x: wtx, y: wty }).setDepth(15);
+        crater.fillStyle(0x001a00, 0.80); crater.fillCircle(0, 0, R * 1.05);
+        crater.fillStyle(0x003300, 0.45); crater.fillCircle(0, 0, R * 1.25);
+        crater.lineStyle(P(1.5), 0x226622, 0.55); crater.strokeCircle(0, 0, R * 1.05);
+        this.tweens.add({ targets: crater, alpha: 0, duration: 1600, delay: 300, ease: 'Quad.In', onComplete: () => crater.destroy() });
+
+        // ② 中心閃光
+        const core = this.add.graphics({ x: wtx, y: wty }).setDepth(65);
+        core.fillStyle(0xffffff, 1); core.fillCircle(0, 0, R * 0.6);
+        core.fillStyle(0x66ffaa, 0.9); core.fillCircle(0, 0, R * 0.35);
+        this.tweens.add({ targets: core, alpha: 0, scaleX: 0.08, scaleY: 0.08, duration: 160, ease: 'Quad.In', onComplete: () => core.destroy() });
+
+        // ③ 衝擊波環
+        const shock = this.add.graphics({ x: wtx, y: wty }).setDepth(64);
+        shock.lineStyle(P(3), 0x88ffaa, 1); shock.strokeCircle(0, 0, R * 0.75);
+        this.tweens.add({ targets: shock, scaleX: 2.6, scaleY: 2.6, alpha: 0, duration: 320, ease: 'Cubic.Out', onComplete: () => shock.destroy() });
+
+        // ④ 光暈環
+        const halo = this.add.graphics({ x: wtx, y: wty }).setDepth(63);
+        halo.lineStyle(P(7), 0x33dd66, 0.70); halo.strokeCircle(0, 0, R * 0.55);
+        this.tweens.add({ targets: halo, scaleX: 2.1, scaleY: 2.1, alpha: 0, duration: 480, ease: 'Quad.Out', onComplete: () => halo.destroy() });
+
+        // ⑤ 岩石碎片
+        for (let i = 0; i < 8; i++) {
+          const a     = (i / 8) * Math.PI * 2 + (Math.random() - 0.5) * 0.45;
+          const tDist = P(Phaser.Math.Between(18, 40));
+          const piece = this.add.graphics({ x: wtx, y: wty }).setDepth(62);
+          const pr    = P(Phaser.Math.Between(3, 6));
+          const col   = [0x115522, 0x226633, 0x114422, 0x337744][i % 4];
+          piece.fillStyle(col, 0.92);
+          piece.fillEllipse(0, 0, pr * 2.2, pr);
+          piece.lineStyle(P(0.8), 0x88ffaa, 0.55);
+          piece.strokeEllipse(0, 0, pr * 2.2, pr);
+          this.tweens.add({
+            targets: piece,
+            x: wtx + Math.cos(a) * tDist, y: wty + Math.sin(a) * tDist,
+            rotation: Phaser.Math.FloatBetween(Math.PI, Math.PI * 3),
+            alpha: 0, duration: Phaser.Math.Between(300, 480), ease: 'Quad.Out',
+            onComplete: () => piece.destroy(),
+          });
+        }
+
+        // ⑥ 粉塵
+        for (let i = 0; i < 12; i++) {
+          const a    = (i / 12) * Math.PI * 2 + Math.random() * 0.3;
+          const r0   = R * 0.45;
+          const r1   = P(Phaser.Math.Between(20, 48));
+          const dust = this.add.graphics({ x: wtx + Math.cos(a) * r0, y: wty + Math.sin(a) * r0 }).setDepth(62);
+          dust.fillStyle(0x44cc66, Phaser.Math.FloatBetween(0.45, 0.70));
+          dust.fillCircle(0, 0, P(Phaser.Math.Between(2, 4)));
+          this.tweens.add({
+            targets: dust,
+            x: wtx + Math.cos(a) * r1, y: wty + Math.sin(a) * r1,
+            alpha: 0, duration: Phaser.Math.Between(380, 620), ease: 'Quad.Out',
+            onComplete: () => dust.destroy(),
+          });
+        }
+
+        // 傷害
+        this.hitInArea(wtx, wty, hitR, dmgMult, 360, 0, 'down');
+        // 緩速（節點1-7，60% 速度）；巨型隕石對 Boss 也有效
+        if (stunChance > 0) {
           for (const t of this.getHittableTargets()) {
-            if (Phaser.Math.Distance.Between(px, py, t.x, t.y) <= SLAM_RANGE) {
-              (t as MinionSlime).applyStun?.(2000);
+            if (Phaser.Math.Distance.Between(wtx, wty, t.x, t.y) <= hitR) {
+              const m = t as any;
+              if (t instanceof Boss && isGiant) {
+                t.slowMult = 0.4;
+                this.time.delayedCall(1500, () => { if (t.active) t.slowMult = 1; });
+              } else if (typeof m.slowMult === 'number' && !(t instanceof Boss)) {
+                m.slowMult = 0.4;
+                this.time.delayedCall(3000, () => { if (m.active) m.slowMult = 1; });
+              }
             }
           }
         }
-
-        // debug: 命中範圍
-        const dbg = this.add.graphics().setDepth(this.player.depth + 3);
-        dbg.lineStyle(2, 0xff4444, 0.9);
-        dbg.strokeCircle(px, py, SLAM_RANGE);
-        this.tweens.add({ targets: dbg, alpha: 0, duration: 350, onComplete: () => dbg.destroy() });
-      });
+      },
     });
   }
 

@@ -78,10 +78,11 @@ export const SKILL_NODES: SkillNode[] = [
   { id: '1-6-1',   label: t('skill.1-6-1.label'),   desc: t('skill.1-6-1.desc'),   x: -46, y: 127, parentId: '1-6',   attackMode: 'slash180' },
   { id: '1-6-1-1', label: t('skill.1-6-1-1.label'), desc: t('skill.1-6-1-1.desc'), x: -68, y: 188, parentId: '1-6-1', attackMode: 'slash180' },
 
-  // ── 蓄力重擊 branch (150°) ────────────────────────────────────────────────
-  { id: '1-7',     label: t('skill.1-7.label'),     desc: t('skill.1-7.desc'),     x:  -61, y:  35, parentId: '1',     attackMode: 'chargeSlam' },
-  { id: '1-7-1',   label: t('skill.1-7-1.label'),   desc: t('skill.1-7-1.desc'),   x: -117, y:  68, parentId: '1-7',   attackMode: 'chargeSlam' },
-  { id: '1-7-1-1', label: t('skill.1-7-1-1.label'), desc: t('skill.1-7-1-1.desc'), x: -173, y: 100, parentId: '1-7-1', attackMode: 'chargeSlam' },
+  // ── 隕石術 branch (150°) ──────────────────────────────────────────────────
+  { id: '1-7',       label: t('skill.1-7.label'),       desc: t('skill.1-7.desc'),       x:  -61, y:  35, parentId: '1',       attackMode: 'chargeSlam' },
+  { id: '1-7-1',     label: t('skill.1-7-1.label'),     desc: t('skill.1-7-1.desc'),     x: -117, y:  68, parentId: '1-7',     attackMode: 'chargeSlam' },
+  { id: '1-7-1-1',   label: t('skill.1-7-1-1.label'),   desc: t('skill.1-7-1-1.desc'),   x: -173, y: 100, parentId: '1-7-1',   attackMode: 'chargeSlam' },
+  { id: '1-7-1-1-1', label: t('skill.1-7-1-1-1.label'), desc: t('skill.1-7-1-1-1.desc'), x: -229, y: 133, parentId: '1-7-1-1', attackMode: 'chargeSlam' },
 
   // ── 瞬步斬 branch (190°) ──────────────────────────────────────────────────
   { id: '1-8',     label: t('skill.1-8.label'),     desc: t('skill.1-8.desc'),     x:  -69, y:  -12, parentId: '1',     attackMode: 'dashPierce' },
@@ -249,10 +250,11 @@ export const SkillTreeStore = {
       dashDistPct:          (L('1-8') ? 0.30 : 0),
       dashDmgPct:           (L('1-8-1') ? 0.30 : 0),
       dashDoubleHit:        (L('1-8-1-1') ? 1 : 0),
-      // ── 蓄力重擊 ──────────────────────────────────────────
-      chargeSlamStunChance: (L('1-7') ? 0.50 : 0),
+      // ── 隕石術 ────────────────────────────────────────────
+      chargeSlamStunChance: (L('1-7') ? 1 : 0),
       chargeSlamDmgPct:     (L('1-7-1') ? 0.25 : 0),
       chargeSlamOverload:   (L('1-7-1-1') ? 1 : 0),
+      meteorGiant:          (L('1-7-1-1-1') ? 1 : 0),
       // ── 半月斬 ────────────────────────────────────────────
       slash180DmgPct:       (L('1-6') ? 0.10 : 0) + (L('1-6-1') ? 0.15 : 0) + (L('1-6-1-1') ? 0.20 : 0),
       // ── 旋風斬 ────────────────────────────────────────────
