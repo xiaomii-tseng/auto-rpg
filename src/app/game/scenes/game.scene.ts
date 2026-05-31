@@ -5629,7 +5629,7 @@ export class GameScene extends Phaser.Scene {
     const _mwl = this._towerWalls ?? this.wallLayer;
     if (_mwl) this.physics.add.collider(m, _mwl);
     this.physics.add.overlap(m, this.player, () => {
-      if (!m.isDead && m.isDashing) this.player.takeDamage(m.atk * 3);
+      if (!m.isDead && m.isDashing) this.player.takeDamage(m.atk);
     });
     this.physics.add.overlap(m, this._allyGroup, (_m, allyObj) => {
       const ally = allyObj as MinionSlime;
@@ -5637,7 +5637,7 @@ export class GameScene extends Phaser.Scene {
       const now = this.time.now;
       if (now - ((ally as any)._lastDashHit ?? 0) < 300) return;
       (ally as any)._lastDashHit = now;
-      ally.takeDamage(m.atk * 3);
+      ally.takeDamage(m.atk);
     });
     if (!NetworkService.connected || NetworkService.isHost) {
       m.onFire = (type, mx, my, tx, ty) => {
@@ -5770,7 +5770,7 @@ export class GameScene extends Phaser.Scene {
       const _awl = this._towerWalls ?? this.wallLayer;
       if (_awl) this.physics.add.collider(m, _awl);
       this.physics.add.overlap(m, this.player, () => {
-        if (!m.isDead && m.isDashing) this.player.takeDamage(m.atk * 3);
+        if (!m.isDead && m.isDashing) this.player.takeDamage(m.atk);
       });
       this.physics.add.overlap(m, this._allyGroup, (_m, allyObj) => {
         const ally = allyObj as MinionSlime;
@@ -5778,7 +5778,7 @@ export class GameScene extends Phaser.Scene {
         const now = this.time.now;
         if (now - ((ally as any)._lastDashHit ?? 0) < 300) return;
         (ally as any)._lastDashHit = now;
-        ally.takeDamage(m.atk * 3);
+        ally.takeDamage(m.atk);
       });
       if (!NetworkService.connected || NetworkService.isHost) {
         m.onFire = (type, mx, my, tx, ty) => {
@@ -10540,7 +10540,7 @@ export class GameScene extends Phaser.Scene {
   protected spawnMinionAttack(type: import('../../../../shared/types').MsgMinionAttack['type'], mx: number, my: number, tx: number, ty: number, atk: number, isElite = false): void {
     const wx = mx * DPR, wy = my * DPR, wtx = tx * DPR, wty = ty * DPR;
     if (type === 'shoot') {
-      this.fireProjectile(wx, wy, wtx, wty, isElite ? 'proj_fast_elite' : 'proj_fast', Math.round(atk * 4.0), Math.round(150 * DPR));
+      this.fireProjectile(wx, wy, wtx, wty, isElite ? 'proj_fast_elite' : 'proj_fast', atk, Math.round(150 * DPR));
     } else if (type === 'triple') {
       const baseAngle = Phaser.Math.Angle.Between(wx, wy, wtx, wty);
       const batchId = this.time.now + Math.random();
@@ -10548,7 +10548,7 @@ export class GameScene extends Phaser.Scene {
         const a = baseAngle + offset;
         const etx = wx + Math.cos(a) * P(600);
         const ety = wy + Math.sin(a) * P(600);
-        this.fireProjectile(wx, wy, etx, ety, isElite ? 'proj_slow_elite' : 'proj_slow', Math.round(atk * 2.55), Math.round(90 * DPR), batchId);
+        this.fireProjectile(wx, wy, etx, ety, isElite ? 'proj_slow_elite' : 'proj_slow', atk, Math.round(90 * DPR), batchId);
       }
       // 清理超過 2 秒的舊 batch 記錄
       const cutoff = this.time.now - 2000;
@@ -10597,7 +10597,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   protected whirlSlashAt(wx: number, wy: number, wtx: number, wty: number, atk: number, isElite: boolean, hitROverride?: number, dmgOverride?: number, vfxDurationMs = 900): void {
-    const dmg = dmgOverride ?? Math.round(atk * 4.5);
+    const dmg = dmgOverride ?? atk;
     const hitR = hitROverride ?? Math.round((isElite ? 36 : 28) * DPR);
     const angle = Phaser.Math.Angle.Between(wx, wy, wtx, wty);
     const travelDist = Phaser.Math.Distance.Between(wx, wy, wtx, wty);
@@ -10651,7 +10651,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   protected bladeWaveAt(wx: number, wy: number, wtx: number, wty: number, atk: number, isElite: boolean, speedMult = 1): void {
-    const dmg = Math.round(atk * 5.0);
+    const dmg = atk;
     const ang = Phaser.Math.Angle.Between(wx, wy, wtx, wty);
     // 眉月形狀：兩個等半徑圓錯開，裁切出薄月牙。
     // Circle 1: center (0,0) radius R  — 外弧（月背）
@@ -10776,7 +10776,7 @@ export class GameScene extends Phaser.Scene {
     const angle = Phaser.Math.Angle.Between(wx, wy, wtx, wty);
     const R = Math.round((isElite ? 72 : 56) * DPR);
     const Ri = Math.round(R * 0.42);  // inner radius of crescent
-    const dmg = Math.round(atk * 5.5);
+    const dmg = atk;
     const spread = Math.PI * 75 / 360;  // 37.5° each side = 75° total
     const sa = angle - spread, ea = angle + spread;
 
@@ -10841,7 +10841,7 @@ export class GameScene extends Phaser.Scene {
 
   protected spinSlashAt(wx: number, wy: number, atk: number, isElite: boolean): void {
     const R = Math.round((isElite ? 80 : 65) * DPR);
-    const dmg = Math.round(atk * 4.5);
+    const dmg = atk;
     const gfx = this.add.graphics({ x: wx, y: wy }).setDepth(50);
     // Spinning rings expanding outward
     let rings = 0;
@@ -10863,7 +10863,7 @@ export class GameScene extends Phaser.Scene {
 
   protected groundCrackAt(wx: number, wy: number, wtx: number, wty: number, atk: number, isElite: boolean): void {
     const baseAngle = Phaser.Math.Angle.Between(wx, wy, wtx, wty);
-    const dmg = Math.round(atk * (isElite ? 4.0 : 3.5));
+    const dmg = atk;
     const len = Math.round((isElite ? 240 : 200) * DPR);
     const spread = Math.PI * 28 / 180;
     for (let i = 0; i < 3; i++) {
@@ -10977,13 +10977,13 @@ export class GameScene extends Phaser.Scene {
   // ── 吸血鬼小怪 VFX ───────────────────────────────────────
 
   protected bloodNeedleAt(wx: number, wy: number, wtx: number, wty: number, atk: number, isElite: boolean): void {
-    this._fireBloodNeedle(wx, wy, wtx, wty, Math.round(atk * (isElite ? 5.5 : 4.5)), isElite);
+    this._fireBloodNeedle(wx, wy, wtx, wty, atk, isElite);
   }
 
   protected tripleNeedleAt(wx: number, wy: number, wtx: number, wty: number, atk: number): void {
     const baseAngle = Phaser.Math.Angle.Between(wx, wy, wtx, wty);
     const travelDist = (Phaser.Math.Distance.Between(wx, wy, wtx, wty) || P(190)) + P(70);
-    const dmg = Math.round(atk * 4.2);
+    const dmg = atk;
     for (let i = 0; i < 3; i++) {
       const offset = (i - 1) * (Math.PI / 6); // -30°, 0°, +30°
       const ang = baseAngle + offset;
@@ -11072,7 +11072,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   protected meteorAt(wtx: number, wty: number, atk: number, isElite: boolean): void {
-    const dmg = Math.round(atk * (isElite ? 7.0 : 5.5));
+    const dmg = atk;
     const R = Math.round((isElite ? 30 : 22) * DPR);
     const fallMs = 520;
     const startY = wty - P(130);
@@ -11200,7 +11200,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   protected bloodBurstAt(wx: number, wy: number, wtx: number, wty: number, atk: number, isElite: boolean): void {
-    const dmg = Math.round(atk * (isElite ? 3.0 : 2.5));
+    const dmg = atk;
     const count = 1;
     const tDist = P(isElite ? 175 : 140);
     const duration = 580;
@@ -11263,7 +11263,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   protected lightningRingAt(wx: number, wy: number, _wtx: number, _wty: number, atk: number, isElite: boolean): void {
-    const dmg = Math.round(atk * (isElite ? 2.8 : 2.2));
+    const dmg = atk;
     const minR = P(18);
     const maxR = P(isElite ? 47 : 37); // 縮小40%，同時發射兩個
     const totMs = 2600;
@@ -11415,7 +11415,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   protected orbitBurstAt(wx: number, wy: number, atk: number, isElite: boolean): void {
-    const dmg = Math.round(atk * (isElite ? 3.5 : 2.8));
+    const dmg = atk;
     const startR = P(26);
     const endR = P(isElite ? 168 : 132);
     const duration = 2600;
@@ -11516,7 +11516,7 @@ export class GameScene extends Phaser.Scene {
     const CHAN_LEN = P(280);
     const DUR_MS = 1500;
     const TICK_MS = 300;
-    const dmgPerTick = Math.round(atk * (isElite ? 1.2 : 0.9));
+    const dmgPerTick = Math.round(atk * 0.3);
 
     const angle = Phaser.Math.Angle.Between(wx, wy, wtx, wty);
     const cos = Math.cos(angle);
@@ -12679,7 +12679,7 @@ export class GameScene extends Phaser.Scene {
 
   protected explodeAt(wx: number, wy: number, atk: number, radiusMult = 1.0): void {
     const R = Math.round(MinionSlime.EXPLODE_RADIUS * radiusMult);
-    const dmg = Math.round(atk * 4.0);
+    const dmg = atk;
 
     // Shockwave ring — expands outward and fades
     const ring = this.add.graphics({ x: wx, y: wy }).setDepth(50);
@@ -12721,7 +12721,7 @@ export class GameScene extends Phaser.Scene {
 
   protected spikeAt(tx: number, ty: number, atk: number, isElite = false, sizeMult = 1): void {
     const R = Math.round(MinionSlime.SPIKE_RADIUS * (isElite ? 1.4 : 1.0) * sizeMult);
-    const dmg = Math.round(atk * 3.5);
+    const dmg = atk;
     const spCount = isElite ? 10 : 7;
     const WARN_MS = MinionSlime.SPIKE_WARN_MS;
 
