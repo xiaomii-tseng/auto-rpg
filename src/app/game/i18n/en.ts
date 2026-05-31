@@ -157,6 +157,7 @@ export const EN: Record<ZHKeys, string> = {
   'behavior.aura.f1':       'DMG: ATK × 18% (per tick)',
   'behavior.aura.f2':       'Rate: 100ms',
   'behavior.aura.f3':       'Range: 60px (expandable)',
+  'behavior.aura.f4':       'Passive: Max HP +15%',
   'behavior.multiHit.f1':   'DMG: ATK × 35% (per hit)',
   'behavior.multiHit.f2':   'Cooldown: 650ms',
   'behavior.multiHit.f3':   'Hits: 5',

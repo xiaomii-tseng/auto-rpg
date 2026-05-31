@@ -365,7 +365,7 @@ export const BEHAVIOR_INFO: Record<AttackBehavior, BehaviorInfo> = {
   },
   aura: {
     desc:    t('behavior.aura.desc'),
-    formula: [t('behavior.aura.f1'), t('behavior.aura.f2'), t('behavior.aura.f3')],
+    formula: [t('behavior.aura.f1'), t('behavior.aura.f2'), t('behavior.aura.f3'), t('behavior.aura.f4')],
     relatedStats: [
       { stat: 'hp',       note: t('stat.hp') },
       { stat: 'atkSpeed', note: t('stat.atkSpeed') },

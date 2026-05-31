@@ -155,6 +155,7 @@ export const ZH = {
   'behavior.aura.f1':       '傷害：攻擊力 × 18%（每次）',
   'behavior.aura.f2':       '頻率：100ms',
   'behavior.aura.f3':       '範圍：60px（可擴張）',
+  'behavior.aura.f4':       '被動：最大生命值 +15%',
   'behavior.multiHit.f1':   '傷害：攻擊力 × 35%（每擊）',
   'behavior.multiHit.f2':   '冷卻：650ms',
   'behavior.multiHit.f3':   '連擊：5 次',

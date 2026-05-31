@@ -42,6 +42,7 @@ import { TutorialStore, TutorialKey } from '../data/tutorial-store';
 import { ITEM_POTION_HEALTH_S, ITEM_POTION_HEALTH_M, ITEM_POTION_HEALTH_L, ITEM_POTION_REVIVE, ITEM_POTION_ATK, ITEM_POTION_DEF, ITEM_POTION_SPEED, ITEM_STONE_BROKEN, ITEM_STONE_INTACT, ITEM_STONE_RECAST, ITEM_QUEST_REROLL, ITEM_BLANK_CARD, getHealthPotionForStar, BOSS_TICKET_MAP } from '../data/monster-data';
 import type { MapParams } from '../../../../shared/types';
 import { t as tr } from '../i18n/i18n';
+import { openChangePasswordOverlay } from '../ui/change-password-overlay';
 
 const CO_OP_HP_MULTS: number[] = [1, 1, 1.6, 2.4]; // indexed by player count; extend for future 4+ support
 
@@ -7499,7 +7500,7 @@ export class GameScene extends Phaser.Scene {
   protected createExitButton(): void {
     const W = this.scale.width;
     const bw = P(72), bh = P(28), pad = P(8);
-    const bx = W - pad - bw;
+    const bx = W - P(46) - bw;
     const by = pad;
     const cx = bx + bw / 2;
     const cy = by + bh / 2;
@@ -7548,6 +7549,30 @@ export class GameScene extends Phaser.Scene {
     this.add.rectangle(lcx, cy, lbw, bh)
       .setScrollFactor(0).setDepth(9803).setInteractive({ useHandCursor: true })
       .on('pointerdown', () => this.showLootPanel());
+
+    // ── 設定漢堡按鈕（右上角）──
+    const SET_S = P(36);
+    const SET_X = W - SET_S - P(4), SET_Y = P(4);
+    const sg = this.add.graphics().setScrollFactor(0).setDepth(9804);
+    sg.fillStyle(0x000000, 0.5);
+    sg.fillRoundedRect(SET_X + P(2), SET_Y + P(2), SET_S, SET_S, P(8));
+    sg.fillStyle(0x1a1008, 0.92);
+    sg.fillRoundedRect(SET_X, SET_Y, SET_S, SET_S, P(8));
+    sg.fillStyle(0xffffff, 0.04);
+    sg.fillRoundedRect(SET_X + P(1), SET_Y + P(1), SET_S - P(2), SET_S * 0.45,
+      { tl: P(7), tr: P(7), bl: 0, br: 0 });
+    sg.lineStyle(1.5, 0xd4a050, 0.4);
+    sg.strokeRoundedRect(SET_X, SET_Y, SET_S, SET_S, P(8));
+    this.add.text(SET_X + SET_S / 2, SET_Y + SET_S / 2 + P(1), '≡', {
+      fontSize: F(20), color: '#d4a050', stroke: '#1a0800', strokeThickness: 1,
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(9805);
+    this.add.rectangle(SET_X + SET_S / 2, SET_Y + SET_S / 2, SET_S, SET_S)
+      .setScrollFactor(0).setDepth(9806).setAlpha(0.001)
+      .setInteractive({ useHandCursor: true })
+      .on('pointerup', () => {
+        AudioService.suppressClickSfx();
+        this._showGameSettingsPanel(this.scale.width, this.scale.height);
+      });
   }
 
   protected showLootPanel(): void {
@@ -7764,7 +7789,7 @@ export class GameScene extends Phaser.Scene {
   private activateRewardButton(): void {
     const W = this.scale.width;
     const bw = P(88), bh = P(28), pad = P(8);
-    const bx = W - pad - bw;
+    const bx = W - P(46) - bw;
     const by = pad;
     const cx = bx + bw / 2;
     const cy = by + bh / 2;
@@ -7800,6 +7825,172 @@ export class GameScene extends Phaser.Scene {
       ease: 'Sine.easeInOut',
     });
   }
+
+  private _showGameSettingsPanel(W: number, H: number): void {
+    const D = 9850;
+    const PW = Math.min(W - P(16), P(300));
+    const PH = P(335);
+    const px = (W - PW) / 2;
+    const py = (H - PH) / 2;
+
+    const objs: Phaser.GameObjects.GameObject[] = [];
+    const close = () => objs.forEach(o => o.destroy());
+
+    const bd = this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.75)
+      .setInteractive().setDepth(D);
+    objs.push(bd);
+    bd.on('pointerdown', (ptr: Phaser.Input.Pointer) => {
+      if (ptr.x < px || ptr.x > px + PW || ptr.y < py || ptr.y > py + PH) close();
+    });
+
+    const bg = this.add.graphics().setDepth(D + 1);
+    objs.push(bg);
+    bg.fillStyle(0x000000, 0.5);
+    bg.fillRect(px + P(4), py + P(4), PW, PH);
+    bg.fillStyle(0xa06810, 1);
+    bg.fillRect(px - P(3), py - P(3), PW + P(6), PH + P(6));
+    bg.fillStyle(0x160e04, 1);
+    bg.fillRect(px, py, PW, PH);
+    bg.fillStyle(0x241408, 1);
+    bg.fillRect(px, py, PW, P(38));
+    bg.fillStyle(0x3a2010, 1);
+    bg.fillRect(px, py, PW, P(16));
+
+    const addTxt = (txt: string, x: number, y: number, style: object, ox = 0.5, oy = 0) => {
+      const o = this.add.text(x, y, txt, style).setOrigin(ox, oy).setDepth(D + 2);
+      objs.push(o); return o;
+    };
+
+    addTxt(tr('prep.settings.title'), px + PW / 2, py + P(10), {
+      fontSize: F(17), fontStyle: 'bold', color: '#ffe08a', stroke: '#1a0800', strokeThickness: 2,
+    });
+    const closeX = this.add.text(px + PW - P(8), py + P(8), '✕', {
+      fontSize: F(16), fontStyle: 'bold', color: '#cc7744',
+    }).setOrigin(1, 0).setDepth(D + 2);
+    objs.push(closeX);
+    const closeXHit = this.add.rectangle(px + PW - P(16), py + P(16), P(44), P(44)).setDepth(D + 3).setInteractive({ useHandCursor: true }).setAlpha(0.001);
+    objs.push(closeXHit);
+    closeXHit.on('pointerup', close);
+
+    const STEP = 0.05;
+    const rows: { key: string; get: () => number; set: (v: number) => void }[] = [
+      { key: tr('prep.settings.bgm'), get: () => AudioService.bgmVolume, set: v => AudioService.setBgmVolume(v) },
+      { key: tr('prep.settings.sfx'), get: () => AudioService.sfxVolume, set: v => AudioService.setSfxVolume(v) },
+    ];
+
+    rows.forEach((row, i) => {
+      const ry = py + P(50) + i * P(66);
+      addTxt(row.key, px + P(14), ry, { fontSize: F(15), fontStyle: 'bold', color: '#e8cc90' }, 0, 0);
+
+      const barX = px + P(14), barW = PW - P(28), barH = P(10), barY = ry + P(22);
+      const barBg = this.add.graphics().setDepth(D + 2);
+      objs.push(barBg);
+
+      const valTxt = addTxt('', px + PW / 2, ry + P(36), { fontSize: F(15), fontStyle: 'bold', color: '#ffe08a' });
+
+      const redraw = () => {
+        const v = row.get();
+        barBg.clear();
+        barBg.fillStyle(0x0a0604, 1);
+        barBg.fillRoundedRect(barX, barY, barW, barH, P(4));
+        barBg.fillStyle(0xcc8822, 1);
+        barBg.fillRoundedRect(barX, barY, Math.round(barW * v), barH, P(4));
+        (valTxt as Phaser.GameObjects.Text).setText(`${Math.round(v * 100)}%`);
+      };
+      redraw();
+
+      const barHit = this.add.rectangle(barX + barW / 2, barY + barH / 2, barW, barH + P(10))
+        .setDepth(D + 3).setAlpha(0.001).setInteractive({ useHandCursor: true, draggable: true });
+      objs.push(barHit);
+      barHit.on('drag', (ptr: Phaser.Input.Pointer) => {
+        const localX = Phaser.Math.Clamp(ptr.x - barX, 0, barW);
+        row.set(Math.round((localX / barW) * 20) / 20);
+        SaveStore.save();
+        redraw();
+      });
+      barHit.on('pointerdown', (ptr: Phaser.Input.Pointer) => {
+        const localX = Phaser.Math.Clamp(ptr.x - barX, 0, barW);
+        row.set(Math.round((localX / barW) * 20) / 20);
+        SaveStore.save();
+        redraw();
+      });
+
+      const btnStyle = { fontSize: F(17), fontStyle: 'bold', color: '#ffe08a', stroke: '#1a0800', strokeThickness: 1 };
+      const minusBtn = addTxt('−', px + P(14), ry + P(36), btnStyle, 0, 0.5);
+      minusBtn.setInteractive({ useHandCursor: true })
+        .on('pointerup', () => { row.set(Math.max(0, Math.round((row.get() - STEP) * 20) / 20)); SaveStore.save(); redraw(); });
+      const plusBtn = addTxt('+', px + PW - P(14), ry + P(36), btnStyle, 1, 0.5);
+      plusBtn.setInteractive({ useHandCursor: true })
+        .on('pointerup', () => { row.set(Math.min(1, Math.round((row.get() + STEP) * 20) / 20)); redraw(); });
+    });
+
+    const BTN_H = P(32);
+    const BTN_W = PW - P(28);
+    const BTN_X = px + P(14);
+    const CPBTN_Y = py + PH - P(14) - BTN_H - P(10) - BTN_H - P(10) - BTN_H;
+
+    const cpbg = this.add.graphics().setDepth(D + 2);
+    objs.push(cpbg);
+    cpbg.fillStyle(0x0a1a0a, 1);
+    cpbg.fillRoundedRect(BTN_X, CPBTN_Y, BTN_W, BTN_H, P(6));
+    cpbg.lineStyle(1, 0x2a8a2a, 0.8);
+    cpbg.strokeRoundedRect(BTN_X, CPBTN_Y, BTN_W, BTN_H, P(6));
+    const cpTxt = this.add.text(BTN_X + BTN_W / 2, CPBTN_Y + BTN_H / 2, tr('ui.changePass'), {
+      fontSize: F(15), fontStyle: 'bold', color: '#77ff99', stroke: '#001a00', strokeThickness: 1,
+    }).setOrigin(0.5).setDepth(D + 3);
+    objs.push(cpTxt);
+    const cpHit = this.add.rectangle(BTN_X + BTN_W / 2, CPBTN_Y + BTN_H / 2, BTN_W, BTN_H)
+      .setDepth(D + 4).setAlpha(0.001).setInteractive({ useHandCursor: true });
+    objs.push(cpHit);
+    cpHit.on('pointerup', () => { close(); this._showGameChangePasswordPanel(W, H); });
+
+    const RBTN_Y = py + PH - P(14) - BTN_H - P(10) - BTN_H;
+    const rbg = this.add.graphics().setDepth(D + 2);
+    objs.push(rbg);
+    rbg.fillStyle(0x0a1a2a, 1);
+    rbg.fillRoundedRect(BTN_X, RBTN_Y, BTN_W, BTN_H, P(6));
+    rbg.lineStyle(1, 0x2a5a8a, 0.8);
+    rbg.strokeRoundedRect(BTN_X, RBTN_Y, BTN_W, BTN_H, P(6));
+    const rTxt = this.add.text(BTN_X + BTN_W / 2, RBTN_Y + BTN_H / 2, tr('ui.report'), {
+      fontSize: F(15), fontStyle: 'bold', color: '#77bbff', stroke: '#001a2a', strokeThickness: 1,
+    }).setOrigin(0.5).setDepth(D + 3);
+    objs.push(rTxt);
+    const rHit = this.add.rectangle(BTN_X + BTN_W / 2, RBTN_Y + BTN_H / 2, BTN_W, BTN_H)
+      .setDepth(D + 4).setAlpha(0.001).setInteractive({ useHandCursor: true });
+    objs.push(rHit);
+    rHit.on('pointerup', () => { close(); (window as any).__openReport?.(); });
+
+    const LBTN_Y = py + PH - P(14) - BTN_H;
+    const lbg = this.add.graphics().setDepth(D + 2);
+    objs.push(lbg);
+    lbg.fillStyle(0x3a1008, 1);
+    lbg.fillRoundedRect(BTN_X, LBTN_Y, BTN_W, BTN_H, P(6));
+    lbg.lineStyle(1, 0xa04020, 0.8);
+    lbg.strokeRoundedRect(BTN_X, LBTN_Y, BTN_W, BTN_H, P(6));
+    const lTxt = this.add.text(BTN_X + BTN_W / 2, LBTN_Y + BTN_H / 2, tr('ui.logout'), {
+      fontSize: F(15), fontStyle: 'bold', color: '#ff9977', stroke: '#1a0800', strokeThickness: 1,
+    }).setOrigin(0.5).setDepth(D + 3);
+    objs.push(lTxt);
+    const lHit = this.add.rectangle(BTN_X + BTN_W / 2, LBTN_Y + BTN_H / 2, BTN_W, BTN_H)
+      .setDepth(D + 4).setAlpha(0.001).setInteractive({ useHandCursor: true });
+    objs.push(lHit);
+    lHit.on('pointerup', () => {
+      lTxt.setText(tr('ui.saving'));
+      lHit.disableInteractive();
+      (window as any).__saveAndLogout?.();
+    });
+
+    objs.forEach(o => { if ('setScrollFactor' in o) (o as any).setScrollFactor(0); });
+  }
+
+  private _showGameChangePasswordPanel(_W: number, _H: number): void {
+    const domContainer: HTMLElement = (this.sys.game as any).domContainer ?? document.body;
+    (window as any).__setGameInputEnabled?.(false);
+    openChangePasswordOverlay(domContainer, () => {
+      (window as any).__setGameInputEnabled?.(true);
+    });
+  }
+
 
   private showRewardPanel(): void {
     // Guest: use synced reward data from host

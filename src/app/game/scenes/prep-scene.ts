@@ -20,6 +20,7 @@ import { VirtualJoystick } from '../ui/joystick';
 import { VERSION } from '../version';
 import { TowerStore } from '../data/tower-store';
 import { t as tr, getLang } from '../i18n/i18n';
+import { openChangePasswordOverlay } from '../ui/change-password-overlay';
 
 
 const DPR = (window as any).__gameDpr as number;
@@ -1200,7 +1201,11 @@ export class PrepScene extends Phaser.Scene {
     const cpHit = this.add.rectangle(BTN_X + BTN_W / 2, CPBTN_Y + BTN_H / 2, BTN_W, BTN_H)
       .setDepth(D + 4).setAlpha(0.001).setInteractive({ useHandCursor: true });
     objs.push(cpHit);
-    cpHit.on('pointerup', () => { close(); this._showChangePasswordPanel(W, H); });
+    cpHit.on('pointerup', () => {
+      close();
+      const dc: HTMLElement = (this.sys.game as any).domContainer ?? document.body;
+      openChangePasswordOverlay(dc);
+    });
 
     // ── 回報問題按鈕 ──────────────────────────────────────────
     const RBTN_Y = py + PH - P(14) - BTN_H - P(10) - BTN_H;
@@ -1341,165 +1346,6 @@ export class PrepScene extends Phaser.Scene {
     document.body.appendChild(overlay);
   }
 
-  private _showChangePasswordPanel(W: number, H: number): void {
-    const D = 9100;
-    const PW = Math.min(W - P(16), P(320));
-    const PH = P(310);
-    const px = (W - PW) / 2;
-    const py = (H - PH) / 2;
-
-    const objs: Phaser.GameObjects.GameObject[] = [];
-    const domObjs: HTMLElement[] = [];
-    const close = () => { objs.forEach(o => o.destroy()); domObjs.forEach(e => e.remove()); };
-
-    const bd = this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.75)
-      .setInteractive().setDepth(D);
-    objs.push(bd);
-
-    const bg = this.add.graphics().setDepth(D + 1);
-    objs.push(bg);
-    bg.fillStyle(0x000000, 0.5);
-    bg.fillRect(px + P(4), py + P(4), PW, PH);
-    bg.fillStyle(0x2a8a2a, 1);
-    bg.fillRect(px - P(3), py - P(3), PW + P(6), PH + P(6));
-    bg.fillStyle(0x060e06, 1);
-    bg.fillRect(px, py, PW, PH);
-    bg.fillStyle(0x0a1e0a, 1);
-    bg.fillRect(px, py, PW, P(38));
-    bg.fillStyle(0x122812, 1);
-    bg.fillRect(px, py, PW, P(16));
-
-    const addTxt = (txt: string, x: number, y: number, style: object, ox = 0.5) => {
-      const o = this.add.text(x, y, txt, style).setOrigin(ox, 0).setDepth(D + 2);
-      objs.push(o); return o;
-    };
-
-    addTxt(tr('ui.changePass'), px + PW / 2, py + P(10), {
-      fontSize: F(17), fontStyle: 'bold', color: '#77ff99', stroke: '#001000', strokeThickness: 2,
-    });
-
-    const closeX = this.add.text(px + PW - P(8), py + P(8), '✕', {
-      fontSize: F(16), fontStyle: 'bold', color: '#55cc55',
-    }).setOrigin(1, 0).setDepth(D + 2);
-    objs.push(closeX);
-    const closeHit = this.add.rectangle(px + PW - P(16), py + P(16), P(44), P(44))
-      .setDepth(D + 3).setInteractive({ useHandCursor: true }).setAlpha(0.001);
-    objs.push(closeHit);
-    closeHit.on('pointerup', close);
-
-    const domContainer: HTMLElement = (this.sys.game as any).domContainer ?? document.body;
-    const INP_W = PW - P(24);
-    const INP_H = P(34);
-    const dpr = window.devicePixelRatio;
-
-    const makeInput = (placeholder: string, yPx: number): HTMLInputElement => {
-      const inp = document.createElement('input');
-      inp.type = 'password';
-      inp.placeholder = placeholder;
-      Object.assign(inp.style, {
-        position: 'absolute',
-        left: `${(px + P(12)) / dpr}px`,
-        top: `${yPx / dpr}px`,
-        width: `${INP_W / dpr}px`,
-        height: `${INP_H / dpr}px`,
-        fontSize: `${P(14) / dpr}px`,
-        padding: '4px 8px',
-        background: '#0a180a',
-        color: '#c8ffc8',
-        border: '1px solid #2a8a2a',
-        borderRadius: '6px',
-        outline: 'none',
-        zIndex: String(D + 4),
-        boxSizing: 'border-box',
-      });
-      domContainer.appendChild(inp);
-      domObjs.push(inp);
-      return inp;
-    };
-
-    const Y1 = py + P(48);
-    const Y2 = Y1 + INP_H + P(8);
-    const Y3 = Y2 + INP_H + P(8);
-
-    addTxt(tr('prep.changePass.old'), px + P(12), Y1 - P(18), { fontSize: F(13), color: '#99cc99' }, 0);
-    const oldInp = makeInput(tr('prep.changePass.oldPH'), Y1);
-
-    addTxt(tr('prep.changePass.new'), px + P(12), Y2 - P(18), { fontSize: F(13), color: '#99cc99' }, 0);
-    const newInp = makeInput(tr('prep.changePass.newPH'), Y2);
-
-    addTxt(tr('prep.changePass.confirm'), px + P(12), Y3 - P(18), { fontSize: F(13), color: '#99cc99' }, 0);
-    const confInp = makeInput(tr('prep.changePass.confirmPH'), Y3);
-
-    const SB_Y = py + PH - P(14) - P(36);
-    const SB_W = PW - P(24);
-    const sbBg = this.add.graphics().setDepth(D + 2);
-    objs.push(sbBg);
-    const sbTxt = addTxt(tr('prep.changePass.submit'), px + P(12) + SB_W / 2, SB_Y + P(9), {
-      fontSize: F(16), fontStyle: 'bold', color: '#ffffff', stroke: '#001000', strokeThickness: 1,
-    }) as Phaser.GameObjects.Text;
-
-    const drawBtn = (state: 'idle' | 'loading' | 'done' | 'error', msg?: string) => {
-      sbBg.clear();
-      const colors: Record<string, [number, number]> = {
-        idle: [0x0d3a0d, 0x1a8a1a],
-        loading: [0x1a3a1a, 0x2a6a2a],
-        done: [0x0d3a18, 0x1a8a3a],
-        error: [0x3a0d0d, 0x8a1a1a],
-      };
-      const [fill, border] = colors[state];
-      sbBg.fillStyle(fill, 1);
-      sbBg.fillRoundedRect(px + P(12), SB_Y, SB_W, P(36), P(8));
-      sbBg.lineStyle(1, border, 0.9);
-      sbBg.strokeRoundedRect(px + P(12), SB_Y, SB_W, P(36), P(8));
-      const labels: Record<string, string> = {
-        idle: tr('prep.changePass.submit'), loading: tr('prep.changePass.loading'), done: tr('prep.changePass.done'), error: msg ?? tr('prep.changePass.fail'),
-      };
-      sbTxt.setText(labels[state]);
-    };
-    drawBtn('idle');
-
-    const sbHit = this.add.rectangle(px + P(12) + SB_W / 2, SB_Y + P(18), SB_W, P(36))
-      .setDepth(D + 3).setInteractive({ useHandCursor: true }).setAlpha(0.001);
-    objs.push(sbHit);
-
-    sbHit.on('pointerup', async () => {
-      const oldPw = oldInp.value.trim();
-      const newPw = newInp.value.trim();
-      const confPw = confInp.value.trim();
-
-      if (!oldPw || !newPw || !confPw) { drawBtn('error', tr('prep.changePass.empty')); return; }
-      if (newPw.length < 6) { drawBtn('error', tr('prep.changePass.short')); return; }
-      if (newPw !== confPw) { drawBtn('error', tr('prep.changePass.mismatch')); return; }
-
-      drawBtn('loading');
-      sbHit.disableInteractive();
-
-      const rguRaw = localStorage.getItem('rg_user');
-      const token = rguRaw ? (JSON.parse(rguRaw)?.accessToken ?? '') : '';
-      const apiUrl = (window as any).__apiUrl as string ?? '';
-
-      try {
-        const res = await fetch(`${apiUrl}/auth/change-password`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ oldPassword: oldPw, newPassword: newPw }),
-        });
-        const data = await res.json();
-        if (res.ok) {
-          drawBtn('done');
-          this.time.delayedCall(1800, close);
-        } else {
-          drawBtn('error', data.error ?? tr('prep.changePass.fail'));
-          sbHit.setInteractive({ useHandCursor: true });
-        }
-      } catch {
-        drawBtn('error', tr('prep.misc.networkErr'));
-        sbHit.setInteractive({ useHandCursor: true });
-      }
-    });
-
-    objs.forEach(o => { if ('setScrollFactor' in o) (o as any).setScrollFactor(0); });
-  }
 
 
   private showDailyQuestPanel(W: number, H: number): void {
