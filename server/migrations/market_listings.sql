@@ -209,4 +209,4 @@ END;
 $$;
 
 -- 讓 anon / authenticated 可以呼叫此 RPC
-GRANT EXECUTE ON FUNCTION buy_listing(uuid, uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION buy_listing(uuid, uuid, integer) TO authenticated;

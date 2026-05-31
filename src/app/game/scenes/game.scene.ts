@@ -5668,6 +5668,9 @@ export class GameScene extends Phaser.Scene {
       boss_flower_one: 'plant1_s',
       boss_flower_two: 'plant2_s',
       boss_flower_three: 'plant3_s',
+      boss_orc1: 'orc1_s',
+      boss_orc2: 'orc2_s',
+      boss_orc3: 'orc3_s',
       boss_vampire1: 'vampire1_s',
       boss_vampire2: 'vampire2_s',
       boss_vampire3: 'vampire3_s',
@@ -10601,6 +10604,10 @@ export class GameScene extends Phaser.Scene {
     const angle = Phaser.Math.Angle.Between(wx, wy, wtx, wty);
     const travelDist = Phaser.Math.Distance.Between(wx, wy, wtx, wty);
 
+    // 傷害只在月牙動畫實際到達玩家位置時觸發，與視覺同步
+    let playerHit = false;
+    const alliesHit = new Set<MinionSlime>();
+
     // 沿實際衝刺路徑每 75ms 生成一個旋轉月牙刀光
     const totalMs = vfxDurationMs;
     const interval = 75;
@@ -10629,19 +10636,20 @@ export class GameScene extends Phaser.Scene {
         gfx.lineStyle(P(2), 0xffffff, 0.85);
         gfx.beginPath(); gfx.arc(0, 0, R, rot - Math.PI * 0.38, rot + Math.PI * 0.38, false); gfx.strokePath();
         this.tweens.add({ targets: gfx, alpha: 0, scaleX: 1.25, scaleY: 1.25, duration: 260, ease: 'Quad.Out', onComplete: () => gfx.destroy() });
+
+        // 傷害判定：月牙到達此位置時才檢查，每個目標只擊中一次
+        if (!playerHit && Phaser.Math.Distance.Between(cx, cy, this.player.x, this.player.y) <= hitR) {
+          playerHit = true;
+          this.player.takeDamage(dmg);
+        }
+        for (const ally of this._allyMinions) {
+          if (!ally.isDead && !alliesHit.has(ally) && Phaser.Math.Distance.Between(cx, cy, ally.x, ally.y) <= hitR) {
+            alliesHit.add(ally);
+            ally.takeDamage(dmg);
+          }
+        }
       });
     }
-
-    // 傷害判定：膠囊形（沿路徑線段距離 hitR 以內）
-    const capsuleCheck = (px: number, py: number): boolean => {
-      const dx = wtx - wx, dy = wty - wy;
-      const len2 = dx * dx + dy * dy;
-      if (len2 === 0) return Phaser.Math.Distance.Between(px, py, wx, wy) <= hitR;
-      const t = Math.max(0, Math.min(1, ((px - wx) * dx + (py - wy) * dy) / len2));
-      return Phaser.Math.Distance.Between(px, py, wx + t * dx, wy + t * dy) <= hitR;
-    };
-    if (capsuleCheck(this.player.x, this.player.y)) this.player.takeDamage(dmg);
-    for (const ally of this._allyMinions) { if (!ally.isDead && capsuleCheck(ally.x, ally.y)) ally.takeDamage(dmg); }
   }
 
   protected bladeWaveAt(wx: number, wy: number, wtx: number, wty: number, atk: number, isElite: boolean, speedMult = 1): void {

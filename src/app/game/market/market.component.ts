@@ -19,7 +19,7 @@ const QUALITY_LABELS: Record<EquipQuality, string> = {
   normal: t('equip.quality.normal'), good: t('equip.quality.good'), fine: t('equip.quality.fine'), perfect: t('equip.quality.perfect'), legendary: t('equip.quality.legendary'),
 };
 const QUALITY_COLORS: Record<EquipQuality, string> = {
-  normal: '#aabbcc', good: '#55cc55', fine: '#4499ff', perfect: '#cc44ff', legendary: '#ffaa22',
+  normal: '#aabbcc', good: '#55cc55', fine: '#4499ff', perfect: '#ffdd00', legendary: '#ffaa22',
 };
 const AFFIX_LABELS: Partial<Record<StatKey, string>> = {
   atk: t('stat.atk'), hp: t('stat.hp'), def: t('stat.def'), crit: t('stat.crit'), critDmg: t('stat.critDmg'),
@@ -98,7 +98,8 @@ export class MarketComponent implements OnInit, OnDestroy {
   browseStarted  = false;
 
   // ── My listings ───────────────────────────────────────────────────────────
-  myListings  = signal<MyListing[]>([]);
+  myListings        = signal<MyListing[]>([]);
+  visibleMyListings = computed(() => this.myListings().filter(l => l.status !== 'cancelled'));
   mineLoading = signal(false);
   mineError   = signal('');
 

@@ -275,10 +275,16 @@ export class BossVampire1 extends Boss {
     needle.fillStyle(0xaa0022, 0.9);  needle.fillRect(-P(2), 0, P(4), P(18));
     needle.fillStyle(0xff2244, 0.75); needle.fillTriangle(-P(3), 0, P(3), 0, 0, -P(8));
 
+    // 落點地板提示：針刺開始落下即顯示，落地時消失 → 玩家可提前看到危險區域
+    const floorMark = this.scene.add.graphics({ x: tx, y: ty }).setDepth(54);
+    floorMark.fillStyle(0x880011, 0.28); floorMark.fillCircle(0, 0, RAIN_HIT_R);
+    floorMark.lineStyle(P(1), 0xff2244, 0.55); floorMark.strokeCircle(0, 0, RAIN_HIT_R);
+
     this.scene.tweens.add({
       targets: needle, y: ty, duration: RAIN_FALL_MS, ease: 'Quad.In',
       onComplete: () => {
         needle.destroy();
+        floorMark.destroy();
         // 落地爆炸
         const sp = this.scene.add.graphics({ x: tx, y: ty }).setDepth(56);
         sp.fillStyle(0xff2244, 0.80); sp.fillCircle(0, 0, RAIN_HIT_R * 0.7);

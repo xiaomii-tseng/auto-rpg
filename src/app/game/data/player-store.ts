@@ -205,6 +205,14 @@ export const PlayerStore = {
     return true;
   },
 
+  removeManyOwned(items: EquipmentItem[]): void {
+    const set = new Set(items);
+    const before = owned.length;
+    const kept = owned.filter(i => !set.has(i));
+    owned.splice(0, owned.length, ...kept);
+    if (owned.length !== before) this.notify();
+  },
+
   getOwned(): ReadonlyArray<EquipmentItem> {
     return owned;
   },

@@ -630,6 +630,12 @@ export class PrepScene extends Phaser.Scene {
 
     // Content
     const ENTRIES: { text: string; header?: boolean }[] = [
+      { text: 'v1.0.5', header: true },
+      { text: '【修復】裝備批量分解卡頓（手機尤其明顯）' },
+      { text: '【修復】獸人地圖不會出現菁英怪' },
+      { text: '【修復】吸血鬼伯爵「血雨」：落地前顯示落點提示，可預判閃避' },
+      { text: '【修復】菁英獸人「旋風斬」：傷害改為與月牙動畫同步觸發' },
+      { text: '' },
       { text: 'v1.0.4', header: true },
       { text: '【調整】蓄力重擊全面重製為隕石術' },
       { text: '【調整】節點1（震盪墜星）：小怪/菁英緩速60%持續3秒' },
@@ -3385,7 +3391,7 @@ export class PrepScene extends Phaser.Scene {
         // 讓瀏覽器先繪製提示框，再執行販售
         this.time.delayedCall(50, () => {
           const totalGold = toDismantle.reduce((s, i) => s + calcEquipSellPrice(i), 0);
-          toDismantle.forEach(item => PlayerStore.removeOwned(item));
+          PlayerStore.removeManyOwned(toDismantle);
           InventoryStore.addGold(totalGold);
           SaveStore.save();
           loadObjs.forEach(x => x.destroy());

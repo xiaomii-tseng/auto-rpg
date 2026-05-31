@@ -132,6 +132,7 @@
                       [style.color]="qualityColor(item.quality)"
                       [class.white-name]="item.item_type !== 'equipment'">
                       {{ item.item_name }}
+                      @if (item.item_type === 'equipment' && item.item_snapshot?.enhancement) { <span>+{{ item.item_snapshot!.enhancement }}</span> }
                       @if (item.quality) { <span class="quality-tag">[{{ qualityLabel(item.quality) }}]</span> }
                     </span>
                     @if (item.item_type === 'equipment') {
@@ -352,11 +353,11 @@
               <div class="center-msg">{{ t('ui.loading') }}</div>
             } @else if (mineError()) {
               <div class="center-msg error">{{ mineError() }}</div>
-            } @else if (myListings().length === 0) {
+            } @else if (visibleMyListings().length === 0) {
               <div class="center-msg muted">{{ t('market.hint.noMine') }}</div>
             } @else {
               <div class="equip-grid browse-grid">
-                @for (item of myListings(); track item.id) {
+                @for (item of visibleMyListings(); track item.id) {
                   <div class="equip-card browse-card">
                     @if (item.item_type === 'card') {
                       <div class="equip-img-wrap card-img-wrap">
@@ -374,6 +375,7 @@
                         [style.color]="qualityColor(item.quality)"
                         [class.white-name]="item.item_type !== 'equipment'">
                         {{ item.item_name }}
+                        @if (item.item_type === 'equipment' && item.item_snapshot?.enhancement) { <span>+{{ item.item_snapshot!.enhancement }}</span> }
                         @if (item.quality) { <span class="quality-tag">[{{ qualityLabel(item.quality) }}]</span> }
                       </span>
                       @if (item.item_type === 'equipment') {
