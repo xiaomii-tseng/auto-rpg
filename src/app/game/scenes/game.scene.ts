@@ -2971,10 +2971,8 @@ export class GameScene extends Phaser.Scene {
       this.dashAimAngle = this._forceAttackAngle;
       this._forceAttackAngle = null;
     } else {
-      const _dr = CardStore.getTotalStats();
-      const dashReach = P(78) * (1 + (_dr.dashDistPct ?? 0)) + (_dr.dashDistBonus ?? 0) + P(28);
-      const { rad } = this.resolveAttackDir(dashReach);
-      this.dashAimAngle = rad;
+      const radMap: Record<string, number> = { right: 0, down: Math.PI / 2, left: Math.PI, up: -Math.PI / 2 };
+      this.dashAimAngle = radMap[this.player.lastDir];
     }
     this.executeDashPierce(this.dashAimAngle);
   }
