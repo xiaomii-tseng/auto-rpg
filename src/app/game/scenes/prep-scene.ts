@@ -632,6 +632,12 @@ export class PrepScene extends Phaser.Scene {
 
     // Content
     const ENTRIES: { text: string; header?: boolean }[] = [
+      { text: 'v1.0.6', header: true },
+      { text: '【新功能】突破強化系統：+10 以上可繼續強化至 +20' },
+      { text: '【新功能】突破石：4星+地圖、Boss、石頭寶箱可取得，商店 3000G' },
+      { text: '【新功能】每日任務新增「突破嘗試」類型' },
+      { text: '【調整】傳說武器 ATK 全部 +400' },
+      { text: '' },
       { text: 'v1.0.5', header: true },
       { text: '【修復】裝備批量分解卡頓（手機尤其明顯）' },
       { text: '【修復】獸人地圖不會出現菁英怪' },
