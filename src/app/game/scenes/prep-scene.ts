@@ -3603,7 +3603,7 @@ export class PrepScene extends Phaser.Scene {
       const GCOLS = 2;
       const CARD_GAP = P(6);
       const cardW = Math.floor((rightColW - CARD_GAP) / GCOLS);
-      const ROW_H = P(86);
+      const ROW_H = P(100);
       const ROW_GAP = P(5);
       const totalItems = equippedItems.length + items.length;
       const totalRows = Math.ceil(totalItems / GCOLS);
