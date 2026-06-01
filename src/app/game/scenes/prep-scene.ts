@@ -3,7 +3,7 @@ import { InventoryStore } from '../data/inventory-store';
 import { PlayerStore } from '../data/player-store';
 import { PotionBarStore } from '../data/potion-bar-store';
 import { ITEM_POTION_HEALTH_S, ITEM_POTION_HEALTH_M, ITEM_POTION_HEALTH_L, ITEM_POTION_REVIVE, ITEM_POTION_ATK, ITEM_POTION_DEF, ITEM_POTION_SPEED, ITEM_STONE_BROKEN, ITEM_STONE_INTACT, ITEM_STONE_BREAKTHROUGH, ITEM_BLANK_CARD, ITEM_QUEST_REROLL, ITEM_TICKET_SLIME, ITEM_TICKET_FLOWER, ITEM_TICKET_ORC, ITEM_TICKET_VAMPIRE } from '../data/monster-data';
-import { generateEquipment, randomQuality, QUALITY_NAMES, QUALITY_COLORS, SLOT_NAMES, STAT_NAMES, BEHAVIOR_INFO, BEHAVIOR_NAMES, EquipSlot, EquipmentItem, applyEnhancement, applyBreakthrough, revertToBreakpoint, recastItem, ENHANCE_COST, ENHANCE_RATE, ENHANCE_ALL_AFFIX_CHANCE, ENHANCE_MAX, ENHANCE_NORMAL_MAX, BREAKTHROUGH_RATES, BREAKTHROUGH_BREAKPOINTS, getBreakthroughMult, fmtAffixValue, StatBonus, REFINE_INCREMENT_RANGE, calcEquipSellPrice, LEGENDARY_BOSS_WEAPON, generateLegendaryWeapon, getEquipDisplayName } from '../data/equipment-data';
+import { generateEquipment, randomQuality, QUALITY_NAMES, QUALITY_COLORS, SLOT_NAMES, STAT_NAMES, BEHAVIOR_INFO, BEHAVIOR_NAMES, EquipSlot, EquipmentItem, applyEnhancement, applyBreakthrough, snapshotBreakthrough, revertToBreakpoint, recastItem, ENHANCE_COST, ENHANCE_RATE, ENHANCE_ALL_AFFIX_CHANCE, ENHANCE_MAX, ENHANCE_NORMAL_MAX, BREAKTHROUGH_RATES, BREAKTHROUGH_BREAKPOINTS, getBreakthroughMult, fmtAffixValue, StatBonus, REFINE_INCREMENT_RANGE, calcEquipSellPrice, LEGENDARY_BOSS_WEAPON, generateLegendaryWeapon, getEquipDisplayName } from '../data/equipment-data';
 import { SaveStore } from '../data/save-store';
 import { CardStore, CARD_SLOT_COUNT } from '../data/card-store';
 
@@ -2844,6 +2844,7 @@ export class PrepScene extends Phaser.Scene {
           }
           InventoryStore.spendItem(ITEM_STONE_BREAKTHROUGH, 1);
           DailyQuestStore.addProgress('breakthrough_attempt', 1);
+          snapshotBreakthrough(item);
           const btRate = BREAKTHROUGH_RATES[lv] ?? 0;
           if (Math.random() < btRate) {
             const beforeVals = item.affixes.map(a => a.value);

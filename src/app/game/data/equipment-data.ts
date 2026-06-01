@@ -741,14 +741,17 @@ export function revertEnhancement(item: EquipmentItem): void {
   item.enhancement--;
 }
 
-// 突破成功：使用突破石，依目標等級乘倍增幅，在斷點自動快照
-export function applyBreakthrough(item: EquipmentItem, selectedIdx?: number): number[] {
-  if (item.enhancement < ENHANCE_NORMAL_MAX || item.enhancement >= ENHANCE_MAX) return [];
-
+// 嘗試突破前呼叫：若當前等級是斷點則更新快照
+export function snapshotBreakthrough(item: EquipmentItem): void {
   if (BREAKTHROUGH_BREAKPOINTS.includes(item.enhancement)) {
     item.breakthroughBase      = item.affixes.map(a => a.value);
     item.breakthroughBaseLevel = item.enhancement;
   }
+}
+
+// 突破成功：使用突破石，依目標等級乘倍增幅
+export function applyBreakthrough(item: EquipmentItem, selectedIdx?: number): number[] {
+  if (item.enhancement < ENHANCE_NORMAL_MAX || item.enhancement >= ENHANCE_MAX) return [];
 
   const mult = getBreakthroughMult(item.enhancement + 1);
   const idx  = (selectedIdx !== undefined && selectedIdx < item.affixes.length)

@@ -972,8 +972,8 @@ export const ZH = {
   'game.potion.atkBuff':      '攻擊力 +20%（持續 30 秒）',
   'game.stone.enhance':       '強化裝備時消耗',
   'game.stone.intact.buff':   '強化時提升成功率 +8%',
-  'game.stone.recast':        '消耗1顆可重鑄裝備，回歸精煉前數值',
-  'game.stone.breakthrough':  '突破精煉上限，失敗退回斷點',
+  'game.stone.recast':        '消耗1顆可重鑄裝備\n回歸精煉前數值',
+  'game.stone.breakthrough':  '突破精煉上限\n失敗退回斷點',
 
   // ── Card stat lines (bonus panel) ─────────────────────────────────────────
   'card.stat.vsEliteBoss':  '對菁英/Boss傷 {val}',
