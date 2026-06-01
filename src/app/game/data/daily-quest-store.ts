@@ -8,7 +8,8 @@ export type DailyQuestType =
   | 'kill_normal' | 'kill_elite' | 'kill_boss' | 'kill_specific'
   | 'deal_damage' | 'clear_no_death' | 'clear_no_potion'
   | 'pickup_loot' | 'open_chest'
-  | 'enhance_success' | 'shop_purchase' | 'use_potion';
+  | 'enhance_success' | 'shop_purchase' | 'use_potion'
+  | 'breakthrough_attempt';
 
 export type DailyQuestDifficulty = 'easy' | 'normal' | 'hard';
 export type DailyQuestStatus = 'active' | 'completed' | 'claimed';
@@ -55,32 +56,34 @@ const EASY_POOL: QuestTemplate[] = [
 ];
 
 const NORMAL_POOL: QuestTemplate[] = [
-  { type: 'kill_normal',    target: 120 },
-  { type: 'kill_specific',  target: 8,     specificType: 'elite' },
-  { type: 'kill_elite',     target: 12  },
-  { type: 'kill_boss',      target: 2   },
-  { type: 'deal_damage',    target: 0   },
-  { type: 'clear_no_death', target: 2   },
-  { type: 'clear_no_potion',target: 1   },
-  { type: 'pickup_loot',    target: 60  },
-  { type: 'open_chest',     target: 12  },
-  { type: 'enhance_success',target: 5   },
-  { type: 'shop_purchase',  target: 6   },
-  { type: 'use_potion',     target: 12  },
+  { type: 'kill_normal',          target: 120 },
+  { type: 'kill_specific',        target: 8,     specificType: 'elite' },
+  { type: 'kill_elite',           target: 12  },
+  { type: 'kill_boss',            target: 2   },
+  { type: 'deal_damage',          target: 0   },
+  { type: 'clear_no_death',       target: 2   },
+  { type: 'clear_no_potion',      target: 1   },
+  { type: 'pickup_loot',          target: 60  },
+  { type: 'open_chest',           target: 12  },
+  { type: 'enhance_success',      target: 5   },
+  { type: 'shop_purchase',        target: 6   },
+  { type: 'use_potion',           target: 12  },
+  { type: 'breakthrough_attempt', target: 2   },
 ];
 
 const HARD_POOL: QuestTemplate[] = [
-  { type: 'kill_normal',    target: 220 },
-  { type: 'kill_specific',  target: 2,     specificType: 'boss' },
-  { type: 'kill_elite',     target: 25  },
-  { type: 'kill_boss',      target: 3   },
-  { type: 'deal_damage',    target: 0   },
-  { type: 'clear_no_death', target: 3   },
-  { type: 'pickup_loot',    target: 100 },
-  { type: 'open_chest',     target: 20  },
-  { type: 'enhance_success',target: 10  },
-  { type: 'shop_purchase',  target: 10  },
-  { type: 'use_potion',     target: 20  },
+  { type: 'kill_normal',          target: 220 },
+  { type: 'kill_specific',        target: 2,     specificType: 'boss' },
+  { type: 'kill_elite',           target: 25  },
+  { type: 'kill_boss',            target: 3   },
+  { type: 'deal_damage',          target: 0   },
+  { type: 'clear_no_death',       target: 3   },
+  { type: 'pickup_loot',          target: 100 },
+  { type: 'open_chest',           target: 20  },
+  { type: 'enhance_success',      target: 10  },
+  { type: 'shop_purchase',        target: 10  },
+  { type: 'use_potion',           target: 20  },
+  { type: 'breakthrough_attempt', target: 3   },
 ];
 
 const EQUIP_SLOTS: EquipSlot[] = ['hat', 'outfit', 'shoes', 'ring1', 'sword'];

@@ -189,10 +189,12 @@ export interface EquipmentItem {
   texture:     string;          // Phaser texture key, e.g. 'equip_hat3'
   quality:     EquipQuality;
   affixes:     Affix[];         // 非武器 2 條；武器 3 條（攻擊力固定＋2隨機）
-  enhancement: number;          // 0~10
+  enhancement: number;          // 0~20
   enhanceLog:  number[][];      // 每次強化提升的詞綴 index，用於退階還原
   baseAffixes?: Affix[];        // 第一次精煉前的詞綴快照，供重鑄還原用
   favorite?:   boolean;         // 最愛標記，防止被販售或市場上架
+  breakthroughBase?:      number[];  // 最近斷點時的詞綴數值快照，失敗時還原用
+  breakthroughBaseLevel?: number;    // 對應斷點等級（10 / 13 / 16）
 }
 
 // ── Constants ──────────────────────────────────────────────────────────────────
@@ -612,7 +614,21 @@ export function getItemStats(item: EquipmentItem): Partial<Record<StatKey, numbe
 
 // ── Refinement system constants ────────────────────────────────────────────────
 
-export const ENHANCE_MAX = 10;
+export const ENHANCE_NORMAL_MAX = 10;  // 一般強化石上限
+export const ENHANCE_MAX = 20;          // 突破後的絕對上限
+export const ITEM_STONE_BREAKTHROUGH = 'stone_breakthrough';
+
+export const BREAKTHROUGH_RATES: Record<number, number> = {
+  10: 0.50, 11: 0.40, 12: 0.30,
+  13: 0.25, 14: 0.18, 15: 0.12,
+  16: 0.10, 17: 0.07, 18: 0.05, 19: 0.03,
+};
+
+export const BREAKTHROUGH_BREAKPOINTS = [10, 13, 16];
+
+export function getBreakthroughMult(targetLevel: number): number {
+  return targetLevel >= 16 ? 2.0 : 1.5;
+}
 
 export const ENHANCE_COST: Record<number, number> = {
   0: 1, 1: 1, 2: 1, 3: 1, 4: 1,
@@ -667,7 +683,7 @@ export const REFINE_INCREMENT_RANGE: Record<StatKey, [number, number]> = {
 
 // 精煉成功：提升指定詞綴，若未指定則隨機抽一條；boostAll=true 時提升全部詞綴
 export function applyEnhancement(item: EquipmentItem, forcedIndex?: number, boostAll?: boolean): number[] {
-  if (item.enhancement >= ENHANCE_MAX) return [];
+  if (item.enhancement >= ENHANCE_NORMAL_MAX) return [];
   if (!item.baseAffixes) item.baseAffixes = item.affixes.map(a => ({ ...a }));
 
   const indices: number[] = [];
@@ -725,24 +741,58 @@ export function revertEnhancement(item: EquipmentItem): void {
   item.enhancement--;
 }
 
+// 突破成功：使用突破石，依目標等級乘倍增幅，在斷點自動快照
+export function applyBreakthrough(item: EquipmentItem, selectedIdx?: number): number[] {
+  if (item.enhancement < ENHANCE_NORMAL_MAX || item.enhancement >= ENHANCE_MAX) return [];
+
+  if (BREAKTHROUGH_BREAKPOINTS.includes(item.enhancement)) {
+    item.breakthroughBase      = item.affixes.map(a => a.value);
+    item.breakthroughBaseLevel = item.enhancement;
+  }
+
+  const mult = getBreakthroughMult(item.enhancement + 1);
+  const idx  = (selectedIdx !== undefined && selectedIdx < item.affixes.length)
+    ? selectedIdx
+    : Math.floor(Math.random() * item.affixes.length);
+
+  const { stat } = item.affixes[idx];
+  const [lo, hi] = REFINE_INCREMENT_RANGE[stat];
+  const inc = (lo + Math.random() * (hi - lo)) * mult;
+  item.affixes[idx].value = PCT_STATS.has(stat)
+    ? Math.round((item.affixes[idx].value + inc) * 1000) / 1000
+    : Math.round(item.affixes[idx].value + inc);
+
+  item.enhancement++;
+  return [idx];
+}
+
+// 突破失敗：還原至最近斷點的快照
+export function revertToBreakpoint(item: EquipmentItem): void {
+  if (!item.breakthroughBase || item.breakthroughBaseLevel === undefined) return;
+  item.affixes.forEach((a, i) => {
+    if (item.breakthroughBase![i] !== undefined) a.value = item.breakthroughBase![i];
+  });
+  item.enhancement = item.breakthroughBaseLevel;
+}
+
 // ── Legendary weapons ──────────────────────────────────────────────────────────
 
 const _LEGENDARY_DEFS: Record<string, { name: string; texture: string; affixes: Affix[] }> = {
   legendary_slime_sword: {
     name: t('item.legendary_slime_sword'), texture: 'equip_legendary_sw1',
-    affixes: [{ stat: 'atk', value: 380 }],
+    affixes: [{ stat: 'atk', value: 780 }],
   },
   legendary_flower_sword: {
     name: t('item.legendary_flower_sword'), texture: 'equip_legendary_sw2',
-    affixes: [{ stat: 'atk', value: 230 }, { stat: 'hp', value: 150 }, { stat: 'eliteKillerPct', value: 0.30 }],
+    affixes: [{ stat: 'atk', value: 630 }, { stat: 'hp', value: 150 }, { stat: 'eliteKillerPct', value: 0.30 }],
   },
   legendary_orc_sword: {
     name: t('item.legendary_orc_sword'), texture: 'equip_legendary_sw3',
-    affixes: [{ stat: 'atk', value: 260 }, { stat: 'atkSpeed', value: 0.30 }],
+    affixes: [{ stat: 'atk', value: 660 }, { stat: 'atkSpeed', value: 0.30 }],
   },
   legendary_vampire_sword: {
     name: t('item.legendary_vampire_sword'), texture: 'equip_legendary_sw4',
-    affixes: [{ stat: 'atk', value: 220 }, { stat: 'speed', value: 25 }, { stat: 'evasion', value: 0.30 }],
+    affixes: [{ stat: 'atk', value: 620 }, { stat: 'speed', value: 25 }, { stat: 'evasion', value: 0.30 }],
   },
 };
 

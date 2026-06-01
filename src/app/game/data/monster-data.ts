@@ -66,6 +66,7 @@ export const ITEM_BLANK_CARD   = 'blank_card';      // 空白卡片
 export const ITEM_STONE_BROKEN = 'stone_broken';    // 破損強化石
 export const ITEM_STONE_INTACT = 'stone_intact';    // 完整強化石
 export const ITEM_STONE_RECAST = 'stone_guard';    // 重鑄石（id 保持 stone_guard 避免存檔破壞）
+export const ITEM_STONE_BREAKTHROUGH = 'stone_breakthrough'; // 突破石（+10→+20）
 export const ITEM_QUEST_REROLL = 'quest_reroll';   // 任務重製石
 export const ITEM_POTION_HEALTH_S = 'potion_health_s'; // 小型回復藥水 HP+100
 export const ITEM_POTION_HEALTH_M = 'potion_health_m'; // 中型回復藥水 HP+200

@@ -39,7 +39,7 @@ import { PotionBarStore } from '../data/potion-bar-store';
 import { TowerStore } from '../data/tower-store';
 import { DailyQuestStore } from '../data/daily-quest-store';
 import { TutorialStore, TutorialKey } from '../data/tutorial-store';
-import { ITEM_POTION_HEALTH_S, ITEM_POTION_HEALTH_M, ITEM_POTION_HEALTH_L, ITEM_POTION_REVIVE, ITEM_POTION_ATK, ITEM_POTION_DEF, ITEM_POTION_SPEED, ITEM_STONE_BROKEN, ITEM_STONE_INTACT, ITEM_STONE_RECAST, ITEM_QUEST_REROLL, ITEM_BLANK_CARD, getHealthPotionForStar, BOSS_TICKET_MAP } from '../data/monster-data';
+import { ITEM_POTION_HEALTH_S, ITEM_POTION_HEALTH_M, ITEM_POTION_HEALTH_L, ITEM_POTION_REVIVE, ITEM_POTION_ATK, ITEM_POTION_DEF, ITEM_POTION_SPEED, ITEM_STONE_BROKEN, ITEM_STONE_INTACT, ITEM_STONE_RECAST, ITEM_STONE_BREAKTHROUGH, ITEM_QUEST_REROLL, ITEM_BLANK_CARD, getHealthPotionForStar, BOSS_TICKET_MAP } from '../data/monster-data';
 import type { MapParams } from '../../../../shared/types';
 import { t as tr } from '../i18n/i18n';
 import { openChangePasswordOverlay } from '../ui/change-password-overlay';
@@ -93,6 +93,7 @@ const ITEM_DESCS: Record<string, string> = {
   [ITEM_STONE_BROKEN]: tr('game.stone.enhance'),
   [ITEM_STONE_INTACT]: tr('game.stone.intact.buff'),
   [ITEM_STONE_RECAST]: tr('game.stone.recast'),
+  [ITEM_STONE_BREAKTHROUGH]: tr('game.stone.breakthrough'),
   [ITEM_QUEST_REROLL]: tr('prep.quest.resetList'),
   [ITEM_BLANK_CARD]: tr('game.loot.card10'),
   [ITEM_POTION_HEALTH_S]: tr('game.potion.heal100'),
@@ -325,6 +326,8 @@ export class GameScene extends Phaser.Scene {
   protected _lastBuffHudRefresh = 0;
   private _pendingHitWeight = 0;
   private _hitShakePending = false;
+  private _pendingDailyDmg = 0;
+  private _pendingDailyDmgPending = false;
 
   constructor(key = 'GameScene') {
     super({ key });
@@ -385,6 +388,7 @@ export class GameScene extends Phaser.Scene {
     if (!this.textures.exists('icon_stone_broken')) this.load.image('icon_stone_broken', 'other/ore2.webp');
     if (!this.textures.exists('icon_stone_intact')) this.load.image('icon_stone_intact', 'other/ore1.webp');
     if (!this.textures.exists('icon_stone_guard')) this.load.image('icon_stone_guard', 'other/ore3.webp');
+    if (!this.textures.exists('icon_stone_breakthrough')) this.load.image('icon_stone_breakthrough', 'icon3/PNG/Transperent/Icon28.png');
     if (!this.textures.exists('icon_quest_reroll')) this.load.image('icon_quest_reroll', 'other/ore4.webp');
     if (!this.textures.exists('icon_equip_drop')) this.load.image('icon_equip_drop', 'equip/weapons/Icons/Iicon_32_01.png');
     if (!this.textures.exists('icon_ticket_slime')) this.load.image('icon_ticket_slime', 'icon1/PNG/Transperent/Icon21.png');
@@ -2773,7 +2777,15 @@ export class GameScene extends Phaser.Scene {
       }
     }
     this.spawnDamageNumber(target.x, target.y, displayDmg, isCrit, elemMult * targetMult);
-    DailyQuestStore.addProgress('deal_damage', displayDmg);
+    this._pendingDailyDmg += displayDmg;
+    if (!this._pendingDailyDmgPending) {
+      this._pendingDailyDmgPending = true;
+      this.time.delayedCall(0, () => {
+        DailyQuestStore.addProgress('deal_damage', this._pendingDailyDmg);
+        this._pendingDailyDmg = 0;
+        this._pendingDailyDmgPending = false;
+      });
+    }
     if (isCrit) this._pendingHitWeight += 2;
     if (!this._hitShakePending) {
       this._hitShakePending = true;
@@ -3706,6 +3718,14 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.spawnLoot(x, y, def.drops);
+    if (this.questStar >= 4) {
+      const btRate = isElite
+        ? (this.questStar >= 5 ? 0.04 : 0.02)
+        : (this.questStar >= 5 ? 0.02 : 0.01);
+      if (Math.random() < btRate) {
+        this.spawnLoot(x, y, [{ itemId: ITEM_STONE_BREAKTHROUGH, itemName: tr('item.stone_breakthrough'), rate: 1, qtyMin: 1, qtyMax: 1 }]);
+      }
+    }
     const _pStats = CardStore.getTotalStats();
     const dropBonus = 1 + (_pStats.dropRatePct ?? 0);
     const rarityBonusVal = _pStats.rarityBonus ?? 0;
@@ -7383,7 +7403,10 @@ export class GameScene extends Phaser.Scene {
         { itemId: ITEM_POTION_DEF, itemName: tr('item.potion_def'), rate: 0.15, qtyMin: 1, qtyMax: 1 },
         { itemId: ITEM_POTION_SPEED, itemName: tr('item.potion_speed'), rate: 0.15, qtyMin: 1, qtyMax: 1 },
       ];
-      const scaledDrops = [...bossDef.drops, ...bossPotionDrops].map(d => ({ ...d, rate: Math.min(1, d.rate * dropMult) }));
+      const bossBreakthroughDrops = this.questStar >= 4
+        ? [{ itemId: ITEM_STONE_BREAKTHROUGH, itemName: tr('item.stone_breakthrough'), rate: this.questStar >= 5 ? 0.20 : 0.10, qtyMin: 1, qtyMax: 1 }]
+        : [];
+      const scaledDrops = [...bossDef.drops, ...bossPotionDrops, ...bossBreakthroughDrops].map(d => ({ ...d, rate: Math.min(1, d.rate * dropMult) }));
       this.spawnLoot(this.boss.x, this.boss.y, scaledDrops, true);
       const _bossPS = CardStore.getTotalStats();
       const bossDropBonus = 1 + (_bossPS.dropRatePct ?? 0);
@@ -8743,7 +8766,8 @@ export class GameScene extends Phaser.Scene {
         const count = this._bellCurve(1, 5, starMult) * bigMult;
         for (let i = 0; i < count; i++) {
           const r = Math.random();
-          if (r < 0.75) this._spawnBurstItem(cx, cy, ITEM_STONE_BROKEN, tr('item.stone_broken'));
+          if (this.questStar >= 4 && r < 0.10) this._spawnBurstItem(cx, cy, ITEM_STONE_BREAKTHROUGH, tr('item.stone_breakthrough'));
+          else if (r < 0.75) this._spawnBurstItem(cx, cy, ITEM_STONE_BROKEN, tr('item.stone_broken'));
           else if (r < 0.95) this._spawnBurstItem(cx, cy, ITEM_STONE_INTACT, tr('item.stone_intact'));
           else this._spawnBurstItem(cx, cy, ITEM_STONE_RECAST, tr('item.stone_guard'));
         }

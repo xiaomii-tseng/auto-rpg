@@ -2,8 +2,8 @@ import Phaser from 'phaser';
 import { InventoryStore } from '../data/inventory-store';
 import { PlayerStore } from '../data/player-store';
 import { PotionBarStore } from '../data/potion-bar-store';
-import { ITEM_POTION_HEALTH_S, ITEM_POTION_HEALTH_M, ITEM_POTION_HEALTH_L, ITEM_POTION_REVIVE, ITEM_POTION_ATK, ITEM_POTION_DEF, ITEM_POTION_SPEED, ITEM_STONE_BROKEN, ITEM_STONE_INTACT, ITEM_BLANK_CARD, ITEM_QUEST_REROLL, ITEM_TICKET_SLIME, ITEM_TICKET_FLOWER, ITEM_TICKET_ORC, ITEM_TICKET_VAMPIRE } from '../data/monster-data';
-import { generateEquipment, randomQuality, QUALITY_NAMES, QUALITY_COLORS, SLOT_NAMES, STAT_NAMES, BEHAVIOR_INFO, BEHAVIOR_NAMES, EquipSlot, EquipmentItem, applyEnhancement, recastItem, ENHANCE_COST, ENHANCE_RATE, ENHANCE_ALL_AFFIX_CHANCE, ENHANCE_MAX, fmtAffixValue, StatBonus, REFINE_INCREMENT_RANGE, calcEquipSellPrice, LEGENDARY_BOSS_WEAPON, generateLegendaryWeapon, getEquipDisplayName } from '../data/equipment-data';
+import { ITEM_POTION_HEALTH_S, ITEM_POTION_HEALTH_M, ITEM_POTION_HEALTH_L, ITEM_POTION_REVIVE, ITEM_POTION_ATK, ITEM_POTION_DEF, ITEM_POTION_SPEED, ITEM_STONE_BROKEN, ITEM_STONE_INTACT, ITEM_STONE_BREAKTHROUGH, ITEM_BLANK_CARD, ITEM_QUEST_REROLL, ITEM_TICKET_SLIME, ITEM_TICKET_FLOWER, ITEM_TICKET_ORC, ITEM_TICKET_VAMPIRE } from '../data/monster-data';
+import { generateEquipment, randomQuality, QUALITY_NAMES, QUALITY_COLORS, SLOT_NAMES, STAT_NAMES, BEHAVIOR_INFO, BEHAVIOR_NAMES, EquipSlot, EquipmentItem, applyEnhancement, applyBreakthrough, revertToBreakpoint, recastItem, ENHANCE_COST, ENHANCE_RATE, ENHANCE_ALL_AFFIX_CHANCE, ENHANCE_MAX, ENHANCE_NORMAL_MAX, BREAKTHROUGH_RATES, BREAKTHROUGH_BREAKPOINTS, getBreakthroughMult, fmtAffixValue, StatBonus, REFINE_INCREMENT_RANGE, calcEquipSellPrice, LEGENDARY_BOSS_WEAPON, generateLegendaryWeapon, getEquipDisplayName } from '../data/equipment-data';
 import { SaveStore } from '../data/save-store';
 import { CardStore, CARD_SLOT_COUNT } from '../data/card-store';
 
@@ -348,6 +348,7 @@ export class PrepScene extends Phaser.Scene {
     if (!this.textures.exists('icon_stone_broken')) this.load.image('icon_stone_broken', 'other/ore2.webp');
     if (!this.textures.exists('icon_stone_intact')) this.load.image('icon_stone_intact', 'other/ore1.webp');
     if (!this.textures.exists('icon_stone_guard')) this.load.image('icon_stone_guard', 'other/ore3.webp');
+    if (!this.textures.exists('icon_stone_breakthrough')) this.load.image('icon_stone_breakthrough', 'icon3/PNG/Transperent/Icon28.png');
     if (!this.textures.exists('icon_quest_reroll')) this.load.image('icon_quest_reroll', 'other/ore4.webp');
     if (!this.textures.exists('icon_ticket_slime')) this.load.image('icon_ticket_slime', 'icon1/PNG/Transperent/Icon21.png');
     if (!this.textures.exists('icon_ticket_flower')) this.load.image('icon_ticket_flower', 'icon1/PNG/Transperent/Icon37.png');
@@ -2621,8 +2622,11 @@ export class PrepScene extends Phaser.Scene {
       const updateRangeTxt = () => {
         const a = item.affixes[selectedAffixIdx];
         if (a) {
+          const lv = item.enhancement;
+          const isBreakthrough = lv >= ENHANCE_NORMAL_MAX && lv < ENHANCE_MAX;
+          const mult = isBreakthrough ? getBreakthroughMult(lv + 1) : 1;
           const [lo, hi] = REFINE_INCREMENT_RANGE[a.stat];
-          rangeTxt.setText(tr('prep.equip.addRange', { lo: fmtAffixValue(a.stat, lo), hi: fmtAffixValue(a.stat, hi) }));
+          rangeTxt.setText(tr('prep.equip.addRange', { lo: fmtAffixValue(a.stat, lo * mult), hi: fmtAffixValue(a.stat, hi * mult) }));
         }
       };
       updateRangeTxt();
@@ -2647,8 +2651,8 @@ export class PrepScene extends Phaser.Scene {
 
       // 圖示 + 名稱
       const matHdrCY = rcy + MAT_HDR_H / 2;
-      es(this.add.image(rx + P(22), matHdrCY, 'icon_stone_broken').setDisplaySize(P(24), P(24)).setDepth(ED + 2));
-      es(this.add.text(rx + P(40), matHdrCY, tr('item.stone_broken'), {
+      const matIcon = es(this.add.image(rx + P(22), matHdrCY, 'icon_stone_broken').setDisplaySize(P(24), P(24)).setDepth(ED + 2));
+      const matNameTxt = es(this.add.text(rx + P(40), matHdrCY, tr('item.stone_broken'), {
         fontSize: F(15), fontStyle: 'bold', color: '#ffcc66', stroke: '#1a0800', strokeThickness: 1,
       }).setOrigin(0, 0.5).setDepth(ED + 2));
       rcy += MAT_HDR_H;
@@ -2665,16 +2669,18 @@ export class PrepScene extends Phaser.Scene {
 
       // 分隔線
       rcy += PAD;
-      es(this.add.graphics().setDepth(ED + 1))
-        .lineStyle(P(1), 0x554433, 0.4).lineBetween(rx + P(10), rcy - PAD / 2, rx + rw - P(10), rcy - PAD / 2);
+      const sepG = es(this.add.graphics().setDepth(ED + 1));
+      sepG.lineStyle(P(1), 0x554433, 0.4).lineBetween(rx + P(10), rcy - PAD / 2, rx + rw - P(10), rcy - PAD / 2);
 
-      // 可選素材卡背景（完整強化石）
-      es(this.add.graphics().setDepth(ED + 1))
-        .fillStyle(0x16101e, 0.85).fillRoundedRect(rx + P(6), rcy, rw - P(12), OPT_ROW_H + OPT_DESC_H, P(6))
-        .lineStyle(P(1), 0x6633aa, 0.5).strokeRoundedRect(rx + P(6), rcy, rw - P(12), OPT_ROW_H + OPT_DESC_H, P(6));
+      // ── 完整強化石區塊（一般模式顯示）────────────────────────
+      const optSectionY = rcy;
+      const optSectionH = OPT_ROW_H + OPT_DESC_H;
+      const optBg = es(this.add.graphics().setDepth(ED + 1));
+      optBg.fillStyle(0x16101e, 0.85).fillRoundedRect(rx + P(6), optSectionY, rw - P(12), optSectionH, P(6));
+      optBg.lineStyle(P(1), 0x6633aa, 0.5).strokeRoundedRect(rx + P(6), optSectionY, rw - P(12), optSectionH, P(6));
 
-      const optRowCY = rcy + OPT_ROW_H / 2;
-      es(this.add.image(rx + P(22), optRowCY, 'icon_stone_intact').setDisplaySize(P(22), P(22)).setDepth(ED + 2));
+      const optRowCY = optSectionY + OPT_ROW_H / 2;
+      const optIcon = es(this.add.image(rx + P(22), optRowCY, 'icon_stone_intact').setDisplaySize(P(22), P(22)).setDepth(ED + 2));
       const optLbl = es(this.add.text(rx + P(40), optRowCY, '', {
         fontSize: F(14), fontStyle: 'bold', color: '#ccbbaa', stroke: '#1a0800', strokeThickness: 1,
       }).setOrigin(0, 0.5).setDepth(ED + 2));
@@ -2686,13 +2692,22 @@ export class PrepScene extends Phaser.Scene {
         fontSize: F(14), fontStyle: 'bold', color: '#44ff88', stroke: '#000', strokeThickness: 1,
       }).setOrigin(0.5).setDepth(ED + 3));
       const optHit = es(this.add.rectangle(rx + rw / 2, optRowCY, rw - P(12), OPT_ROW_H).setDepth(ED + 4));
-      rcy += OPT_ROW_H;
 
-      const optDescCY = rcy + OPT_DESC_H / 2;
-      const optDescTxt = es(this.add.text(rx + P(40), optDescCY, tr('prep.equip.optDesc'), {
+      const optDescCY = optSectionY + OPT_ROW_H + OPT_DESC_H / 2;
+      const optDescTxt = es(this.add.text(rx + P(14), optDescCY, tr('prep.equip.optDesc'), {
         fontSize: F(13), fontStyle: 'bold', color: '#aa9977', stroke: '#1a0800', strokeThickness: 1,
       }).setOrigin(0, 0.5).setDepth(ED + 2));
-      rcy += OPT_DESC_H;
+
+      // ── 突破警告區塊（突破模式顯示）────────────────────────────
+      const btWarnBg = es(this.add.graphics().setDepth(ED + 1).setAlpha(0));
+      btWarnBg.fillStyle(0x1e0e08, 0.85).fillRoundedRect(rx + P(6), optSectionY, rw - P(12), optSectionH, P(6));
+      btWarnBg.lineStyle(P(1), 0xcc4422, 0.6).strokeRoundedRect(rx + P(6), optSectionY, rw - P(12), optSectionH, P(6));
+      const btWarnTxt = es(this.add.text(rx + rw / 2, optSectionY + optSectionH / 2, '', {
+        fontSize: F(14), fontStyle: 'bold', color: '#ff8866', stroke: '#1a0000', strokeThickness: 1,
+        align: 'center',
+      }).setOrigin(0.5).setDepth(ED + 2).setAlpha(0));
+
+      rcy += optSectionH;
 
       // ── 強化按鈕 ────────────────────────────────────────────
       rcy += PAD;
@@ -2728,48 +2743,70 @@ export class PrepScene extends Phaser.Scene {
       const refresh = () => {
         const lv = item.enhancement;
         const maxed = lv >= ENHANCE_MAX || item.quality === 'legendary';
-        const base = maxed ? 0 : ENHANCE_RATE[lv];
+        const isBreakthrough = !maxed && lv >= ENHANCE_NORMAL_MAX;
+        const base = maxed ? 0 : isBreakthrough ? (BREAKTHROUGH_RATES[lv] ?? 0) : ENHANCE_RATE[lv];
         const rate = Math.min(1, base);
 
         levelTxt.setText(`+${lv}${!maxed ? `  →  +${lv + 1}` : tr('prep.misc.topRecord')}`);
-        levelTxt.setColor('#ffe066');
+        levelTxt.setColor(isBreakthrough ? '#ffaa44' : '#ffe066');
         item.affixes.forEach((a, i) => valTexts[i]?.setText(fmtVal(a.stat, a.value)));
 
         // 主素材
-        const brokenQty = InventoryStore.getItemQty('stone_broken');
-        const needStones = !maxed ? ENHANCE_COST[lv] : 0;
-        const enoughBrk = brokenQty >= needStones;
-        matHoldTxt.setText(tr('prep.equip.holding', { n: brokenQty })).setColor(enoughBrk ? '#ffcc66' : '#ff6666');
-        matCostTxt.setText(!maxed ? tr('prep.equip.costing', { n: needStones }) : '').setColor(enoughBrk ? '#888877' : '#ff6666');
+        if (isBreakthrough) {
+          matIcon.setTexture('icon_stone_breakthrough').setDisplaySize(P(24), P(24));
+          matNameTxt.setText(tr('item.stone_breakthrough')).setColor('#ffaa44');
+          const btQty = InventoryStore.getItemQty(ITEM_STONE_BREAKTHROUGH);
+          matHoldTxt.setText(tr('prep.equip.holding', { n: btQty })).setColor(btQty >= 1 ? '#ffaa44' : '#ff6666');
+          matCostTxt.setText(!maxed ? tr('prep.equip.costing', { n: 1 }) : '').setColor(btQty >= 1 ? '#888877' : '#ff6666');
+        } else {
+          matIcon.setTexture('icon_stone_broken').setDisplaySize(P(24), P(24));
+          matNameTxt.setText(tr('item.stone_broken')).setColor('#ffcc66');
+          const brokenQty = InventoryStore.getItemQty('stone_broken');
+          const needStones = !maxed ? ENHANCE_COST[lv] : 0;
+          const enoughBrk = brokenQty >= needStones;
+          matHoldTxt.setText(tr('prep.equip.holding', { n: brokenQty })).setColor(enoughBrk ? '#ffcc66' : '#ff6666');
+          matCostTxt.setText(!maxed ? tr('prep.equip.costing', { n: needStones }) : '').setColor(enoughBrk ? '#888877' : '#ff6666');
+        }
 
         // 成功率
         if (!maxed) {
           const rc = rate >= 0.5 ? '#88ff88' : rate >= 0.3 ? '#ffcc44' : '#ff8866';
-          rateTxt.setText(tr('prep.equip.refineRate')).setColor('#aaccff');
-          ratePctTxt.setText(useComplete
-            ? `${(base * 100).toFixed(0)}% +8% = ${(rate * 100).toFixed(0)}%`
-            : `${(rate * 100).toFixed(0)}%`).setColor(rc);
+          rateTxt.setText(tr('prep.equip.refineRate')).setColor(isBreakthrough ? '#ffcc88' : '#aaccff');
+          ratePctTxt.setText(`${(rate * 100).toFixed(0)}%`).setColor(rc);
         } else {
           rateTxt.setText(tr('prep.equip.maxLevel')).setColor('#888877');
           ratePctTxt.setText('');
         }
         drawEnhBtn(!maxed);
+        btnLbl.setText(isBreakthrough ? tr('prep.equip.breakthrough') : tr('prep.equip.enhance'));
         btnLbl.setAlpha(maxed ? 0.4 : 1);
         if (maxed) btnHit.removeInteractive(); else btnHit.setInteractive({ useHandCursor: true });
 
-        // 可選素材
-        const intactQty = InventoryStore.getItemQty('stone_intact');
-        const canOpt = !maxed && intactQty > 0;
-        optLbl.setText(tr('prep.equip.intactStoneX', { n: intactQty })).setColor(intactQty === 0 ? '#ff6666' : '#ccbbaa');
-        optChkG.clear();
-        optChkG.fillStyle(useComplete ? 0x1a4428 : 0x15100e, 1);
-        optChkG.lineStyle(P(1), useComplete ? 0x44cc88 : 0x554433, 1);
-        optChkG.fillRect(optChkX, optChkY, optChkSz, optChkSz);
-        optChkG.strokeRect(optChkX, optChkY, optChkSz, optChkSz);
-        optChkT.setText(useComplete ? '✓' : '');
-        [optChkG, optChkT, optLbl, optDescTxt].forEach(o => o.setAlpha(canOpt ? 1 : 0.3));
-        if (canOpt) optHit.setInteractive({ useHandCursor: true }); else optHit.removeInteractive();
-        if (!canOpt) useComplete = false;
+        // 可選素材 / 斷點提示
+        if (isBreakthrough) {
+          useComplete = false;
+          [optBg, optIcon, optLbl, optChkG, optChkT, optDescTxt].forEach(o => o.setAlpha(0));
+          optHit.removeInteractive();
+          const bp = [...BREAKTHROUGH_BREAKPOINTS].reverse().find(b => b <= lv) ?? 10;
+          btWarnBg.setAlpha(1);
+          btWarnTxt.setText(`⚠ ${tr('prep.equip.breakthroughFail', { to: bp })}`).setAlpha(1);
+        } else {
+          btWarnBg.setAlpha(0);
+          btWarnTxt.setAlpha(0);
+          const intactQty = InventoryStore.getItemQty('stone_intact');
+          const canOpt = !maxed && intactQty > 0;
+          [optBg, optIcon, optDescTxt].forEach(o => o.setAlpha(canOpt ? 1 : 0.3));
+          optLbl.setText(tr('prep.equip.intactStoneX', { n: intactQty })).setColor(intactQty === 0 ? '#ff6666' : '#ccbbaa').setAlpha(canOpt ? 1 : 0.3);
+          optChkG.clear();
+          optChkG.fillStyle(useComplete ? 0x1a4428 : 0x15100e, 1);
+          optChkG.lineStyle(P(1), useComplete ? 0x44cc88 : 0x554433, 1);
+          optChkG.fillRect(optChkX, optChkY, optChkSz, optChkSz);
+          optChkG.strokeRect(optChkX, optChkY, optChkSz, optChkSz);
+          optChkT.setText(useComplete ? '✓' : '').setAlpha(canOpt ? 1 : 0.3);
+          optDescTxt.setText(tr('prep.equip.optDesc')).setColor('#aa9977');
+          if (canOpt) optHit.setInteractive({ useHandCursor: true }); else optHit.removeInteractive();
+          if (!canOpt) useComplete = false;
+        }
       };
       refresh();
 
@@ -2788,60 +2825,105 @@ export class PrepScene extends Phaser.Scene {
       };
 
       btnHit.on('pointerdown', () => {
-        clearGainTexts();   // 每次按下清除上次的加成提示
+        clearGainTexts();
         const lv = item.enhancement;
         if (item.quality === 'legendary') return;
         if (lv >= ENHANCE_MAX) return;
-        const cost = ENHANCE_COST[lv];
-        if (InventoryStore.getItemQty('stone_broken') < cost) {
-          resultTxt.setText(tr('prep.equip.noBrokenStone')).setColor('#ff4444'); return;
-        }
-        if (useComplete && InventoryStore.getItemQty('stone_intact') < 1) {
-          resultTxt.setText(tr('prep.equip.noIntactStone')).setColor('#ff4444'); return;
-        }
-        InventoryStore.spendItem('stone_broken', cost);
-        if (useComplete) InventoryStore.spendItem('stone_intact', 1);
-        const rate = Math.min(1, ENHANCE_RATE[lv]);
 
-        if (Math.random() < rate) {
-          const beforeVals = item.affixes.map(a => a.value);
-          const allAffixTriggered = useComplete && Math.random() < ENHANCE_ALL_AFFIX_CHANCE;
-          const boosted = applyEnhancement(item, allAffixTriggered ? undefined : selectedAffixIdx, allAffixTriggered);
-          PlayerStore.notify(); SaveStore.save(); refresh();
-          AudioService.playSfx(this, 'sfx_enhance_ok');
-          DailyQuestStore.addProgress('enhance_success', 1);
-          playFlash(0x00cc55);
-          for (const idx of boosted) {
-            const gain = item.affixes[idx].value - beforeVals[idx];
-            const gy = affixStartY + idx * AFFIX_ROW + AFFIX_ROW / 2;
-            // 浮動文字：從詞綴上方飄起消失
-            const ft = es(this.add.text(mx + lw / 2, gy, fmtGain(item.affixes[idx].stat, gain), {
-              fontSize: F(15), fontStyle: 'bold', color: '#aaffcc',
-              stroke: '#002200', strokeThickness: 2,
-            }).setOrigin(0.5, 1).setDepth(ED + 10));
-            this.tweens.add({
-              targets: ft, y: gy - P(30), alpha: 0, duration: 700, ease: 'Power2',
-              onComplete: () => ft.destroy(),
-            });
-            // 持久顯示：數字往左移，右側放綠色加成
-            valTexts[idx].setX(mx + lw - P(80));
-            const gt = es(this.add.text(mx + lw - P(10), gy, fmtGain(item.affixes[idx].stat, gain), {
-              fontSize: F(15), fontStyle: 'bold', color: '#44ff88',
-              stroke: '#003300', strokeThickness: 2,
-            }).setOrigin(1, 0.5).setDepth(ED + 10));
-            gainTexts[idx] = gt;
+        const isBreakthrough = lv >= ENHANCE_NORMAL_MAX;
+
+        if (isBreakthrough) {
+          if (InventoryStore.getItemQty(ITEM_STONE_BREAKTHROUGH) < 1) {
+            resultTxt.setText(tr('prep.equip.noBreakthroughStone')).setColor('#ff4444'); return;
           }
-          if (allAffixTriggered) {
-            resultTxt.setText(tr('prep.equip.enhanceSuccessAll')).setColor('#ffdd44');
-          } else {
+          InventoryStore.spendItem(ITEM_STONE_BREAKTHROUGH, 1);
+          DailyQuestStore.addProgress('breakthrough_attempt', 1);
+          const btRate = BREAKTHROUGH_RATES[lv] ?? 0;
+          if (Math.random() < btRate) {
+            const beforeVals = item.affixes.map(a => a.value);
+            const boosted = applyBreakthrough(item, selectedAffixIdx);
+            PlayerStore.notify(); SaveStore.save(); refresh(); updateRangeTxt();
+            AudioService.playSfx(this, 'sfx_enhance_ok');
+            playFlash(0xffaa00);
+            for (const idx of boosted) {
+              const gain = item.affixes[idx].value - beforeVals[idx];
+              const gy = affixStartY + idx * AFFIX_ROW + AFFIX_ROW / 2;
+              const ft = es(this.add.text(mx + lw / 2, gy, fmtGain(item.affixes[idx].stat, gain), {
+                fontSize: F(15), fontStyle: 'bold', color: '#ffdd88',
+                stroke: '#332200', strokeThickness: 2,
+              }).setOrigin(0.5, 1).setDepth(ED + 10));
+              this.tweens.add({
+                targets: ft, y: gy - P(30), alpha: 0, duration: 700, ease: 'Power2',
+                onComplete: () => ft.destroy(),
+              });
+              valTexts[idx].setX(mx + lw - P(80));
+              const gt = es(this.add.text(mx + lw - P(10), gy, fmtGain(item.affixes[idx].stat, gain), {
+                fontSize: F(15), fontStyle: 'bold', color: '#ffcc44',
+                stroke: '#332200', strokeThickness: 2,
+              }).setOrigin(1, 0.5).setDepth(ED + 10));
+              gainTexts[idx] = gt;
+            }
             const names = boosted.map(idx => STAT_NAMES[item.affixes[idx].stat]).join('、');
-            resultTxt.setText(tr('prep.equip.enhanceSuccess', { names })).setColor('#44ff88');
+            resultTxt.setText(tr('prep.equip.breakthroughSuccess', { names })).setColor('#ffcc44');
+          } else {
+            const beforeLv = item.enhancement;
+            revertToBreakpoint(item);
+            PlayerStore.notify(); SaveStore.save(); refresh(); updateRangeTxt();
+            AudioService.playSfx(this, 'sfx_enhance_ng');
+            playFlash(0xff4422);
+            resultTxt.setText(tr('prep.equip.breakthroughFail', { to: item.enhancement })).setColor('#ff4444');
+            void beforeLv;
           }
         } else {
-          AudioService.playSfx(this, 'sfx_enhance_ng');
-          playFlash(0xff4422);
-          resultTxt.setText(tr('prep.equip.enhanceFail')).setColor('#ff6644');
-          SaveStore.save(); refresh();
+          const cost = ENHANCE_COST[lv];
+          if (InventoryStore.getItemQty('stone_broken') < cost) {
+            resultTxt.setText(tr('prep.equip.noBrokenStone')).setColor('#ff4444'); return;
+          }
+          if (useComplete && InventoryStore.getItemQty('stone_intact') < 1) {
+            resultTxt.setText(tr('prep.equip.noIntactStone')).setColor('#ff4444'); return;
+          }
+          InventoryStore.spendItem('stone_broken', cost);
+          if (useComplete) InventoryStore.spendItem('stone_intact', 1);
+          const rate = Math.min(1, ENHANCE_RATE[lv]);
+
+          if (Math.random() < rate) {
+            const beforeVals = item.affixes.map(a => a.value);
+            const allAffixTriggered = useComplete && Math.random() < ENHANCE_ALL_AFFIX_CHANCE;
+            const boosted = applyEnhancement(item, allAffixTriggered ? undefined : selectedAffixIdx, allAffixTriggered);
+            PlayerStore.notify(); SaveStore.save(); refresh();
+            AudioService.playSfx(this, 'sfx_enhance_ok');
+            DailyQuestStore.addProgress('enhance_success', 1);
+            playFlash(0x00cc55);
+            for (const idx of boosted) {
+              const gain = item.affixes[idx].value - beforeVals[idx];
+              const gy = affixStartY + idx * AFFIX_ROW + AFFIX_ROW / 2;
+              const ft = es(this.add.text(mx + lw / 2, gy, fmtGain(item.affixes[idx].stat, gain), {
+                fontSize: F(15), fontStyle: 'bold', color: '#aaffcc',
+                stroke: '#002200', strokeThickness: 2,
+              }).setOrigin(0.5, 1).setDepth(ED + 10));
+              this.tweens.add({
+                targets: ft, y: gy - P(30), alpha: 0, duration: 700, ease: 'Power2',
+                onComplete: () => ft.destroy(),
+              });
+              valTexts[idx].setX(mx + lw - P(80));
+              const gt = es(this.add.text(mx + lw - P(10), gy, fmtGain(item.affixes[idx].stat, gain), {
+                fontSize: F(15), fontStyle: 'bold', color: '#44ff88',
+                stroke: '#003300', strokeThickness: 2,
+              }).setOrigin(1, 0.5).setDepth(ED + 10));
+              gainTexts[idx] = gt;
+            }
+            if (allAffixTriggered) {
+              resultTxt.setText(tr('prep.equip.enhanceSuccessAll')).setColor('#ffdd44');
+            } else {
+              const names = boosted.map(idx => STAT_NAMES[item.affixes[idx].stat]).join('、');
+              resultTxt.setText(tr('prep.equip.enhanceSuccess', { names })).setColor('#44ff88');
+            }
+          } else {
+            AudioService.playSfx(this, 'sfx_enhance_ng');
+            playFlash(0xff4422);
+            resultTxt.setText(tr('prep.equip.enhanceFail')).setColor('#ff6644');
+            SaveStore.save(); refresh();
+          }
         }
       });
     };
@@ -4621,6 +4703,7 @@ export class PrepScene extends Phaser.Scene {
       stone_broken: { category: tr('prep.equip.material'), categoryColor: '#aaccaa', desc: tr('prep.equip.materialDesc'), descColor: '#8aaa88' },
       stone_intact: { category: tr('prep.equip.material'), categoryColor: '#aaccaa', desc: tr('prep.item.intactStoneDesc'), descColor: '#8aaa88' },
       stone_guard: { category: tr('prep.equip.material'), categoryColor: '#aaccaa', desc: tr('prep.item.guardStoneDesc2'), descColor: '#8aaa88' },
+      stone_breakthrough: { category: tr('prep.equip.material'), categoryColor: '#ffcc88', desc: tr('prep.item.breakthroughStoneDesc'), descColor: '#ffcc66' },
       quest_reroll: { category: tr('prep.equip.questItem'), categoryColor: '#aacc88', desc: tr('prep.item.questRerollDesc'), descColor: '#aabb88' },
       blank_card: { category: tr('prep.equip.cardMaterial'), categoryColor: '#aabbee', desc: tr('prep.card.blank'), descColor: '#88aacc' },
       potion_health_s: { category: tr('prep.equip.potion.heal'), categoryColor: '#88ddaa', desc: tr('prep.item.potionSmallDesc'), descColor: '#88ccaa' },
@@ -6213,6 +6296,7 @@ export class PrepScene extends Phaser.Scene {
     const STONE_ITEMS: ShopItem[] = [
       { id: ITEM_STONE_BROKEN, name: tr('item.stone_broken'), price: 500, desc: tr('game.stone.enhance'), color: 0x88ccff },
       { id: ITEM_STONE_INTACT, name: tr('item.stone_intact'), price: 900, desc: tr('prep.equip.enhanceRate'), color: 0x66ffcc },
+      { id: ITEM_STONE_BREAKTHROUGH, name: tr('item.stone_breakthrough'), price: 3000, desc: tr('game.stone.breakthrough'), color: 0xffaa44 },
       { id: 'stone_guard', name: tr('item.stone_guard'), price: 4500, desc: tr('prep.item.guardStoneDesc'), color: 0xbb66ff },
       { id: ITEM_QUEST_REROLL, name: tr('item.quest_reroll'), price: 250, desc: tr('prep.quest.resetList'), color: 0xffcc44 },
       { id: ITEM_BLANK_CARD, name: tr('item.blank_card'), price: 3000, desc: tr('prep.item.blankCardDesc'), color: 0xcc88ff },
