@@ -393,7 +393,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     this.playDir(`${this.animPrefix}_${this.walkAnimSuffix}`);
     if (!this._entryDelayDone) {
       this._entryDelayDone = true;
-      this.stateTimer = this.scene.time.delayedCall(2000, () => {
+      this.stateTimer = this.scene.time.delayedCall(1000, () => {
         if (this.active && this.bossState !== BossState.DEAD) this.pickNextAttack();
       });
     } else {
