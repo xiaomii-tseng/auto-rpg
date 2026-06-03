@@ -1,6 +1,6 @@
 {
   "configVersion": 1,
-  "timestamp": 1780465592968,
+  "timestamp": 1780470057175,
   "index": "/auto-rpg/index.html",
   "assetGroups": [
     {
@@ -4584,7 +4584,7 @@
     "/auto-rpg/items/chests.png": "c288fcf04deb56ae39bb346c612b9175833bae2b",
     "/auto-rpg/items/potions.png": "b9eac20f1780d9af256707d43e869d46ad793acc",
     "/auto-rpg/main-KLDS63UW.js": "9d8695d7088ebe4fca35ceda28cc3d8ec3b40256",
-    "/auto-rpg/manifest.webmanifest": "03c10065c5789ddd43072aa6ffb151db7dd3f2e6",
+    "/auto-rpg/manifest.webmanifest": "7828e3f0328069a1e01ac1549964f50c65bb2c8f",
     "/auto-rpg/other/banner.png": "fc6496c7e5483da91fa64ecddf5715f81ae46571",
     "/auto-rpg/other/battle.webp": "0a1f669168877df909a321e17400cd08edd7d214",
     "/auto-rpg/other/bg1.png": "0b06193a30b00e77191a23889a1fb1dbd20e740d",
