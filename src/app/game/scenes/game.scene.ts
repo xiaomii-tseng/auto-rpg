@@ -1087,16 +1087,6 @@ export class GameScene extends Phaser.Scene {
       this._spaceHoldTimer = undefined;
     });
 
-    // ── 測試快捷鍵：按 ` 直接傳送至 BOSS 戰（請在準備場選吸血鬼伯爵）──
-    kb.on('keydown-BACKTICK', () => {
-      if (this.bossActive || this.teleporting) return;
-      this.bossActive = true;
-      this.teleporting = true;
-      this.player.move(0, 0);
-      (this.player.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
-      this.teleportToBossArena();
-    });
-
     const onResize = () => this.physics.world.setBounds(0, 0, this.worldW, this.worldH);
     this.scale.on('resize', onResize);
     this.events.once('shutdown', () => this.scale.off('resize', onResize));
