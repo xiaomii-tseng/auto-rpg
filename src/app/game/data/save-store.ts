@@ -18,6 +18,22 @@ import { VERSION as _V } from '../version';
 // 禁止在其他地方另開 localStorage key 存遊戲資料。
 // 新增任何 store 或設定時，在 SaveData interface、save()、load() 三處同步更新。
 // ─────────────────────────────────────────────────────────────────────────────
+
+const LEGENDARY_ATK_NERF: Record<string, number> = {
+  legendary_slime_sword:   460,
+  legendary_flower_sword:  400,
+  legendary_orc_sword:     420,
+  legendary_vampire_sword: 400,
+};
+function migrateLegendaryAtk(item: EquipmentItem): void {
+  if (item.quality !== 'legendary') return;
+  const match = item.id.match(/^(legendary_[a-z_]+)_/);
+  if (!match) return;
+  const newAtk = LEGENDARY_ATK_NERF[match[1]];
+  if (newAtk === undefined) return;
+  const atkAffix = item.affixes.find(a => a.stat === 'atk');
+  if (atkAffix) atkAffix.value = newAtk;
+}
 const SAVE_KEY = 'auto_rpg_save';
 const VERSION  = _V.replace(/^v/, '');
 let   _loaded  = false;
@@ -177,6 +193,7 @@ export const SaveStore = {
         for (const [slot, item] of Object.entries(p.equipped) as [EquipSlot, EquipmentItem | null][]) {
           if (item) {
             if (!item.enhanceLog) item.enhanceLog = [];
+            migrateLegendaryAtk(item);
             PlayerStore.equipDirect(slot, item);
           }
         }
@@ -185,6 +202,7 @@ export const SaveStore = {
       if (p.owned) {
         for (const item of p.owned) {
           if (!item.enhanceLog) item.enhanceLog = [];
+          migrateLegendaryAtk(item);
           PlayerStore.addOwned(item);
         }
       }
