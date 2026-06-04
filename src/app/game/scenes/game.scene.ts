@@ -6290,6 +6290,7 @@ export class GameScene extends Phaser.Scene {
     const liveDotGfx = this.add.graphics().setScrollFactor(0).setDepth(D + 3);
     const allySet = new Set(this._allyMinions);
     const DOT_R = Math.max(P(2.5), 3);
+    const DOT_MON = Math.max(P(1.5), 2);
     const DOT_OUT = Math.max(P(4), 4);
     const drawLiveDots = () => {
       liveDotGfx.clear();
@@ -6307,7 +6308,7 @@ export class GameScene extends Phaser.Scene {
       for (const m of this.allMinions) {
         if (m.isDead || allySet.has(m)) continue;
         if (m.x > clipX) continue;
-        liveDotGfx.fillCircle(toX(m.x), toY(m.y), DOT_R);
+        liveDotGfx.fillCircle(toX(m.x), toY(m.y), DOT_MON);
       }
 
       // Player (white with outline)
