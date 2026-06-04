@@ -6286,17 +6286,49 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
-    // Player dot — separate Graphics so it can be redrawn each frame
-    const playerDotGfx = this.add.graphics().setScrollFactor(0).setDepth(D + 3);
-    const drawPlayerDot = () => {
-      playerDotGfx.clear();
-      playerDotGfx.fillStyle(0x000000, 0.9);
-      playerDotGfx.fillCircle(toX(this.player.x), toY(this.player.y), Math.max(P(4), 4));
-      playerDotGfx.fillStyle(0xffffff, 1);
-      playerDotGfx.fillCircle(toX(this.player.x), toY(this.player.y), Math.max(P(2.5), 3));
+    // Dynamic dots — redrawn every frame
+    const liveDotGfx = this.add.graphics().setScrollFactor(0).setDepth(D + 3);
+    const allySet = new Set(this._allyMinions);
+    const DOT_R = Math.max(P(2.5), 3);
+    const DOT_OUT = Math.max(P(4), 4);
+    const drawLiveDots = () => {
+      liveDotGfx.clear();
+
+      // Chests (yellow)
+      liveDotGfx.fillStyle(0xffdd44, 1);
+      for (const chest of this._chests) {
+        if (!chest.sprite.active || chest.opening) continue;
+        if (chest.x > clipX) continue;
+        liveDotGfx.fillCircle(toX(chest.x), toY(chest.y), DOT_R);
+      }
+
+      // Enemy minions (red)
+      liveDotGfx.fillStyle(0xff4444, 1);
+      for (const m of this.allMinions) {
+        if (m.isDead || allySet.has(m)) continue;
+        if (m.x > clipX) continue;
+        liveDotGfx.fillCircle(toX(m.x), toY(m.y), DOT_R);
+      }
+
+      // Player (white with outline)
+      liveDotGfx.fillStyle(0x000000, 0.9);
+      liveDotGfx.fillCircle(toX(this.player.x), toY(this.player.y), DOT_OUT);
+      liveDotGfx.fillStyle(0xffffff, 1);
+      liveDotGfx.fillCircle(toX(this.player.x), toY(this.player.y), DOT_R);
     };
-    drawPlayerDot();
-    this._mapUpdateFn = drawPlayerDot;
+    drawLiveDots();
+    this._mapUpdateFn = drawLiveDots;
+
+    // Legend
+    const legY = py + PH / 2 - P(10);
+    const legGfx = this.add.graphics().setScrollFactor(0).setDepth(D + 2);
+    legGfx.fillStyle(0xffffff, 1);  legGfx.fillCircle(px - P(80), legY, DOT_R);
+    legGfx.fillStyle(0xff4444, 1);  legGfx.fillCircle(px - P(36), legY, DOT_R);
+    legGfx.fillStyle(0xffdd44, 1);  legGfx.fillCircle(px + P(10), legY, DOT_R);
+    const txtStyle = { fontSize: F(10), color: '#cccccc' };
+    const legTxt1 = this.add.text(px - P(74), legY, tr('game.map.legendPlayer'), txtStyle).setOrigin(0, 0.5).setScrollFactor(0).setDepth(D + 2);
+    const legTxt2 = this.add.text(px - P(30), legY, tr('game.map.legendEnemy'),  txtStyle).setOrigin(0, 0.5).setScrollFactor(0).setDepth(D + 2);
+    const legTxt3 = this.add.text(px + P(16),  legY, tr('game.map.legendLoot'),   txtStyle).setOrigin(0, 0.5).setScrollFactor(0).setDepth(D + 2);
 
     // Suppress camera shake while map is open
     const cam = this.cameras.main as unknown as Record<string, unknown>;
@@ -6304,7 +6336,7 @@ export class GameScene extends Phaser.Scene {
     cam['shake'] = () => {};
     this.cameras.main.shake(0, 0);
 
-    const objs = [dim, panel, title, closeBtn, mapGfx, playerDotGfx];
+    const objs = [dim, panel, title, closeBtn, mapGfx, liveDotGfx, legGfx, legTxt1, legTxt2, legTxt3];
     const close = () => {
       this._mapUpdateFn = undefined;
       cam['shake'] = origShake;

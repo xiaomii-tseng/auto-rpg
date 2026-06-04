@@ -954,6 +954,7 @@ export const ZH = {
   'game.hud.finalBoss':       '最終魔王討伐成功！',
   'game.hud.map':             '地圖',
   'game.map.legendPlayer':    '你',
+  'game.map.legendEnemy':     '怪物',
   'game.map.legendLoot':      '寶箱',
   'game.hud.quit':            '退出',
   'game.hud.back':            '返回',

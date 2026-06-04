@@ -956,6 +956,7 @@ export const EN: Record<ZHKeys, string> = {
   'game.hud.finalBoss':       'Final Boss defeated!',
   'game.hud.map':             'Map',
   'game.map.legendPlayer':    'You',
+  'game.map.legendEnemy':     'Enemy',
   'game.map.legendLoot':      'Chest',
   'game.hud.quit':            'Quit',
   'game.hud.back':            'Back',
