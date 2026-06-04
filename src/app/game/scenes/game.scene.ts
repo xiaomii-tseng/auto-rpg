@@ -151,6 +151,8 @@ export class GameScene extends Phaser.Scene {
   private spaceKey!: Phaser.Input.Keyboard.Key;
   private qKey!: Phaser.Input.Keyboard.Key;
   private eKey!: Phaser.Input.Keyboard.Key;
+  private tabKey!: Phaser.Input.Keyboard.Key;
+  protected _fullMapClose?: () => void;
   private _spaceHoldTimer?: Phaser.Time.TimerEvent;
   protected bossHpGfx!: Phaser.GameObjects.Graphics;
   protected bossHpLabel!: Phaser.GameObjects.Text;
@@ -248,7 +250,14 @@ export class GameScene extends Phaser.Scene {
   private _mazeCols = 0;
   private _currentRoomKey = '';
   private _miniMapGfx?: Phaser.GameObjects.Graphics;
+  private _miniMapHitZone?: Phaser.GameObjects.Rectangle;
+  private _miniMapExpanded = false;
+  private _miniMapAlpha = 0.72;
+  private _miniMapExpandedObjs: Phaser.GameObjects.GameObject[] = [];
   private _mapUpdateFn?: () => void;
+  private _miniQuestDotFn?: () => void;
+  protected _questMiniObjs: Phaser.GameObjects.GameObject[] = [];
+  private _miniMapZoom = 1;
   private _mazeDarkRt?: Phaser.GameObjects.RenderTexture;
   private _mazePoisonTimer?: Phaser.Time.TimerEvent;
   private _mazeTrapTimer?: Phaser.Time.TimerEvent;
@@ -490,6 +499,12 @@ export class GameScene extends Phaser.Scene {
     this._mazeCols = 0;
     this._currentRoomKey = '';
     this._miniMapGfx = undefined;
+    this._miniMapHitZone = undefined;
+    this._miniMapExpanded = false;
+    this._miniMapExpandedObjs = [];
+    this._miniQuestDotFn = undefined;
+    this._questMiniObjs = [];
+    this._miniMapZoom = 1;
     this._mazeDarkRt = undefined;
     this._mazePoisonTimer?.destroy();
     this._mazePoisonTimer = undefined;
@@ -1075,6 +1090,7 @@ export class GameScene extends Phaser.Scene {
     this.spaceKey = kb.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
     this.qKey     = kb.addKey(Phaser.Input.Keyboard.KeyCodes.Q);
     this.eKey     = kb.addKey(Phaser.Input.Keyboard.KeyCodes.E);
+    this.tabKey   = kb.addKey(Phaser.Input.Keyboard.KeyCodes.TAB);
 
     // Disable keyboard capture while a text input is focused (e.g. mobile keyboard open)
     const onFocusIn  = (e: FocusEvent) => { if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) { kb.enabled = false; kb.disableGlobalCapture(); } };
@@ -2223,6 +2239,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     this._mapUpdateFn?.();
+    this._miniQuestDotFn?.();
 
     if (this.gameOver || this.teleporting || this._hostReconnecting || this._tutPaused) return;
 
@@ -2261,6 +2278,9 @@ export class GameScene extends Phaser.Scene {
     if (Phaser.Input.Keyboard.JustDown(this.eKey)) {
       const id1 = PotionBarStore.getSlot(1);
       if (id1) this.usePotionSlot(id1, this.POTION_COLORS[id1] ?? 0xffffff);
+    }
+    if (Phaser.Input.Keyboard.JustDown(this.tabKey)) {
+      if (this._fullMapClose) { this._fullMapClose(); } else { this._showFullMap(); }
     }
 
     // Space bar: start hold-attack timer on press, clear on release
@@ -6221,146 +6241,383 @@ export class GameScene extends Phaser.Scene {
     // Stairs zone for collision after cleared
   }
 
-  // ── Full-screen map overlay (opened from map button) ────────
+  // ── Full-screen map overlay — player-centred, no panel/border ────────────
   protected _showFullMap(): void {
     if (!this.worldW || !this.worldH || !this.waypointRooms.length) return;
     const W = this.scale.width, H = this.scale.height;
     const D = 110000;
-    const PAD = P(14);
-    const PW = Math.min(W - P(24), P(340));
-    const PH = Math.min(H - P(80), P(460));
-    const px = W / 2, py = H / 2;
 
-    const dim = this.add.rectangle(px, py, W, H, 0x000000, 0.78)
+    // Invisible full-screen blocker (blocks game input, never closes on click)
+    const blocker = this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0)
       .setScrollFactor(0).setDepth(D).setInteractive();
 
-    const panel = this.add.graphics().setScrollFactor(0).setDepth(D + 1);
-    panel.fillStyle(0x080c18, 0.97);
-    panel.fillRoundedRect(px - PW / 2, py - PH / 2, PW, PH, P(10));
-    panel.lineStyle(P(2), 0x3a5a88, 0.8);
-    panel.strokeRoundedRect(px - PW / 2, py - PH / 2, PW, PH, P(10));
-
-    const title = this.add.text(px, py - PH / 2 + P(14), tr('game.hud.map'), {
-      fontSize: F(14), fontStyle: 'bold', color: '#aaccff', stroke: '#000', strokeThickness: 2,
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(D + 2);
-
-    const closeBtn = this.add.text(px + PW / 2 - P(10), py - PH / 2 + P(12), '✕', {
-      fontSize: F(14), color: '#aaaaaa', stroke: '#000', strokeThickness: 1,
-    }).setOrigin(1, 0.5).setScrollFactor(0).setDepth(D + 2);
-
-    // ── Draw map contents (boss area excluded) ───────────────
-    const mapGfx = this.add.graphics().setScrollFactor(0).setDepth(D + 2);
-    const mapW = PW - PAD * 2;
-    const mapH = PH - P(36);
-    const clipX = this.bossArenaCenter.x - this.BOSS_ARENA_RADIUS;
+    // Clip boss arena out of the map
+    const clipX = this.bossArenaCenter.x > 0
+      ? this.bossArenaCenter.x - this.BOSS_ARENA_RADIUS
+      : this.worldW;
     const effectiveW = Math.min(this.worldW, clipX);
-    const s = Math.min(mapW / effectiveW, mapH / this.worldH);
-    const drawW = effectiveW * s, drawH = this.worldH * s;
-    const ox = px - drawW / 2;
-    const oy = py - PH / 2 + P(30) + (mapH - drawH) / 2;
 
-    const toX = (wx: number) => ox + wx * s;
-    const toY = (wy: number) => oy + wy * s;
+    // Zoom: 2.5× the scale that would fit the whole world on screen
+    const fitScale = Math.min(
+      W / effectiveW,
+      H / this.worldH,
+    );
+    const s = fitScale * 2.5;
 
-    // Corridors (only those within clip boundary)
-    const corrW = Math.max(this.CORR_HW * 2 * s, P(3));
-    mapGfx.fillStyle(0x2a3a4e, 1);
-    for (const seg of this.corridorSegs) {
-      if (Math.min(seg.x1, seg.x2) > clipX) continue;
-      if (Math.abs(seg.y1 - seg.y2) < 1) {
-        const x1 = Math.min(seg.x1, seg.x2);
-        const x2 = Math.min(Math.max(seg.x1, seg.x2), clipX);
-        mapGfx.fillRect(toX(x1), toY(seg.y1) - corrW / 2, (x2 - x1) * s, corrW);
-      } else {
-        const y1 = Math.min(seg.y1, seg.y2), y2 = Math.max(seg.y1, seg.y2);
-        mapGfx.fillRect(toX(seg.x1) - corrW / 2, toY(y1), corrW, (y2 - y1) * s);
+    // Container sits at scrollFactor 0; we shift it so player == screen centre
+    const mapContainer = this.add.container(0, 0)
+      .setScrollFactor(0).setDepth(D + 1);
+
+    // Static map layer — union outline via offscreen canvas
+    // Draw all shapes with thick stroke, then erase interiors → only outer boundary remains
+    const fullRawW = Math.ceil(effectiveW * s);
+    const fullRawH = Math.ceil(this.worldH * s);
+    const maxCvs = 2048;
+    const cvsScale = Math.min(1, maxCvs / Math.max(fullRawW, fullRawH));
+    const cvsW = Math.max(1, Math.ceil(fullRawW * cvsScale));
+    const cvsH = Math.max(1, Math.ceil(fullRawH * cvsScale));
+    const cs = s * cvsScale; // draw-coordinate scale on offscreen canvas
+
+    const cvs = document.createElement('canvas');
+    cvs.width = cvsW; cvs.height = cvsH;
+    const ctx2d = cvs.getContext('2d')!;
+    const BORDER = Math.max(3, Math.round(this.CORR_HW * cs * 0.09));
+
+    // Mirror the exact geometry of generateAndDrawMap()'s fillAll()
+    const hw = this.CORR_HW;
+    const rw = hw * 2.2; // corner square half-size
+    const addMapPath = () => {
+      ctx2d.beginPath();
+      // Corridors — same bounds as fillAll()
+      for (const seg of this.corridorSegs) {
+        if (Math.min(seg.x1, seg.x2) > clipX) continue;
+        if (Math.abs(seg.y1 - seg.y2) < 1) {  // horizontal
+          const rx = (Math.min(seg.x1, seg.x2) - hw) * cs;
+          const ry = (seg.y1 - hw) * cs;
+          const rw2 = (Math.abs(seg.x2 - seg.x1) + hw * 2) * cs;
+          const rh2 = hw * 2 * cs;
+          ctx2d.rect(rx, ry, rw2, rh2);
+        } else {                                // vertical
+          const rx = (seg.x1 - hw) * cs;
+          const ry = (Math.min(seg.y1, seg.y2) - hw) * cs;
+          const rw2 = hw * 2 * cs;
+          const rh2 = (Math.abs(seg.y2 - seg.y1) + hw * 2) * cs;
+          ctx2d.rect(rx, ry, rw2, rh2);
+        }
       }
-    }
-
-    // Rooms (only those within clip boundary)
-    mapGfx.fillStyle(0x3a4e66, 1);
-    for (const rects of this.waypointRooms) {
-      for (const r of rects) {
-        if (r.x > clipX) continue;
-        mapGfx.fillRect(toX(r.x), toY(r.y), Math.min(r.w, clipX - r.x) * s, r.h * s);
+      // Corner squares — same as fillAll()
+      for (const c of this.cornerPts) {
+        if (c.x > clipX) continue;
+        ctx2d.rect((c.x - rw) * cs, (c.y - rw) * cs, rw * 2 * cs, rw * 2 * cs);
       }
-    }
-
-    // Dynamic dots — redrawn every frame
-    const liveDotGfx = this.add.graphics().setScrollFactor(0).setDepth(D + 3);
-    const allySet = new Set(this._allyMinions);
-    const DOT_R = Math.max(P(2.5), 3);
-    const DOT_MON = Math.max(P(1.5), 2);
-    const DOT_OUT = Math.max(P(4), 4);
-    const drawLiveDots = () => {
-      liveDotGfx.clear();
-
-      // Chests (yellow)
-      liveDotGfx.fillStyle(0xffdd44, 1);
-      for (const chest of this._chests) {
-        if (!chest.sprite.active || chest.opening) continue;
-        if (chest.x > clipX) continue;
-        liveDotGfx.fillCircle(toX(chest.x), toY(chest.y), DOT_R);
+      // Waypoint rooms — same as fillAll()
+      for (const rects of this.waypointRooms) {
+        for (const r of rects) {
+          if (r.x > clipX) continue;
+          ctx2d.rect(r.x * cs, r.y * cs, Math.min(r.w, clipX - r.x) * cs, r.h * cs);
+        }
       }
-
-      // Enemy minions (red)
-      liveDotGfx.fillStyle(0xff4444, 1);
-      for (const m of this.allMinions) {
-        if (m.isDead || allySet.has(m)) continue;
-        if (m.x > clipX) continue;
-        liveDotGfx.fillCircle(toX(m.x), toY(m.y), DOT_MON);
-      }
-
-      // Player (white with outline)
-      liveDotGfx.fillStyle(0x000000, 0.9);
-      liveDotGfx.fillCircle(toX(this.player.x), toY(this.player.y), DOT_OUT);
-      liveDotGfx.fillStyle(0xffffff, 1);
-      liveDotGfx.fillCircle(toX(this.player.x), toY(this.player.y), DOT_R);
     };
-    drawLiveDots();
-    this._mapUpdateFn = drawLiveDots;
 
-    // Legend
-    const legY = py + PH / 2 - P(10);
-    const legGfx = this.add.graphics().setScrollFactor(0).setDepth(D + 2);
-    legGfx.fillStyle(0xffffff, 1);  legGfx.fillCircle(px - P(80), legY, DOT_R);
-    legGfx.fillStyle(0xff4444, 1);  legGfx.fillCircle(px - P(36), legY, DOT_R);
-    legGfx.fillStyle(0xffdd44, 1);  legGfx.fillCircle(px + P(10), legY, DOT_R);
-    const txtStyle = { fontSize: F(10), color: '#cccccc' };
-    const legTxt1 = this.add.text(px - P(74), legY, tr('game.map.legendPlayer'), txtStyle).setOrigin(0, 0.5).setScrollFactor(0).setDepth(D + 2);
-    const legTxt2 = this.add.text(px - P(30), legY, tr('game.map.legendEnemy'),  txtStyle).setOrigin(0, 0.5).setScrollFactor(0).setDepth(D + 2);
-    const legTxt3 = this.add.text(px + P(16),  legY, tr('game.map.legendLoot'),   txtStyle).setOrigin(0, 0.5).setScrollFactor(0).setDepth(D + 2);
+    // Pass 1: thick border stroke
+    ctx2d.lineWidth = BORDER * 2;
+    ctx2d.strokeStyle = 'rgba(100,170,220,1)';
+    addMapPath(); ctx2d.stroke();
+    // Pass 2: erase interior → only outer boundary survives
+    ctx2d.globalCompositeOperation = 'destination-out';
+    addMapPath(); ctx2d.fill();
+    ctx2d.globalCompositeOperation = 'source-over';
 
-    // Suppress camera shake while map is open
+    const texKey = '__map_outline__';
+    if (this.textures.exists(texKey)) this.textures.remove(texKey);
+    this.textures.addCanvas(texKey, cvs);
+    const mapImg = this.add.image(0, 0, texKey).setOrigin(0, 0).setScale(1 / cvsScale);
+    mapContainer.add(mapImg);
+
+    // Dynamic dots layer — redrawn every frame
+    const dotGfx = this.add.graphics();
+    mapContainer.add(dotGfx);
+
+    const allySet = new Set(this._allyMinions);
+    const DOT_R   = Math.max(P(3), 4);
+    const DOT_MON = DOT_R;
+    const DOT_OUT = Math.max(P(5), 5);
+
+    // Player marker: fixed at screen centre (always on top of container)
+    const playerDot = this.add.graphics().setScrollFactor(0).setDepth(D + 2);
+    playerDot.fillStyle(0x000000, 0.9); playerDot.fillCircle(W / 2, H / 2, DOT_OUT);
+    playerDot.fillStyle(0xffffff, 1);   playerDot.fillCircle(W / 2, H / 2, DOT_R);
+
+    const updateMap = () => {
+      // Shift container so that player world-position × s == screen centre
+      mapContainer.setPosition(
+        W / 2 - this.player.x * s,
+        H / 2 - this.player.y * s,
+      );
+
+      dotGfx.clear();
+      // Chests
+      dotGfx.fillStyle(0xffdd44, 1);
+      for (const chest of this._chests) {
+        if (!chest.sprite.active || chest.opening || chest.x > clipX) continue;
+        dotGfx.fillCircle(chest.x * s, chest.y * s, DOT_R);
+      }
+      // Enemies
+      dotGfx.fillStyle(0xff4444, 1);
+      for (const m of this.allMinions) {
+        if (m.isDead || allySet.has(m) || m.x > clipX) continue;
+        dotGfx.fillCircle(m.x * s, m.y * s, DOT_MON);
+      }
+    };
+    updateMap();
+    this._mapUpdateFn = updateMap;
+
+    // ── Dark overlay (behind map, alpha-linked to map transparency) ──────────
+    const darkOverlay = this.add.rectangle(W / 2, H / 2, W, H, 0x000008,
+      Math.max(0.25, this._miniMapAlpha * 0.45))
+      .setScrollFactor(0).setDepth(D - 1);
+
+
     const cam = this.cameras.main as unknown as Record<string, unknown>;
     const origShake = cam['shake'] as (...args: unknown[]) => void;
     cam['shake'] = () => {};
     this.cameras.main.shake(0, 0);
 
-    const objs = [dim, panel, title, closeBtn, mapGfx, liveDotGfx, legGfx, legTxt1, legTxt2, legTxt3];
-    const close = () => {
-      this._mapUpdateFn = undefined;
-      cam['shake'] = origShake;
-      objs.forEach(o => o.destroy());
+    mapContainer.setAlpha(this._miniMapAlpha);
+
+    // Hide minimap while large map is open
+    const setMiniVisible = (v: boolean) => {
+      this._miniMapGfx?.setVisible(v);
+      this._miniMapHitZone?.setVisible(v);
+      for (const o of this._questMiniObjs) (o as Phaser.GameObjects.GameObject & { setVisible: (v: boolean) => void }).setVisible(v);
     };
-    dim.on('pointerdown', close);
-    closeBtn.setInteractive({ useHandCursor: true }).on('pointerdown', close);
+    setMiniVisible(false);
+
+    const applyAlpha = (a: number) => {
+      this._miniMapAlpha = a;
+      mapContainer.setAlpha(a);
+      darkOverlay.setAlpha(Math.max(0.25, a * 0.45));
+      showHint(`透明度 ${Math.round(a * 100)}%`);
+    };
+
+    // Desktop: scroll wheel
+    const onWheel = (ptr: Phaser.Input.Pointer) => {
+      if (!this._fullMapClose) return;
+      const delta = ptr.deltaY > 0 ? -0.1 : 0.1;
+      applyAlpha(Math.min(1.0, Math.max(0.1, +(this._miniMapAlpha + delta).toFixed(1))));
+    };
+    this.input.on('wheel', onWheel);
+
+    // Mobile: two-finger vertical drag
+    let twoFingerStartY: number | null = null;
+    let twoFingerAlphaBase = this._miniMapAlpha;
+    const onPtrMove = () => {
+      const p1 = this.input.pointer1, p2 = this.input.pointer2;
+      if (!p1.isDown || !p2.isDown) { twoFingerStartY = null; return; }
+      const avgY = (p1.y + p2.y) / 2;
+      if (twoFingerStartY === null) {
+        twoFingerStartY = avgY;
+        twoFingerAlphaBase = this._miniMapAlpha;
+        return;
+      }
+      const dy = twoFingerStartY - avgY; // drag up = positive = more opaque
+      applyAlpha(Math.min(1.0, Math.max(0.1, +(twoFingerAlphaBase + dy / H).toFixed(2))));
+    };
+    this.input.on(Phaser.Input.Events.POINTER_MOVE, onPtrMove);
+
+    // Hint text — fades out automatically
+    const hint = this.add.text(W / 2, H - P(14), '', {
+      fontSize: `${P(13)}px`, fontStyle: 'bold', color: '#c8ddf0',
+      fontFamily: 'Arial, sans-serif',
+      stroke: '#000a18', strokeThickness: 3,
+      backgroundColor: '#00000060',
+      padding: { x: P(16), y: P(8) },
+    }).setOrigin(0.5, 1).setScrollFactor(0).setDepth(D + 4).setAlpha(0);
+
+    let hintTween: Phaser.Tweens.Tween | null = null;
+    const showHint = (msg: string) => {
+      hint.setText(msg).setAlpha(1);
+      hintTween?.stop();
+      hintTween = this.tweens.add({
+        targets: hint, alpha: 0, delay: 3000, duration: 500, ease: 'Quad.In',
+      });
+    };
+    showHint('滾輪/雙指上下　調整透明度');
+
+    // Close button (top-right, always visible for mobile)
+    const closeBtn = this.add.text(P(14), P(14), '✕', {
+      fontSize: `${P(22)}px`, fontStyle: 'bold', color: '#ffffff',
+      stroke: '#000000', strokeThickness: 4,
+    }).setOrigin(0, 0).setScrollFactor(0).setDepth(D + 4)
+      .setInteractive({ useHandCursor: true });
+
+    const allObjs: Phaser.GameObjects.GameObject[] = [
+      darkOverlay, blocker, mapContainer, playerDot, hint, closeBtn,
+    ];
+    const close = () => {
+      this._fullMapClose = undefined;
+      this._mapUpdateFn = undefined;
+      this.input.off('wheel', onWheel);
+      this.input.off(Phaser.Input.Events.POINTER_MOVE, onPtrMove);
+      cam['shake'] = origShake;
+      hintTween?.stop();
+      allObjs.forEach(o => o.destroy());
+      if (this.textures.exists(texKey)) this.textures.remove(texKey);
+      setMiniVisible(true);
+    };
+    closeBtn.on('pointerdown', close);
+    this._fullMapClose = close;
   }
 
-  // ── Tower maze mini-map (top-right HUD, scrollFactor=0) ─────
+  // ── Quest-mode mini-map (always visible top-left, click to open full map) ──
+  private _buildQuestMiniMap(): void {
+    if (!this.worldW || !this.worldH || !this.waypointRooms.length) return;
+
+    const D = 9800;
+    const BOX_X = P(8), BOX_Y = this._MINI_TOP;
+    const BOX_W = P(72), BOX_H = P(54);
+    const BOX_CX = BOX_X + BOX_W / 2, BOX_CY = BOX_Y + BOX_H / 2;
+    const PAD = P(3);
+
+    // Background panel
+    const bg = this.add.graphics().setScrollFactor(0).setDepth(D);
+    bg.fillStyle(0x060c18, 0.85);
+    bg.fillRoundedRect(BOX_X, BOX_Y, BOX_W, BOX_H, P(4));
+    bg.lineStyle(P(1), 0x3a5a88, 0.6);
+    bg.strokeRoundedRect(BOX_X, BOX_Y, BOX_W, BOX_H, P(4));
+
+    // Geometry mask: clips map content to box interior
+    const maskGfx = this.add.graphics().setScrollFactor(0).setVisible(false).setDepth(-1);
+    maskGfx.fillStyle(0xffffff, 1);
+    maskGfx.fillRect(BOX_X + PAD, BOX_Y + PAD, BOX_W - PAD * 2, BOX_H - PAD * 2);
+    const clipMask = maskGfx.createGeometryMask();
+
+    // Fit-all scale (zoom = 1 baseline)
+    const clipX = this.bossArenaCenter.x > 0
+      ? this.bossArenaCenter.x - this.BOSS_ARENA_RADIUS
+      : this.worldW;
+    const effectiveW = Math.min(this.worldW, clipX);
+    const innerW = BOX_W - PAD * 2;
+    const innerH = BOX_H - PAD * 2;
+    const fitScale = Math.min(innerW / effectiveW, innerH / this.worldH);
+    const fitDrawW = effectiveW * fitScale;
+    const fitDrawH = this.worldH * fitScale;
+    const fitOX = BOX_X + PAD + (innerW - fitDrawW) / 2;
+    const fitOY = BOX_Y + PAD + (innerH - fitDrawH) / 2;
+
+    // Dynamic graphics — redrawn every frame to support zoom + pan
+    const dynGfx = this.add.graphics().setScrollFactor(0).setDepth(D + 1);
+    dynGfx.setMask(clipMask);
+
+    const drawMap = (oX: number, oY: number, sc: number) => {
+      dynGfx.clear();
+      const cw = Math.max(this.CORR_HW * 2 * sc, 1);
+      // Corridors
+      dynGfx.fillStyle(0x2a3a4e, 1);
+      for (const seg of this.corridorSegs) {
+        if (Math.min(seg.x1, seg.x2) > clipX) continue;
+        if (Math.abs(seg.y1 - seg.y2) < 1) {
+          const x1 = Math.min(seg.x1, seg.x2);
+          const x2 = Math.min(Math.max(seg.x1, seg.x2), clipX);
+          dynGfx.fillRect(oX + x1 * sc, oY + seg.y1 * sc - cw / 2, (x2 - x1) * sc, cw);
+        } else {
+          const y1 = Math.min(seg.y1, seg.y2), y2 = Math.max(seg.y1, seg.y2);
+          dynGfx.fillRect(oX + seg.x1 * sc - cw / 2, oY + y1 * sc, cw, (y2 - y1) * sc);
+        }
+      }
+      // Rooms
+      dynGfx.fillStyle(0x3a4e66, 1);
+      for (const rects of this.waypointRooms) {
+        for (const r of rects) {
+          if (r.x > clipX) continue;
+          dynGfx.fillRect(oX + r.x * sc, oY + r.y * sc, Math.min(r.w, clipX - r.x) * sc, r.h * sc);
+        }
+      }
+      // Player dot
+      const px = oX + (this.player?.x ?? 0) * sc;
+      const py = oY + (this.player?.y ?? 0) * sc;
+      dynGfx.fillStyle(0x000000, 0.7); dynGfx.fillCircle(px, py, P(2.5));
+      dynGfx.fillStyle(0xffffff, 1);   dynGfx.fillCircle(px, py, P(1.8));
+    };
+
+    this._miniQuestDotFn = () => {
+      if (!this.player?.active) return;
+      const z = this._miniMapZoom;
+      if (z === 1) {
+        // Fit-all: static layout, player dot moves
+        drawMap(fitOX, fitOY, fitScale);
+      } else {
+        // Player-centred zoom
+        const sc = fitScale * z;
+        drawMap(BOX_CX - this.player.x * sc, BOX_CY - this.player.y * sc, sc);
+      }
+    };
+
+    // ── +/- zoom buttons (right side, outside the box) ────────
+    const BTN_X  = BOX_X + BOX_W + P(4);
+    const BTN_W  = P(20), BTN_H = BOX_H / 2 - P(1);
+    const btnGfx = this.add.graphics().setScrollFactor(0).setDepth(D + 4);
+    const drawBtnBg = () => {
+      btnGfx.clear();
+      // + button (top half)
+      btnGfx.fillStyle(0x0d1e30, 0.92);
+      btnGfx.fillRoundedRect(BTN_X, BOX_Y, BTN_W, BTN_H, P(4));
+      btnGfx.lineStyle(P(1), 0x2d6090, 0.8);
+      btnGfx.strokeRoundedRect(BTN_X, BOX_Y, BTN_W, BTN_H, P(4));
+      // − button (bottom half)
+      btnGfx.fillStyle(0x0d1e30, 0.92);
+      btnGfx.fillRoundedRect(BTN_X, BOX_Y + BOX_H - BTN_H, BTN_W, BTN_H, P(4));
+      btnGfx.lineStyle(P(1), 0x2d6090, 0.8);
+      btnGfx.strokeRoundedRect(BTN_X, BOX_Y + BOX_H - BTN_H, BTN_W, BTN_H, P(4));
+    };
+    drawBtnBg();
+
+    const BTN_CX = BTN_X + BTN_W / 2;
+    const zBtnStyle = { fontSize: `${P(16)}px`, fontStyle: 'bold', color: '#7ec8e3', fontFamily: 'Arial, sans-serif' };
+    const btnPlus = this.add.text(BTN_CX, BOX_Y + BTN_H / 2, '+', zBtnStyle)
+      .setOrigin(0.5).setScrollFactor(0).setDepth(D + 5)
+      .setInteractive({ useHandCursor: true })
+      .on('pointerdown', () => { this._miniMapZoom = Math.min(4, this._miniMapZoom + 1); });
+    const btnMinus = this.add.text(BTN_CX, BOX_Y + BOX_H - BTN_H / 2, '−', zBtnStyle)
+      .setOrigin(0.5).setScrollFactor(0).setDepth(D + 5)
+      .setInteractive({ useHandCursor: true })
+      .on('pointerdown', () => { this._miniMapZoom = Math.max(1, this._miniMapZoom - 1); });
+
+    // Hit zone covers full box (buttons are outside so no conflict)
+    const hitZone = this.add.rectangle(BOX_CX, BOX_CY, BOX_W, BOX_H)
+      .setScrollFactor(0).setDepth(D + 3)
+      .setInteractive({ useHandCursor: true })
+      .on('pointerdown', () => this._showFullMap());
+
+    this._questMiniObjs = [bg, maskGfx, dynGfx, btnGfx, btnPlus, btnMinus, hitZone];
+  }
+
+  // ── Tower maze mini-map (top-left HUD, click to expand) ─────
+  // MINI_TOP: top of minimap background (matches old map button y = P(8))
+  private readonly _MINI_TOP = P(8);
+
   private _buildMiniMap(): void {
     this._miniMapGfx = this.add.graphics().setScrollFactor(0).setDepth(9800);
     this._refreshMiniMap();
+
+    const CELL = P(12), GAP = P(2), PAD = P(6);
+    const mapW = this._mazeCols * (CELL + GAP) + PAD * 2;
+    const mapH = this._mazeRows * (CELL + GAP) + PAD * 2;
+    // Hit zone: top-left at (0, _MINI_TOP), center at (mapW/2, _MINI_TOP + mapH/2)
+    this._miniMapHitZone = this.add.rectangle(mapW / 2, this._MINI_TOP + mapH / 2, mapW, mapH)
+      .setScrollFactor(0).setDepth(9801)
+      .setInteractive({ useHandCursor: true })
+      .on('pointerdown', () => this._toggleMiniMapExpanded());
   }
 
   private _refreshMiniMap(): void {
     const g = this._miniMapGfx;
     if (!g) return;
     g.clear();
-    const W = this.scale.width;
     const CELL = P(12), GAP = P(2), PAD = P(6);
-    const originX = W - PAD - this._mazeCols * (CELL + GAP);
-    const originY = PAD;
+    // Top-left corner, below the map button
+    const originX = PAD;
+    const originY = this._MINI_TOP + PAD;
 
     // Background
     g.fillStyle(0x000000, 0.55);
@@ -6394,6 +6651,147 @@ export class GameScene extends Phaser.Scene {
         }
       }
     }
+
+    // If expanded view is open, refresh it too
+    if (this._miniMapExpanded) this._refreshMiniMapExpanded();
+  }
+
+  private _toggleMiniMapExpanded(): void {
+    if (this._miniMapExpanded) {
+      this._closeMiniMapExpanded();
+    } else {
+      this._openMiniMapExpanded();
+    }
+  }
+
+  private _openMiniMapExpanded(): void {
+    this._miniMapExpanded = true;
+    const objs = this._miniMapExpandedObjs;
+    const W = this.scale.width, H = this.scale.height;
+    const D = 9900;
+
+    // Semi-transparent overlay (click-away closes)
+    const overlay = this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0)
+      .setScrollFactor(0).setDepth(D).setInteractive()
+      .on('pointerdown', () => this._closeMiniMapExpanded());
+    objs.push(overlay);
+
+    // Map graphics (drawn by _refreshMiniMapExpanded)
+    const mapGfx = this.add.graphics().setScrollFactor(0).setDepth(D + 1);
+    objs.push(mapGfx);
+
+    // Alpha label
+    const alphaLabel = this.add.text(W / 2, 0, '', {
+      fontSize: `${P(20)}px`, color: '#cccccc', fontFamily: 'monospace',
+    }).setScrollFactor(0).setDepth(D + 2).setOrigin(0.5, 0);
+    objs.push(alphaLabel);
+
+    // Alpha – button
+    const btnStyle = { fontSize: `${P(28)}px`, color: '#ffffff', fontFamily: 'monospace', backgroundColor: '#333355', padding: { x: P(10), y: P(4) } };
+    const btnMinus = this.add.text(0, 0, '−', btnStyle)
+      .setScrollFactor(0).setDepth(D + 2).setInteractive({ useHandCursor: true })
+      .on('pointerdown', (_p: any, _lx: any, _ly: any, ev: Phaser.Types.Input.EventData) => {
+        ev?.stopPropagation?.();
+        this._miniMapAlpha = Math.max(0.15, +(this._miniMapAlpha - 0.1).toFixed(2));
+        this._refreshMiniMapExpanded();
+      });
+    objs.push(btnMinus);
+
+    // Alpha + button
+    const btnPlus = this.add.text(0, 0, '+', btnStyle)
+      .setScrollFactor(0).setDepth(D + 2).setInteractive({ useHandCursor: true })
+      .on('pointerdown', (_p: any, _lx: any, _ly: any, ev: Phaser.Types.Input.EventData) => {
+        ev?.stopPropagation?.();
+        this._miniMapAlpha = Math.min(1.0, +(this._miniMapAlpha + 0.1).toFixed(2));
+        this._refreshMiniMapExpanded();
+      });
+    objs.push(btnPlus);
+
+    this._refreshMiniMapExpanded();
+  }
+
+  private _refreshMiniMapExpanded(): void {
+    if (!this._miniMapExpanded || this._miniMapExpandedObjs.length < 4) return;
+    const [, mapGfxObj, alphaLabelObj, btnMinusObj, btnPlusObj] = this._miniMapExpandedObjs as [
+      Phaser.GameObjects.Rectangle,
+      Phaser.GameObjects.Graphics,
+      Phaser.GameObjects.Text,
+      Phaser.GameObjects.Text,
+      Phaser.GameObjects.Text,
+    ];
+
+    const W = this.scale.width, H = this.scale.height;
+    const CELL = P(24), GAP = P(3), PAD = P(12);
+    const mapW = this._mazeCols * (CELL + GAP);
+    const mapH = this._mazeRows * (CELL + GAP);
+    const originX = (W - mapW) / 2;
+    const originY = (H - mapH) / 2;
+
+    const g = mapGfxObj;
+    g.clear();
+    g.fillStyle(0x000000, this._miniMapAlpha);
+    g.fillRoundedRect(originX - PAD, originY - PAD - P(36), mapW + PAD * 2, mapH + PAD * 2 + P(36), P(8));
+
+    const colorMap: Record<string, number> = {
+      start: 0x448844, normal: 0x444466, elite: 0x883333,
+      dark: 0x222244, poison: 0x224422, sealed: 0x442244,
+      heal: 0x228844, stairs: 0xaaaa44,
+    };
+    for (const row of this._mazeRooms) {
+      for (const room of row) {
+        const mx = originX + room.col * (CELL + GAP);
+        const my = originY + room.row * (CELL + GAP);
+        const isCurrentKey = `${room.row},${room.col}` === this._currentRoomKey;
+        if (!room.revealed) {
+          g.fillStyle(0x333333, this._miniMapAlpha < 0.4 ? 0.6 : 1);
+          g.fillRect(mx, my, CELL, CELL);
+        } else {
+          const col = isCurrentKey ? 0xffffff : (colorMap[room.type] ?? 0x444466);
+          g.fillStyle(col, 1); g.fillRect(mx, my, CELL, CELL);
+          // Room type label
+          if (!isCurrentKey) {
+            const labelMap: Record<string, string> = {
+              elite: '!', heal: '♥', stairs: '▼', poison: '✦', sealed: '⊠', dark: '◼',
+            };
+            if (labelMap[room.type]) {
+              g.fillStyle(0x000000, 0.55);
+              // tiny label drawn via the graphics is not possible; skip — color is sufficient
+            }
+          }
+        }
+        // Player dot
+        if (isCurrentKey) {
+          g.fillStyle(0xffffff, 1);
+          g.fillCircle(mx + CELL / 2, my + CELL / 2, CELL * 0.28);
+        }
+        // Corridors
+        g.fillStyle(0x778899, 0.55);
+        if (room.connections.has('S') && room.row < this._mazeRows - 1) {
+          g.fillRect(mx + CELL / 2 - P(2), my + CELL, P(4), GAP);
+        }
+        if (room.connections.has('E') && room.col < this._mazeCols - 1) {
+          g.fillRect(mx + CELL, my + CELL / 2 - P(2), GAP, P(4));
+        }
+      }
+    }
+
+    // Update alpha label
+    const alphaLabelText = `透明度 ${Math.round(this._miniMapAlpha * 100)}%`;
+    alphaLabelObj.setText(alphaLabelText);
+    alphaLabelObj.setPosition(W / 2, originY - PAD - P(30));
+
+    // Position +/- buttons
+    const labelW = alphaLabelObj.width;
+    btnMinusObj.setPosition(W / 2 - labelW / 2 - P(8) - btnMinusObj.width, originY - PAD - P(32));
+    btnPlusObj.setPosition(W / 2 + labelW / 2 + P(8), originY - PAD - P(32));
+  }
+
+  private _closeMiniMapExpanded(): void {
+    this._miniMapExpanded = false;
+    for (const obj of this._miniMapExpandedObjs) {
+      if (obj && (obj as any).destroy) (obj as any).destroy();
+    }
+    this._miniMapExpandedObjs = [];
   }
 
   // ── Per-frame: detect room transitions ────────────────────
@@ -7682,22 +8080,7 @@ export class GameScene extends Phaser.Scene {
       }
     });
 
-    // ── 地圖按鈕（左上角）──
-    const lbw = bw;
-    const lbx = pad;
-    const lcx = lbx + lbw / 2;
-    const lg = this.add.graphics().setScrollFactor(0).setDepth(9800);
-    lg.fillStyle(0x08101e, 0.95);
-    lg.fillRoundedRect(lbx, by, lbw, bh, P(6));
-    lg.lineStyle(P(2), 0x4488cc, 0.75);
-    lg.strokeRoundedRect(lbx, by, lbw, bh, P(6));
-    this.add.text(lcx, cy, tr('game.hud.map'), {
-      fontSize: F(15), fontStyle: 'bold', color: '#90c8ff', stroke: '#00081a', strokeThickness: 2,
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(9801);
-    this._lootBadge = undefined;
-    this.add.rectangle(lcx, cy, lbw, bh)
-      .setScrollFactor(0).setDepth(9803).setInteractive({ useHandCursor: true })
-      .on('pointerdown', () => this._showFullMap());
+    // 地圖按鈕已移除，改用左上角小地圖（_buildMiniMap）
 
     // ── 設定漢堡按鈕（右上角）──
     const SET_S = P(36);
@@ -9541,6 +9924,9 @@ export class GameScene extends Phaser.Scene {
     this.addAttackButton();
     this.addLevelHUD();
     this.createPotionSlots();
+    if (this._towerFloor === 0) {
+      this._buildQuestMiniMap();
+    }
   }
 
   protected addLevelHUD(): void {
