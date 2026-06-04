@@ -9269,8 +9269,10 @@ export class GameScene extends Phaser.Scene {
     const sealType = itemId === ITEM_POTION_REVIVE ? 'revive' : 'heal';
     this.showMagicSeal(this.player.x, this.player.y + P(13), range, rangeColor, sealType);
 
-    const baseHeal = itemId === ITEM_POTION_HEALTH_L ? 300 : itemId === ITEM_POTION_HEALTH_M ? 200 : 100;
-    const healAmt = Math.round(baseHeal * (1 + (CardStore.getTotalStats().potionHealPct ?? 0)));
+    const basePct  = itemId === ITEM_POTION_HEALTH_L ? 0.40 : itemId === ITEM_POTION_HEALTH_M ? 0.25 : 0.15;
+    const flatMin  = itemId === ITEM_POTION_HEALTH_L ? 300  : itemId === ITEM_POTION_HEALTH_M ? 200  : 100;
+    const maxHp    = CardStore.getTotalStats().maxHp;
+    const healAmt  = Math.round(Math.max(maxHp * basePct, flatMin) * (1 + (CardStore.getTotalStats().potionHealPct ?? 0)));
     if (itemId === ITEM_POTION_HEALTH_S || itemId === ITEM_POTION_HEALTH_M || itemId === ITEM_POTION_HEALTH_L) {
       this.player.heal(healAmt);
       if (NetworkService.connected) {

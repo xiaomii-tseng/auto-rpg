@@ -783,19 +783,19 @@ export function revertToBreakpoint(item: EquipmentItem): void {
 const _LEGENDARY_DEFS: Record<string, { name: string; texture: string; affixes: Affix[] }> = {
   legendary_slime_sword: {
     name: t('item.legendary_slime_sword'), texture: 'equip_legendary_sw1',
-    affixes: [{ stat: 'atk', value: 780 }],
+    affixes: [{ stat: 'atk', value: 460 }],
   },
   legendary_flower_sword: {
     name: t('item.legendary_flower_sword'), texture: 'equip_legendary_sw2',
-    affixes: [{ stat: 'atk', value: 630 }, { stat: 'hp', value: 150 }, { stat: 'eliteKillerPct', value: 0.30 }],
+    affixes: [{ stat: 'atk', value: 400 }, { stat: 'hp', value: 150 }, { stat: 'eliteKillerPct', value: 0.30 }],
   },
   legendary_orc_sword: {
     name: t('item.legendary_orc_sword'), texture: 'equip_legendary_sw3',
-    affixes: [{ stat: 'atk', value: 660 }, { stat: 'atkSpeed', value: 0.30 }],
+    affixes: [{ stat: 'atk', value: 420 }, { stat: 'atkSpeed', value: 0.30 }],
   },
   legendary_vampire_sword: {
     name: t('item.legendary_vampire_sword'), texture: 'equip_legendary_sw4',
-    affixes: [{ stat: 'atk', value: 620 }, { stat: 'speed', value: 25 }, { stat: 'evasion', value: 0.30 }],
+    affixes: [{ stat: 'atk', value: 400 }, { stat: 'speed', value: 25 }, { stat: 'evasion', value: 0.30 }],
   },
 };
 
