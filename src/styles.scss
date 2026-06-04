@@ -1,5 +1,14 @@
 /* You can add global styles to this file, and also import other style files */
 
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  background: #000;
+  overflow: hidden;
+}
+
 /* ══════════════════════════════════════════════════════════
    主題色規範 — Coffee-Gold Theme（咖啡琥珀金）
    所有新 UI 組件請使用以下 CSS 變數

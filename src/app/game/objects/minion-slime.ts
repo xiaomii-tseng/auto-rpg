@@ -51,10 +51,11 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
   private isReturning    = false;
   private readonly patrolRadius  = Math.round(120 * DPR);
   private readonly aggroRange    = Math.round(230 * DPR);
-  private readonly deaggroRange  = Math.round(800 * DPR);
-  private readonly leashRange    = Math.round(620 * DPR);
+  private readonly deaggroRange  = Math.round(1100 * DPR);
+  private readonly leashRange    = Math.round(900 * DPR);
 
   public noLeash = false;
+  private leashRegenTimer?: Phaser.Time.TimerEvent;
 
   static readonly CHASE_SPEED     = Math.round(90 * DPR);
   static readonly STOP_RANGE      = Math.round(55 * DPR);
@@ -282,8 +283,8 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
     this.stateTimer?.destroy();
     this.stateTimer  = undefined;
     this.isReturning = true;
-    this.hp = this.maxHp;
     this.applyBaseTint();
+    this._startLeashRegen();
     if (this.stationary) {
       this.mState = MinionState.IDLE;
       this.pb.setVelocity(0, 0);
@@ -295,6 +296,28 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
     this.patrolTargetY = this.patrolCenter.y;
     this.updateDirTo(this.patrolTargetX, this.patrolTargetY);
     this.playDir(`${this.animPrefix}_${this.walkAnim}`);
+  }
+
+  private _startLeashRegen(): void {
+    this.leashRegenTimer?.destroy();
+    this.leashRegenTimer = undefined;
+    const tickHp = this.maxHp * 0.1;
+    this.scene.time.delayedCall(1000, () => {
+      if (this.mState !== MinionState.PATROL || !this.active) return;
+      this.leashRegenTimer = this.scene.time.addEvent({
+        delay: 200,
+        repeat: 9,
+        callback: () => {
+          if (this.mState !== MinionState.PATROL || !this.active) {
+            this.leashRegenTimer?.destroy();
+            this.leashRegenTimer = undefined;
+            return;
+          }
+          this.hp = Math.min(this.maxHp, this.hp + tickHp);
+          this.drawHpBar();
+        },
+      });
+    });
   }
 
   private pickPatrolTarget(): void {
@@ -328,6 +351,8 @@ export class MinionSlime extends Phaser.Physics.Arcade.Sprite {
     this.applyBaseTint();
     this.stateTimer?.destroy();
     this.stateTimer = undefined;
+    this.leashRegenTimer?.destroy();
+    this.leashRegenTimer = undefined;
     this.updateDir();
     const walkKey = `${this.animPrefix}_${this.walkAnim}_${this.dir}`;
     this.playDir(this.scene.anims.exists(walkKey) ? `${this.animPrefix}_${this.walkAnim}` : `${this.animPrefix}_idle`);

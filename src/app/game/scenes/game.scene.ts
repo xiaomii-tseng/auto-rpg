@@ -8430,8 +8430,10 @@ export class GameScene extends Phaser.Scene {
       if (burst) {
         const angle = Math.random() * Math.PI * 2;
         const dist = Phaser.Math.Between(P(50), P(110));
-        const tx = Phaser.Math.Clamp(cx + Math.cos(angle) * dist, P(32), this.worldW - P(32));
-        const ty = Phaser.Math.Clamp(cy + Math.sin(angle) * dist * 0.4, P(32), this.worldH - P(32));
+        const _btx = cx + Math.cos(angle) * dist;
+        const _bty = cy + Math.sin(angle) * dist * 0.4;
+        const tx = this.isInOpenArea(_btx, _bty) ? _btx : cx;
+        const ty = this.isInOpenArea(_btx, _bty) ? _bty : cy;
         const img = this.add.image(cx, cy, iconKey)
           .setDisplaySize(iconSz, iconSz).setDepth(ty + 4);
         const delay = bi++ * 25;
@@ -8452,8 +8454,9 @@ export class GameScene extends Phaser.Scene {
       } else {
         const ox = Phaser.Math.Between(-P(22), P(22));
         const oy = Phaser.Math.Between(-P(10), P(10));
-        const tx = cx + ox;
-        const ty = cy + oy + P(18);
+        let tx = cx + ox;
+        let ty = cy + oy + P(18);
+        if (!this.isInOpenArea(tx, ty)) { tx = cx; ty = cy + P(18); }
         const img = this.add.image(tx, cy - P(24), iconKey)
           .setDisplaySize(iconSz, iconSz).setDepth(ty + 4);
         this.tweens.add({
@@ -8475,8 +8478,12 @@ export class GameScene extends Phaser.Scene {
 
     const angle = burst ? Math.random() * Math.PI * 2 : 0;
     const dist = burst ? Phaser.Math.Between(P(30), P(120)) : 0;
-    const tx = burst ? Phaser.Math.Clamp(cx + Math.cos(angle) * dist, P(32), this.worldW - P(32)) : cx + Phaser.Math.Between(-P(22), P(22));
-    const ty = burst ? Phaser.Math.Clamp(cy + Math.sin(angle) * dist * 0.4, P(32), this.worldH - P(32)) : cy + Phaser.Math.Between(-P(10), P(10)) + P(18);
+    const _etx0 = cx + Phaser.Math.Between(-P(22), P(22));
+    const _ety0 = cy + Phaser.Math.Between(-P(10), P(10)) + P(18);
+    const _ebtx = cx + Math.cos(angle) * dist;
+    const _ebty = cy + Math.sin(angle) * dist * 0.4;
+    const tx = burst ? (this.isInOpenArea(_ebtx, _ebty) ? _ebtx : cx) : (this.isInOpenArea(_etx0, _ety0) ? _etx0 : cx);
+    const ty = burst ? (this.isInOpenArea(_ebtx, _ebty) ? _ebty : cy) : (this.isInOpenArea(_etx0, _ety0) ? _ety0 : cy + P(18));
     const startX = burst ? cx : tx;
     const startY = burst ? cy : cy - P(24);
 

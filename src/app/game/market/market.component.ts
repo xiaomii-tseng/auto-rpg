@@ -365,6 +365,13 @@ export class MarketComponent implements OnInit, OnDestroy {
     try {
       await this.svc.cancelListing(listing.id);
       this.myListings.update(ls => ls.map(l => l.id === listing.id ? { ...l, status: 'cancelled' as const } : l));
+      const snap = listing.item_snapshot;
+      if (snap) {
+        if (listing.item_type === 'equipment')       PlayerStore.addOwned(snap);
+        else if (listing.item_type === 'card')        CardStore.addCard(snap.cardId, listing.qty);
+        else                                          InventoryStore.addItem(snap.id, snap.name, listing.qty);
+        SaveStore.save();
+      }
     } catch (e: any) { this.actionError.set(e.message ?? t('market.error.cancelFail')); }
     finally { this.actionPending.set(null); }
   }
@@ -441,7 +448,18 @@ export class MarketComponent implements OnInit, OnDestroy {
     if (!this.listQty   || this.listQty   <= 0) { this.listError.set(t('market.error.noQty')); return; }
     this.listSubmitting.set(true); this.listError.set('');
     try {
-      await this.svc.listItem({ itemType: this.listType(), itemId: this.listItemId, qty: this.listQty, price: this.listPrice });
+      await this.svc.listItem({ itemType: this.listType(), itemId: this.listItemId, qty: this.listQty, price: this.listPrice, itemName: this.listItemName });
+      const item = this.listSelected();
+      if (item) {
+        const type = this.listType();
+        if (type === 'equipment') {
+          const real = PlayerStore.getOwned().find(eq => eq.id === item.id);
+          if (real) PlayerStore.removeOwned(real);
+        }
+        else if (type === 'card')  CardStore.removeFromInventory(item.cardId, this.listQty);
+        else                       InventoryStore.spendItem(item.id, this.listQty);
+        SaveStore.save();
+      }
       this.listStep.set(null);
       await this.loadMine();
     } catch (e: any) {

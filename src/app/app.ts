@@ -156,29 +156,59 @@ export class App implements AfterViewInit {
       interval(60 * 60 * 1000).subscribe(() => this.swUpdate.checkForUpdate());
     }
     const wrapper = document.getElementById('game-wrapper')!;
+    const isElectron = !!(window as any).__isElectron;
 
-    // Read safe-area-aware dimensions from the wrapper (CSS already applied env() insets)
-    const rect = wrapper.getBoundingClientRect();
-    const W = rect.width  || window.innerWidth;
-    const H = rect.height || window.innerHeight;
+    // Electron: fixed 844×475 logical canvas, CSS-scaled to fill screen with letterbox
+    // Browser/PWA: fill the screen (existing behavior)
     const isPortrait = window.innerHeight > window.innerWidth;
 
-    // In portrait mode the canvas is rotated 90°: gameW=H, gameH=W
-    const gameW = isPortrait ? H : W;
-    const gameH = isPortrait ? W : H;
+    const ELECTRON_W = 844;
+    const ELECTRON_H = 475;
+    const ELECTRON_RATIO = ELECTRON_W / ELECTRON_H;
 
-    if (isPortrait) {
+    const calcElectronLetterbox = (winW: number, winH: number) => {
+      let w: number, h: number;
+      if (winW / winH > ELECTRON_RATIO) {
+        h = winH; w = Math.round(winH * ELECTRON_RATIO);
+      } else {
+        w = winW; h = Math.round(winW / ELECTRON_RATIO);
+      }
+      return { w, h, left: Math.round((winW - w) / 2), top: Math.round((winH - h) / 2) };
+    };
+
+    let gameW: number, gameH: number;
+
+    if (isElectron) {
+      gameW = ELECTRON_W;
+      gameH = ELECTRON_H;
+      // Wrapper fills the entire window (black bars from body background)
       Object.assign(wrapper.style, {
-        width:           `${gameW}px`,
-        height:          `${gameH}px`,
-        transformOrigin: 'top left',
-        transform:       `rotate(90deg) translateY(-100%)`,
+        top: '0', left: '0', right: '0', bottom: '0',
+        width: 'auto', height: 'auto',
       });
     } else {
-      Object.assign(wrapper.style, {
-        width:  `${gameW}px`,
-        height: `${gameH}px`,
-      });
+      // Read safe-area-aware dimensions from the wrapper (CSS already applied env() insets)
+      const rect = wrapper.getBoundingClientRect();
+      const W = rect.width  || window.innerWidth;
+      const H = rect.height || window.innerHeight;
+
+      // In portrait mode the canvas is rotated 90°: gameW=H, gameH=W
+      gameW = isPortrait ? H : W;
+      gameH = isPortrait ? W : H;
+
+      if (isPortrait) {
+        Object.assign(wrapper.style, {
+          width:           `${gameW}px`,
+          height:          `${gameH}px`,
+          transformOrigin: 'top left',
+          transform:       `rotate(90deg) translateY(-100%)`,
+        });
+      } else {
+        Object.assign(wrapper.style, {
+          width:  `${gameW}px`,
+          height: `${gameH}px`,
+        });
+      }
     }
 
     (window as any).__apiUrl      = environment.apiUrl;
@@ -221,12 +251,29 @@ export class App implements AfterViewInit {
     }));
 
     game.events.once('ready', () => {
-      game.canvas.style.width  = `${gameW}px`;
-      game.canvas.style.height = `${gameH}px`;
-      // Force Phaser to recompute canvasBounds and displayScale after CSS override,
-      // otherwise pointer coordinates won't be DPR-scaled and hit testing fails.
-      game.scale.refresh();
-      this.patchRotationInput(game, isPortrait);
+      if (isElectron) {
+        // Canvas is absolute-positioned inside the full-screen wrapper
+        game.canvas.style.position = 'absolute';
+
+        const applyLetterbox = () => {
+          const lb = calcElectronLetterbox(window.innerWidth, window.innerHeight);
+          game.canvas.style.width  = `${lb.w}px`;
+          game.canvas.style.height = `${lb.h}px`;
+          game.canvas.style.left   = `${lb.left}px`;
+          game.canvas.style.top    = `${lb.top}px`;
+          game.scale.refresh();
+        };
+
+        applyLetterbox();
+        window.addEventListener('resize', applyLetterbox);
+      } else {
+        game.canvas.style.width  = `${gameW}px`;
+        game.canvas.style.height = `${gameH}px`;
+        // Force Phaser to recompute canvasBounds and displayScale after CSS override,
+        // otherwise pointer coordinates won't be DPR-scaled and hit testing fails.
+        game.scale.refresh();
+        this.patchRotationInput(game, isPortrait);
+      }
     });
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

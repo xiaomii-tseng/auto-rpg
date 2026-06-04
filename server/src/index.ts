@@ -550,7 +550,7 @@ app.get('/market/my-listings', requireAuth, async (req: any, res) => {
 // itemType = 'equipment' | 'consumable' | 'card'
 // itemId   = EquipmentItem.id | InventoryItem.id | cardId
 app.post('/market/list', limiterMarket, requireAuth, async (req: any, res) => {
-  const { itemType, itemId, qty, price } = req.body ?? {};
+  const { itemType, itemId, qty, price, itemName: clientItemName } = req.body ?? {};
 
   if (!itemType || !itemId || !price) {
     res.status(400).json({ error: 'itemType, itemId, price required' }); return;
@@ -606,7 +606,7 @@ app.post('/market/list', limiterMarket, requireAuth, async (req: any, res) => {
     if (!entry) { res.status(400).json({ error: 'card not found' }); return; }
     if (entry.qty < qtyNum) { res.status(400).json({ error: 'insufficient qty' }); return; }
     snapshot = { cardId: itemId, qty: qtyNum };
-    itemName = itemId;
+    itemName = clientItemName ?? itemId;
     const { save, found } = removeCard(saveData, itemId, qtyNum);
     if (!found) { res.status(400).json({ error: 'card not found or qty insufficient' }); return; }
     saveData = save;

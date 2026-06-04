@@ -1,6 +1,7 @@
 {
   "name": "auto-rpg",
   "version": "0.0.0",
+  "main": "electron/main.js",
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
@@ -11,7 +12,29 @@
     "server-uat": "ng serve --host 0.0.0.0 --configuration=uat",
     "build-uat": "ng build --configuration=uat",
     "deploy": "ng build --base-href /auto-rpg/ && node deploy.mjs",
-    "push": "powershell -ExecutionPolicy Bypass -File push-update.ps1"
+    "push": "powershell -ExecutionPolicy Bypass -File push-update.ps1",
+    "electron:build": "ng build --configuration=electron",
+    "electron:start": "npm run electron:build && node electron/launcher.js",
+    "electron:pack": "npm run electron:build && electron-builder"
+  },
+  "build": {
+    "appId": "com.miniarpg.game",
+    "productName": "MiniARPG",
+    "directories": {
+      "output": "dist-electron"
+    },
+    "files": [
+      "electron/**/*",
+      "dist/auto-rpg/browser/**/*"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "public/icons/icon-512x512.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
   },
   "private": true,
   "packageManager": "npm@11.3.0",
@@ -33,6 +56,9 @@
     "@angular/cli": "^21.2.8",
     "@angular/compiler-cli": "^21.2.0",
     "angular-cli-ghpages": "^3.0.3",
+    "cross-env": "^10.1.0",
+    "electron": "^33.4.11",
+    "electron-builder": "^26.8.1",
     "prettier": "^3.8.1",
     "typescript": "~5.9.2"
   }

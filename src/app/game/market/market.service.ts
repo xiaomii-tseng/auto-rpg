@@ -70,10 +70,11 @@ export class MarketService {
   }
 
   async listItem(params: {
-    itemType: MarketItemType;
-    itemId:   string;
-    qty:      number;
-    price:    number;
+    itemType:  MarketItemType;
+    itemId:    string;
+    qty:       number;
+    price:     number;
+    itemName?: string;
   }): Promise<{ listingId: string }> {
     const res = await fetch(`${environment.apiUrl}/market/list`, {
       method:  'POST',
