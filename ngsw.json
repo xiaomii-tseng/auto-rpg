@@ -1,6 +1,6 @@
 {
   "configVersion": 1,
-  "timestamp": 1780470057175,
+  "timestamp": 1780561641643,
   "index": "/auto-rpg/index.html",
   "assetGroups": [
     {
@@ -13,9 +13,9 @@
       "urls": [
         "/auto-rpg/favicon.ico",
         "/auto-rpg/index.html",
-        "/auto-rpg/main-KLDS63UW.js",
+        "/auto-rpg/main-AFAL4SI6.js",
         "/auto-rpg/manifest.webmanifest",
-        "/auto-rpg/styles-XANMRWWS.css"
+        "/auto-rpg/styles-KTWIU2SE.css"
       ],
       "patterns": []
     },
@@ -4579,11 +4579,11 @@
     "/auto-rpg/icons/icon-512x512.png": "f903a7ca4858bb5117bf1d4629f7bb11293516a7",
     "/auto-rpg/icons/icon-72x72.png": "0222138e1b1df1f3336f495427dd2373feb66663",
     "/auto-rpg/icons/icon-96x96.png": "dcb4f26927731492baf3cbb412bd94826b585211",
-    "/auto-rpg/index.html": "dcf225f3c2b6ae774c90ef3fbb7fdacf3027d8c8",
+    "/auto-rpg/index.html": "84900bf8be2c825a8044a6cf0edb37b6d4512e1c",
     "/auto-rpg/items/RPG Chests.png": "168646dd97aac905305ff54858d69f55491f04ce",
     "/auto-rpg/items/chests.png": "c288fcf04deb56ae39bb346c612b9175833bae2b",
     "/auto-rpg/items/potions.png": "b9eac20f1780d9af256707d43e869d46ad793acc",
-    "/auto-rpg/main-KLDS63UW.js": "9d8695d7088ebe4fca35ceda28cc3d8ec3b40256",
+    "/auto-rpg/main-AFAL4SI6.js": "75e79d41d2b1c1361abb100825df934d4d9becee",
     "/auto-rpg/manifest.webmanifest": "7828e3f0328069a1e01ac1549964f50c65bb2c8f",
     "/auto-rpg/other/banner.png": "fc6496c7e5483da91fa64ecddf5715f81ae46571",
     "/auto-rpg/other/battle.webp": "0a1f669168877df909a321e17400cd08edd7d214",
@@ -7448,7 +7448,7 @@
     "/auto-rpg/sprite/vampire/__MACOSX/Tiled/._Vampires3_Walk_without_shadow.png": "b9e60d4f1b32a9da8d84b37d58aff19921ecf03d",
     "/auto-rpg/sprite/vampire/__MACOSX/Tiled/._shadow_death.png": "b9e60d4f1b32a9da8d84b37d58aff19921ecf03d",
     "/auto-rpg/sprite/vampire/__MACOSX/Tiled/._shadow_single.png": "b9e60d4f1b32a9da8d84b37d58aff19921ecf03d",
-    "/auto-rpg/styles-XANMRWWS.css": "148a53172c82806c6854ff3892354b81636a0568",
+    "/auto-rpg/styles-KTWIU2SE.css": "93acff6c7657caaa34ee7fb7656d089b0a987757",
     "/auto-rpg/texture/Extra/TX Plant with Shadow.png": "b68bf26a0235357710f6f97490b9a15c26fcd82f",
     "/auto-rpg/texture/Extra/TX Props with Shadow.png": "d336a0f335ed862269ab29c978eb303d4ec5f0d1",
     "/auto-rpg/texture/TX Plant.png": "3614e3d2cfef929d1c1a2766529f08a07e7a7cbc",
