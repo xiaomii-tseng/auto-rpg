@@ -1,5 +1,5 @@
 import { EquipmentItem, EquipSlot } from './equipment-data';
-import { PlayerStore } from './player-store';
+import { PlayerStore, AllocStat, STAT_POINT_PER_LEVEL } from './player-store';
 import { InventoryStore } from './inventory-store';
 import { CardStore } from './card-store';
 import { QuestStore } from './quest-store';
@@ -56,10 +56,12 @@ interface SaveData {
   playerName: string;
   skinId:     number;
   player: {
-    level:    number;
-    exp:      number;
-    equipped: Record<EquipSlot, EquipmentItem | null>;
-    owned:    EquipmentItem[];
+    level:          number;
+    exp:            number;
+    equipped:       Record<EquipSlot, EquipmentItem | null>;
+    owned:          EquipmentItem[];
+    statPoints?:    number;
+    allocatedStats?: Partial<Record<AllocStat, number>>;
   };
   inventory: {
     gold:  number;
@@ -79,6 +81,7 @@ interface SaveData {
   audio?:           { bgm: number; sfx: number };
   dismantlePrefs?:  { qualities: string[]; slots: string[] };
   tutorial?:        Partial<Record<TutorialKey, boolean>>;
+  allocMigrated?:   boolean;
 }
 
 export function makeInitialSave(playerName = ''): SaveData {
@@ -112,10 +115,12 @@ export const SaveStore = {
       playerName: localStorage.getItem('playerName') ?? '',
       skinId:     SkinStore.get(),
       player: {
-        level:    PlayerStore.getLevel(),
-        exp:      PlayerStore.getExp(),
-        equipped: { ...PlayerStore.getEquipped() } as Record<EquipSlot, EquipmentItem | null>,
-        owned:    [...PlayerStore.getOwned()],
+        level:          PlayerStore.getLevel(),
+        exp:            PlayerStore.getExp(),
+        equipped:       { ...PlayerStore.getEquipped() } as Record<EquipSlot, EquipmentItem | null>,
+        owned:          [...PlayerStore.getOwned()],
+        statPoints:     PlayerStore.getStatPoints(),
+        allocatedStats: { ...PlayerStore.getAllocatedStats() },
       },
       inventory: {
         gold:  InventoryStore.getGold(),
@@ -131,8 +136,9 @@ export const SaveStore = {
       tower:       TowerStore.getSaveData(),
       dailyQuests:    DailyQuestStore.getSaveData(),
       audio:          { bgm: AudioService.bgmVolume, sfx: AudioService.sfxVolume },
-      dismantlePrefs: DismantlePrefsStore.getSaveData(),
-      tutorial:       TutorialStore.getSaveData(),
+      dismantlePrefs:  DismantlePrefsStore.getSaveData(),
+      tutorial:        TutorialStore.getSaveData(),
+      allocMigrated:   true,
     };
     try {
       localStorage.setItem(SAVE_KEY, encryptSave(JSON.stringify(data)));
@@ -155,6 +161,17 @@ export const SaveStore = {
 
       const p = data.player;
       PlayerStore.setLevelExp(p.level, p.exp);
+
+      if (!data.allocMigrated) {
+        // Migration: reset old allocations, grant correct points under new 1-pt/level system
+        PlayerStore.setAllocatedStatsDirect({});
+        PlayerStore.setStatPointsDirect((p.level - 1) * STAT_POINT_PER_LEVEL);
+      } else if (p.allocatedStats !== undefined) {
+        PlayerStore.setAllocatedStatsDirect(p.allocatedStats);
+        PlayerStore.setStatPointsDirect(p.statPoints ?? 0);
+      } else {
+        PlayerStore.setStatPointsDirect((p.level - 1) * STAT_POINT_PER_LEVEL);
+      }
 
       if (p.equipped) {
         for (const [slot, item] of Object.entries(p.equipped) as [EquipSlot, EquipmentItem | null][]) {

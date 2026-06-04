@@ -140,6 +140,15 @@
                         <span class="equip-affix-row">{{ a.name }} +{{ a.val }}</span>
                       }
                     }
+                    @if (item.item_type === 'card') {
+                      @for (line of cardStatLines(item.item_snapshot?.cardId ?? ''); track line) {
+                        <span class="equip-affix-row">{{ line }}</span>
+                      }
+                    }
+                    @if (item.item_type === 'consumable') {
+                      @let desc = potionDesc(item.item_snapshot?.id ?? '');
+                      @if (desc) { <span class="equip-affix-row">{{ desc }}</span> }
+                    }
                     @if (item.qty > 1) {
                       <span class="equip-affix-row">×{{ item.qty }}</span>
                     }
@@ -308,6 +317,8 @@
                       </div>
                       <div class="equip-info">
                         <span class="equip-name white-name">{{ it.name }}</span>
+                        @let pdesc = potionDesc(it.id);
+                        @if (pdesc) { <span class="equip-affix-row">{{ pdesc }}</span> }
                         <span class="equip-affix-row">×{{ it.qty }}</span>
                       </div>
                     </button>
@@ -327,6 +338,9 @@
                       </div>
                       <div class="equip-info">
                         <span class="equip-name white-name">{{ cardName(c.cardId) }}</span>
+                        @for (line of cardStatLines(c.cardId); track line) {
+                          <span class="equip-affix-row">{{ line }}</span>
+                        }
                         <span class="equip-affix-row">×{{ c.qty }}</span>
                       </div>
                     </button>
@@ -382,6 +396,15 @@
                         @for (a of affixDetails(item.item_snapshot); track a.name) {
                           <span class="equip-affix-row">{{ a.name }} +{{ a.val }}</span>
                         }
+                      }
+                      @if (item.item_type === 'card') {
+                        @for (line of cardStatLines(item.item_snapshot?.cardId ?? ''); track line) {
+                          <span class="equip-affix-row">{{ line }}</span>
+                        }
+                      }
+                      @if (item.item_type === 'consumable') {
+                        @let mdesc = potionDesc(item.item_snapshot?.id ?? '');
+                        @if (mdesc) { <span class="equip-affix-row">{{ mdesc }}</span> }
                       }
                       @if (item.qty > 1) {
                         <span class="equip-affix-row">×{{ item.qty }}</span>

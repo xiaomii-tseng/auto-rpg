@@ -24,7 +24,7 @@ import { BossSlimeLegendary } from '../objects/boss-slime-legendary';
 import { MinionSlime } from '../objects/minion-slime';
 import { VirtualJoystick } from '../ui/joystick';
 import { drawItemCell } from '../ui/item-cell';
-import { PlayerStore } from '../data/player-store';
+import { PlayerStore, STAT_POINT_PER_LEVEL } from '../data/player-store';
 import { InventoryStore } from '../data/inventory-store';
 import { SaveStore } from '../data/save-store';
 import { CardStore } from '../data/card-store';
@@ -248,6 +248,7 @@ export class GameScene extends Phaser.Scene {
   private _mazeCols = 0;
   private _currentRoomKey = '';
   private _miniMapGfx?: Phaser.GameObjects.Graphics;
+  private _mapUpdateFn?: () => void;
   private _mazeDarkRt?: Phaser.GameObjects.RenderTexture;
   private _mazePoisonTimer?: Phaser.Time.TimerEvent;
   private _mazeTrapTimer?: Phaser.Time.TimerEvent;
@@ -1240,8 +1241,8 @@ export class GameScene extends Phaser.Scene {
   private updatePartnerOrbitBalls(delta: number): void {
     if (this._partnerOrbitBalls.size === 0) return;
     const ORBIT_SPEED = 0.0022;
-    const ORBIT_R = P(48);
-    const BALL_R = P(7);
+    const ORBIT_R = P(55);
+    const BALL_R = P(8);
     this._partnerOrbitBalls.forEach((balls, sessionId) => {
       const pd = this._partners.get(sessionId);
       if (!pd || !pd.sprite.active) return;
@@ -1262,13 +1263,13 @@ export class GameScene extends Phaser.Scene {
   }
 
   private updateOrbitBalls(delta: number): void {
-    const ORBIT_SPEED = 0.0022;   // rad/ms ≈ 一圈約 2.8 秒
+    const ORBIT_SPEED = 0.0012;   // rad/ms ≈ 一圈約 5.2 秒
     this._orbitAngle += delta * ORBIT_SPEED;  // always advance so partner balls also rotate
 
     if (this._orbitBalls.length === 0) return;
-    const ORBIT_R = P(48);
-    const BALL_R = P(6);
-    const HIT_RANGE = P(16);
+    const ORBIT_R = P(55);
+    const BALL_R = P(8);
+    const HIT_RANGE = P(22);
     const HIT_CD = 1000;
     const now = this.time.now;
     const isAlive = this.player.active && !this.gameOver;
@@ -2221,6 +2222,8 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
+    this._mapUpdateFn?.();
+
     if (this.gameOver || this.teleporting || this._hostReconnecting || this._tutPaused) return;
 
     this._updateDarkNight();
@@ -3004,6 +3007,10 @@ export class GameScene extends Phaser.Scene {
           if (Phaser.Math.Distance.Between(this.player.x, this.player.y, t.x, t.y) > P(28)) continue;
           hitTargets.add(t);
           this.dealDamage(t, dmgMult * (1 + (stats.dashDmgPct ?? 0)), this.player.x, this.player.y, dir);
+        }
+        if (this._towerPortalHit &&
+            Phaser.Math.Distance.Between(this.player.x, this.player.y, this._towerPortalX, this._towerPortalY) <= P(40)) {
+          this._enterTowerPortal();
         }
       },
       onComplete: () => {
@@ -6214,7 +6221,100 @@ export class GameScene extends Phaser.Scene {
     // Stairs zone for collision after cleared
   }
 
-  // ── Mini-map (top-right HUD, scrollFactor=0) ───────────────
+  // ── Full-screen map overlay (opened from map button) ────────
+  protected _showFullMap(): void {
+    if (!this.worldW || !this.worldH || !this.waypointRooms.length) return;
+    const W = this.scale.width, H = this.scale.height;
+    const D = 110000;
+    const PAD = P(14);
+    const PW = Math.min(W - P(24), P(340));
+    const PH = Math.min(H - P(80), P(460));
+    const px = W / 2, py = H / 2;
+
+    const dim = this.add.rectangle(px, py, W, H, 0x000000, 0.78)
+      .setScrollFactor(0).setDepth(D).setInteractive();
+
+    const panel = this.add.graphics().setScrollFactor(0).setDepth(D + 1);
+    panel.fillStyle(0x080c18, 0.97);
+    panel.fillRoundedRect(px - PW / 2, py - PH / 2, PW, PH, P(10));
+    panel.lineStyle(P(2), 0x3a5a88, 0.8);
+    panel.strokeRoundedRect(px - PW / 2, py - PH / 2, PW, PH, P(10));
+
+    const title = this.add.text(px, py - PH / 2 + P(14), tr('game.hud.map'), {
+      fontSize: F(14), fontStyle: 'bold', color: '#aaccff', stroke: '#000', strokeThickness: 2,
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(D + 2);
+
+    const closeBtn = this.add.text(px + PW / 2 - P(10), py - PH / 2 + P(12), '✕', {
+      fontSize: F(14), color: '#aaaaaa', stroke: '#000', strokeThickness: 1,
+    }).setOrigin(1, 0.5).setScrollFactor(0).setDepth(D + 2);
+
+    // ── Draw map contents (boss area excluded) ───────────────
+    const mapGfx = this.add.graphics().setScrollFactor(0).setDepth(D + 2);
+    const mapW = PW - PAD * 2;
+    const mapH = PH - P(36);
+    const clipX = this.bossArenaCenter.x - this.BOSS_ARENA_RADIUS;
+    const effectiveW = Math.min(this.worldW, clipX);
+    const s = Math.min(mapW / effectiveW, mapH / this.worldH);
+    const drawW = effectiveW * s, drawH = this.worldH * s;
+    const ox = px - drawW / 2;
+    const oy = py - PH / 2 + P(30) + (mapH - drawH) / 2;
+
+    const toX = (wx: number) => ox + wx * s;
+    const toY = (wy: number) => oy + wy * s;
+
+    // Corridors (only those within clip boundary)
+    const corrW = Math.max(this.CORR_HW * 2 * s, P(3));
+    mapGfx.fillStyle(0x2a3a4e, 1);
+    for (const seg of this.corridorSegs) {
+      if (Math.min(seg.x1, seg.x2) > clipX) continue;
+      if (Math.abs(seg.y1 - seg.y2) < 1) {
+        const x1 = Math.min(seg.x1, seg.x2);
+        const x2 = Math.min(Math.max(seg.x1, seg.x2), clipX);
+        mapGfx.fillRect(toX(x1), toY(seg.y1) - corrW / 2, (x2 - x1) * s, corrW);
+      } else {
+        const y1 = Math.min(seg.y1, seg.y2), y2 = Math.max(seg.y1, seg.y2);
+        mapGfx.fillRect(toX(seg.x1) - corrW / 2, toY(y1), corrW, (y2 - y1) * s);
+      }
+    }
+
+    // Rooms (only those within clip boundary)
+    mapGfx.fillStyle(0x3a4e66, 1);
+    for (const rects of this.waypointRooms) {
+      for (const r of rects) {
+        if (r.x > clipX) continue;
+        mapGfx.fillRect(toX(r.x), toY(r.y), Math.min(r.w, clipX - r.x) * s, r.h * s);
+      }
+    }
+
+    // Player dot — separate Graphics so it can be redrawn each frame
+    const playerDotGfx = this.add.graphics().setScrollFactor(0).setDepth(D + 3);
+    const drawPlayerDot = () => {
+      playerDotGfx.clear();
+      playerDotGfx.fillStyle(0x000000, 0.9);
+      playerDotGfx.fillCircle(toX(this.player.x), toY(this.player.y), Math.max(P(4), 4));
+      playerDotGfx.fillStyle(0xffffff, 1);
+      playerDotGfx.fillCircle(toX(this.player.x), toY(this.player.y), Math.max(P(2.5), 3));
+    };
+    drawPlayerDot();
+    this._mapUpdateFn = drawPlayerDot;
+
+    // Suppress camera shake while map is open
+    const cam = this.cameras.main as unknown as Record<string, unknown>;
+    const origShake = cam['shake'] as (...args: unknown[]) => void;
+    cam['shake'] = () => {};
+    this.cameras.main.shake(0, 0);
+
+    const objs = [dim, panel, title, closeBtn, mapGfx, playerDotGfx];
+    const close = () => {
+      this._mapUpdateFn = undefined;
+      cam['shake'] = origShake;
+      objs.forEach(o => o.destroy());
+    };
+    dim.on('pointerdown', close);
+    closeBtn.setInteractive({ useHandCursor: true }).on('pointerdown', close);
+  }
+
+  // ── Tower maze mini-map (top-right HUD, scrollFactor=0) ─────
   private _buildMiniMap(): void {
     this._miniMapGfx = this.add.graphics().setScrollFactor(0).setDepth(9800);
     this._refreshMiniMap();
@@ -6883,22 +6983,7 @@ export class GameScene extends Phaser.Scene {
 
     this._towerPortalHit = this.add.zone(px, py, pw, ph);
     this.physics.world.enable(this._towerPortalHit, Phaser.Physics.Arcade.STATIC_BODY);
-    this.physics.add.overlap(this.player, this._towerPortalHit, () => {
-      if (this.gameOver || this.teleporting) return;
-      this.teleporting = true;
-      this._towerPortalHit?.destroy();
-      const nextFloor = this._towerFloor === 50 && TowerStore.hasKey()
-        ? 51
-        : this._towerFloor >= 51
-          ? 0
-          : this._towerFloor + 1;
-      if (nextFloor === 0) { this.exitToLobby(); return; }
-      if (this._towerFloor === 50 && nextFloor === 51) TowerStore.useKey();
-      this.cameras.main.fadeOut(300, 0, 0, 0);
-      this.cameras.main.once('camerafadeoutcomplete', () => {
-        this.scene.restart({ towerFloor: nextFloor });
-      });
-    });
+    this.physics.add.overlap(this.player, this._towerPortalHit, () => this._enterTowerPortal());
 
     const W2 = this.scale.width, H2 = this.scale.height;
     const msg = this.add.text(W2 / 2, H2 * 0.42, tr('game.clear.portal'), {
@@ -6907,6 +6992,24 @@ export class GameScene extends Phaser.Scene {
     if (this._towerFloor === 50) msg.setText(tr('game.clear.floor51'));
     if (this._towerFloor === 51) msg.setText(tr('game.hud.finalBoss'));
     this.tweens.add({ targets: msg, alpha: 0, delay: 2800, duration: 800, onComplete: () => msg.destroy() });
+  }
+
+  protected _enterTowerPortal(): void {
+    if (this.gameOver || this.teleporting) return;
+    this.teleporting = true;
+    this._towerPortalHit?.destroy();
+    this._towerPortalHit = undefined;
+    const nextFloor = this._towerFloor === 50 && TowerStore.hasKey()
+      ? 51
+      : this._towerFloor >= 51
+        ? 0
+        : this._towerFloor + 1;
+    if (nextFloor === 0) { this.exitToLobby(); return; }
+    if (this._towerFloor === 50 && nextFloor === 51) TowerStore.useKey();
+    this.cameras.main.fadeOut(300, 0, 0, 0);
+    this.cameras.main.once('camerafadeoutcomplete', () => {
+      this.scene.restart({ towerFloor: nextFloor });
+    });
   }
 
   private teleportToBossArena(): void {
@@ -7419,7 +7522,7 @@ export class GameScene extends Phaser.Scene {
       // Ticket drop: 5-star boss has 100% chance (testing) to drop series ticket
       if (this.questStar === 5) {
         const ticket = BOSS_TICKET_MAP[this.bossMonsterId];
-        if (ticket && Math.random() < 0.05) {
+        if (ticket && Math.random() < 0.10) {
           this._spawnBurstItem(this.boss.x, this.boss.y, ticket.itemId, ticket.itemName);
         }
       }
@@ -7546,22 +7649,22 @@ export class GameScene extends Phaser.Scene {
       }
     });
 
-    // ── 戰利品按鈕（左上角）──
+    // ── 地圖按鈕（左上角）──
     const lbw = bw;
     const lbx = pad;
     const lcx = lbx + lbw / 2;
     const lg = this.add.graphics().setScrollFactor(0).setDepth(9800);
-    lg.fillStyle(0x180a02, 0.95);
+    lg.fillStyle(0x08101e, 0.95);
     lg.fillRoundedRect(lbx, by, lbw, bh, P(6));
-    lg.lineStyle(P(2), 0xffcc44, 0.75);
+    lg.lineStyle(P(2), 0x4488cc, 0.75);
     lg.strokeRoundedRect(lbx, by, lbw, bh, P(6));
-    this.add.text(lcx, cy, tr('game.loot.title'), {
-      fontSize: F(15), fontStyle: 'bold', color: '#f0d090', stroke: '#1a0800', strokeThickness: 2,
+    this.add.text(lcx, cy, tr('game.hud.map'), {
+      fontSize: F(15), fontStyle: 'bold', color: '#90c8ff', stroke: '#00081a', strokeThickness: 2,
     }).setOrigin(0.5).setScrollFactor(0).setDepth(9801);
     this._lootBadge = undefined;
     this.add.rectangle(lcx, cy, lbw, bh)
       .setScrollFactor(0).setDepth(9803).setInteractive({ useHandCursor: true })
-      .on('pointerdown', () => this.showLootPanel());
+      .on('pointerdown', () => this._showFullMap());
 
     // ── 設定漢堡按鈕（右上角）──
     const SET_S = P(36);
@@ -8992,7 +9095,7 @@ export class GameScene extends Phaser.Scene {
     const W = this.scale.width;
     const H = this.scale.height;
     const hasSkillPt = newLevel % 5 === 0;
-    const panelH = hasSkillPt ? P(100) : P(76);
+    const panelH = hasSkillPt ? P(124) : P(100);
     const panelY = H / 2 - panelH / 2;
 
     const bg = this.add.graphics().setScrollFactor(0).setDepth(10000);
@@ -9001,29 +9104,33 @@ export class GameScene extends Phaser.Scene {
     bg.lineStyle(2, 0xf0c040, 0.9);
     bg.strokeRoundedRect(W / 2 - P(120), panelY, P(240), panelH, P(10));
 
-    const line1Y = hasSkillPt ? H / 2 - P(26) : H / 2 - P(14);
+    const line1Y = hasSkillPt ? H / 2 - P(38) : H / 2 - P(26);
     const line1 = this.add.text(W / 2, line1Y, tr('game.hud.levelUp'), {
       fontSize: F(20), fontStyle: 'bold', color: '#f0c040', stroke: '#000', strokeThickness: 4,
     }).setOrigin(0.5).setScrollFactor(0).setDepth(10001);
 
-    const line2Y = hasSkillPt ? H / 2 - P(2) : H / 2 + P(16);
+    const line2Y = hasSkillPt ? H / 2 - P(14) : H / 2 - P(2);
     const line2 = this.add.text(W / 2, line2Y, `Lv. ${newLevel}   ATK +2   HP +10`, {
       fontSize: F(15), fontStyle: 'bold', color: '#ffffff', stroke: '#000', strokeThickness: 3,
     }).setOrigin(0.5).setScrollFactor(0).setDepth(10001);
 
-    const tweenTargets: Phaser.GameObjects.GameObject[] = [bg, line1, line2];
+    const line3 = this.add.text(W / 2, hasSkillPt ? H / 2 + P(10) : H / 2 + P(22), `【能力點 ${STAT_POINT_PER_LEVEL} 點】`, {
+      fontSize: F(15), fontStyle: 'bold', color: '#66ddff', stroke: '#000', strokeThickness: 3,
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(10001);
 
-    let line3: Phaser.GameObjects.Text | null = null;
+    const tweenTargets: Phaser.GameObjects.GameObject[] = [bg, line1, line2, line3];
+
+    let line4: Phaser.GameObjects.Text | null = null;
     if (hasSkillPt) {
-      line3 = this.add.text(W / 2, H / 2 + P(22), tr('game.hud.skillPt'), {
+      line4 = this.add.text(W / 2, H / 2 + P(34), tr('game.hud.skillPt'), {
         fontSize: F(15), fontStyle: 'bold', color: '#88ffcc', stroke: '#000', strokeThickness: 3,
       }).setOrigin(0.5).setScrollFactor(0).setDepth(10001);
-      tweenTargets.push(line3);
+      tweenTargets.push(line4);
     }
 
     this.tweens.add({
       targets: tweenTargets, alpha: 0, delay: 1800, duration: 500,
-      onComplete: () => { bg.destroy(); line1.destroy(); line2.destroy(); line3?.destroy(); },
+      onComplete: () => { bg.destroy(); line1.destroy(); line2.destroy(); line3.destroy(); line4?.destroy(); },
     });
   }
 
@@ -10772,11 +10879,12 @@ export class GameScene extends Phaser.Scene {
     } else if (type === 'triple_wave') {
       const baseAngle = Phaser.Math.Angle.Between(wx, wy, wtx, wty);
       const spread = Math.PI * 35 / 180;
+      const tripleHit = { player: false, allies: new Set<MinionSlime>() };
       for (const offset of [-spread, 0, spread]) {
         const a = baseAngle + offset;
         const etx = wx + Math.cos(a) * P(600);
         const ety = wy + Math.sin(a) * P(600);
-        this.bladeWaveAt(wx, wy, etx, ety, atk, isElite);
+        this.bladeWaveAt(wx, wy, etx, ety, atk, isElite, 1, tripleHit);
       }
     } else if (type === 'whirl_slash') {
       this.whirlSlashAt(wx, wy, wtx, wty, atk, isElite);
@@ -10862,7 +10970,7 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  protected bladeWaveAt(wx: number, wy: number, wtx: number, wty: number, atk: number, isElite: boolean, speedMult = 1): void {
+  protected bladeWaveAt(wx: number, wy: number, wtx: number, wty: number, atk: number, isElite: boolean, speedMult = 1, sharedHit?: { player: boolean; allies: Set<MinionSlime> }): void {
     const dmg = atk;
     const ang = Phaser.Math.Angle.Between(wx, wy, wtx, wty);
     // 眉月形狀：兩個等半徑圓錯開，裁切出薄月牙。
@@ -10956,8 +11064,7 @@ export class GameScene extends Phaser.Scene {
       });
     });
 
-    let hitPlayer = false;
-    const hitAllies = new Set<MinionSlime>();
+    const hitTracker = sharedHit ?? { player: false, allies: new Set<MinionSlime>() };
 
     this.tweens.add({
       targets: gfx,
@@ -10965,13 +11072,13 @@ export class GameScene extends Phaser.Scene {
       duration: dur,
       ease: 'Linear',
       onUpdate: () => {
-        if (!hitPlayer && Phaser.Math.Distance.Between(gfx.x, gfx.y, this.player.x, this.player.y) < hitR) {
-          hitPlayer = true; this.player.takeDamage(dmg);
+        if (!hitTracker.player && Phaser.Math.Distance.Between(gfx.x, gfx.y, this.player.x, this.player.y) < hitR) {
+          hitTracker.player = true; this.player.takeDamage(dmg);
         }
         for (const ally of this._allyMinions) {
-          if (!ally.isDead && !hitAllies.has(ally) &&
+          if (!ally.isDead && !hitTracker.allies.has(ally) &&
             Phaser.Math.Distance.Between(gfx.x, gfx.y, ally.x, ally.y) < hitR) {
-            hitAllies.add(ally); ally.takeDamage(dmg);
+            hitTracker.allies.add(ally); ally.takeDamage(dmg);
           }
         }
       },
@@ -11078,8 +11185,9 @@ export class GameScene extends Phaser.Scene {
     const dmg = atk;
     const len = Math.round((isElite ? 240 : 200) * DPR);
     const spread = Math.PI * 28 / 180;
+    const sharedHit = { player: false, allies: new Set<MinionSlime>() };
     for (let i = 0; i < 3; i++) {
-      this.fireGroundCrack(wx, wy, baseAngle + (i - 1) * spread, len, dmg);
+      this.fireGroundCrack(wx, wy, baseAngle + (i - 1) * spread, len, dmg, sharedHit);
     }
     // 落地衝擊：外擴光環 + 中心閃白
     const ring = this.add.graphics({ x: wx, y: wy }).setDepth(55);
@@ -11091,7 +11199,7 @@ export class GameScene extends Phaser.Scene {
     this.tweens.add({ targets: core, scaleX: 0.05, scaleY: 0.05, alpha: 0, duration: 200, ease: 'Quad.In', onComplete: () => core.destroy() });
   }
 
-  private fireGroundCrack(fx: number, fy: number, angle: number, len: number, dmg: number): void {
+  private fireGroundCrack(fx: number, fy: number, angle: number, len: number, dmg: number, sharedHit?: { player: boolean; allies: Set<MinionSlime> }): void {
     const SEG = 14;
     const perp = angle + Math.PI / 2;
 
@@ -11120,8 +11228,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     const gfx = this.add.graphics().setDepth(19);
-    let hitPlayer = false;
-    const hitAllies = new Set<MinionSlime>();
+    const hitTracker = sharedHit ?? { player: false, allies: new Set<MinionSlime>() };
     const allies = [...this._allyMinions];
     const hitR = P(17);
 
@@ -11171,13 +11278,13 @@ export class GameScene extends Phaser.Scene {
 
         // 傷害：每段膠囊判定
         for (let i = 0; i < vi; i++) {
-          if (!hitPlayer && segHit(ctr[i].x, ctr[i].y, ctr[i + 1].x, ctr[i + 1].y, this.player.x, this.player.y)) {
-            hitPlayer = true; this.player.takeDamage(dmg);
+          if (!hitTracker.player && segHit(ctr[i].x, ctr[i].y, ctr[i + 1].x, ctr[i + 1].y, this.player.x, this.player.y)) {
+            hitTracker.player = true; this.player.takeDamage(dmg);
           }
           for (const ally of allies) {
-            if (!ally.isDead && !hitAllies.has(ally) &&
+            if (!ally.isDead && !hitTracker.allies.has(ally) &&
               segHit(ctr[i].x, ctr[i].y, ctr[i + 1].x, ctr[i + 1].y, ally.x, ally.y)) {
-              hitAllies.add(ally); ally.takeDamage(dmg);
+              hitTracker.allies.add(ally); ally.takeDamage(dmg);
             }
           }
         }
@@ -11196,16 +11303,17 @@ export class GameScene extends Phaser.Scene {
     const baseAngle = Phaser.Math.Angle.Between(wx, wy, wtx, wty);
     const travelDist = (Phaser.Math.Distance.Between(wx, wy, wtx, wty) || P(190)) + P(70);
     const dmg = atk;
+    const sharedHit = { player: false, allies: new Set<MinionSlime>() };
     for (let i = 0; i < 3; i++) {
       const offset = (i - 1) * (Math.PI / 6); // -30°, 0°, +30°
       const ang = baseAngle + offset;
       const etx = wx + Math.cos(ang) * travelDist;
       const ety = wy + Math.sin(ang) * travelDist;
-      this.time.delayedCall(i * 75, () => this._fireBloodNeedle(wx, wy, etx, ety, dmg, true));
+      this.time.delayedCall(i * 75, () => this._fireBloodNeedle(wx, wy, etx, ety, dmg, true, sharedHit));
     }
   }
 
-  private _fireBloodNeedle(wx: number, wy: number, wtx: number, wty: number, dmg: number, isElite: boolean): void {
+  private _fireBloodNeedle(wx: number, wy: number, wtx: number, wty: number, dmg: number, isElite: boolean, sharedHit?: { player: boolean; allies: Set<MinionSlime> }): void {
     const angle = Phaser.Math.Angle.Between(wx, wy, wtx, wty);
     const dist = Phaser.Math.Distance.Between(wx, wy, wtx, wty) || P(200);
     const totalMs = 750;
@@ -11241,8 +11349,7 @@ export class GameScene extends Phaser.Scene {
       },
     });
 
-    let hitPlayer = false;
-    const hitAllies = new Set<MinionSlime>();
+    const hitTracker = sharedHit ?? { player: false, allies: new Set<MinionSlime>() };
     const p = { t: 0 };
     this.tweens.add({
       targets: p, t: 1, duration: totalMs, ease: 'Linear',
@@ -11256,13 +11363,13 @@ export class GameScene extends Phaser.Scene {
           fwdY * dist + perpY * coseDeriv * amp,
           fwdX * dist + perpX * coseDeriv * amp,
         );
-        if (!hitPlayer && Phaser.Math.Distance.Between(gfx.x, gfx.y, this.player.x, this.player.y) < hitR) {
-          hitPlayer = true; this.player.takeDamage(dmg);
+        if (!hitTracker.player && Phaser.Math.Distance.Between(gfx.x, gfx.y, this.player.x, this.player.y) < hitR) {
+          hitTracker.player = true; this.player.takeDamage(dmg);
         }
         for (const ally of this._allyMinions) {
-          if (!ally.isDead && !hitAllies.has(ally) &&
+          if (!ally.isDead && !hitTracker.allies.has(ally) &&
             Phaser.Math.Distance.Between(gfx.x, gfx.y, ally.x, ally.y) < hitR) {
-            hitAllies.add(ally); ally.takeDamage(dmg);
+            hitTracker.allies.add(ally); ally.takeDamage(dmg);
           }
         }
       },

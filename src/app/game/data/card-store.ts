@@ -422,13 +422,13 @@ export const CardStore = {
     const atkSpeedMult   = bonus.atkSpeedMult   ?? 1;
     const summonDmgMult  = bonus.summonDmgMult  ?? 1;
     // 藍史萊姆組合一：每 defToEvasion 防禦 → +3% 迴避
-    const defVal = Math.round((base.def + (bonus.def ?? 0) + meleeDef) * (1 + (bonus.defPct ?? 0)));
+    const defVal = (base.def + (bonus.def ?? 0) + meleeDef) * (1 + (bonus.defPct ?? 0));
     const defEvasion = (bonus.defToEvasion && bonus.defToEvasion > 0)
       ? Math.floor(defVal / bonus.defToEvasion) * 0.03
       : 0;
 
     return {
-      atk:         Math.round((flatAtk + condAtk) * (1 + (bonus.atkPct ?? 0))),
+      atk:         (flatAtk + condAtk) * (1 + (bonus.atkPct ?? 0)),
       maxHp:       Math.round(flatHp * (1 + (bonus.hpPct ?? 0) + condHpPct + (bonus.maxHpPct ?? 0) + (SkillTreeStore.getAttackMode() === 'aura' ? 0.15 : 0))),
       def:         defVal,
       speed:       base.speed     + (bonus.speed    ?? 0),

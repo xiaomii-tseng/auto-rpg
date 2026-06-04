@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { MarketVisibilityService } from './market-visibility.service';
 import { MarketService, MarketListing, MyListing, MarketItemType, ListingsFilter } from './market.service';
 import { AuthService } from '../../auth/auth.service';
-import { EquipQuality, StatKey, fmtAffixValue, STAT_NAMES, getEquipDisplayName } from '../data/equipment-data';
+import { EquipQuality, StatKey, StatBonus, fmtAffixValue, STAT_NAMES, getEquipDisplayName } from '../data/equipment-data';
 import { SaveStore, decryptSave } from '../data/save-store';
 import { InventoryStore } from '../data/inventory-store';
 import { CardStore } from '../data/card-store';
@@ -540,5 +540,78 @@ export class MarketComponent implements OnInit, OnDestroy {
     return n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M`
          : n >= 1_000     ? `${(n / 1_000).toFixed(1)}K`
          : String(n);
+  }
+
+  potionDesc(id: string): string {
+    const map: Record<string, string> = {
+      potion_health_s: t('game.potion.heal100'),
+      potion_health_m: t('game.potion.heal200'),
+      potion_health_l: t('game.potion.heal300'),
+      potion_revive:   t('game.potion.reviveAuto'),
+      potion_atk:      t('game.potion.atkBuff'),
+      potion_def:      t('game.potion.defBuff'),
+      potion_speed:    t('game.potion.speedBuff'),
+    };
+    return map[id] ?? '';
+  }
+
+  cardStatLines(cardId: string): string[] {
+    const def = getCardDef(cardId);
+    if (!def) return [];
+    return this._statLines(def.effect);
+  }
+
+  private _statLines(b: StatBonus): string[] {
+    const lines: string[] = [];
+    const pct = (v: number) => `${v >= 0 ? '+' : ''}${(v * 100).toFixed(0)}%`;
+    const num = (v: number) => `${v >= 0 ? '+' : ''}${v}`;
+    if (b.atk)         lines.push(`${t('stat.atk')} ${num(b.atk)}`);
+    if (b.hp)          lines.push(`${t('stat.hp')} ${num(b.hp)}`);
+    if (b.def)         lines.push(`${t('stat.def')} ${num(b.def)}`);
+    if (b.crit)        lines.push(`${t('stat.crit')} ${pct(b.crit)}`);
+    if (b.critDmg)     lines.push(`${t('stat.critDmg')} ${pct(b.critDmg)}`);
+    if (b.atkSpeed)    lines.push(`${t('stat.atkSpeed')} ${pct(b.atkSpeed)}`);
+    if (b.speed)       lines.push(`${t('stat.speed')} ${num(b.speed)}`);
+    if (b.evasion)     lines.push(`${t('stat.evasion')} ${pct(b.evasion)}`);
+    if (b.penetration) lines.push(`${t('stat.penetration')} ${num(b.penetration)}`);
+    if (b.dotBonus)    lines.push(`${t('stat.dotBonus')} ${pct(b.dotBonus)}`);
+    if (b.hpRegen)     lines.push(`${t('stat.hpRegen')} +${b.hpRegen.toFixed(1)}/s`);
+    if (b.lifesteal)   lines.push(`${t('stat.lifesteal')} +${(b.lifesteal * 100).toFixed(1)}%`);
+    if (b.hpPct)       lines.push(`${t('stat.hp')} ${pct(b.hpPct)}`);
+    if (b.atkPct)      lines.push(`${t('stat.atk')} ${pct(b.atkPct)}`);
+    if (b.allDmgPct)   lines.push(`${t('stat.allDmgPct')} ${pct(b.allDmgPct)}`);
+    if (b.takenDmgPct)       lines.push(t('card.stat.takenDmg',    { val: pct(b.takenDmgPct) }));
+    if (b.dmgVsEliteOrBoss)  lines.push(t('card.stat.vsEliteBoss', { val: pct(b.dmgVsEliteOrBoss) }));
+    if (b.dmgVsBoss)         lines.push(t('card.stat.vsBoss',      { val: pct(b.dmgVsBoss) }));
+    if (b.dmgVsSlime)        lines.push(t('card.stat.vsSlime',     { val: pct(b.dmgVsSlime) }));
+    if (b.dmgVsPlant)        lines.push(t('card.stat.vsPlant',     { val: pct(b.dmgVsPlant) }));
+    if (b.dmgVsAnyElement)   lines.push(t('card.stat.vsElement',   { val: pct(b.dmgVsAnyElement) }));
+    if (b.burnedEnemyDmgAmp) lines.push(t('card.stat.vsBurned',    { val: pct(b.burnedEnemyDmgAmp) }));
+    if (b.condLowHpAtk)      lines.push(t('card.stat.lowHpAtk',    { n: b.condLowHpAtk }));
+    if (b.burnMaxStackBonus) lines.push(t('card.stat.burnStack',    { n: b.burnMaxStackBonus }));
+    if (b.summonFlowerDmgPct)lines.push(t('card.stat.summonDmg',   { val: pct(b.summonFlowerDmgPct) }));
+    if (b.skillFlowerHpPct)  lines.push(t('card.stat.summonHp',    { val: pct(b.skillFlowerHpPct) }));
+    if (b.freeRevive)        lines.push(t('card.stat.revive',       { n: b.freeRevive }));
+    if (b.divineShieldChance)lines.push(t('card.stat.shieldChance', { val: pct(b.divineShieldChance) }));
+    if (b.executeBelow15)    lines.push(t('card.stat.execute'));
+    if (b.critDmgMult && b.critDmgMult !== 1)     lines.push(t('card.stat.critDmgMult',   { n: b.critDmgMult.toFixed(2) }));
+    if (b.atkSpeedMult && b.atkSpeedMult !== 1)   lines.push(t('card.stat.atkSpeedMult',  { n: b.atkSpeedMult.toFixed(2) }));
+    if (b.summonDmgMult && b.summonDmgMult !== 1) lines.push(t('card.stat.summonDmgMult', { n: b.summonDmgMult.toFixed(2) }));
+    if (b.defToEvasion)     lines.push(t('card.stat.defToEvasion', { n: b.defToEvasion }));
+    if (b.condPenAtk)       lines.push(t('card.stat.penAtk',       { n: b.condPenAtk }));
+    if (b.condCritDmgBonus) lines.push(t('card.stat.condCritDmg',  { val: pct(b.condCritDmgBonus) }));
+    if (b.blazingShieldChance) lines.push(t('card.stat.blazingShield', {
+      chance: (b.blazingShieldChance * 100).toFixed(0),
+      atk:    pct(b.blazingShieldAtkPct ?? 0),
+      sec:    ((b.blazingShieldMs ?? 0) / 1000).toFixed(0),
+    }));
+    if (b.blazingShieldHealPct)      lines.push(t('card.stat.blazingShieldHeal',  { val: pct(b.blazingShieldHealPct) }));
+    if (b.critToAtk)                 lines.push(t('card.stat.critToAtk',           { n: b.critToAtk }));
+    if (b.impaleDmgPct)              lines.push(t('card.stat.impaleDmg',           { val: pct(b.impaleDmgPct) }));
+    if (b.standstillDmgPct)          lines.push(t('card.stat.standstillDmg',       { val: pct(b.standstillDmgPct) }));
+    if (b.standstillDmgReductionPct) lines.push(t('card.stat.standstillReduction', { val: pct(b.standstillDmgReductionPct) }));
+    if (b.onHitLightningChance)      lines.push(t('card.stat.onHitLightning',      { val: pct(b.onHitLightningChance) }));
+    if (b.onHitKnifeChance)          lines.push(t('card.stat.onHitKnife',          { val: pct(b.onHitKnifeChance) }));
+    return lines;
   }
 }

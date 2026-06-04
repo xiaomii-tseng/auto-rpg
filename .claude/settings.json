@@ -168,7 +168,11 @@
       "Bash(timeout 3 node_modules/electron/dist/electron.exe)",
       "Bash(unset ELECTRON_RUN_AS_NODE)",
       "WebFetch(domain:forum.gamer.com.tw)",
-      "WebFetch(domain:)"
+      "WebFetch(domain:)",
+      "PowerShell(\\(Get-Content -Path 'c:\\\\MyCode\\\\auto-rpg\\\\src\\\\app\\\\game\\\\scenes\\\\game.scene.ts' | Measure-Object -Line\\).Lines)",
+      "Bash(PowerShell -Command \"Select-String -Path 'c:\\\\MyCode\\\\auto-rpg\\\\src\\\\app\\\\game\\\\scenes\\\\game.scene.ts' -Pattern '\\(^\\\\s*update\\\\s*|protected\\\\s+update|override\\\\s+update\\)' -AllMatches | Select-Object -First 10\")",
+      "Bash(PowerShell -Command \"Select-String -Path 'c:\\\\MyCode\\\\auto-rpg\\\\src\\\\app\\\\game\\\\scenes\\\\game.scene.ts' -Pattern 'protected buildTowerRoom' | Select-Object -First 1\")",
+      "Bash(PowerShell -Command \"Select-String -Path 'c:\\\\MyCode\\\\auto-rpg\\\\src\\\\app\\\\game\\\\scenes\\\\game.scene.ts' -Pattern '\\(buildTowerRoom|_buildTowerMaze\\)' | Select-Object -First 5\")"
     ],
     "additionalDirectories": [
       "\\MyCode\\auto-rpg\\src\\app\\game\\scenes",

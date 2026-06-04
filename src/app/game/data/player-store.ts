@@ -12,6 +12,28 @@ const LEVEL_HP      = 10;
 const BASE_HP_REGEN = 2;
 const LEVEL_HP_REGEN = 0.05;
 
+export const STAT_POINT_PER_LEVEL = 1;
+
+export type AllocStat =
+  | 'hp' | 'hpRegen' | 'def' | 'evasion' | 'lifesteal'
+  | 'speed' | 'atk' | 'crit' | 'atkSpeed' | 'critDmg'
+  | 'dotBonus' | 'penetration';
+
+export const ALLOC_STAT_INCREMENT: Record<AllocStat, number> = {
+  hp:          5,
+  hpRegen:     0.5,
+  def:         1.5,
+  evasion:     0.005,   // stored as fraction; display as %
+  lifesteal:   0.0015,  // stored as fraction
+  speed:       2.5,
+  atk:         1.0,
+  crit:        0.005,   // stored as fraction
+  atkSpeed:    0.0075,  // stored as fraction
+  critDmg:     0.0125,  // stored as fraction (base 0.5 = 50%)
+  dotBonus:    0.02,    // stored as fraction
+  penetration: 2.0,
+};
+
 export interface EffectiveStats {
   atk:       number;
   maxHp:     number;
@@ -152,6 +174,11 @@ const equipped: EquippedMap = {
 
 let level = 1;
 let exp   = 0;
+let statPoints = 0;
+const allocatedStats: Record<AllocStat, number> = {
+  hp: 0, hpRegen: 0, def: 0, evasion: 0, lifesteal: 0,
+  speed: 0, atk: 0, crit: 0, atkSpeed: 0, critDmg: 0, dotBonus: 0, penetration: 0,
+};
 const owned:     EquipmentItem[] = [];
 const listeners: Array<() => void> = [];
 
@@ -173,6 +200,7 @@ export const PlayerStore = {
       exp -= PlayerStore.expToNext();
       level++;
       levelsGained++;
+      statPoints += STAT_POINT_PER_LEVEL;
     }
     if (level >= PlayerStore.MAX_LEVEL) exp = 0;
     this.notify();
@@ -184,6 +212,39 @@ export const PlayerStore = {
   setLevelExp(lv: number, ex: number): void {
     level = lv;
     exp   = ex;
+  },
+
+  // ── Stat allocation ────────────────────────────────────
+
+  getStatPoints(): number { return statPoints; },
+
+  getAllocatedStats(): Readonly<Record<AllocStat, number>> { return allocatedStats; },
+
+  allocateStat(key: AllocStat, amount: number): boolean {
+    if (amount > 0 && statPoints < amount) return false;
+    if (amount < 0 && allocatedStats[key] < -amount) return false;
+    allocatedStats[key] += amount;
+    statPoints -= amount;
+    this.notify();
+    return true;
+  },
+
+  resetAllocatedStats(): void {
+    let total = 0;
+    for (const k of Object.keys(allocatedStats) as AllocStat[]) {
+      total += allocatedStats[k];
+      allocatedStats[k] = 0;
+    }
+    statPoints += total;
+    this.notify();
+  },
+
+  setStatPointsDirect(pts: number): void { statPoints = pts; },
+
+  setAllocatedStatsDirect(data: Partial<Record<AllocStat, number>>): void {
+    for (const k of Object.keys(allocatedStats) as AllocStat[]) {
+      allocatedStats[k] = data[k] ?? 0;
+    }
   },
 
   equipDirect(slot: EquipSlot, item: EquipmentItem): void {
@@ -264,19 +325,19 @@ export const PlayerStore = {
   },
 
   getStats(): EffectiveStats {
-    let atk       = BASE_ATK + (level - 1) * LEVEL_ATK;
-    let maxHp     = BASE_HP  + (level - 1) * LEVEL_HP;
-    let speed     = BASE_SPEED;
-    let def       = BASE_DEF;
-    let crit      = BASE_CRIT;
+    let atk       = BASE_ATK + (level - 1) * LEVEL_ATK + allocatedStats.atk * ALLOC_STAT_INCREMENT.atk;
+    let maxHp     = BASE_HP  + (level - 1) * LEVEL_HP  + allocatedStats.hp  * ALLOC_STAT_INCREMENT.hp;
+    let speed     = BASE_SPEED + allocatedStats.speed * ALLOC_STAT_INCREMENT.speed;
+    let def       = BASE_DEF   + allocatedStats.def   * ALLOC_STAT_INCREMENT.def;
+    let crit      = BASE_CRIT  + allocatedStats.crit  * ALLOC_STAT_INCREMENT.crit;
     let attackArc = BASE_ATTACK_ARC;
-    let atkSpeed    = 0;
-    let lifesteal   = 0;
-    let evasion     = 0;
-    let critDmg     = 0.5;
-    let hpRegen     = BASE_HP_REGEN + (level - 1) * LEVEL_HP_REGEN;
-    let dotBonus    = 0;
-    let penetration = 0;
+    let atkSpeed    = allocatedStats.atkSpeed    * ALLOC_STAT_INCREMENT.atkSpeed;
+    let lifesteal   = allocatedStats.lifesteal   * ALLOC_STAT_INCREMENT.lifesteal;
+    let evasion     = allocatedStats.evasion     * ALLOC_STAT_INCREMENT.evasion;
+    let critDmg     = 0.5 + allocatedStats.critDmg * ALLOC_STAT_INCREMENT.critDmg;
+    let hpRegen     = BASE_HP_REGEN + (level - 1) * LEVEL_HP_REGEN + allocatedStats.hpRegen * ALLOC_STAT_INCREMENT.hpRegen;
+    let dotBonus    = allocatedStats.dotBonus    * ALLOC_STAT_INCREMENT.dotBonus;
+    let penetration = allocatedStats.penetration * ALLOC_STAT_INCREMENT.penetration;
     let allDmgPct        = 0;
     let maxHpPct         = 0;
     let potionHealPct    = 0;

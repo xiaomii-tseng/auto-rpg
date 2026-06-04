@@ -1,8 +1,8 @@
 import Phaser from 'phaser';
 import { InventoryStore } from '../data/inventory-store';
-import { PlayerStore } from '../data/player-store';
+import { PlayerStore, AllocStat, ALLOC_STAT_INCREMENT, STAT_POINT_PER_LEVEL } from '../data/player-store';
 import { PotionBarStore } from '../data/potion-bar-store';
-import { ITEM_POTION_HEALTH_S, ITEM_POTION_HEALTH_M, ITEM_POTION_HEALTH_L, ITEM_POTION_REVIVE, ITEM_POTION_ATK, ITEM_POTION_DEF, ITEM_POTION_SPEED, ITEM_STONE_BROKEN, ITEM_STONE_INTACT, ITEM_STONE_BREAKTHROUGH, ITEM_BLANK_CARD, ITEM_QUEST_REROLL, ITEM_TICKET_SLIME, ITEM_TICKET_FLOWER, ITEM_TICKET_ORC, ITEM_TICKET_VAMPIRE } from '../data/monster-data';
+import { ITEM_POTION_HEALTH_S, ITEM_POTION_HEALTH_M, ITEM_POTION_HEALTH_L, ITEM_POTION_REVIVE, ITEM_POTION_ATK, ITEM_POTION_DEF, ITEM_POTION_SPEED, ITEM_STONE_BROKEN, ITEM_STONE_INTACT, ITEM_STONE_BREAKTHROUGH, ITEM_BLANK_CARD, ITEM_QUEST_REROLL, ITEM_TICKET_SLIME, ITEM_TICKET_FLOWER, ITEM_TICKET_ORC, ITEM_TICKET_VAMPIRE, ITEM_STONE_RECAST } from '../data/monster-data';
 import { generateEquipment, randomQuality, QUALITY_NAMES, QUALITY_COLORS, SLOT_NAMES, STAT_NAMES, BEHAVIOR_INFO, BEHAVIOR_NAMES, EquipSlot, EquipmentItem, applyEnhancement, applyBreakthrough, snapshotBreakthrough, revertToBreakpoint, recastItem, ENHANCE_COST, ENHANCE_RATE, ENHANCE_ALL_AFFIX_CHANCE, ENHANCE_MAX, ENHANCE_NORMAL_MAX, BREAKTHROUGH_RATES, BREAKTHROUGH_BREAKPOINTS, getBreakthroughMult, fmtAffixValue, StatBonus, REFINE_INCREMENT_RANGE, calcEquipSellPrice, LEGENDARY_BOSS_WEAPON, generateLegendaryWeapon, getEquipDisplayName } from '../data/equipment-data';
 import { SaveStore } from '../data/save-store';
 import { CardStore, CARD_SLOT_COUNT } from '../data/card-store';
@@ -632,6 +632,17 @@ export class PrepScene extends Phaser.Scene {
 
     // Content
     const ENTRIES: { text: string; header?: boolean }[] = [
+      { text: 'v1.0.7', header: true },
+      { text: '【新功能】升等配點系統：每升一等獲得 1 點，可自由分配 12 種屬性' },
+      { text: '【新功能】洗點功能：消耗重鑄石可重置所有已分配點數' },
+      { text: '【新功能】小地圖：左上角地圖按鈕，顯示完整佈局與玩家位置' },
+      { text: '【修復】市場藥水/卡片無效果說明，現在正確顯示' },
+      { text: '【修復】瞬步斬衝塔樓傳送門未觸發過圖' },
+      { text: '【調整】升等通知新增能力點提示' },
+      { text: '【調整】邀請函掉落率提升' },
+      { text: '【調整】有未配點數時裝備按鈕顯示紅點提醒' },
+      { text: '【調整】旋轉冰火球半徑增大、旋轉速度調慢' },
+      { text: '' },
       { text: 'v1.0.6', header: true },
       { text: '【新功能】突破強化系統：+10 以上可繼續強化至 +20' },
       { text: '【新功能】突破石：4星+地圖、Boss、石頭寶箱可取得，商店 3000G' },
@@ -972,6 +983,21 @@ export class PrepScene extends Phaser.Scene {
     refreshDqDot();
     DailyQuestStore.onChange(refreshDqDot);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => DailyQuestStore.offChange(refreshDqDot));
+
+    // 裝備紅點（equip button is at ri=4, leftmost position）
+    const eqBx = W - P(8) - QB_S * 5 - QB_GAP * 4;
+    const eqBy = QB_BOT - QB_S;
+    const eqDot = this.add.graphics().setDepth(36);
+    const refreshEqDot = () => {
+      eqDot.clear();
+      if (PlayerStore.getStatPoints() > 0) {
+        eqDot.fillStyle(0xff2222, 1);
+        eqDot.fillCircle(eqBx + QB_S - P(5), eqBy + P(5), P(5));
+      }
+    };
+    refreshEqDot();
+    PlayerStore.onChange(refreshEqDot);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => PlayerStore.offChange(refreshEqDot));
 
     // ── Reactive updates ──────────────────────────────────
     const drawExpBar = () => {
@@ -2168,7 +2194,7 @@ export class PrepScene extends Phaser.Scene {
   // ── Equipment panel (wooden cabinet) ───────────────────
 
   private showEquipmentPanel(W: number, H: number): void {
-    const PW = Math.min(W - P(16), P(700));
+    const PW = Math.min(W - P(16), P(800));
     const PH = Math.min(H - P(16), P(620));
     const D = 500;
 
@@ -2246,19 +2272,21 @@ export class PrepScene extends Phaser.Scene {
     const slotGap = P(8);
     const ECOLS = 3;
     const EROWS = 2;
-    const eGridX = px + P(12);
     const eGridY = py + P(50);
     const eGridH = EROWS * slotSz + (EROWS - 1) * slotGap;
 
-    // ── 人物屬性區（裝備格下方，左欄同寬）───────────────
-    const eGridW = ECOLS * slotSz + (ECOLS - 1) * slotGap;
-    const statsX = eGridX;
-    const statsY = eGridY + eGridH + P(10);
-    const statsW = eGridW;
-    const statsH = P(140);
+    // ── 人物屬性區（裝備格下方，左欄加寬以容納配點按鈕）──
+    const eGridW   = ECOLS * slotSz + (ECOLS - 1) * slotGap;
+    const leftColW = P(320);
+    const leftColX = px + P(12);                                   // 左欄起點
+    const eGridX   = leftColX + Math.round((leftColW - eGridW) / 2); // 裝備格置中
+    const statsX   = leftColX;
+    const statsY   = eGridY + eGridH + P(10);
+    const statsW   = leftColW;
+    const statsH   = P(148);
 
     // ── 右欄（清單區）────────────────────────────────────
-    const rightColX = eGridX + eGridW + P(26);
+    const rightColX = leftColX + leftColW + P(20);
     const rightColW = px + PW - P(10) - rightColX;
     const rightColTop = py + P(50);
 
@@ -3062,42 +3090,156 @@ export class PrepScene extends Phaser.Scene {
     };
     buildTopSlots();
 
-    // ── buildStats：人物屬性（全寬 2列×3欄）──────────────────
+    // ── buildStats：人物屬性 + 配點按鈕（2列×6行，每格內嵌 [+]）──
     const buildStats = () => {
       statsLayer.removeAll(true);
-      const s = CardStore.getTotalStats();
+      const s   = CardStore.getTotalStats();
+      const pts = PlayerStore.getStatPoints();
 
       const sg = this.add.graphics();
       sg.fillStyle(WD, 0.55); sg.fillRect(statsX, statsY, statsW, statsH);
       sg.lineStyle(1, WL, 0.25); sg.strokeRect(statsX, statsY, statsW, statsH);
-      sg.fillStyle(WB, 0.6); sg.fillRect(statsX, statsY, statsW, P(20));
+      sg.fillStyle(WB, 0.6); sg.fillRect(statsX, statsY, statsW, P(22));
       statsLayer.add(sg);
 
-      statsLayer.add(this.add.text(statsX + statsW / 2, statsY + P(10), tr('prep.equip.infoTitle'), {
-        fontSize: F(15), fontStyle: 'bold', color: '#d4a044', stroke: '#1a0800', strokeThickness: 1,
+      const ptsLabel = pts > 0 ? `  [${pts}${tr('prep.stat.pts')}]` : '';
+      statsLayer.add(this.add.text(statsX + statsW / 2, statsY + P(11), tr('prep.equip.infoTitle') + ptsLabel, {
+        fontSize: F(14), fontStyle: 'bold',
+        color: pts > 0 ? '#aaee66' : '#d4a044', stroke: '#1a0800', strokeThickness: 1,
       }).setOrigin(0.5));
 
-      const allRows = [
-        [{ label: 'HP', value: `${s.maxHp}`, color: '#88ee88' }, { label: tr('stat.atk'), value: `${s.atk}`, color: '#ff8855' }],
-        [{ label: tr('stat.hpRegen'), value: `${s.hpRegen.toFixed(2)}/s`, color: '#55ffaa' }, { label: tr('stat.crit'), value: `${(s.crit * 100).toFixed(0)}%`, color: '#ffaa44' }],
-        [{ label: tr('stat.def'), value: `${s.def}`, color: '#88aaff' }, { label: tr('stat.atkSpeed'), value: `${(s.atkSpeed * 100).toFixed(0)}%`, color: '#ff88ff' }],
-        [{ label: tr('stat.evasion'), value: `${(s.evasion * 100).toFixed(1)}%`, color: '#aaddff' }, { label: tr('stat.critDmg'), value: `${((1 + s.critDmg) * 100).toFixed(0)}%`, color: '#ffdd44' }],
-        [{ label: tr('stat.lifesteal'), value: `${(s.lifesteal * 100).toFixed(2)}%`, color: '#ff6699' }, { label: tr('stat.dotBonus'), value: `+${(s.dotBonus * 100).toFixed(0)}%`, color: '#cc88ff' }],
-        [{ label: tr('stat.speed'), value: `${s.speed}`, color: '#ffff88' }, { label: tr('stat.penetration'), value: `${s.penetration}`, color: '#ff9944' }],
-      ];
-      const colW2 = statsW / 2;
-      const rowH = (statsH - P(20)) / 6;
+      // 洗點按鈕（title 右側）
+      const RBW = P(36), RBH = P(16), rbx = statsX + statsW - RBW - P(4), rby = statsY + P(3);
+      const rbg = this.add.graphics();
+      rbg.fillStyle(0x000000, 0.5); rbg.fillRoundedRect(rbx + P(1), rby + P(1), RBW, RBH, P(3));
+      rbg.fillStyle(0x3a1a00, 1);   rbg.fillRoundedRect(rbx, rby, RBW, RBH, P(3));
+      rbg.fillStyle(0xffffff, 0.12); rbg.fillRoundedRect(rbx + P(1), rby + P(1), RBW - P(2), RBH * 0.45, { tl: P(3), tr: P(3), bl: 0, br: 0 });
+      rbg.lineStyle(1, 0xcc7722, 0.9); rbg.strokeRoundedRect(rbx, rby, RBW, RBH, P(3));
+      statsLayer.add(rbg);
+      statsLayer.add(this.add.text(rbx + RBW / 2, rby + RBH / 2, '洗 點', {
+        fontSize: F(11), fontStyle: 'bold', color: '#ffcc88', stroke: '#1a0800', strokeThickness: 1,
+      }).setOrigin(0.5));
 
-      allRows.forEach((row, ri) => {
-        row.forEach((cell, ci) => {
-          const cx = statsX + ci * colW2;
-          const ry = statsY + P(20) + ri * rowH + rowH / 2;
-          statsLayer.add(this.add.text(cx + P(6), ry, cell.label, { fontSize: getLang() === 'en' ? F(12) : F(15), fontStyle: 'bold', color: '#888888', stroke: '#000', strokeThickness: 1 }).setOrigin(0, 0.5));
-          statsLayer.add(this.add.text(cx + colW2 - P(6), ry, cell.value, { fontSize: F(15), fontStyle: 'bold', color: cell.color, stroke: '#000', strokeThickness: 1 }).setOrigin(1, 0.5));
-        });
+      const rbHit = this.add.rectangle(rbx + RBW / 2, rby + RBH / 2, RBW, RBH)
+        .setInteractive({ useHandCursor: true });
+      rbHit.on('pointerup', () => {
+        if (InventoryStore.getItemQty(ITEM_STONE_RECAST) < 1) {
+          this._showToast?.(tr('prep.stat.noStone'));
+          return;
+        }
+        const cfmObjs: Phaser.GameObjects.GameObject[] = [];
+        const ca = <T extends Phaser.GameObjects.GameObject>(o: T): T => { cfmObjs.push(o); return o; };
+        const closeConfirm = () => cfmObjs.forEach(o => o.destroy());
+        const CW = P(240), CH = P(110), D2 = 520;
+        const cx = W / 2, cy = H / 2;
+        ca(this.add.rectangle(cx, cy, statsW + P(20), statsH + P(20)).setDepth(D2).setInteractive().setAlpha(0.001))
+          .on('pointerdown', Phaser.Utils.NOOP);
+        const cfmG = ca(this.add.graphics().setDepth(D2));
+        cfmG.fillStyle(0x0a0a14, 0.97); cfmG.fillRoundedRect(cx - CW / 2, cy - CH / 2, CW, CH, P(8));
+        cfmG.lineStyle(P(1.5), 0xffaa33, 0.8); cfmG.strokeRoundedRect(cx - CW / 2, cy - CH / 2, CW, CH, P(8));
+        ca(this.add.text(cx, cy - CH / 2 + P(18), tr('prep.stat.modal.title'), {
+          fontSize: F(14), fontStyle: 'bold', color: '#ffe8a0', stroke: '#000', strokeThickness: 2,
+        }).setOrigin(0.5, 0).setDepth(D2 + 1));
+        ca(this.add.text(cx, cy - CH / 2 + P(38), tr('prep.stat.respecCost'), {
+          fontSize: F(13), color: '#aabbcc', stroke: '#000', strokeThickness: 1,
+        }).setOrigin(0.5, 0).setDepth(D2 + 1));
+        const BW = P(88), BH = P(30), BY = cy + CH / 2 - BH - P(10);
+        const cancelG = ca(this.add.graphics().setDepth(D2 + 1));
+        cancelG.fillStyle(0x1a1a2a, 1); cancelG.fillRoundedRect(cx - CW / 2 + P(12), BY, BW, BH, P(5));
+        cancelG.lineStyle(P(1), 0x445566, 0.8); cancelG.strokeRoundedRect(cx - CW / 2 + P(12), BY, BW, BH, P(5));
+        ca(this.add.rectangle(cx - CW / 2 + P(12) + BW / 2, BY + BH / 2, BW, BH).setDepth(D2 + 2).setInteractive({ useHandCursor: true }).setAlpha(0.001))
+          .on('pointerup', closeConfirm);
+        ca(this.add.text(cx - CW / 2 + P(12) + BW / 2, BY + BH / 2, tr('ui.cancel'), {
+          fontSize: F(14), fontStyle: 'bold', color: '#778899', stroke: '#000', strokeThickness: 1,
+        }).setOrigin(0.5).setDepth(D2 + 2));
+        const okG = ca(this.add.graphics().setDepth(D2 + 1));
+        okG.fillStyle(0x3a1a00, 1); okG.fillRoundedRect(cx + CW / 2 - P(12) - BW, BY, BW, BH, P(5));
+        okG.lineStyle(P(1), 0xffaa33, 0.8); okG.strokeRoundedRect(cx + CW / 2 - P(12) - BW, BY, BW, BH, P(5));
+        ca(this.add.rectangle(cx + CW / 2 - P(12) - BW / 2, BY + BH / 2, BW, BH).setDepth(D2 + 2).setInteractive({ useHandCursor: true }).setAlpha(0.001))
+          .on('pointerup', () => {
+            closeConfirm();
+            InventoryStore.spendItem(ITEM_STONE_RECAST, 1);
+            PlayerStore.resetAllocatedStats();
+            SaveStore.save();
+            buildStats();
+          });
+        ca(this.add.text(cx + CW / 2 - P(12) - BW / 2, BY + BH / 2, tr('prep.quest.resetConfirm'), {
+          fontSize: F(14), fontStyle: 'bold', color: '#ffcc66', stroke: '#000', strokeThickness: 2,
+        }).setOrigin(0.5).setDepth(D2 + 2));
+      });
+      statsLayer.add(rbHit);
+
+      const CELLS: { key: AllocStat; label: string; value: string; color: string }[] = [
+        { key: 'hp',          label: 'HP',                   value: `${Math.round(s.maxHp)}`,                            color: '#88ee88' },
+        { key: 'atk',         label: tr('stat.atk'),         value: s.atk.toFixed(1),                                   color: '#ff8855' },
+        { key: 'hpRegen',     label: tr('stat.hpRegen'),     value: `${s.hpRegen.toFixed(1)}/s`,                        color: '#55ffaa' },
+        { key: 'crit',        label: tr('stat.crit'),        value: `${(s.crit * 100).toFixed(1)}%`,                    color: '#ffaa44' },
+        { key: 'def',         label: tr('stat.def'),         value: s.def.toFixed(1),                                   color: '#88aaff' },
+        { key: 'atkSpeed',    label: tr('stat.atkSpeed'),    value: `${(s.atkSpeed * 100).toFixed(2)}%`,                color: '#ff88ff' },
+        { key: 'evasion',     label: tr('stat.evasion'),     value: `${(s.evasion * 100).toFixed(1)}%`,                color: '#aaddff' },
+        { key: 'critDmg',     label: tr('stat.critDmg'),     value: `${((1 + s.critDmg) * 100).toFixed(2)}%`,          color: '#ffdd44' },
+        { key: 'lifesteal',   label: tr('stat.lifesteal'),   value: `${(s.lifesteal * 100).toFixed(2)}%`,              color: '#ff6699' },
+        { key: 'dotBonus',    label: tr('stat.dotBonus'),    value: `+${(s.dotBonus * 100).toFixed(1)}%`,              color: '#cc88ff' },
+        { key: 'speed',       label: tr('stat.speed'),       value: s.speed.toFixed(1),                                 color: '#ffff88' },
+        { key: 'penetration', label: tr('stat.penetration'), value: s.penetration.toFixed(1),                           color: '#ff9944' },
+      ];
+
+      const colW2  = statsW / 2;
+      const rowH   = (statsH - P(22)) / 6;
+      const BTN_W  = P(24);
+      const BTN_H  = P(20);
+      const hasPts = pts > 0;
+
+      CELLS.forEach((cell, idx) => {
+        const ci   = idx % 2;
+        const ri   = Math.floor(idx / 2);
+        const cx   = statsX + ci * colW2;
+        const ry   = statsY + P(22) + ri * rowH + rowH / 2;
+        const btnX = cx + colW2 - BTN_W / 2 - P(3);
+
+        statsLayer.add(this.add.text(cx + P(5), ry, cell.label, {
+          fontSize: getLang() === 'en' ? F(11) : F(13), fontStyle: 'bold',
+          color: '#888888', stroke: '#000', strokeThickness: 1,
+        }).setOrigin(0, 0.5));
+
+        statsLayer.add(this.add.text(btnX - BTN_W / 2 - P(4), ry, cell.value, {
+          fontSize: F(13), fontStyle: 'bold', color: cell.color, stroke: '#000', strokeThickness: 1,
+        }).setOrigin(1, 0.5));
+
+        if (hasPts) {
+          const btnBg = this.add.graphics();
+          const bx = btnX - BTN_W / 2;
+          const by = ry - BTN_H / 2;
+          const br = P(4);
+          btnBg.fillStyle(0x000000, 0.6);
+          btnBg.fillRoundedRect(bx + P(2), by + P(2), BTN_W, BTN_H, br);
+          btnBg.fillStyle(0x2a5a10, 1);
+          btnBg.fillRoundedRect(bx, by, BTN_W, BTN_H, br);
+          btnBg.fillStyle(0xffffff, 0.18);
+          btnBg.fillRoundedRect(bx + P(2), by + P(1), BTN_W - P(4), BTN_H * 0.45, { tl: br, tr: br, bl: 0, br: 0 });
+          btnBg.lineStyle(1.5, 0x88ee44, 1);
+          btnBg.strokeRoundedRect(bx, by, BTN_W, BTN_H, br);
+          statsLayer.add(btnBg);
+          const plusTxt = this.add.text(btnX, ry + P(1), '+', {
+            fontSize: F(15), fontStyle: 'bold', color: '#ccff88', stroke: '#1a3a00', strokeThickness: 2,
+          }).setOrigin(0.5);
+          statsLayer.add(plusTxt);
+
+          const hit = this.add.rectangle(btnX, ry, BTN_W + P(8), rowH).setInteractive({ useHandCursor: true });
+          hit.on('pointerdown', () => {
+            this.tweens.add({
+              targets: plusTxt, scaleX: 0.65, scaleY: 0.65,
+              duration: 65, yoyo: true, ease: 'Sine.easeOut',
+              onComplete: () => { PlayerStore.allocateStat(cell.key, 1); SaveStore.save(); buildStats(); },
+            });
+          });
+          statsLayer.add(hit);
+        }
       });
     };
     buildStats();
+
+
 
     // ── 批量分解 modal ────────────────────────────────────
     const showBatchDismantleModal = () => {
@@ -5601,25 +5743,26 @@ export class PrepScene extends Phaser.Scene {
 
       // 分解按鈕（共用）
       const dismantleQty = detMonTier >= 5 ? 10 : detMonTier === 3 ? 5 : 1;
-      const addDismantleBtn = () => {
+      const addDismantleBtn = (disabled = false) => {
         const BW2 = PDW - P(40);
         const dg = this.add.graphics();
-        dg.fillStyle(0x2a1a0a, 1); dg.fillRect(-BW2 / 2, dismantleY - BH / 2, BW2, BH);
-        dg.lineStyle(P(1.5), 0x996633, 0.85); dg.strokeRect(-BW2 / 2, dismantleY - BH / 2, BW2, BH);
+        dg.fillStyle(disabled ? 0x1a1a1a : 0x2a1a0a, 1); dg.fillRect(-BW2 / 2, dismantleY - BH / 2, BW2, BH);
+        dg.lineStyle(P(1.5), disabled ? 0x555555 : 0x996633, 0.85); dg.strokeRect(-BW2 / 2, dismantleY - BH / 2, BW2, BH);
         pop.add(dg);
         pop.add(this.add.text(0, dismantleY, tr('prep.card.dismantleGain', { n: dismantleQty }), {
-          fontSize: F(13), fontStyle: 'bold', color: '#cc9955', stroke: '#000', strokeThickness: 2,
+          fontSize: F(13), fontStyle: 'bold', color: disabled ? '#555555' : '#cc9955', stroke: '#000', strokeThickness: 2,
         }).setOrigin(0.5));
-        const hit = this.add.rectangle(0, dismantleY, BW2, BH).setInteractive({ useHandCursor: true });
-        hit.on('pointerdown', (ptr: Phaser.Input.Pointer) => {
-          ptr.event.stopPropagation();
-          if (isEquipped) CardStore.unequip(equippedSlot!);
-          else CardStore.removeFromInventory(cardId, 1);
-          InventoryStore.addItem(ITEM_BLANK_CARD, tr('item.blank_card'), dismantleQty);
-          SaveStore.save();
-          pop.destroy(); detailPopup = null;
-        });
-        pop.add(hit);
+        if (!disabled) {
+          const hit = this.add.rectangle(0, dismantleY, BW2, BH).setInteractive({ useHandCursor: true });
+          hit.on('pointerdown', (ptr: Phaser.Input.Pointer) => {
+            ptr.event.stopPropagation();
+            CardStore.removeFromInventory(cardId, 1);
+            InventoryStore.addItem(ITEM_BLANK_CARD, tr('item.blank_card'), dismantleQty);
+            SaveStore.save();
+            pop.destroy(); detailPopup = null;
+          });
+          pop.add(hit);
+        }
       };
 
       if (isEquipped) {
@@ -5653,7 +5796,7 @@ export class PrepScene extends Phaser.Scene {
             enterInventoryPick(equippedSlot!, cardId);
           });
         }
-        addDismantleBtn();
+        addDismantleBtn(true);
       } else {
         // 庫存中：「配置」或「已達上限」
         const BW = PDW - P(40);
@@ -6301,11 +6444,11 @@ export class PrepScene extends Phaser.Scene {
       { id: ITEM_POTION_REVIVE, name: tr('item.potion_revive'), price: 5000, desc: tr('game.potion.reviveAuto'), color: 0xffee44 },
     ];
     const STONE_ITEMS: ShopItem[] = [
-      { id: ITEM_STONE_BROKEN, name: tr('item.stone_broken'), price: 500, desc: tr('game.stone.enhance'), color: 0x88ccff },
-      { id: ITEM_STONE_INTACT, name: tr('item.stone_intact'), price: 900, desc: tr('prep.equip.enhanceRate'), color: 0x66ffcc },
+      { id: ITEM_STONE_BROKEN, name: tr('item.stone_broken'), price: 300, desc: tr('game.stone.enhance'), color: 0x88ccff },
+      { id: ITEM_STONE_INTACT, name: tr('item.stone_intact'), price: 500, desc: tr('prep.equip.enhanceRate'), color: 0x66ffcc },
       { id: ITEM_STONE_BREAKTHROUGH, name: tr('item.stone_breakthrough'), price: 3000, desc: tr('game.stone.breakthrough'), color: 0xffaa44 },
       { id: 'stone_guard', name: tr('item.stone_guard'), price: 4500, desc: tr('prep.item.guardStoneDesc'), color: 0xbb66ff },
-      { id: ITEM_QUEST_REROLL, name: tr('item.quest_reroll'), price: 250, desc: tr('prep.quest.resetList'), color: 0xffcc44 },
+      { id: ITEM_QUEST_REROLL, name: tr('item.quest_reroll'), price: 100, desc: tr('prep.quest.resetList'), color: 0xffcc44 },
       { id: ITEM_BLANK_CARD, name: tr('item.blank_card'), price: 3000, desc: tr('prep.item.blankCardDesc'), color: 0xcc88ff },
     ];
     const TAB_DEFS: { label: string; items: ShopItem[] | null }[] = [
