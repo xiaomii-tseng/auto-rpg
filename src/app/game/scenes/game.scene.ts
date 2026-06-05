@@ -6473,15 +6473,17 @@ export class GameScene extends Phaser.Scene {
   private _buildQuestMiniMap(): void {
     if (!this.worldW || !this.worldH || !this.waypointRooms.length) return;
 
+    this._miniMapZoom = SaveStore.getMiniMapZoom();
+
     const D = 9800;
     const BOX_X = P(8), BOX_Y = this._MINI_TOP;
-    const BOX_W = P(72), BOX_H = P(54);
+    const BOX_W = P(122), BOX_H = P(91);
     const BOX_CX = BOX_X + BOX_W / 2, BOX_CY = BOX_Y + BOX_H / 2;
     const PAD = P(3);
 
     // Background panel
     const bg = this.add.graphics().setScrollFactor(0).setDepth(D);
-    bg.fillStyle(0x060c18, 0.85);
+    bg.fillStyle(0x060c18, 0.50);
     bg.fillRoundedRect(BOX_X, BOX_Y, BOX_W, BOX_H, P(4));
     bg.lineStyle(P(1), 0x3a5a88, 0.6);
     bg.strokeRoundedRect(BOX_X, BOX_Y, BOX_W, BOX_H, P(4));
@@ -6577,11 +6579,11 @@ export class GameScene extends Phaser.Scene {
     const btnPlus = this.add.text(BTN_CX, BOX_Y + BTN_H / 2, '+', zBtnStyle)
       .setOrigin(0.5).setScrollFactor(0).setDepth(D + 5)
       .setInteractive({ useHandCursor: true })
-      .on('pointerdown', () => { this._miniMapZoom = Math.min(4, this._miniMapZoom + 1); });
+      .on('pointerdown', () => { this._miniMapZoom = Math.min(4, this._miniMapZoom + 1); SaveStore.setMiniMapZoom(this._miniMapZoom); SaveStore.save(); });
     const btnMinus = this.add.text(BTN_CX, BOX_Y + BOX_H - BTN_H / 2, '−', zBtnStyle)
       .setOrigin(0.5).setScrollFactor(0).setDepth(D + 5)
       .setInteractive({ useHandCursor: true })
-      .on('pointerdown', () => { this._miniMapZoom = Math.max(1, this._miniMapZoom - 1); });
+      .on('pointerdown', () => { this._miniMapZoom = Math.max(1, this._miniMapZoom - 1); SaveStore.setMiniMapZoom(this._miniMapZoom); SaveStore.save(); });
 
     // Hit zone covers full box (buttons are outside so no conflict)
     const hitZone = this.add.rectangle(BOX_CX, BOX_CY, BOX_W, BOX_H)
@@ -6589,7 +6591,7 @@ export class GameScene extends Phaser.Scene {
       .setInteractive({ useHandCursor: true })
       .on('pointerdown', () => this._showFullMap());
 
-    this._questMiniObjs = [bg, maskGfx, dynGfx, btnGfx, btnPlus, btnMinus, hitZone];
+    this._questMiniObjs = [bg, dynGfx, btnGfx, btnPlus, btnMinus, hitZone];
   }
 
   // ── Tower maze mini-map (top-left HUD, click to expand) ─────

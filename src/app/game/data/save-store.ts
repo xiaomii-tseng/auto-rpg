@@ -66,6 +66,7 @@ export function decryptSave(cipher: string): string {
 }
 let _onSaveHook:        (() => void) | null = null;
 let _onForceUploadHook: (() => void) | null = null;
+let _miniMapZoom = 1;
 
 interface SaveData {
   version: string | number;
@@ -98,6 +99,7 @@ interface SaveData {
   dismantlePrefs?:  { qualities: string[]; slots: string[] };
   tutorial?:        Partial<Record<TutorialKey, boolean>>;
   allocMigrated?:   boolean;
+  settings?:        { miniMapZoom?: number };
 }
 
 export function makeInitialSave(playerName = ''): SaveData {
@@ -124,6 +126,8 @@ export const SaveStore = {
   setOnSaveHook(fn: () => void): void        { _onSaveHook = fn; },
   setOnForceUploadHook(fn: () => void): void { _onForceUploadHook = fn; },
   forceUpload(): void                        { _onForceUploadHook?.(); },
+  getMiniMapZoom(): number                   { return _miniMapZoom; },
+  setMiniMapZoom(n: number): void            { _miniMapZoom = n; },
 
   save(): void {
     const data: SaveData = {
@@ -155,6 +159,7 @@ export const SaveStore = {
       dismantlePrefs:  DismantlePrefsStore.getSaveData(),
       tutorial:        TutorialStore.getSaveData(),
       allocMigrated:   true,
+      settings:        { miniMapZoom: _miniMapZoom },
     };
     try {
       localStorage.setItem(SAVE_KEY, encryptSave(JSON.stringify(data)));
@@ -228,6 +233,7 @@ export const SaveStore = {
         AudioService.setBgmVolume(data.audio.bgm);
         AudioService.setSfxVolume(data.audio.sfx);
       }
+      if (data.settings?.miniMapZoom) _miniMapZoom = data.settings.miniMapZoom;
 
       _loaded = true;
       return true;
