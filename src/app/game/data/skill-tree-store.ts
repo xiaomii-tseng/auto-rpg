@@ -4,12 +4,12 @@ import { t } from '../i18n/i18n';
 
 export type AttackModeId =
   'aura' | 'projectile' | 'boomerang' | 'hellfire' |
-  'whirlwind' | 'slash180' | 'chargeSlam' | 'dashPierce' | 'multiHit' | 'knifeThrow' | 'flowerMode';
+  'whirlwind' | 'slash180' | 'chargeSlam' | 'dashPierce' | 'multiHit' | 'knifeThrow' | 'flowerMode' | 'laserBeam';
 
 export interface AttackModeInfo { id: AttackModeId; label: string; unlockedBy?: string; }
 
 export const ATTACK_MODES: AttackModeInfo[] = [
-  { id: 'slash180',    label: t('mode.slash180')   },
+  { id: 'laserBeam',   label: t('mode.laserBeam') },
   { id: 'aura',        label: t('mode.aura')       },
   { id: 'projectile',  label: t('mode.projectile') },
   { id: 'boomerang',   label: t('mode.boomerang')  },
@@ -73,10 +73,11 @@ export const SKILL_NODES: SkillNode[] = [
   { id: '1-5-1',   label: t('skill.1-5-1.label'),   desc: t('skill.1-5-1.desc'),   x:  46, y: 127, parentId: '1-5',   attackMode: 'whirlwind' },
   { id: '1-5-1-1', label: t('skill.1-5-1-1.label'), desc: t('skill.1-5-1-1.desc'), x:  68, y: 188, parentId: '1-5-1', attackMode: 'whirlwind' },
 
-  // ── 半月斬 branch (110°) ──────────────────────────────────────────────────
-  { id: '1-6',     label: t('skill.1-6.label'),     desc: t('skill.1-6.desc'),     x: -24, y:  66, parentId: '1',     attackMode: 'slash180' },
-  { id: '1-6-1',   label: t('skill.1-6-1.label'),   desc: t('skill.1-6-1.desc'),   x: -46, y: 127, parentId: '1-6',   attackMode: 'slash180' },
-  { id: '1-6-1-1', label: t('skill.1-6-1-1.label'), desc: t('skill.1-6-1-1.desc'), x: -68, y: 188, parentId: '1-6-1', attackMode: 'slash180' },
+  // ── 雷電釋放 branch (110°) ──────────────────────────────────────────────────
+  { id: '1-6',       label: t('skill.1-6.label'),       desc: t('skill.1-6.desc'),       x:  -24, y:  66, parentId: '1',       attackMode: 'laserBeam' },
+  { id: '1-6-1',     label: t('skill.1-6-1.label'),     desc: t('skill.1-6-1.desc'),     x:  -46, y: 127, parentId: '1-6',     attackMode: 'laserBeam' },
+  { id: '1-6-1-1',   label: t('skill.1-6-1-1.label'),   desc: t('skill.1-6-1-1.desc'),   x:  -68, y: 188, parentId: '1-6-1',   attackMode: 'laserBeam' },
+  { id: '1-6-1-1-1', label: t('skill.1-6-1-1-1.label'), desc: t('skill.1-6-1-1-1.desc'), x:  -90, y: 249, parentId: '1-6-1-1', attackMode: 'laserBeam' },
 
   // ── 隕石術 branch (150°) ──────────────────────────────────────────────────
   { id: '1-7',       label: t('skill.1-7.label'),       desc: t('skill.1-7.desc'),       x:  -61, y:  35, parentId: '1',       attackMode: 'chargeSlam' },
@@ -165,6 +166,7 @@ export const MODE_COLORS: Record<string, number> = {
   hellfire:    0xff8844,
   whirlwind:   0x44ff66,
   slash180:    0x4488ff,
+  laserBeam:   0x00ddff,
   chargeSlam:  0xcc44ff,
   dashPierce:  0xffdd44,
   multiHit:    0xff66cc,
@@ -228,7 +230,7 @@ export const SkillTreeStore = {
 
   resetAll(): void {
     _learned.clear();
-    _attackMode = 'slash180';
+    _attackMode = 'whirlwind';
   },
 
   /** 將已學技能轉換為 StatBonus，由 CardStore.getTotalStats() 合併使用 */
@@ -255,8 +257,11 @@ export const SkillTreeStore = {
       chargeSlamDmgPct:     (L('1-7-1') ? 0.25 : 0),
       chargeSlamOverload:   (L('1-7-1-1') ? 1 : 0),
       meteorGiant:          (L('1-7-1-1-1') ? 1 : 0),
-      // ── 半月斬 ────────────────────────────────────────────
-      slash180DmgPct:       (L('1-6') ? 0.10 : 0) + (L('1-6-1') ? 0.15 : 0) + (L('1-6-1-1') ? 0.20 : 0),
+      // ── 雷電釋放 ──────────────────────────────────────────
+      laserChain:           (L('1-6')       ? 3   : 0),
+      laserRadiusPct:       (L('1-6-1')     ? 1.0 : 0),
+      laserDoubleDuration:  (L('1-6-1-1')   ? 1   : 0),
+      laserExplode:         (L('1-6-1-1-1') ? 1   : 0),
       // ── 旋風斬 ────────────────────────────────────────────
       whirlwindRangePct:    (L('1-5') ? 0.10 : 0) + (L('1-5-1') ? 0.20 : 0),
       whirlwindDmgPct:      (L('1-5-1-1') ? 0.30 : 0),

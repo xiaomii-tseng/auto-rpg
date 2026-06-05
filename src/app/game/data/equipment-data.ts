@@ -6,7 +6,7 @@ export type EquipQuality  = 'normal' | 'good' | 'fine' | 'perfect' | 'legendary'
 export type StatKey       = 'atk' | 'hp' | 'def' | 'crit' | 'speed' | 'atkSpeed' | 'lifesteal' | 'evasion' | 'critDmg' | 'hpRegen' | 'dotBonus' | 'penetration'
                           | 'potionHealPct' | 'onKillHeal' | 'eliteKillerPct' | 'dropRatePct' | 'rarityBonus'
                           | 'killShieldPerKill' | 'executePct' | 'regenShieldMax' | 'allDmgPct' | 'maxHpPct';
-export type AttackBehavior = 'slash180' | 'whirlwind' | 'dashPierce' | 'projectile' | 'aura' | 'multiHit' | 'chargeSlam' | 'boomerang' | 'magicFire' | 'knifeThrow' | 'flowerMode';
+export type AttackBehavior = 'slash180' | 'whirlwind' | 'dashPierce' | 'projectile' | 'aura' | 'multiHit' | 'chargeSlam' | 'boomerang' | 'magicFire' | 'knifeThrow' | 'flowerMode' | 'laserBeam';
 
 export type Element = 'none' | 'water' | 'fire' | 'grass';
 
@@ -67,6 +67,10 @@ export interface StatBonus {
   whirlwindRangePct?:   number;  // 旋風斬範圍 ×(1+X)
   whirlwindDmgPct?:     number;  // 旋風斬傷害 ×(1+X)
   slash180DmgPct?:      number;  // 半月斬傷害 ×(1+X)
+  laserRadiusPct?:        number;  // 雷電輻射半徑 ×(1+X)（base P(20)）
+  laserExplode?:          number;  // 1=每4tick核爆脈衝，60px內等量傷害（ATK×30%，滿層×60%）
+  laserChain?:            number;  // 連鎖子閃電條數，鎖定75px內最遠敵人（各70%傷害）
+  laserDoubleDuration?:   number;  // 1=滿充能持續時間×2（4s→8s）
   burnMaxStackBonus?:   number;  // 燃燒上限 +X 層
   burnSpread?:          number;  // 燃燒擴散半徑（張數 × 80px）
   burnSpreadSkillPx?:   number;  // 技能燃燒擴散半徑（CSS px，game scene 乘 DPR）
@@ -320,6 +324,7 @@ export const BEHAVIOR_NAMES: Record<AttackBehavior, string> = {
   magicFire:  t('behavior.magicFire'),
   knifeThrow: t('behavior.knifeThrow'),
   flowerMode: t('behavior.flowerMode'),
+  laserBeam:  t('behavior.laserBeam'),
 };
 
 export interface BehaviorInfo {
@@ -422,6 +427,14 @@ export const BEHAVIOR_INFO: Record<AttackBehavior, BehaviorInfo> = {
     relatedStats: [
       { stat: 'atk', note: t('stat.atk') },
       { stat: 'hp',  note: t('stat.hp') },
+    ],
+  },
+  laserBeam: {
+    desc:    t('behavior.laserBeam.desc'),
+    formula: [t('behavior.laserBeam.f1'), t('behavior.laserBeam.f2'), t('behavior.laserBeam.f3')],
+    relatedStats: [
+      { stat: 'atk',      note: t('stat.atk') },
+      { stat: 'atkSpeed', note: t('stat.atkSpeed') },
     ],
   },
 };

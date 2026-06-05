@@ -83,6 +83,11 @@ export interface EffectiveStats {
   projectileDistPct?:    number;
   projectileDmgPct?:     number;
   projectileFan?:        number;
+  // ── 雷射光束 ──
+  laserRadiusPct?:          number;
+  laserExplode?:            number;
+  laserChain?:              number;
+  laserDoubleDuration?:     number;
   // ── 玻璃砲 ──
   allDmgPct?:    number;
   takenDmgPct?:  number;

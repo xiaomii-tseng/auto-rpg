@@ -298,6 +298,18 @@ export class GameScene extends Phaser.Scene {
   private auraRing?: Phaser.GameObjects.Graphics;
   private activeFires: { x: number; y: number; r: number; expiresAt: number }[] = [];
   protected _leechPool = 0;
+  private _laserTickCount  = 0;
+  private _laserSlowTimer?: Phaser.Time.TimerEvent;
+  private _laserLastDir     = '';
+  private _laserBeamGfx?: Phaser.GameObjects.Graphics;
+  private _laserFireExpiry  = 0;
+  private _laserLastDmgTime = 0;
+  private _laserFocusTarget?: object;  // 目前鎖定目標（用於判斷是否換目標）
+  private _laserFocusStart  = 0;       // 開始照射當前目標的時間戳
+  private _laserFocusTier   = 0;       // 0/1/2 對應三段增傷
+  private _laserEnergy      = 100;     // 0-100，射擊 4s 耗盡，2s 充滿
+  private _laserEnergyReady = true;    // false=耗盡，需充滿才能再次射擊
+  private _laserEnergyGfx?: Phaser.GameObjects.Graphics;
   private _bloodlustStacks = 0;
   private _bloodlustTimer: Phaser.Time.TimerEvent | null = null;
   private _bloodlustExpiry = 0;
@@ -335,7 +347,8 @@ export class GameScene extends Phaser.Scene {
   private _buffHudTexts: Phaser.GameObjects.Text[] = [];
   protected _lastBuffHudRefresh = 0;
   private _pendingHitWeight = 0;
-  private _hitShakePending = false;
+  private _hitShakePending    = false;
+  private _suppressHitShake   = false;
   private _pendingDailyDmg = 0;
   private _pendingDailyDmgPending = false;
 
@@ -504,7 +517,22 @@ export class GameScene extends Phaser.Scene {
     this._miniMapExpandedObjs = [];
     this._miniQuestDotFn = undefined;
     this._questMiniObjs = [];
-    this._miniMapZoom = 1;
+    this._miniMapZoom    = 1;
+    this._laserTickCount = 0;
+    this._laserSlowTimer?.destroy();
+    this._laserSlowTimer = undefined;
+    this._laserLastDir   = '';
+    this._laserBeamGfx?.destroy();
+    this._laserBeamGfx     = undefined;
+    this._laserFireExpiry  = 0;
+    this._laserLastDmgTime = 0;
+    this._laserFocusTarget = undefined;
+    this._laserFocusStart  = 0;
+    this._laserFocusTier   = 0;
+    this._laserEnergy      = 100;
+    this._laserEnergyReady = true;
+    this._laserEnergyGfx?.destroy();
+    this._laserEnergyGfx   = undefined;
     this._mazeDarkRt = undefined;
     this._mazePoisonTimer?.destroy();
     this._mazePoisonTimer = undefined;
@@ -2443,6 +2471,205 @@ export class GameScene extends Phaser.Scene {
       }
     });
 
+    // ── 雷電釋放持續視覺（每 frame 重繪，從玩家直連最近怪物）──────────────
+    const isLaserMode = SkillTreeStore.getAttackMode() === 'laserBeam';
+    const laserActive = isLaserMode && !this.gameOver && this.player?.active &&
+                        this.time.now < this._laserFireExpiry;
+    if (laserActive) {
+      if (!this._laserBeamGfx) {
+        this._laserBeamGfx = this.add.graphics();
+      }
+      const lg = this._laserBeamGfx;
+      // 低於玩家，避免光束蓋住角色
+      lg.setDepth(this.player.depth - 1);
+
+      const RANGE = P(180);
+      const lpx = this.player.x, lpy = this.player.y;
+      const lt = this.time.now / 1000;
+      const lstats = CardStore.getTotalStats();
+      const BASE_RAD = P(20);
+      const lRadR = Math.round(BASE_RAD * (1 + (lstats.laserRadiusPct ?? 0)));
+
+      let ltgtX = lpx, ltgtY = lpy, lhasTarget = false, lminDist = Infinity;
+      for (const le of this.getHittableTargets()) {
+        const ld = Phaser.Math.Distance.Between(lpx, lpy, le.x, le.y);
+        if (ld <= RANGE && ld < lminDist) { lminDist = ld; ltgtX = le.x; ltgtY = le.y; lhasTarget = true; }
+      }
+
+      // 玩家持續面向目標（只更新 lastDir，不播攻擊動畫，避免 isAttacking 鎖住傷害 tick）
+      if (lhasTarget) {
+        const laimRad = Math.atan2(ltgtY - lpy, ltgtX - lpx);
+        const ladx = Math.abs(Math.cos(laimRad)), lady = Math.abs(Math.sin(laimRad));
+        const ldir: 'right' | 'left' | 'up' | 'down' =
+          ladx >= lady ? (Math.cos(laimRad) >= 0 ? 'right' : 'left') : (Math.sin(laimRad) >= 0 ? 'down' : 'up');
+        this.player.lastDir = ldir;
+        this._laserLastDir  = ldir;
+      }
+
+      lg.clear();
+      const lpulse = 0.82 + Math.sin(lt * 14) * 0.18;
+
+      if (lhasTarget) {
+        // ── 有目標：畫光束 ──────────────────────────────────
+        const lAng = Math.atan2(ltgtY - lpy, ltgtX - lpx);
+        const lox = lpx + Math.cos(lAng) * P(10);
+        const loy = lpy + Math.sin(lAng) * P(10);
+
+        // ── focus tier 顏色：tier0=青藍 tier1=黃白 tier2=橘紅 ──
+        const ltier = this._laserFocusTier;
+        const lcoreColor  = ltier === 0 ? 0x88eeff : ltier === 1 ? 0xffffaa : 0xff9944;
+        const lmidColor   = ltier === 0 ? 0x00aaff : ltier === 1 ? 0xffdd44 : 0xff5500;
+        const louterColor = ltier === 0 ? 0x0055cc : ltier === 1 ? 0xaa8800 : 0xcc2200;
+
+        // ── 閃電折線 ──────────────────────────────────────
+        const ldx = ltgtX - lox, ldy = ltgtY - loy;
+        const llen = Math.sqrt(ldx * ldx + ldy * ldy) || 1;
+        const lnx = -ldy / llen, lny = ldx / llen; // 垂直法向量
+
+        // 建立主電弧頂點（每 frame 隨機抖動）
+        const LSEGS = 10;
+        const lpts: { x: number; y: number }[] = [{ x: lox, y: loy }];
+        for (let li2 = 1; li2 < LSEGS; li2++) {
+          const lt2 = li2 / LSEGS;
+          const jAmt = P(8) * Math.sin(lt2 * Math.PI); // 中段抖動大，兩端收斂
+          const jitter = (Math.random() - 0.5) * 2 * jAmt;
+          lpts.push({ x: lox + ldx * lt2 + lnx * jitter, y: loy + ldy * lt2 + lny * jitter });
+        }
+        lpts.push({ x: ltgtX, y: ltgtY });
+
+        // 繪製三層（外暈 → 主體 → 白芯）
+        const strokeLightning = (pts: { x: number; y: number }[]) => {
+          lg.beginPath(); lg.moveTo(pts[0].x, pts[0].y);
+          for (let i = 1; i < pts.length; i++) lg.lineTo(pts[i].x, pts[i].y);
+          lg.strokePath();
+        };
+        lg.lineStyle(P(14), louterColor, 0.12 * lpulse); strokeLightning(lpts);
+        lg.lineStyle(P(7),  lmidColor,   0.50 * lpulse); strokeLightning(lpts);
+        lg.lineStyle(P(3),  lcoreColor,  0.85 * lpulse); strokeLightning(lpts);
+        lg.lineStyle(P(1),  0xffffff,    0.95 * lpulse); strokeLightning(lpts);
+
+        // 副電弧（從中段分叉出去）
+        const lbranchIdx = 3 + Math.floor(Math.random() * (LSEGS - 4));
+        const lbStart = lpts[lbranchIdx];
+        const lbAngle = Math.atan2(ldy, ldx) + (Math.random() > 0.5 ? 0.6 : -0.6);
+        const lbLen   = llen * (0.25 + Math.random() * 0.20);
+        const lbPts: { x: number; y: number }[] = [{ x: lbStart.x, y: lbStart.y }];
+        const LBSEGS = 4;
+        for (let li3 = 1; li3 < LBSEGS; li3++) {
+          const lt3 = li3 / LBSEGS;
+          const bj = (Math.random() - 0.5) * P(5);
+          lbPts.push({
+            x: lbStart.x + Math.cos(lbAngle) * lbLen * lt3 + lnx * bj,
+            y: lbStart.y + Math.sin(lbAngle) * lbLen * lt3 + lny * bj,
+          });
+        }
+        lg.lineStyle(P(4), 0x00aaff, 0.30 * lpulse); strokeLightning(lbPts);
+        lg.lineStyle(P(2), 0x88eeff, 0.55 * lpulse); strokeLightning(lbPts);
+        lg.lineStyle(P(1), 0xffffff, 0.70 * lpulse); strokeLightning(lbPts);
+
+        // 發射口動態光暈
+        const lmuzzle  = 0.65 + Math.sin(lt * 20) * 0.35;
+        const lmuzzle2 = 0.65 + Math.sin(lt * 20 + Math.PI) * 0.35;
+        const lringR   = P(7) + Math.sin(lt * 16) * P(4);
+        lg.fillStyle(0x0066cc, 0.30 * lmuzzle);
+        lg.fillCircle(lox, loy, P(14));
+        lg.lineStyle(P(2), 0x00aaff, 0.55 * lmuzzle2);
+        lg.strokeCircle(lox, loy, lringR);
+        lg.fillStyle(0x00ddff, 0.65 * lmuzzle);
+        lg.fillCircle(lox, loy, P(8));
+        for (let li = 0; li < 8; li++) {
+          const la = (li / 8) * Math.PI * 2 + lt * 3;
+          const lr1 = P(5), lr2 = P(8) + Math.sin(lt * 12 + li) * P(3);
+          lg.lineStyle(P(1), 0x88eeff, 0.45 * lmuzzle);
+          lg.lineBetween(
+            lox + Math.cos(la) * lr1, loy + Math.sin(la) * lr1,
+            lox + Math.cos(la) * lr2, loy + Math.sin(la) * lr2,
+          );
+        }
+        lg.fillStyle(0xffffff, 0.90 * lmuzzle);
+        lg.fillCircle(lox, loy, P(3));
+
+        // 命中點
+        const lspark = 0.60 + Math.sin(lt * 20) * 0.40;
+        lg.fillStyle(0x44ffff, 0.70 * lspark);
+        lg.fillCircle(ltgtX, ltgtY, P(8) * (0.8 + lspark * 0.2));
+        lg.fillStyle(0xffffff, 0.90 * lspark);
+        lg.fillCircle(ltgtX, ltgtY, P(3));
+        lg.lineStyle(P(1), 0x00ffcc, 0.28 * lpulse);
+        lg.strokeCircle(ltgtX, ltgtY, lRadR);
+      } else {
+        // ── 無目標：玩家身邊脈動光環 ────────────────────────
+        const lauraR1 = P(18) + Math.sin(lt * 8)  * P(4);
+        const lauraR2 = P(28) + Math.sin(lt * 6 + 1) * P(5);
+        const lauraPulse = 0.50 + Math.sin(lt * 10) * 0.20;
+        // 內層填充光暈
+        lg.fillStyle(0x0044aa, 0.18 * lauraPulse);
+        lg.fillCircle(lpx, lpy, lauraR2);
+        // 外環
+        lg.lineStyle(P(2), 0x00aaff, 0.40 * lauraPulse);
+        lg.strokeCircle(lpx, lpy, lauraR2);
+        // 內環（反相）
+        lg.lineStyle(P(3), 0x00ddff, 0.55 * (1 - lauraPulse + 0.5));
+        lg.strokeCircle(lpx, lpy, lauraR1);
+        // 旋轉光芒（6 條）
+        for (let li = 0; li < 6; li++) {
+          const la = (li / 6) * Math.PI * 2 + lt * 1.5;
+          lg.lineStyle(P(1), 0x88eeff, 0.35 * lauraPulse);
+          lg.lineBetween(
+            lpx + Math.cos(la) * P(10), lpy + Math.sin(la) * P(10),
+            lpx + Math.cos(la) * lauraR1, lpy + Math.sin(la) * lauraR1,
+          );
+        }
+      }
+    } else if (this._laserBeamGfx) {
+      this._laserBeamGfx.destroy();
+      this._laserBeamGfx = undefined;
+    }
+
+    // ── 雷電釋放 能量條（射5s耗盡，2s充滿，需滿才能再次射）────────────────
+    if (isLaserMode && this.player?.active && !this.gameOver) {
+      const eDelta = this.game.loop.delta;
+      const eStats = CardStore.getTotalStats();
+      const eFireMs = (eStats.laserDoubleDuration ?? 0) >= 1 ? 8000 : 5000;
+      if (laserActive) {
+        this._laserEnergy = Math.max(0, this._laserEnergy - eDelta * (100 / eFireMs));
+        if (this._laserEnergy <= 0) this._laserEnergyReady = false;
+      } else {
+        // 未在射擊時持續充能，但耗盡後需等到全滿才能再射
+        this._laserEnergy = Math.min(100, this._laserEnergy + eDelta * (100 / 2000));
+        if (this._laserEnergy >= 100) this._laserEnergyReady = true;
+      }
+
+      if (!this._laserEnergyGfx) {
+        this._laserEnergyGfx = this.add.graphics();
+        this._laserEnergyGfx.setDepth(9800);
+      }
+      const eg = this._laserEnergyGfx;
+      eg.clear();
+      const ebw = P(44), ebh = P(4);
+      const ebx = this.player.x - P(22);
+      const eby = this.player.y - P(28);
+      eg.fillStyle(0x111111, 0.65);
+      eg.fillRect(ebx, eby, ebw, ebh);
+      const ePct = this._laserEnergy / 100;
+      let eColor: number;
+      let eAlpha: number;
+      if (!this._laserEnergyReady) {
+        // 耗盡鎖住：紅色閃爍
+        const eFlash = 0.5 + Math.sin(this.time.now / 80) * 0.5;
+        eColor = 0xff2222;
+        eAlpha = 0.5 + eFlash * 0.5;
+      } else {
+        eColor = 0xffffff;
+        eAlpha = 0.90;
+      }
+      eg.fillStyle(eColor, eAlpha);
+      eg.fillRect(ebx, eby, ebw * ePct, ebh);
+    } else if (this._laserEnergyGfx) {
+      this._laserEnergyGfx.destroy();
+      this._laserEnergyGfx = undefined;
+    }
+
     // Reveal minions when player walks within range (AI already running since 400ms after spawn)
     const SHOW_DIST = P(500);
     for (const m of this.allMinions) {
@@ -2659,6 +2886,7 @@ export class GameScene extends Phaser.Scene {
       case 'boomerang': this.attackBoomerang(tx, ty); break;
       case 'hellfire': this.attackMagicFire(tx, ty); break;
       case 'knifeThrow': this.attackKnifeThrow(); break;
+      case 'laserBeam':  this.attackLaserBeam(); break;
       default: this.attackSlash180(tx, ty);
     }
   }
@@ -2799,14 +3027,16 @@ export class GameScene extends Phaser.Scene {
         this._pendingDailyDmgPending = false;
       });
     }
-    if (isCrit) this._pendingHitWeight += 2;
-    if (!this._hitShakePending) {
-      this._hitShakePending = true;
-      this.time.delayedCall(0, () => {
-        this.triggerHitShake(this._pendingHitWeight);
-        this._pendingHitWeight = 0;
-        this._hitShakePending = false;
-      });
+    if (!this._suppressHitShake) {
+      if (isCrit) this._pendingHitWeight += 2;
+      if (!this._hitShakePending) {
+        this._hitShakePending = true;
+        this.time.delayedCall(0, () => {
+          this.triggerHitShake(this._pendingHitWeight);
+          this._pendingHitWeight = 0;
+          this._hitShakePending = false;
+        });
+      }
     }
     if (NetworkService.connected) {
       if (isBoss) NetworkService.sendBossHit(bossHpBefore - this.boss.currentHp);
@@ -3116,8 +3346,8 @@ export class GameScene extends Phaser.Scene {
     this.player.startAttackAnim(`player_attack_${dir}`);
 
     const rangeMult = 1 + (bStats.boomerangRangePct ?? 0);
-    const HIT_R = Math.round(P(14) * rangeMult);
-    const SPIN_R = Math.round(P(26) * rangeMult);
+    const HIT_R = Math.round(P(20) * rangeMult);
+    const SPIN_R = Math.round(P(32) * rangeMult);
     const MAX_DIST = P(160);
     const SPIN_MS = Math.round(800 / spd);
     const destX = this.player.x + Math.cos(rad) * MAX_DIST;
@@ -3133,15 +3363,18 @@ export class GameScene extends Phaser.Scene {
       () => ({ x: this.player.x, y: this.player.y }),
       {
         onHitOut: (bx, by) => {
-          let hit = false;
+          let centerHit = false;
           const boomMult = 1 + (bStats.boomerangDmgPct ?? 0);
+          const CENTER_R = P(8);
           for (const t of this.getHittableTargets()) {
-            if (hitOut.has(t)) continue;
-            if (Phaser.Math.Distance.Between(bx, by, t.x, t.y) > HIT_R) continue;
-            hitOut.add(t); hit = true;
-            this.dealDamage(t, 0.60 * boomMult, bx, by, dir);
+            const d = Phaser.Math.Distance.Between(bx, by, t.x, t.y);
+            if (d <= HIT_R && !hitOut.has(t)) {
+              hitOut.add(t);
+              this.dealDamage(t, 0.60 * boomMult, bx, by, dir);
+            }
+            if (d <= CENTER_R) centerHit = true;
           }
-          return hit;
+          return centerHit;
         },
         onSpinTick: (bx, by) => this.hitInArea(bx, by, SPIN_R, 0.30 * (1 + (bStats.boomerangDmgPct ?? 0)), 360, 0, dir),
         onHitBack: (bx, by) => {
@@ -3215,6 +3448,194 @@ export class GameScene extends Phaser.Scene {
       },
       (fx, fy) => spawnFire(fx, fy),
     );
+  }
+
+  // ── 雷電釋放 laserBeam ────────────────────────────────────
+
+  private attackLaserBeam(): void {
+    if (!this._laserEnergyReady) return;
+    // 標記玩家正在攻擊，讓 update() 持續顯示光束
+    this._laserFireExpiry = this.time.now + 150;
+
+    const stats = CardStore.getTotalStats();
+    const spd   = 1 + this.getEffectiveAtkSpeed();
+    const cd    = Math.round(100 / spd);
+    // 用自己的時間戳記取代 lockCooldown，避免與 _spaceHoldTimer 100ms 的競爭條件
+    if (this.time.now - this._laserLastDmgTime < cd) return;
+    this._laserLastDmgTime = this.time.now;
+
+    const RANGE    = P(180);
+    const BASE_RAD = P(20);
+    const radR     = Math.round(BASE_RAD * (1 + (stats.laserRadiusPct ?? 0)));
+    const TICK_DMG = 0.12; // 100ms tick × 1.2/s ≈ 隕石術基礎 DPS
+
+    // 找最近敵人（任意方向）
+    let tgtX = 0, tgtY = 0, hasTarget = false, minDist = Infinity;
+    for (const t of this.getHittableTargets()) {
+      const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, t.x, t.y);
+      if (d <= RANGE && d < minDist) { minDist = d; tgtX = t.x; tgtY = t.y; hasTarget = true; }
+    }
+
+    const px = this.player.x, py = this.player.y;
+    if (!hasTarget) {
+      // 失去目標，重置 focus
+      this._laserFocusTarget = undefined;
+      this._laserFocusTier   = 0;
+      return;
+    }
+
+    // ── 鎖定目標 focus 追蹤 ──────────────────────────────
+    const nearestTarget = this.getHittableTargets().find(t => t.x === tgtX && t.y === tgtY);
+    if (nearestTarget !== this._laserFocusTarget) {
+      this._laserFocusTarget = nearestTarget;
+      this._laserFocusStart  = this.time.now;
+    }
+    const focusDuration = this.time.now - this._laserFocusStart;
+    const focusMult = focusDuration < 500 ? 1.0 : focusDuration < 1500 ? 1.5 : 2.0;
+    this._laserFocusTier = focusDuration < 500 ? 0 : focusDuration < 1500 ? 1 : 2;
+
+    const aimRad = Math.atan2(tgtY - py, tgtX - px);
+    const adx = Math.abs(Math.cos(aimRad)), ady = Math.abs(Math.sin(aimRad));
+    const dir: 'right' | 'left' | 'up' | 'down' =
+      adx >= ady ? (Math.cos(aimRad) >= 0 ? 'right' : 'left') : (Math.sin(aimRad) >= 0 ? 'down' : 'up');
+
+    // tick 計數 & 爆炸判斷
+    this._laserTickCount++;
+    const isExplode  = (stats.laserExplode ?? 0) >= 1 && this._laserTickCount % 4 === 0;
+    const chainCount = Math.round(stats.laserChain ?? 0);
+    const D          = this.player.depth;
+
+    this._suppressHitShake = true;
+
+    const explodeR = P(60);
+
+    if (isExplode) {
+      // ── 爆炸 tick：範圍內所有怪受相同傷害（含 focus 加成）──
+      this.fxLaserExplosion(tgtX, tgtY, D, explodeR);
+      for (const t of this.getHittableTargets()) {
+        if (Phaser.Math.Distance.Between(tgtX, tgtY, t.x, t.y) > explodeR) continue;
+        this.dealDamage(t, TICK_DMG * 2.5 * focusMult, px, py, dir);
+      }
+    } else {
+      // ── 普通 tick：輻射傷害（含 focus 加成）──────────────
+      for (const t of this.getHittableTargets()) {
+        if (Phaser.Math.Distance.Between(tgtX, tgtY, t.x, t.y) > radR) continue;
+        this.dealDamage(t, TICK_DMG * focusMult, px, py, dir);
+      }
+    }
+
+    // hitSet 供連鎖排除用
+    const hitSet = new Set<MinionSlime | Boss>();
+    for (const t of this.getHittableTargets()) {
+      const r = isExplode ? explodeR : radR;
+      if (Phaser.Math.Distance.Between(tgtX, tgtY, t.x, t.y) <= r) hitSet.add(t);
+    }
+
+    // ── 連鎖子雷射（P(75) 內最遠的敵人）─────────────────────
+    if (chainCount > 0) {
+      const chains = this.getHittableTargets()
+        .filter(t => !hitSet.has(t) && Phaser.Math.Distance.Between(tgtX, tgtY, t.x, t.y) <= P(75))
+        .sort((a, b) => Phaser.Math.Distance.Between(tgtX, tgtY, b.x, b.y) -
+                        Phaser.Math.Distance.Between(tgtX, tgtY, a.x, a.y))
+        .slice(0, chainCount);
+
+      for (const ct of chains) {
+        this.fxLaserChain(tgtX, tgtY, ct.x, ct.y, D);
+        for (const t of this.getHittableTargets()) {
+          if (Phaser.Math.Distance.Between(ct.x, ct.y, t.x, t.y) > radR) continue;
+          this.dealDamage(t, TICK_DMG * 0.7, tgtX, tgtY, dir);
+        }
+      }
+    }
+
+    this._suppressHitShake = false;
+  }
+
+  private fxLaserExplosion(tx: number, ty: number, D: number, r: number): void {
+    // 瞬間白閃
+    const flash = this.add.graphics().setDepth(D + 4);
+    flash.fillStyle(0xffffff, 0.75);
+    flash.fillCircle(tx, ty, r * 0.55);
+    this.tweens.add({
+      targets: flash, alpha: 0, duration: 90, ease: 'Quad.Out',
+      onComplete: () => flash.destroy(),
+    });
+
+    // 內層火球
+    const inner = this.add.graphics().setDepth(D + 3);
+    const s1 = { r: P(12), a: 0.85 };
+    this.tweens.add({
+      targets: s1, r: r * 0.75, a: 0, duration: 260, ease: 'Quad.Out',
+      onUpdate: () => {
+        inner.clear();
+        inner.fillStyle(0xff8800, s1.a * 0.45);
+        inner.fillCircle(tx, ty, s1.r);
+        inner.lineStyle(P(3), 0xffdd44, s1.a);
+        inner.strokeCircle(tx, ty, s1.r);
+      },
+      onComplete: () => inner.destroy(),
+    });
+
+    // 外層衝擊波（青色雷射風格）
+    const outer = this.add.graphics().setDepth(D + 3);
+    const s2 = { r: P(18), a: 0.80 };
+    this.tweens.add({
+      targets: s2, r: r * 1.35, a: 0, duration: 400, ease: 'Quad.Out',
+      onUpdate: () => {
+        outer.clear();
+        outer.lineStyle(P(3), 0x00ddff, s2.a);
+        outer.strokeCircle(tx, ty, s2.r);
+        outer.lineStyle(P(1), 0xffffff, s2.a * 0.45);
+        outer.strokeCircle(tx, ty, s2.r + P(5));
+      },
+      onComplete: () => outer.destroy(),
+    });
+
+
+  }
+
+  private fxLaserChain(sx: number, sy: number, tx: number, ty: number, D: number): void {
+    const gfx = this.add.graphics().setDepth(D + 1);
+    const state = { a: 1 };
+
+    const cdx = tx - sx, cdy = ty - sy;
+    const clen = Math.sqrt(cdx * cdx + cdy * cdy) || 1;
+    const cnx = -cdy / clen, cny = cdx / clen;
+
+    const draw = (a: number) => {
+      gfx.clear();
+      // 每次重新隨機生成折線，造成持續扭動感
+      const CSEGS = 6;
+      const cpts: { x: number; y: number }[] = [{ x: sx, y: sy }];
+      for (let ci = 1; ci < CSEGS; ci++) {
+        const ct = ci / CSEGS;
+        const jAmt = P(5) * Math.sin(ct * Math.PI);
+        const jitter = (Math.random() - 0.5) * 2 * jAmt;
+        cpts.push({ x: sx + cdx * ct + cnx * jitter, y: sy + cdy * ct + cny * jitter });
+      }
+      cpts.push({ x: tx, y: ty });
+
+      const stroke = () => {
+        gfx.beginPath(); gfx.moveTo(cpts[0].x, cpts[0].y);
+        for (let i = 1; i < cpts.length; i++) gfx.lineTo(cpts[i].x, cpts[i].y);
+        gfx.strokePath();
+      };
+      gfx.lineStyle(P(6),  0x0044aa, 0.18 * a); stroke();
+      gfx.lineStyle(P(3),  0x44bbff, 0.50 * a); stroke();
+      gfx.lineStyle(P(1),  0xaaeeff, 0.80 * a); stroke();
+      // 命中點閃光
+      gfx.fillStyle(0x44ffee, 0.75 * a);
+      gfx.fillCircle(tx, ty, P(5));
+      gfx.fillStyle(0xffffff, 0.90 * a);
+      gfx.fillCircle(tx, ty, P(2));
+    };
+
+    draw(1);
+    this.tweens.add({
+      targets: state, a: 0, duration: 220, ease: 'Quad.In',
+      onUpdate: () => draw(state.a),
+      onComplete: () => gfx.destroy(),
+    });
   }
 
   // ── 血環 aura（被動，每 0.25 秒） ────────────────────────────

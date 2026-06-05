@@ -547,6 +547,10 @@ export const CardStore = {
       standstillDmgPct:       (bonus.standstillDmgPct ?? 0) || undefined,
       standstillDmgReductionPct: (bonus.standstillDmgReductionPct ?? 0) || undefined,
       onHitKnifeChance:     bonus.onHitKnifeChance,
+      laserRadiusPct:       bonus.laserRadiusPct,
+      laserExplode:         bonus.laserExplode,
+      laserChain:           bonus.laserChain,
+      laserDoubleDuration:  bonus.laserDoubleDuration,
     };
   },
 
