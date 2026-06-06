@@ -776,21 +776,22 @@ app.post('/push/notify-version', async (req, res) => {
     },
   });
 
+  type PushSub = { endpoint: string; p256dh: string; auth_key: string };
   const results = await Promise.allSettled(
-    subs.map(sub => webpush.sendNotification(
+    (subs as PushSub[]).map((sub: PushSub) => webpush.sendNotification(
       { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth_key } },
       payload,
     ))
   );
 
   // 清除已失效的訂閱 (HTTP 410 Gone)
-  const expired = subs.filter((_, i) => {
+  const expired = (subs as PushSub[]).filter((_: PushSub, i: number) => {
     const r = results[i];
     return r.status === 'rejected' && (r as any).reason?.statusCode === 410;
   });
   if (expired.length) {
     await supabase.from('push_subscriptions')
-      .delete().in('endpoint', expired.map(s => s.endpoint));
+      .delete().in('endpoint', expired.map((s: PushSub) => s.endpoint));
   }
 
   const sent = results.filter(r => r.status === 'fulfilled').length;

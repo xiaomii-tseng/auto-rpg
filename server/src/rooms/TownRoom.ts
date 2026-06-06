@@ -108,7 +108,7 @@ export class TownRoom extends Room {
       const entry = { nickname: p.nickname || '???', text, ts: Date.now() };
       this._chatHistory.push(entry);
       if (this._chatHistory.length > 50) this._chatHistory.shift();
-      this.broadcast('chat_msg', entry);
+      this.broadcast('chat_msg', entry, { except: client });
     });
   }
 

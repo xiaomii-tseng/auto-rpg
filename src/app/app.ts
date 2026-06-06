@@ -58,6 +58,7 @@ export class App implements AfterViewInit {
   showCardGuide       = this.cardGuideVis.visible;
   showSkillGuide      = this.skillGuideVis.visible;
   showChat            = signal(false);
+  chatPanelHidden     = signal(false);
   autoLoginLoading    = signal(false);
   autoLoginHint       = signal('');
   private _phaserInited = false;
@@ -233,8 +234,10 @@ export class App implements AfterViewInit {
     (window as any).__openAffixGuide    = () => this.ngZone.run(() => this.affixGuideVis.open());
     (window as any).__openCardGuide     = () => this.ngZone.run(() => this.cardGuideVis.open());
     (window as any).__openSkillGuide    = () => this.ngZone.run(() => this.skillGuideVis.open());
-    (window as any).__showChat          = () => this.ngZone.run(() => this.showChat.set(true));
+    (window as any).__showChat          = () => this.ngZone.run(() => { this.showChat.set(true); this.chatPanelHidden.set(false); });
     (window as any).__hideChat          = () => this.ngZone.run(() => this.showChat.set(false));
+    (window as any).__gamePanelOpen     = () => Promise.resolve().then(() => this.ngZone.run(() => this.chatPanelHidden.set(true)));
+    (window as any).__gamePanelClose    = () => Promise.resolve().then(() => this.ngZone.run(() => this.chatPanelHidden.set(false)));
     (window as any).__saveAndLogout = async () => {
       SaveStore.save();
       await this.saveSync.uploadNow();

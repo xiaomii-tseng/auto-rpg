@@ -406,9 +406,6 @@ export class PrepScene extends Phaser.Scene {
     this._sceneW = W;
     this._sceneH = H;
 
-    this.add.text(P(6), H - P(6), VERSION, {
-      fontSize: F(11), fontStyle: 'bold', color: '#ffffff', stroke: '#000000', strokeThickness: 2,
-    }).setOrigin(0, 1).setDepth(10);
 
     // 防止前一個 scene 的 pointerdown 穿透到本場景的按鈕
     this.input.enabled = false;
@@ -1046,6 +1043,7 @@ export class PrepScene extends Phaser.Scene {
   // ── Wardrobe panel ─────────────────────────────────────
 
   private _openWardrobePanel(): void {
+    (window as any).__gamePanelOpen?.();
     const W = this._sceneW, H = this.scale.height;
     const PD = 30;
     const COLS = 2;
@@ -1055,6 +1053,7 @@ export class PrepScene extends Phaser.Scene {
     const panelH = Math.ceil(SKINS.length / COLS) * (CARD_H + GAP) + GAP + P(PD);
     const px = W / 2, py = H / 2 - P(20);
     const wardObjs: Phaser.GameObjects.GameObject[] = [];
+    const closeWardrobe = () => { (window as any).__gamePanelClose?.(); wardObjs.forEach(o => o.destroy()); };
     const bg = this.add.graphics().setDepth(60);
     bg.fillStyle(0x000000, 0.55);
     bg.fillRect(0, 0, W, H);
@@ -1098,7 +1097,7 @@ export class PrepScene extends Phaser.Scene {
       hit.on('pointerover', () => { if (!isSelected) drawCard(true); });
       hit.on('pointerout', () => { if (!isSelected) drawCard(false); });
       hit.on('pointerdown', () => {
-        wardObjs.forEach(o => o.destroy());
+        closeWardrobe();
         if (i === currentSkin) return;
         if (this._partyState !== 'none') {
           this._showToast(tr('prep.misc.inPartyNoSkin'));
@@ -1112,7 +1111,7 @@ export class PrepScene extends Phaser.Scene {
     const closeBg = this.add.rectangle(W / 2, H / 2, W, H)
       .setInteractive().setDepth(59).setAlpha(0.001);
     wardObjs.push(closeBg);
-    closeBg.on('pointerdown', () => wardObjs.forEach(o => o.destroy()));
+    closeBg.on('pointerdown', () => closeWardrobe());
   }
 
   // ── Multi button infrastructure (party system deferred) ─
@@ -1135,14 +1134,15 @@ export class PrepScene extends Phaser.Scene {
   // ── Quest panel (wanted posters, horizontal scroll) ────
 
   private _showAudioPanel(W: number, H: number): void {
+    (window as any).__gamePanelOpen?.();
     const D = 9000;
     const PW = Math.min(W - P(16), P(300));
-    const PH = P(335);
+    const PH = P(350);
     const px = (W - PW) / 2;
     const py = (H - PH) / 2;
 
     const objs: Phaser.GameObjects.GameObject[] = [];
-    const close = () => objs.forEach(o => o.destroy());
+    const close = () => { (window as any).__gamePanelClose?.(); objs.forEach(o => o.destroy()); };
 
     const bd = this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.75)
       .setInteractive().setDepth(D);
@@ -1312,6 +1312,11 @@ export class PrepScene extends Phaser.Scene {
       (window as any).__saveAndLogout?.();
     });
 
+    const verTxt = this.add.text(px + PW / 2, py + PH - P(5), VERSION, {
+      fontSize: F(11), color: '#5a3c1c',
+    }).setOrigin(0.5, 1).setDepth(D + 2);
+    objs.push(verTxt);
+
     objs.forEach(o => { if ('setScrollFactor' in o) (o as any).setScrollFactor(0); });
   }
 
@@ -1407,6 +1412,7 @@ export class PrepScene extends Phaser.Scene {
 
 
   private showDailyQuestPanel(W: number, H: number): void {
+    (window as any).__gamePanelOpen?.();
     const PW = Math.min(W - P(8), P(420));
     const HEADER_H = P(48);
     const ROW_PAD = P(8);
@@ -1418,7 +1424,7 @@ export class PrepScene extends Phaser.Scene {
     const py = Math.max(P(4), (H - PH) / 2);
 
     const objs: Phaser.GameObjects.GameObject[] = [];
-    const close = () => objs.forEach(o => o.destroy());
+    const close = () => { (window as any).__gamePanelClose?.(); objs.forEach(o => o.destroy()); };
 
     const tt = (txt: string, x: number, y: number, style: object, ox = 0, oy = 0, depth = D + 2): Phaser.GameObjects.Text => {
       const o = this.add.text(x, y, txt, style).setOrigin(ox, oy).setDepth(depth);
@@ -1595,6 +1601,7 @@ export class PrepScene extends Phaser.Scene {
   }
 
   private showQuestPanel(W: number, H: number, baseDepth = 500): void {
+    (window as any).__gamePanelOpen?.();
     const PW = Math.min(W - P(16), P(500));
     const PH = Math.min(H - P(20), P(370));
     const D = baseDepth;
@@ -1608,6 +1615,7 @@ export class PrepScene extends Phaser.Scene {
     const objs: Phaser.GameObjects.GameObject[] = [];
     const closeAll = () => {
       this._questPanelCloseAll = null;
+      (window as any).__gamePanelClose?.();
       objs.forEach(o => o.destroy());
     };
     this._questPanelCloseAll = closeAll;
@@ -2219,11 +2227,13 @@ export class PrepScene extends Phaser.Scene {
   // ── Equipment panel (wooden cabinet) ───────────────────
 
   private showEquipmentPanel(W: number, H: number): void {
+    (window as any).__gamePanelOpen?.();
     const PW = Math.min(W - P(16), P(800));
     const PH = Math.min(H - P(16), P(620));
     const D = 500;
 
     const container = this.add.container(W / 2, H / 2).setDepth(D);
+    container.once('destroy', () => (window as any).__gamePanelClose?.());
 
     const backdrop = this.add.rectangle(0, 0, W, H, 0x000000, 0.78).setInteractive();
     backdrop.on('pointerdown', (ptr: Phaser.Input.Pointer) => {
@@ -4010,19 +4020,24 @@ export class PrepScene extends Phaser.Scene {
         scrollCnt.add(tapCard);
 
         // Favorite star — text drawn, then hit zone added LAST so it gets input priority over tapCard
-        const isFav = !!item.favorite;
-        scrollCnt.add(this.add.text(cx + cardW - P(14), rowY + P(8), isFav ? '★' : '☆', {
+        let _isFav = !!item.favorite;
+        const starTxt = this.add.text(cx + cardW - P(14), rowY + P(8), _isFav ? '★' : '☆', {
           fontSize: F(16), fontStyle: 'bold',
-          color: isFav ? '#ffcc00' : '#aa8855',
+          color: _isFav ? '#ffcc00' : '#aa8855',
           stroke: '#1a0800', strokeThickness: 1,
-        }).setOrigin(0.5, 0));
+        }).setOrigin(0.5, 0);
+        scrollCnt.add(starTxt);
         // Hit zone: 40×40 px around the star, covers top-right corner comfortably
         const starHit = this.add.rectangle(cx + cardW - P(14), rowY + P(20), P(40), P(40))
           .setInteractive({ useHandCursor: true });
         starHit.on('pointerdown', (ptr: Phaser.Input.Pointer) => {
           ptr.event.stopPropagation();
           if (_longPressTimer) { clearTimeout(_longPressTimer); _longPressTimer = null; }
-          PlayerStore.toggleFavorite(item);
+          // Toggle locally to avoid full grid rebuild; only save to persist
+          _isFav = !_isFav;
+          item.favorite = _isFav;
+          starTxt.setText(_isFav ? '★' : '☆');
+          starTxt.setColor(_isFav ? '#ffcc00' : '#aa8855');
           SaveStore.save();
         });
         scrollCnt.add(starHit);
@@ -4048,7 +4063,8 @@ export class PrepScene extends Phaser.Scene {
       this.input.on('pointermove', gridMoveHandler!);
       this.input.on('wheel', gridWheelHandler!);
     };
-    buildGrid();
+    // Defer initial grid build to the next frame so the panel shell renders first
+    this.time.delayedCall(0, () => { if (container.active) buildGrid(); });
 
     // ── Tab bar ───────────────────────────────────────────
     tabDefs.forEach((t, i) => {
@@ -4073,11 +4089,18 @@ export class PrepScene extends Phaser.Scene {
     });
 
     // ── Reactive refresh ──────────────────────────────────
+    let _rebuildPending = false;
     const onStoreChange = () => {
       if (!container.active) return;
-      buildTopSlots();
-      buildStats();
-      buildGrid();
+      if (_rebuildPending) return;
+      _rebuildPending = true;
+      this.time.delayedCall(0, () => {
+        _rebuildPending = false;
+        if (!container.active) return;
+        buildTopSlots();
+        buildStats();
+        buildGrid();
+      });
     };
     PlayerStore.onChange(onStoreChange);
     CardStore.onChange(onStoreChange);
@@ -4094,10 +4117,11 @@ export class PrepScene extends Phaser.Scene {
   // ── Skill Tree ──────────────────────────────────────────
 
   private showSkillTree(W: number, H: number): void {
+    (window as any).__gamePanelOpen?.();
     const D = 600;
     const objs: Phaser.GameObjects.GameObject[] = [];
     const s = <T extends Phaser.GameObjects.GameObject>(o: T) => { objs.push(o); return o; };
-    const close = () => { objs.forEach(o => { this.tweens.killTweensOf(o); o.destroy(); }); };
+    const close = () => { (window as any).__gamePanelClose?.(); objs.forEach(o => { this.tweens.killTweensOf(o); o.destroy(); }); };
 
     // ── Overlay ──────────────────────────────────────────────────────────
     s(this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.88).setDepth(D).setInteractive());
@@ -4616,11 +4640,13 @@ export class PrepScene extends Phaser.Scene {
   // ── Item panel ──────────────────────────────────────────
 
   private showItemPanel(W: number, H: number): void {
+    (window as any).__gamePanelOpen?.();
     const PW = Math.min(P(480), W - P(20));
     const PH = Math.min(P(500), H - P(40));
     const D = 500;
 
     const container = this.add.container(W / 2, H / 2).setDepth(D);
+    container.once('destroy', () => (window as any).__gamePanelClose?.());
 
     // Backdrop
     const backdrop = this.add.rectangle(0, 0, W, H, 0x000000, 0.78).setInteractive();
@@ -5184,11 +5210,13 @@ export class PrepScene extends Phaser.Scene {
   // ── Card Window ─────────────────────────────────────────
 
   private openCardWindow(W: number, H: number): void {
+    (window as any).__gamePanelOpen?.();
     const PW = Math.min(W - P(16), P(700));
     const PH = Math.min(H - P(20), P(560));
     const D = 500;
 
     const container = this.add.container(W / 2, H / 2).setDepth(D);
+    container.once('destroy', () => (window as any).__gamePanelClose?.());
 
     // Backdrop
     const backdrop = this.add.rectangle(0, 0, W, H, 0x000000, 0.78).setInteractive();
@@ -6440,11 +6468,13 @@ export class PrepScene extends Phaser.Scene {
   }
 
   private showShopPanel(W: number, H: number): void {
+    (window as any).__gamePanelOpen?.();
     const PW = W - P(16);
     const PH = H - P(16);
     const D = 500;
 
     const container = this.add.container(W / 2, H / 2).setDepth(D);
+    container.once('destroy', () => (window as any).__gamePanelClose?.());
 
     // Backdrop
     const backdrop = this.add.rectangle(0, 0, W, H, 0x000000, 0.78).setInteractive();

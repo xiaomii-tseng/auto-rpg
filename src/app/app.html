@@ -35,7 +35,7 @@
 }
 
 @if (showChat()) {
-  <app-chat></app-chat>
+  <app-chat [style.display]="chatPanelHidden() ? 'none' : ''"></app-chat>
 }
 
 @if (showPlayerProfile()) {
