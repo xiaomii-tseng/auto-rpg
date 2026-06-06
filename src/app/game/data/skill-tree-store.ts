@@ -302,8 +302,8 @@ export const SkillTreeStore = {
       projectileDmgPct:     (L('1-2-1-1') ? 0.30 : 0) + (L('1-2-2-1') ? 0.20 : 0),
       projectileFan:        (L('1-2-2') ? 1 : 0),
       // ── 散射飛刀 ──────────────────────────────────────────
-      periodicKnives:          (L('6') ? 1 : 0),
-      knifeIntervalReduction:  (L('6-1') ? 2000 : 0),
+      onHitKnifeChance:        (L('6') ? 0.10 : 0) + (L('6-1') ? 0.05 : 0),
+      knifeDamageTrigger:      (L('6') ? 1 : 0),
       knifeDoubleCount:        (L('6-2') ? 1 : 0),
       knifeHoming:             (L('6-1-2-1-1') ? 1 : 0),
       knifeDmgPct:             (L('6-1-2-1') ? 0.15 : 0) + (L('6-1-2-1-2') ? 0.35 : 0),

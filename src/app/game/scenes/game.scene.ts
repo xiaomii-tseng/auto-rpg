@@ -983,7 +983,7 @@ export class GameScene extends Phaser.Scene {
       this.boss.onAoeExplode = (x, y) => {
         if (!this.bossActive) return;
         const dSq = Phaser.Math.Distance.BetweenPointsSquared({ x, y }, this.player);
-        if (dSq <= Boss.AOE_RADIUS ** 2) this.player.takeDamage(this.boss.scaleDmg(75));
+        if (dSq <= Boss.AOE_RADIUS ** 2) { this.player.takeDamage(this.boss.scaleDmg(75)); this.onPlayerDamaged(); }
         this.damageAlliesNear(x, y, Boss.AOE_RADIUS, this.boss.scaleDmg(75));
       };
       this.boss.onRangedBarrageTrailTick = (x1, y1, x2, y2, radius, dmg) => {
@@ -993,7 +993,7 @@ export class GameScene extends Phaser.Scene {
         const t = Math.max(0, Math.min(1, (apx * abx + apy * aby) / (abx * abx + aby * aby || 1)));
         const nx = x1 + t * abx - this.player.x;
         const ny = y1 + t * aby - this.player.y;
-        if (nx * nx + ny * ny <= radius * radius) this.player.takeDamage(dmg);
+        if (nx * nx + ny * ny <= radius * radius) { this.player.takeDamage(dmg); this.onPlayerDamaged(); }
         for (const ally of this._allyMinions) {
           if (ally.isDead) continue;
           const apxa = ally.x - x1, apya = ally.y - y1;
@@ -1005,7 +1005,7 @@ export class GameScene extends Phaser.Scene {
 
       this.boss.onBarrageOrbHit = (x, y, dmg) => {
         if (!this.bossActive) return;
-        this.player.takeDamage(dmg);
+        this.player.takeDamage(dmg); this.onPlayerDamaged();
         this.damageAlliesNear(x, y, P(20), dmg);
       };
 
@@ -1015,7 +1015,7 @@ export class GameScene extends Phaser.Scene {
 
       this.physics.add.overlap(bossGroup, this.player, () => {
         if (!this.bossActive) return;
-        if (this.boss.currentState === 'DASHING') this.player.takeDamage(this.boss.scaleDmg(75));
+        if (this.boss.currentState === 'DASHING') { this.player.takeDamage(this.boss.scaleDmg(75)); this.onPlayerDamaged(); }
       });
       this.physics.add.overlap(bossGroup, this._allyGroup, (_b, allyObj) => {
         if (!this.bossActive) return;
@@ -1061,7 +1061,7 @@ export class GameScene extends Phaser.Scene {
         }
         this.hitBatches.set(batchId, this.time.now);
       }
-      this.player.takeDamage((p as any).dmg as number);
+      this.player.takeDamage((p as any).dmg as number); this.onPlayerDamaged();
       const isHoming = (p as any).blindDist < 0 || this.homingProjs.includes(p);
       if (isHoming) this.petalHitVfx(p.x, p.y, p.texture.key === 'proj_homing_petal_large');
       const idx = this.homingProjs.indexOf(p);
@@ -1223,16 +1223,6 @@ export class GameScene extends Phaser.Scene {
       this._orbitBalls.push({ gfx, angle: (i / Math.max(total, 1)) * Math.PI * 2, type: types[i], lastHit: new Map() });
     }
 
-    // 週期飛刀計時器
-    if ((stats.periodicKnives ?? 0) > 0 && !SkillTreeStore.isLearned('6-1-2-1-2')) {
-      const scheduleKnives = () => {
-        if (SkillTreeStore.isLearned('6-1-2-1-2')) return;
-        const s = CardStore.getTotalStats();
-        const delay = Math.max(800, 4000 - (s.knifeIntervalReduction ?? 0));
-        this.time.delayedCall(delay, () => { this.firePeriodicKnives(); scheduleKnives(); });
-      };
-      scheduleKnives();
-    }
 
 
     // 無限神盾護體：立即啟動
@@ -1455,11 +1445,18 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  private onPlayerDamaged(): void {
+    if (!this.player.active || this.gameOver) return;
+    if ((CardStore.getTotalStats().knifeDamageTrigger ?? 0) >= 1) {
+      this.firePeriodicKnives();
+    }
+  }
+
   private firePeriodicKnives(): void {
     if (!this.player.active || this.gameOver) return;
     const stats = CardStore.getTotalStats();
     const homing = (stats.knifeHoming ?? 0) >= 1;
-    const doubled = (stats.knifeDoubleCount ?? 0) >= 1 || (stats.periodicKnives ?? 0) >= 2;
+    const doubled = (stats.knifeDoubleCount ?? 0) >= 1;
     const count = Math.round((doubled ? 12 : 6) * (homing ? 0.5 : 1));
     const maxDist = P(200);
     const SPEED = P(468);
@@ -2735,7 +2732,7 @@ export class GameScene extends Phaser.Scene {
           Phaser.Math.Distance.Between(this.player.x, this.player.y, p.x, p.y) <= p.r,
         );
         if (hitPuddle) {
-          this.player.takeDamage(hitPuddle.dmg);
+          this.player.takeDamage(hitPuddle.dmg); this.onPlayerDamaged();
           this._rainPuddleHitCd = now + 250;
         }
         for (const ally of this._allyMinions) {
@@ -3858,7 +3855,7 @@ export class GameScene extends Phaser.Scene {
           if (ap >= 0 && ap <= z.len! && aperp <= z.r) allyHits.push(ally);
         }
       }
-      if (playerHit) this.player.takeDamage(z.dmg);
+      if (playerHit) { this.player.takeDamage(z.dmg); this.onPlayerDamaged(); }
       for (const ally of allyHits) ally.takeDamage(z.dmg);
     }
 
@@ -4943,13 +4940,13 @@ export class GameScene extends Phaser.Scene {
   // 範圍傷害：同時打 player 和範圍內所有友軍
   protected hitInRadius(x: number, y: number, r: number, dmg: number): void {
     const dSq = Phaser.Math.Distance.BetweenPointsSquared({ x, y }, this.player);
-    if (dSq <= r * r) this.player.takeDamage(dmg);
+    if (dSq <= r * r) { this.player.takeDamage(dmg); this.onPlayerDamaged(); }
     this.damageAlliesNear(x, y, r, dmg);
   }
 
   // 全場傷害：打 player 和所有友軍（不依位置）
   protected hitGlobal(dmg: number): void {
-    this.player.takeDamage(dmg);
+    this.player.takeDamage(dmg); this.onPlayerDamaged();
     for (const ally of this._allyMinions) {
       if (!ally.isDead) ally.takeDamage(dmg);
     }
@@ -5159,7 +5156,7 @@ export class GameScene extends Phaser.Scene {
           if (Math.sqrt(dx * dx + dy * dy) > range) return false;
           return Math.abs(Phaser.Math.Angle.Wrap(Math.atan2(dy, dx) - angle)) <= half;
         };
-        if (checkFan(this.player.x, this.player.y)) this.player.takeDamage(dmg);
+        if (checkFan(this.player.x, this.player.y)) { this.player.takeDamage(dmg); this.onPlayerDamaged(); }
         for (const ally of this._allyMinions) {
           if (!ally.isDead && checkFan(ally.x, ally.y)) ally.takeDamage(dmg);
         }
@@ -5294,7 +5291,7 @@ export class GameScene extends Phaser.Scene {
           if (Math.sqrt(dx * dx + dy * dy) > range) return false;
           return Math.abs(Phaser.Math.Angle.Wrap(Math.atan2(dy, dx) - angle)) <= half;
         };
-        if (checkFan(this.player.x, this.player.y)) this.player.takeDamage(dmg);
+        if (checkFan(this.player.x, this.player.y)) { this.player.takeDamage(dmg); this.onPlayerDamaged(); }
         for (const ally of this._allyMinions) {
           if (!ally.isDead && checkFan(ally.x, ally.y)) ally.takeDamage(dmg);
         }
@@ -5795,7 +5792,7 @@ export class GameScene extends Phaser.Scene {
           if (Math.sqrt(dx * dx + dy * dy) > range) return false;
           return Math.abs(Phaser.Math.Angle.Wrap(Math.atan2(dy, dx) - angle)) <= half;
         };
-        if (checkFan(this.player.x, this.player.y)) this.player.takeDamage(dmg);
+        if (checkFan(this.player.x, this.player.y)) { this.player.takeDamage(dmg); this.onPlayerDamaged(); }
         for (const ally of this._allyMinions) {
           if (!ally.isDead && checkFan(ally.x, ally.y)) ally.takeDamage(dmg);
         }
@@ -6017,7 +6014,7 @@ export class GameScene extends Phaser.Scene {
           if (Math.sqrt(dx * dx + dy * dy) > range) return false;
           return Math.abs(Phaser.Math.Angle.Wrap(Math.atan2(dy, dx) - angle)) <= half;
         };
-        if (checkFan(this.player.x, this.player.y)) this.player.takeDamage(dmg);
+        if (checkFan(this.player.x, this.player.y)) { this.player.takeDamage(dmg); this.onPlayerDamaged(); }
         for (const ally of this._allyMinions) {
           if (!ally.isDead && checkFan(ally.x, ally.y)) ally.takeDamage(dmg);
         }

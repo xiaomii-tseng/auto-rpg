@@ -309,8 +309,7 @@ export const CardStore = {
       b.orbitBallDmgPct      = (b.orbitBallDmgPct      ?? 0) + (e.orbitBallDmgPct      ?? 0);
       b.orbitFireBallDmgPct  = (b.orbitFireBallDmgPct  ?? 0) + (e.orbitFireBallDmgPct  ?? 0);
       b.orbitIceBallDmgPct   = (b.orbitIceBallDmgPct   ?? 0) + (e.orbitIceBallDmgPct   ?? 0);
-      b.periodicKnives         = (b.periodicKnives         ?? 0) + (e.periodicKnives         ?? 0);
-      b.knifeIntervalReduction = (b.knifeIntervalReduction ?? 0) + (e.knifeIntervalReduction ?? 0);
+      b.knifeDamageTrigger     = (b.knifeDamageTrigger     ?? 0) + (e.knifeDamageTrigger     ?? 0);
       b.knifeDoubleCount       = (b.knifeDoubleCount       ?? 0) + (e.knifeDoubleCount       ?? 0);
       b.knifeHoming            = (b.knifeHoming            ?? 0) + (e.knifeHoming            ?? 0);
       b.knifeDmgPct            = (b.knifeDmgPct            ?? 0) + (e.knifeDmgPct            ?? 0);
@@ -502,8 +501,7 @@ export const CardStore = {
       orbitBallDmgPct:      bonus.orbitBallDmgPct,
       orbitFireBallDmgPct:  bonus.orbitFireBallDmgPct,
       orbitIceBallDmgPct:   bonus.orbitIceBallDmgPct,
-      periodicKnives:          bonus.periodicKnives,
-      knifeIntervalReduction:  bonus.knifeIntervalReduction,
+      knifeDamageTrigger:      bonus.knifeDamageTrigger,
       knifeDoubleCount:        bonus.knifeDoubleCount,
       knifeHoming:             bonus.knifeHoming,
       knifeDmgPct:             bonus.knifeDmgPct,

@@ -110,8 +110,7 @@ export interface StatBonus {
   // ── 特殊機制（卡片觸發效果）──
   orbitFireBalls?:      number;  // 繞玩家旋轉火球數量（疊加，ATK×15%，1秒傷害CD/怪）
   orbitIceBalls?:       number;  // 繞玩家旋轉冰球數量（疊加，ATK×10%+緩速20%，1秒CD）
-  periodicKnives?:      number;  // 每4秒飛刀層數（1=6方位，2=12方位，ATK×40%，穿透）
-  knifeIntervalReduction?: number; // 飛刀冷卻縮短（ms）
+  knifeDamageTrigger?:     number;  // 1=受傷時100%機率觸發飛刀
   knifeDoubleCount?:       number; // 飛刀數量加倍
   knifeHoming?:            number; // 飛刀追蹤（數量減半）
   knifeDmgPct?:            number; // 飛刀傷害加成

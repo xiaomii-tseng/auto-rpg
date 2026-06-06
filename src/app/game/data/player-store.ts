@@ -113,8 +113,7 @@ export interface EffectiveStats {
   orbitBallDmgPct?:      number;
   orbitFireBallDmgPct?:  number;
   orbitIceBallDmgPct?:   number;
-  periodicKnives?:       number;
-  knifeIntervalReduction?: number;
+  knifeDamageTrigger?:     number;
   knifeDoubleCount?:       number;
   knifeHoming?:            number;
   knifeDmgPct?:            number;
