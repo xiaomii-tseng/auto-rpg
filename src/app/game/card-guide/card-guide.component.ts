@@ -28,8 +28,8 @@ export const COMBO_ENTRIES: ComboEntry[] = [
     effects: ['每30點防禦力自動轉換為迴避率+3%（防禦力越高越划算）'] },
   { id: 'c1_slime_white',  name: '白史萊姆家族：迅捷強化',  condition: C1.label, conditionColor: C1.color, race: 'slime',
     effects: ['攻擊速度 ×1.20（固定乘算）'] },
-  { id: 'c1_slime_zombie', name: '殭屍史萊姆家族：燃燒延長', condition: C1.label, conditionColor: C1.color, race: 'slime',
-    effects: ['燃燒上限+3層（需配合持續傷害build）'] },
+  { id: 'c1_slime_zombie', name: '殭屍史萊姆家族：燃燒爆發', condition: C1.label, conditionColor: C1.color, race: 'slime',
+    effects: ['燃燒爆炸傷害+15%（達到10層觸發爆炸時生效，層數上限固定為10層）'] },
   { id: 'c1_slime_lava',   name: '熔岩史萊姆家族：穿透爆發', condition: C1.label, conditionColor: C1.color, race: 'slime',
     effects: ['穿甲值累計≥100時，ATK額外+28（疊高穿甲才有效）'] },
   // 史萊姆跨族/種族
@@ -70,7 +70,7 @@ export const COMBO_ENTRIES: ComboEntry[] = [
   { id: 'c1_vampire2', name: '吸血鬼法師家族：恐懼光環', condition: C1.label, conditionColor: C1.color, race: 'vampire',
     effects: ['持續降低周圍敵人的攻擊速度與移動速度（範圍光環，效果永久維持）'] },
   { id: 'c1_vampire3', name: '吸血鬼術士家族：血脈噴張', condition: C1.label, conditionColor: C1.color, race: 'vampire',
-    effects: ['HP越低傷害和吸血越高', 'HP<30%時效果最強：傷害+50%、吸血大幅提升'] },
+    effects: ['HP越低傷害和吸血越高，滿血時亦有傷害+10%與吸血+0.5%的基礎加成', 'HP≤20%時效果最強：傷害+50%、吸血+3%'] },
   // 吸血鬼跨族/種族
   { id: 'c2_vampire', name: '吸血鬼跨族共鳴', condition: C2.label, conditionColor: C2.color, race: 'vampire',
     effects: ['吸血+2.5%', '全傷害+8%'] },
