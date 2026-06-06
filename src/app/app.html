@@ -30,6 +30,10 @@
   <app-card-guide></app-card-guide>
 }
 
+@if (showSkillGuide()) {
+  <app-skill-guide></app-skill-guide>
+}
+
 @if (showPlayerProfile()) {
   <app-player-profile></app-player-profile>
 }

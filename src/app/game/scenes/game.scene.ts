@@ -60,6 +60,7 @@ const F = (n: number): string => `${Math.round(n * DPR)}px`;
 const P = (n: number): number => Math.round(n * DPR);
 
 const MELEE_RANGE = P(60);
+const MULTIHIT_RANGE = P(65);
 
 interface LootDrop {
   obj: Phaser.GameObjects.Image | Phaser.GameObjects.Container;
@@ -180,12 +181,11 @@ export class GameScene extends Phaser.Scene {
   private _orbitBalls: Array<{ gfx: Phaser.GameObjects.Graphics; angle: number; type: 'fire' | 'ice'; lastHit: Map<object, number> }> = [];
   private _orbitAngle = 0;
   private _partnerOrbitBalls: Map<string, Array<{ gfx: Phaser.GameObjects.Graphics; angle: number; type: 'fire' | 'ice' }>> = new Map();
-  private _playerKnives: Array<{ gfx: Phaser.GameObjects.Graphics; x: number; y: number; vx: number; vy: number; spawnX: number; spawnY: number; maxDist: number; hitTargets: Set<object>; homing?: boolean; returnToPlayer?: boolean }> = [];
+  private _playerKnives: Array<{ gfx: Phaser.GameObjects.Graphics; x: number; y: number; vx: number; vy: number; spawnX: number; spawnY: number; maxDist: number; hitTargets: Set<object>; homing?: boolean; returnToPlayer?: boolean; expiresAt?: number }> = [];
   private _partnerKnives: Array<{ gfx: Phaser.GameObjects.Graphics; x: number; y: number; vx: number; vy: number; spawnX: number; spawnY: number; maxDist: number }> = [];
   private _divineShieldTimer?: Phaser.Time.TimerEvent;
   private _divineShieldGfx?: Phaser.GameObjects.Graphics;
   private _divineShieldRollUntil = 0;  // 每次攻擊動作只判定一次（300ms 鎖）
-  private _onHitLightningCooldown = 0;  // 攻擊觸發落雷冷卻
   private _onHitKnifeCooldown     = 0;  // 攻擊觸發飛刀冷卻
   private _freeRevivesUsed = 0;
   // 業火盾
@@ -333,6 +333,8 @@ export class GameScene extends Phaser.Scene {
   // ── 花怪召喚充能 ──────────────────────────────────────────
   private _flowerCharges = 3;
   private _flowerMaxCharges = 3;
+  private _flowerSummonNext = 0;
+  private _flowerCurrentChargeMs = 3000;
   private _flowerChargeAccum = 0;
   private readonly _FLOWER_CHARGE_MS = 3000;
   private _flowerChargeGfx?: Phaser.GameObjects.Graphics;
@@ -1162,6 +1164,8 @@ export class GameScene extends Phaser.Scene {
 
     // 燃燒狀態 tick（400ms，處理疊層與傷害）
     this.time.addEvent({ delay: 400, repeat: -1, callback: this.tickBurns, callbackScope: this });
+    // 烈焰集中引力 tick（100ms）
+    this.time.addEvent({ delay: 100, repeat: -1, callback: this.tickFirePull, callbackScope: this });
 
     // 血環被動計時器（線性：0%攻速=300ms，75%攻速=200ms，超過75%仍維持200ms）
     const scheduleAuraTick = () => {
@@ -1230,15 +1234,6 @@ export class GameScene extends Phaser.Scene {
       scheduleKnives();
     }
 
-    // 落雷計時器（間隔動態計算）
-    if ((stats.lightningStrike ?? 0) > 0) {
-      const scheduleLightning = () => {
-        const s = CardStore.getTotalStats();
-        const delay = Math.max(500, 2000 - (s.lightningIntervalReduction ?? 0));
-        this.time.delayedCall(delay, () => { this.fireLightningStrike(); scheduleLightning(); });
-      };
-      scheduleLightning();
-    }
 
     // 無限神盾護體：立即啟動
     if ((stats.infiniteDivineShield ?? 0) > 0) {
@@ -1366,6 +1361,7 @@ export class GameScene extends Phaser.Scene {
     for (let i = this._playerKnives.length - 1; i >= 0; i--) {
       const k = this._playerKnives[i];
 
+      const HOMING_RANGE_SQ = k.maxDist * k.maxDist;
       if (k.homing) {
         let target: { x: number; y: number } | null = null;
         if (k.returnToPlayer) {
@@ -1375,7 +1371,7 @@ export class GameScene extends Phaser.Scene {
           let nearDistSq = Infinity;
           for (const t of targets) {
             const dSq = (k.x - t.x) * (k.x - t.x) + (k.y - t.y) * (k.y - t.y);
-            if (dSq < nearDistSq) { nearDistSq = dSq; target = t; }
+            if (dSq < HOMING_RANGE_SQ && dSq < nearDistSq) { nearDistSq = dSq; target = t; }
           }
         }
         if (target) {
@@ -1392,11 +1388,21 @@ export class GameScene extends Phaser.Scene {
 
       k.x += k.vx * dt;
       k.y += k.vy * dt;
-      const tdx = k.x - k.spawnX, tdy = k.y - k.spawnY;
-      if (tdx * tdx + tdy * tdy >= k.maxDist * k.maxDist) {
-        k.gfx.destroy();
-        this._playerKnives.splice(i, 1);
-        continue;
+
+      // 消亡判斷：命中後用時間計，未命中用距離計
+      if (k.expiresAt !== undefined) {
+        if (this.time.now >= k.expiresAt) {
+          k.gfx.destroy();
+          this._playerKnives.splice(i, 1);
+          continue;
+        }
+      } else {
+        const tdx = k.x - k.spawnX, tdy = k.y - k.spawnY;
+        if (tdx * tdx + tdy * tdy >= k.maxDist * k.maxDist) {
+          k.gfx.destroy();
+          this._playerKnives.splice(i, 1);
+          continue;
+        }
       }
 
       const angle = Math.atan2(k.vy, k.vx);
@@ -1406,7 +1412,9 @@ export class GameScene extends Phaser.Scene {
         if (k.hitTargets.has(t)) continue;
         const khr = P(14); if ((k.x - t.x) * (k.x - t.x) + (k.y - t.y) * (k.y - t.y) > khr * khr) continue;
         k.hitTargets.add(t);
-        this.dealDamage(t, 0.40 * (1 + knifeBaseDmgMult), k.x, k.y, 'down', 'none', true);
+        // 命中後延長飛行 1200ms
+        if (k.expiresAt === undefined) k.expiresAt = this.time.now + 900;
+        this.dealDamage(t, 0.35 * (1 + knifeBaseDmgMult), k.x, k.y, 'down', 'none', true);
       }
     }
   }
@@ -1476,8 +1484,6 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
-    const salvoHitTargets = new Set<object>();
-
     for (let i = 0; i < count; i++) {
       const angle = (homing && !returnToPlayer)
         ? baseAngle + (i / (count - 1 || 1) - 0.5) * Math.PI  // ±90°（共180°扇形）
@@ -1522,7 +1528,7 @@ export class GameScene extends Phaser.Scene {
         gfx, x: this.player.x, y: this.player.y,
         vx, vy,
         spawnX: this.player.x, spawnY: this.player.y,
-        maxDist, hitTargets: salvoHitTargets, homing, returnToPlayer,
+        maxDist, hitTargets: new Set<object>(), homing, returnToPlayer,
       });
     }
   }
@@ -1629,7 +1635,10 @@ export class GameScene extends Phaser.Scene {
 
   private fireOnHitLightning(stats: import('../data/player-store').EffectiveStats): void {
     if (!this.player.active || this.gameOver) return;
-    const targets = this.getHittableTargets();
+    const maxR = P(200);
+    const targets = this.getHittableTargets().filter(
+      t => Phaser.Math.Distance.Between(this.player.x, this.player.y, t.x, t.y) <= maxR
+    );
     if (targets.length === 0) return;
     const target = targets[Math.floor(Math.random() * targets.length)];
     const tx = target.x, ty = target.y;
@@ -2005,7 +2014,7 @@ export class GameScene extends Phaser.Scene {
 
     const ps = CardStore.getTotalStats();
     ally.isAlly = true;
-    ally.setAllyStats(Math.max(1, Math.round(ps.maxHp * (1.80 + (ps.skillFlowerHpPct ?? 0)))), Math.max(1, Math.round(ps.atk * 0.35 * (1 + (ps.summonFlowerDmgPct ?? 0)))));
+    ally.setAllyStats(Math.max(1, Math.round(ps.maxHp * 8.00)), Math.max(1, Math.round(ps.atk * 0.35 * (1 + (ps.summonFlowerDmgPct ?? 0)))));
     ally.attackCooldownMs = 800;
     ally.rangedRange = P(400);
     this._allyMinions.push(ally);
@@ -2073,7 +2082,8 @@ export class GameScene extends Phaser.Scene {
       if (NetworkService.connected && NetworkService.isHost) NetworkService.sendAllyKill(ally.minionId);
       ally.forceKill();
     };
-    this.time.delayedCall(lifetimeMs, removeAlly);
+    const effectiveLifetime = (ps.skillFlowerHpPct ?? 0) >= 1 ? 99000 : lifetimeMs;
+    this.time.delayedCall(effectiveLifetime, removeAlly);
 
     const origOnDead = ally.onDead;
     ally.onDead = () => {
@@ -2122,34 +2132,40 @@ export class GameScene extends Phaser.Scene {
   }
 
   protected tryFlowerSummonModeAttack(): void {
+    const now = this.time.now;
+    const spd = 1 + this.getEffectiveAtkSpeed();
+    const cd  = Math.round(220 / spd);
+    if (now < this._flowerSummonNext) return;
     if (this._flowerCharges <= 0) return;
+
+    this._flowerSummonNext = now + cd;
+    this._flowerCharges--;
+    this._flowerChargeAccum = 0;
 
     // 手動拖曳方向優先，否則用玩家面向
     const dirMap: Record<string, number> = { right: 0, down: Math.PI / 2, left: Math.PI, up: -Math.PI / 2 };
     const spawnAngle = this._forceAttackAngle ?? dirMap[this.player.lastDir] ?? 0;
     this._forceAttackAngle = null;
 
-    const tx = this.player.x + Math.cos(spawnAngle) * P(80);
-    const ty = this.player.y + Math.sin(spawnAngle) * P(80);
-    if (this.player.canStartAttackAnim) this.playSfx('sfx_swing3');
-    this.player.playAttack(tx, ty, () => {
-      if (this._flowerCharges <= 0) return;
-      this._flowerCharges--;
-      this._flowerChargeAccum = 0;
+    // 動畫與音效（非阻擋，視覺用）
+    if (this.player.canStartAttackAnim) {
+      this.playSfx('sfx_swing3');
+      const adx = Math.cos(spawnAngle), ady = Math.sin(spawnAngle);
+      const dir: 'right' | 'left' | 'up' | 'down' =
+        Math.abs(adx) >= Math.abs(ady) ? (adx >= 0 ? 'right' : 'left') : (ady >= 0 ? 'down' : 'up');
+      this.player.startAttackAnim(`player_attack_${dir}`, spawnAngle);
+    }
 
-      const stats = CardStore.getTotalStats();
-      const ALLY_CAP = Math.max(((stats.flowerSummonMode ?? 0) > 0 || (stats.summonFlowerChance ?? 0) > 0) ? 2 : 0, stats.skillFlowerCap ?? 0) + (stats.summonFlowerCap ?? 0) + Math.floor((stats.summonFlowerCapPair ?? 0) / 2);
-
-      if (this._allyMinions.length >= ALLY_CAP) {
-        const oldest = this._allyMinions.shift()!;
-        this._allyGroup.remove(oldest, false, false);
-        oldest.onDead = undefined;
-        if (NetworkService.connected && NetworkService.isHost) NetworkService.sendAllyKill(oldest.minionId);
-        oldest.forceKill();
-      }
-
-      this.spawnAllyFlower('plant3_s', 15000, spawnAngle);
-    });
+    const stats = CardStore.getTotalStats();
+    const ALLY_CAP = Math.max(((stats.flowerSummonMode ?? 0) > 0 || (stats.summonFlowerChance ?? 0) > 0) ? 2 : 0, stats.skillFlowerCap ?? 0) + (stats.summonFlowerCap ?? 0) + Math.floor((stats.summonFlowerCapPair ?? 0) / 2);
+    if (this._allyMinions.length >= ALLY_CAP) {
+      const oldest = this._allyMinions.shift()!;
+      this._allyGroup.remove(oldest, false, false);
+      oldest.onDead = undefined;
+      if (NetworkService.connected && NetworkService.isHost) NetworkService.sendAllyKill(oldest.minionId);
+      oldest.forceKill();
+    }
+    this.spawnAllyFlower('plant3_s', 15000, spawnAngle);
   }
 
   private spawnLavaSlimeCompanion(): void {
@@ -2789,10 +2805,13 @@ export class GameScene extends Phaser.Scene {
 
     // ── 花怪充能回復 + 按鈕 UI ────────────────────────────────
     if ((CardStore.getTotalStats().flowerSummonMode ?? 0) > 0 || SkillTreeStore.getAttackMode() === 'flowerMode') {
+      const flowerStats = CardStore.getTotalStats();
+      this._flowerMaxCharges = 3 + (flowerStats.flowerChargeCap ?? 0);
+      this._flowerCurrentChargeMs = this._FLOWER_CHARGE_MS / (1 + (flowerStats.flowerChargeSpeedPct ?? 0));
       if (this._flowerCharges < this._flowerMaxCharges) {
         this._flowerChargeAccum += this.game.loop.delta;
-        if (this._flowerChargeAccum >= this._FLOWER_CHARGE_MS) {
-          this._flowerChargeAccum -= this._FLOWER_CHARGE_MS;
+        if (this._flowerChargeAccum >= this._flowerCurrentChargeMs) {
+          this._flowerChargeAccum -= this._flowerCurrentChargeMs;
           this._flowerCharges = Math.min(this._flowerCharges + 1, this._flowerMaxCharges);
         }
       }
@@ -2813,7 +2832,7 @@ export class GameScene extends Phaser.Scene {
 
     // 充能圓弧（從上方順時針，顯示下一格充能進度）
     if (this._flowerCharges < this._flowerMaxCharges) {
-      const pct = this._flowerChargeAccum / this._FLOWER_CHARGE_MS;
+      const pct = this._flowerChargeAccum / this._flowerCurrentChargeMs;
       const startA = -Math.PI / 2;
       const endA = startA + pct * Math.PI * 2;
       g.lineStyle(P(4), 0x88ffaa, 0.85);
@@ -3081,9 +3100,8 @@ export class GameScene extends Phaser.Scene {
 
     // 攻擊觸發落雷
     if (!skipOnHitProcs) {
-      const onHitLightning = stats.onHitLightningChance ?? 0;
-      if (onHitLightning > 0 && this.time.now > this._onHitLightningCooldown && Math.random() < onHitLightning) {
-        this._onHitLightningCooldown = this.time.now + 200;
+      const onHitLightning = (stats.onHitLightningChance ?? 0) + (stats.lightningChancePct ?? 0);
+      if (onHitLightning > 0 && Math.random() < onHitLightning) {
         if ((stats.lightningStrike ?? 0) >= 1) this.fireLightningStrike();
         else this.fireOnHitLightning(stats);
       }
@@ -3293,9 +3311,9 @@ export class GameScene extends Phaser.Scene {
     const dmgMult = isFan ? 0.80 : 0.55;
     const FAN_RAD = 11 * (Math.PI / 180);   // 11°
     const angles = isFan ? [rad - FAN_RAD, rad, rad + FAN_RAD] : [rad];
-    const hitTargets = new Set<object>();   // 共用，同一目標只算一次
 
     for (const angle of angles) {
+      const hitTargets = new Set<object>();   // 每道風刃獨立
       this.fxProjectile(this.player.x, this.player.y, angle, this.player.depth + 1, SPEED, MAX_DIST, (px, py) => {
         for (const t of this.getHittableTargets()) {
           if (hitTargets.has(t)) continue;
@@ -3321,16 +3339,45 @@ export class GameScene extends Phaser.Scene {
     this.player.setRooted(rootMs);
     this.player.startAttackAnim(`player_multihit_${dir}`);
 
-    const rad0 = Phaser.Math.DegToRad(deg);
     const DELAYS = [55, 115, 175, 235, 310];
+    const hitRange = MULTIHIT_RANGE * (1 + (stats.multiHitRangePct ?? 0));
+    const lightningChance = stats.multiHitLightning ?? 0;
+
+    // 每擊重新判定最近敵人方向，避免後段揮空
+    const resolveHitDir = (px: number, py: number) => {
+      let curDeg = deg, curDir = dir;
+      let minDist = Infinity;
+      for (const t of this.getHittableTargets()) {
+        const d = Phaser.Math.Distance.Between(px, py, t.x, t.y);
+        if (d < minDist) {
+          minDist = d;
+          curDeg = Phaser.Math.RadToDeg(Math.atan2(t.y - py, t.x - px));
+          if (curDeg < 0) curDeg += 360;
+          curDir = Math.abs(t.x - px) >= Math.abs(t.y - py)
+            ? (t.x > px ? 'right' : 'left')
+            : (t.y > py ? 'down' : 'up');
+        }
+      }
+      return { curDeg, curDir, curRad: Phaser.Math.DegToRad(curDeg) };
+    };
 
     DELAYS.map(d => Math.round(d / spd)).forEach((delay, hitIdx) => {
       this.time.delayedCall(delay, () => {
         this.playSfx('sfx_swing2', 0.88);
         const px = this.player.x, py = this.player.y;
         const D = this.player.depth;
-        this.hitInArea(px, py, MELEE_RANGE, 0.29 * (1 + (stats.multiHitDmgPct ?? 0)), arc, deg, dir);
-        this.fxMultiHitSlash(px, py, D, rad0, hitIdx, MELEE_RANGE);
+        const { curDeg, curDir, curRad } = resolveHitDir(px, py);
+        this.hitInArea(px, py, hitRange, 0.29 * (1 + (stats.multiHitDmgPct ?? 0)), arc, curDeg, curDir);
+        this.fxMultiHitSlash(px, py, D, curRad, hitIdx, hitRange);
+        if (lightningChance > 0 && Math.random() < lightningChance) {
+          const hasTarget = this.getHittableTargets().some(
+            t => Phaser.Math.Distance.Between(px, py, t.x, t.y) <= hitRange
+          );
+          if (hasTarget) {
+            if ((stats.lightningStrike ?? 0) >= 1) this.fireLightningStrike();
+            else this.fireOnHitLightning(stats);
+          }
+        }
       });
     });
   }
@@ -3428,7 +3475,7 @@ export class GameScene extends Phaser.Scene {
     const SPEED = P(300);
     const MAX_DIST = P(200);
     const ORB_R = P(14);
-    const FIRE_R = P(25);
+    const FIRE_R = P(48);
     const FIRE_DUR = 4500;
 
     const spawnFire = (fx: number, fy: number) => {
@@ -3440,11 +3487,11 @@ export class GameScene extends Phaser.Scene {
       const now = this.time.now;
       for (const m of this.allMinions) {
         if (!m.isDead && Phaser.Math.Distance.Between(fx, fy, m.x, m.y) <= FIRE_R)
-          m.applyBurn(now);
+          m.applyBurn(now, this.BURN_MAX_STACKS, this.BURN_DURATION);
       }
       if (this.bossActive && this.boss.active &&
         Phaser.Math.Distance.Between(fx, fy, this.boss.x, this.boss.y) <= FIRE_R)
-        this.boss.applyBurn(now);
+        this.boss.applyBurn(now, this.BURN_MAX_STACKS, this.BURN_DURATION);
     };
 
     let hit = false;
@@ -3608,6 +3655,94 @@ export class GameScene extends Phaser.Scene {
 
   }
 
+  private burnExplosion(cx: number, cy: number, stats: ReturnType<typeof CardStore.getTotalStats>): void {
+    const EXPL_R = P(50);
+    const condDotActive = stats.dotBonus >= 0.30 && (stats.condDotStackBonus ?? 0) > 0;
+    const dotMult = 1 + (stats.dotBonus ?? 0) * 4 + (condDotActive ? (stats.condDotStackBonus! * this.BURN_MAX_STACKS) : 0);
+    const expBonus = 1 + (stats.burnMaxStackBonus ?? 0) * 0.01;
+    const dmg = Math.round(stats.atk * 0.50 * dotMult * expBonus);
+    const D = this.player.depth;
+
+    // 白閃
+    const flash = this.add.graphics().setDepth(D + 4);
+    flash.fillStyle(0xffffff, 0.70);
+    flash.fillCircle(cx, cy, EXPL_R * 0.50);
+    this.tweens.add({ targets: flash, alpha: 0, duration: 100, ease: 'Quad.Out', onComplete: () => flash.destroy() });
+
+    // 內層火球
+    const inner = this.add.graphics().setDepth(D + 3);
+    const s1 = { r: P(12), a: 0.85 };
+    this.tweens.add({
+      targets: s1, r: EXPL_R * 0.80, a: 0, duration: 280, ease: 'Quad.Out',
+      onUpdate: () => {
+        inner.clear();
+        inner.fillStyle(0xff4400, s1.a * 0.45);
+        inner.fillCircle(cx, cy, s1.r);
+        inner.lineStyle(P(3), 0xff8800, s1.a);
+        inner.strokeCircle(cx, cy, s1.r);
+      },
+      onComplete: () => inner.destroy(),
+    });
+
+    // 外層衝擊波
+    const outer = this.add.graphics().setDepth(D + 3);
+    const s2 = { r: P(18), a: 0.80 };
+    this.tweens.add({
+      targets: s2, r: EXPL_R * 1.30, a: 0, duration: 420, ease: 'Quad.Out',
+      onUpdate: () => {
+        outer.clear();
+        outer.lineStyle(P(3), 0xff6600, s2.a);
+        outer.strokeCircle(cx, cy, s2.r);
+        outer.lineStyle(P(1), 0xffaa44, s2.a * 0.45);
+        outer.strokeCircle(cx, cy, s2.r + P(4));
+      },
+      onComplete: () => outer.destroy(),
+    });
+
+    // AoE 傷害
+    for (const m of this.allMinions) {
+      if (m.isDead) continue;
+      if (Phaser.Math.Distance.Between(cx, cy, m.x, m.y) <= EXPL_R) {
+        const explOverkill = m.takeDamage(dmg);
+        this.spawnDamageNumber(m.x, m.y, dmg, false, 1);
+        if (NetworkService.connected) NetworkService.sendMinionHit(m.minionId, dmg);
+        if (stats.lifesteal > 0) {
+          const leech = Math.round(dmg * stats.lifesteal);
+          if (stats.lifestealInstant) this.player.heal(leech); else this._leechPool += leech;
+        }
+        if (m.isDead) {
+          if ((stats.overkillSplash ?? 0) > 0 && explOverkill > 0) this.overkillSplash(m.x, m.y, explOverkill);
+          if ((stats.soulHarvest ?? 0) >= 1) this._soulHarvestProc(m.x, m.y);
+          if ((stats.onKillHeal ?? 0) > 0) this.player.heal(Math.round(stats.onKillHeal!));
+          if ((stats.killShieldPerKill ?? 0) > 0) this.player.addKillShield(Math.round(stats.killShieldPerKill!));
+        }
+      }
+    }
+    if (this.bossActive && this.boss.active &&
+        Phaser.Math.Distance.Between(cx, cy, this.boss.x, this.boss.y) <= EXPL_R) {
+      const elemMult = getElementMultiplier('fire', this.boss.element);
+      const bossDmg = Math.round(dmg * elemMult);
+      const bossHpBefore = this.boss.currentHp;
+      this.boss.takeDamage(bossDmg, stats.penetration);
+      this.spawnDamageNumber(this.boss.x, this.boss.y, bossDmg, false, elemMult);
+      this.refreshBossBar();
+      if (NetworkService.connected) NetworkService.sendBossHit(bossHpBefore - this.boss.currentHp);
+      if (stats.lifesteal > 0) {
+        const leech = Math.round(bossDmg * stats.lifesteal);
+        if (stats.lifestealInstant) this.player.heal(leech); else this._leechPool += leech;
+      }
+    }
+    // 爆炸觸發 on-hit 效果（一次爆炸只觸發一次）
+    if ((stats.onHitKnifeChance ?? 0) > 0 && this.time.now > this._onHitKnifeCooldown && Math.random() < stats.onHitKnifeChance!) {
+      this._onHitKnifeCooldown = this.time.now + 200;
+      this.firePeriodicKnives();
+    }
+    if (Math.random() < ((stats.onHitLightningChance ?? 0) + (stats.lightningChancePct ?? 0))) {
+      if ((stats.lightningStrike ?? 0) >= 1) this.fireLightningStrike();
+      else this.fireOnHitLightning(stats);
+    }
+  }
+
   private fxLaserChain(sx: number, sy: number, tx: number, ty: number, D: number): void {
     const gfx = this.add.graphics().setDepth(D + 1);
     const state = { a: 1 };
@@ -3657,9 +3792,32 @@ export class GameScene extends Phaser.Scene {
   private readonly AURA_RANGE = P(56);
 
   // ── Burn constants — future cards can pass different values to applyBurn ──
-  private readonly BURN_MAX_STACKS = 15;
+  private readonly BURN_MAX_STACKS = 10;
   private readonly BURN_DURATION = 4000; // ms
-  private readonly BURN_SOFT_CAP = 8;    // stacks above this decay faster each tick
+  private readonly BURN_SOFT_CAP = 7;    // stacks above this decay faster each tick
+
+  private tickFirePull(): void {
+    if (this.gameOver) return;
+    const stats = CardStore.getTotalStats();
+    if ((stats.burnFieldEliteStacks ?? 0) < 1 || this.activeFires.length === 0) return;
+    const PULL_PX = P(5);
+    for (const m of this.allMinions) {
+      if (m.isDead) continue;
+      let nearestDist = Infinity;
+      let nearestFire: typeof this.activeFires[0] | null = null;
+      for (const f of this.activeFires) {
+        const d = Phaser.Math.Distance.Between(m.x, m.y, f.x, f.y);
+        if (d <= f.r && d < nearestDist) { nearestDist = d; nearestFire = f; }
+      }
+      if (!nearestFire || nearestDist < P(4)) continue;
+      const dx = nearestFire.x - m.x;
+      const dy = nearestFire.y - m.y;
+      const len = Math.sqrt(dx * dx + dy * dy);
+      const pull = Math.min(PULL_PX, nearestDist - P(2));
+      m.x += (dx / len) * pull;
+      m.y += (dy / len) * pull;
+    }
+  }
 
   private tickBurns(): void {
     if (this.gameOver) return;
@@ -3704,29 +3862,38 @@ export class GameScene extends Phaser.Scene {
       for (const ally of allyHits) ally.takeDamage(z.dmg);
     }
 
-    // burnMaxStackBonus 卡片效果
-    const burnCap = this.BURN_MAX_STACKS + (stats.burnMaxStackBonus ?? 0);
+    // burnMaxStackBonus 已改為爆炸傷害加成，上限固定為 10
+    const burnCap = this.BURN_MAX_STACKS;
 
     // condDotStackBonus：dotBonus≥30% 時每層額外加成
     const condDotActive = stats.dotBonus >= 0.30 && (stats.condDotStackBonus ?? 0) > 0;
 
-    // 火場每 tick 疊層數：基礎=1，節點1=2，節點2-1-1=對一般/菁英5層（Boss維持節點1層數）
-    const baseStacks   = (stats.burnDoubleStack      ?? 0) >= 1 ? 2 : 1;
-    const eliteStacks  = (stats.burnFieldEliteStacks ?? 0) >= 1 ? 5 : baseStacks;
+    // 火場每 tick 疊層數：基礎=1；節點1-4：一般/菁英4層，Boss2層
+    const hasDoubleStack = (stats.burnDoubleStack ?? 0) >= 1;
+    const minionStacks  = hasDoubleStack ? 4 : 2;
+    const bossStacks    = hasDoubleStack ? 2 : 1;
 
     // 對踩在任意火焰內的敵人疊層，同時記錄誰在火裡
     const minionInFire = new Set<(typeof this.allMinions)[number]>();
     for (const m of this.allMinions) {
       if (m.isDead) continue;
       if (this.activeFires.some(f => Phaser.Math.Distance.Between(m.x, m.y, f.x, f.y) <= f.r)) {
-        for (let i = 0; i < eliteStacks; i++) m.applyBurn(now, burnCap, this.BURN_DURATION);
+        for (let i = 0; i < minionStacks; i++) m.applyBurn(now, burnCap, this.BURN_DURATION);
+        if (m.burnStacks >= burnCap) {
+          this.burnExplosion(m.x, m.y, stats);
+          m.burnStacks = 0;
+        }
         minionInFire.add(m);
       }
     }
     let bossInFire = false;
     if (this.bossActive && this.boss.active) {
       if (this.activeFires.some(f => Phaser.Math.Distance.Between(this.boss.x, this.boss.y, f.x, f.y) <= f.r)) {
-        for (let i = 0; i < baseStacks; i++) this.boss.applyBurn(now, burnCap, this.BURN_DURATION);
+        for (let i = 0; i < bossStacks; i++) this.boss.applyBurn(now, burnCap, this.BURN_DURATION);
+        if (this.boss.burnStacks >= burnCap) {
+          this.burnExplosion(this.boss.x, this.boss.y, stats);
+          this.boss.burnStacks = 0;
+        }
         bossInFire = true;
       }
     }
@@ -3749,24 +3916,24 @@ export class GameScene extends Phaser.Scene {
         for (const m of this.allMinions) {
           if (m.isDead || spreadSeen.has(m)) continue;
           if (Phaser.Math.Distance.Between(this.boss.x, this.boss.y, m.x, m.y) <= burnSpreadR) {
-            m.burnStacks = Math.min(burnCap, Math.max(m.burnStacks, this.boss.burnStacks));
-            m.burnExpiresAt = now + this.BURN_DURATION;
+            for (let i = 0; i < minionStacks; i++) m.applyBurn(now, burnCap, this.BURN_DURATION);
             minionInFire.add(m);
+            if (m.burnStacks >= burnCap) { this.burnExplosion(m.x, m.y, stats); m.burnStacks = 0; }
             spreadQueue.push(m);
             spreadSeen.add(m);
           }
         }
       }
-      // BFS：剛著火的怪立刻成為火源，直接繼承來源層數
+      // BFS：擴散到的怪每 tick 也累加層數，與踩在火場相同
       let qi = 0;
       while (qi < spreadQueue.length) {
         const src = spreadQueue[qi++];
         for (const other of this.allMinions) {
           if (other.isDead || spreadSeen.has(other)) continue;
           if (Phaser.Math.Distance.Between(src.x, src.y, other.x, other.y) <= burnSpreadR) {
-            other.burnStacks = Math.min(burnCap, Math.max(other.burnStacks, src.burnStacks));
-            other.burnExpiresAt = now + this.BURN_DURATION;
+            for (let i = 0; i < minionStacks; i++) other.applyBurn(now, burnCap, this.BURN_DURATION);
             minionInFire.add(other);
+            if (other.burnStacks >= burnCap) { this.burnExplosion(other.x, other.y, stats); other.burnStacks = 0; }
             spreadQueue.push(other);
             spreadSeen.add(other);
           }
@@ -3774,21 +3941,30 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
-    // 離開火焰才衰減：高層數衰減更快，創造 8-10 層的自然平均值
-    const applyDecay = (stacks: number): number =>
-      Math.max(0, stacks - Math.max(1, Math.ceil(stacks / this.BURN_SOFT_CAP)));
-
     // 造成燃燒傷害
+    const calcBurnDmg = (stacks: number, extra = 1) => {
+      const dotMult = 1 + stats.dotBonus + (condDotActive ? (stats.condDotStackBonus! * stacks) : 0);
+      return Math.round(stats.atk * 0.045 * stacks * dotMult * extra);
+    };
     for (const m of this.allMinions) {
       if (m.isDead || m.burnStacks <= 0) continue;
       if (now >= m.burnExpiresAt) { m.burnStacks = 0; continue; }
-      if (!minionInFire.has(m)) m.burnStacks = applyDecay(m.burnStacks);
-      const dotMult = 1 + stats.dotBonus + (condDotActive ? (stats.condDotStackBonus! * m.burnStacks) : 0);
-      const dmg = Math.round(stats.atk * 0.030 * m.burnStacks * dotMult);
+      const dmg = calcBurnDmg(m.burnStacks);
       const burnOverkill = m.takeDamage(dmg);
       this.spawnDamageNumber(m.x, m.y, dmg, false, 1);
       if (NetworkService.connected) NetworkService.sendMinionHit(m.minionId, dmg);
-      // 燃燒擊殺觸發（護盾/回血/靈魂收割，不觸發落雷/飛刀）
+      if (stats.lifesteal > 0) {
+        const leech = Math.round(dmg * stats.lifesteal);
+        if (stats.lifestealInstant) this.player.heal(leech); else this._leechPool += leech;
+      }
+      if ((stats.onHitKnifeChance ?? 0) > 0 && this.time.now > this._onHitKnifeCooldown && Math.random() < stats.onHitKnifeChance!) {
+        this._onHitKnifeCooldown = this.time.now + 200;
+        this.firePeriodicKnives();
+      }
+      if (Math.random() < ((stats.onHitLightningChance ?? 0) + (stats.lightningChancePct ?? 0))) {
+        if ((stats.lightningStrike ?? 0) >= 1) this.fireLightningStrike();
+        else this.fireOnHitLightning(stats);
+      }
       if (m.isDead) {
         if ((stats.overkillSplash ?? 0) > 0 && burnOverkill > 0) this.overkillSplash(m.x, m.y, burnOverkill);
         if ((stats.soulHarvest ?? 0) >= 1) this._soulHarvestProc(m.x, m.y);
@@ -3798,15 +3974,25 @@ export class GameScene extends Phaser.Scene {
     }
     if (this.bossActive && this.boss.active && this.boss.burnStacks > 0) {
       if (now >= this.boss.burnExpiresAt) { this.boss.burnStacks = 0; this.refreshBossBar(); return; }
-      if (!bossInFire) this.boss.burnStacks = applyDecay(this.boss.burnStacks);
       const elemMult = getElementMultiplier('fire', this.boss.element);
-      const dotMult = 1 + stats.dotBonus + (condDotActive ? (stats.condDotStackBonus! * this.boss.burnStacks) : 0);
-      const dmg = Math.round(stats.atk * 0.032 * this.boss.burnStacks * dotMult * elemMult);
+      const dmg = calcBurnDmg(this.boss.burnStacks, elemMult);
       const burnHpBefore = this.boss.currentHp;
       this.boss.takeDamage(dmg, stats.penetration);
       this.spawnDamageNumber(this.boss.x, this.boss.y, dmg, false, elemMult);
       this.refreshBossBar();
       if (NetworkService.connected) NetworkService.sendBossHit(burnHpBefore - this.boss.currentHp);
+      if (stats.lifesteal > 0) {
+        const leech = Math.round(dmg * stats.lifesteal);
+        if (stats.lifestealInstant) this.player.heal(leech); else this._leechPool += leech;
+      }
+      if ((stats.onHitKnifeChance ?? 0) > 0 && this.time.now > this._onHitKnifeCooldown && Math.random() < stats.onHitKnifeChance!) {
+        this._onHitKnifeCooldown = this.time.now + 200;
+        this.firePeriodicKnives();
+      }
+      if (Math.random() < ((stats.onHitLightningChance ?? 0) + (stats.lightningChancePct ?? 0))) {
+        if ((stats.lightningStrike ?? 0) >= 1) this.fireLightningStrike();
+        else this.fireOnHitLightning(stats);
+      }
     }
   }
 
@@ -3828,8 +4014,9 @@ export class GameScene extends Phaser.Scene {
 
     const stats = CardStore.getTotalStats();
     const RANGE = this.AURA_RANGE * (1 + (stats.auraRadiusPct ?? 0));
-    const baseDmg = this.player.maxHpValue * 0.125 * (1 + (stats.auraDmgPct ?? 0));
+    const baseDmg = this.player.maxHpValue * 0.16 * (1 + (stats.auraDmgPct ?? 0));
     const px = this.player.x, py = this.player.y;
+    const auraBurnOn = (stats.auraBurn ?? 0) >= 1;
 
     for (const m of this.allMinions) {
       if (m.isDead) continue;
@@ -3837,6 +4024,10 @@ export class GameScene extends Phaser.Scene {
       const isCrit = Math.random() < stats.crit;
       const dmg = Math.round(baseDmg * Phaser.Math.FloatBetween(0.9, 1.1) * (isCrit ? (1 + stats.critDmg) : 1));
       const overkill = m.takeDamage(dmg);
+      if (auraBurnOn) {
+        m.applyBurn(this.time.now, this.BURN_MAX_STACKS, this.BURN_DURATION);
+        if (m.burnStacks >= this.BURN_MAX_STACKS) { this.burnExplosion(m.x, m.y, stats); m.burnStacks = 0; }
+      }
       if (stats.lifesteal > 0) {
         const leech = Math.round(dmg * stats.lifesteal);
         if (stats.lifestealInstant) this.player.heal(leech); else this._leechPool += leech;
@@ -3893,6 +4084,10 @@ export class GameScene extends Phaser.Scene {
       const dmg = Math.round(baseDmg * Phaser.Math.FloatBetween(0.9, 1.1) * (isCrit ? (1 + stats.critDmg) : 1) * elemMult);
       const auraHpBefore = this.boss.currentHp;
       this.boss.takeDamage(dmg, stats.penetration);
+      if (auraBurnOn) {
+        this.boss.applyBurn(this.time.now, this.BURN_MAX_STACKS, this.BURN_DURATION);
+        if (this.boss.burnStacks >= this.BURN_MAX_STACKS) { this.burnExplosion(this.boss.x, this.boss.y, stats); this.boss.burnStacks = 0; }
+      }
       if (stats.lifesteal > 0) {
         const leech = Math.round(dmg * stats.lifesteal);
         if (stats.lifestealInstant) this.player.heal(leech); else this._leechPool += leech;
@@ -3918,11 +4113,8 @@ export class GameScene extends Phaser.Scene {
     const spd         = 1 + this.getEffectiveAtkSpeed();
     const isMultiShot = (slamStats.chargeSlamOverload ?? 0) >= 1;
     const isGiant     = (slamStats.meteorGiant ?? 0) >= 1;
-    const hasCharge   = isGiant;
     const baseMs      = Math.round(650 / spd);
-    const chargeMs    = hasCharge ? Math.round(baseMs * 0.54) : 0;
-    const cd          = baseMs + chargeMs;
-    if (!this.player.lockCooldown(cd)) return;
+    if (!this.player.lockCooldown(baseMs)) return;
 
     const METEOR_RANGE = P(200);
     const { dir, tx: fallbackX, ty: fallbackY } = this.resolveAttackDir(METEOR_RANGE);
@@ -3945,7 +4137,7 @@ export class GameScene extends Phaser.Scene {
 
       this.time.delayedCall(150, () => {
         this.playerMeteorAt(tx, ty, dmgMult, isGiant, stunChance);
-        if (isMultiShot && !isGiant) {
+        if (isMultiShot) {
           // 找主落點附近最近的怪，最多3顆，各自瞄準
           const nearby = this.getHittableTargets()
             .map(t => ({ t, d: Phaser.Math.Distance.Between(tx, ty, t.x, t.y) }))
@@ -3962,37 +4154,7 @@ export class GameScene extends Phaser.Scene {
       });
     };
 
-    if (hasCharge) {
-      // 節點3+ 才有蓄力：緩速 + 綠色充能特效
-      this.player.speedMult = 0.6;
-      this.player.noInterrupt = true;
-      const chargeGfx = this.add.graphics().setDepth(this.player.depth + 1);
-      let chargeT = 0;
-      const updateCharge = () => {
-        if (!chargeGfx.active) return;
-        chargeT += 16;
-        const prog = Math.min(chargeT / chargeMs, 1);
-        chargeGfx.clear();
-        const outerR = P(8) + prog * P(isGiant ? 44 : 36);
-        chargeGfx.lineStyle(P(3), 0x00cc44, 0.25 + prog * 0.35);
-        chargeGfx.strokeCircle(this.player.x, this.player.y, outerR);
-        const pulse = Math.sin(chargeT / 80) * P(3);
-        chargeGfx.lineStyle(P(2), 0x44ff88, 0.5 + prog * 0.4);
-        chargeGfx.strokeCircle(this.player.x, this.player.y, P(10) + pulse + prog * P(isGiant ? 22 : 18));
-        chargeGfx.fillStyle(0xaaffcc, 0.6 + prog * 0.4);
-        chargeGfx.fillCircle(this.player.x, this.player.y, P(3) + prog * P(3));
-      };
-      const chargeTicker = this.time.addEvent({ delay: 16, repeat: Math.ceil(chargeMs / 16), callback: updateCharge });
-      this.time.delayedCall(chargeMs, () => {
-        this.player.speedMult = 1;
-        this.player.noInterrupt = false;
-        chargeTicker.destroy();
-        chargeGfx.destroy();
-        fire();
-      });
-    } else {
-      fire();
-    }
+    fire();
   }
 
   private playerMeteorAt(wtx: number, wty: number, dmgMult: number, isGiant: boolean, stunChance: number, rOverride?: number): void {
@@ -11479,7 +11641,7 @@ export class GameScene extends Phaser.Scene {
       case 'multiHit': {
         const DELAYS = [55, 115, 175, 235, 310];
         DELAYS.forEach((delay, hitIdx) => {
-          this.time.delayedCall(delay, () => this.fxMultiHitSlash(x, y, D, dirRad, hitIdx, MELEE_RANGE));
+          this.time.delayedCall(delay, () => this.fxMultiHitSlash(x, y, D, dirRad, hitIdx, MULTIHIT_RANGE));
         });
         break;
       }

@@ -71,7 +71,7 @@ export interface StatBonus {
   laserExplode?:          number;  // 1=每6tick核爆脈衝，60px內等量傷害（ATK×90%，滿層×180%）
   laserChain?:            number;  // 連鎖子閃電條數，鎖定75px內最遠敵人（各70%傷害）
   laserDoubleDuration?:   number;  // 1=滿充能持續時間×2（4s→8s）
-  burnMaxStackBonus?:   number;  // 燃燒上限 +X 層
+  burnMaxStackBonus?:   number;  // 燃燒爆炸傷害加成（每點 +10%）
   burnSpread?:          number;  // 燃燒擴散半徑（張數 × 80px）
   burnSpreadSkillPx?:   number;  // 技能燃燒擴散半徑（CSS px，game scene 乘 DPR）
   burnDoubleStack?:     number;  // 業火：1 = 所有目標每 tick 疊兩層
@@ -80,8 +80,10 @@ export interface StatBonus {
   dashDistPct?:         number;  // 瞬步斬距離 ×(1+X)（百分比，技能用）
   dashDmgPct?:          number;  // 瞬步斬傷害 ×(1+X)
   dashDoubleHit?:       number;  // 瞬步二連（1 = 啟用，每次 65%）
-  multiHitNoStagger?:   number;  // 五連斬無僵直（1 = 啟用）
+  multiHitRangePct?:    number;  // 五連斬範圍 ×(1+X)
   multiHitDmgPct?:      number;  // 五連斬傷害 ×(1+X)
+  multiHitLightning?:   number;  // 五連斬每擊觸發落雷機率
+  multiHitNoStagger?:   number;  // 五連斬無僵直（1 = 啟用）
   chargeSlamStunChance?:number;  // 隕石術緩速（1=啟用，60%緩速3秒）
   chargeSlamDmgPct?:    number;  // 隕石術傷害 ×(1+X)
   chargeSlamOverload?:  number;  // 流星雨（1=啟用，蓄力時間×1.5，額外3顆隕石）
@@ -91,6 +93,7 @@ export interface StatBonus {
   boomerangBounce?:     number;  // 1=命中彈跳至 150px 內最近未命中敵人
   auraRadiusPct?:       number;  // 血環半徑 ×(1+X)
   auraDmgPct?:          number;  // 血環傷害 ×(1+X)
+  auraBurn?:            number;  // 1=血環命中附加燃燒
   projectileDistBonus?: number;  // 風刃距離 +X（物理像素，卡片用）
   projectileDistPct?:   number;  // 風刃距離 ×(1+X)（百分比，技能用）
   projectileDmgPct?:    number;  // 風刃傷害 ×(1+X)
@@ -142,12 +145,14 @@ export interface StatBonus {
   orbitIceBallDmgPct?:  number;  // 冰球專屬傷害加成
   onHitLightningChance?:number;  // 攻擊觸發落雷機率（隨機目標，ATK×50%×lightningDmgBonus）
   lightningDmgBonus?:         number;  // 落雷傷害加成（1.0=+100%，套用在落雷傷害上）
-  lightningIntervalReduction?: number; // 落雷間隔縮短（ms）
+  lightningChancePct?:         number; // 落雷觸發機率加成
   lightningSingleTarget?:      number; // 落雷變為單體
   infiniteDivineShield?:number;  // 無限神盾護體（1=啟用，受傷後立即重新觸發）
   weaponRefineAtk?:     number;  // 武器每精煉+2、ATK+X（累計）
   weaponRefineHp?:      number;  // 武器每精煉+2、HP+X（累計）
   flowerSummonMode?:    number;  // 取消原攻擊，改為召喚花怪模式（最多3隻，CD 3s，ATK×35%，HP×100%，穿透，0.8s攻速，對BOSS-22.5%）
+  flowerChargeSpeedPct?:number;  // 不死花充能速度加成（0.30=+30%，縮短充能時間）
+  flowerChargeCap?:     number;  // 不死花充能上限 +N
   lavaSlimeCompanion?:  number;  // 岩漿史萊姆夥伴（HP×120%，ATK×70%，40px巡邏，100px aggro，8s重生）
   executeBelow15?:      number;  // 敵人HP低於12%時直接斬殺（欄位名稱保留相容舊存檔）
   burnedEnemyDmgAmp?:  number;  // 對燃燒中敵人傷害加成

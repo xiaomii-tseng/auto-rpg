@@ -47,7 +47,8 @@ export const SKILL_NODES: SkillNode[] = [
   // ── 血環 branch (270°) ───────────────────────────────────────────────────
   { id: '1-1',     label: t('skill.1-1.label'),     desc: t('skill.1-1.desc'),     x:   0, y:  -70, parentId: '1',     attackMode: 'aura' },
   { id: '1-1-1',   label: t('skill.1-1-1.label'),   desc: t('skill.1-1-1.desc'),   x:   0, y: -135, parentId: '1-1',   attackMode: 'aura' },
-  { id: '1-1-1-1', label: t('skill.1-1-1-1.label'), desc: t('skill.1-1-1-1.desc'), x:   0, y: -200, parentId: '1-1-1', attackMode: 'aura' },
+  { id: '1-1-1-1',   label: t('skill.1-1-1-1.label'),   desc: t('skill.1-1-1-1.desc'),   x:   0, y: -200, parentId: '1-1-1',   attackMode: 'aura' },
+  { id: '1-1-1-1-1', label: t('skill.1-1-1-1-1.label'), desc: t('skill.1-1-1-1-1.desc'), x:   0, y: -265, parentId: '1-1-1-1', attackMode: 'aura' },
 
   // ── 風刃 branch (310°, split ±22°) ───────────────────────────────────────
   { id: '1-2',     label: t('skill.1-2.label'),     desc: t('skill.1-2.desc'),     x:  45, y:  -54, parentId: '1',     attackMode: 'projectile' },
@@ -91,9 +92,10 @@ export const SKILL_NODES: SkillNode[] = [
   { id: '1-8-1-1', label: t('skill.1-8-1-1.label'), desc: t('skill.1-8-1-1.desc'), x: -197, y:  -35, parentId: '1-8-1', attackMode: 'dashPierce' },
 
   // ── 五連斬 branch (230°) ──────────────────────────────────────────────────
-  { id: '1-9',     label: t('skill.1-9.label'),     desc: t('skill.1-9.desc'),     x:  -45, y:  -54, parentId: '1',     attackMode: 'multiHit' },
-  { id: '1-9-1',   label: t('skill.1-9-1.label'),   desc: t('skill.1-9-1.desc'),   x:  -86, y: -104, parentId: '1-9',   attackMode: 'multiHit' },
-  { id: '1-9-1-1', label: t('skill.1-9-1-1.label'), desc: t('skill.1-9-1-1.desc'), x: -128, y: -153, parentId: '1-9-1', attackMode: 'multiHit' },
+  { id: '1-9',       label: t('skill.1-9.label'),       desc: t('skill.1-9.desc'),       x:  -45, y:  -54, parentId: '1',       attackMode: 'multiHit' },
+  { id: '1-9-1',     label: t('skill.1-9-1.label'),     desc: t('skill.1-9-1.desc'),     x:  -86, y: -104, parentId: '1-9',     attackMode: 'multiHit' },
+  { id: '1-9-1-1',   label: t('skill.1-9-1-1.label'),   desc: t('skill.1-9-1-1.desc'),   x: -128, y: -153, parentId: '1-9-1',   attackMode: 'multiHit' },
+  { id: '1-9-1-1-1', label: t('skill.1-9-1-1-1.label'), desc: t('skill.1-9-1-1-1.desc'), x: -170, y: -202, parentId: '1-9-1-1', attackMode: 'multiHit' },
 
   // ── Cluster 2: 傷害濺射 (bottom-left, 225°) ──────────────────────────────
   { id: '2',     label: t('skill.2.label'),     desc: t('skill.2.desc'),     x: -175, y:  175, isRoot: true },
@@ -239,16 +241,19 @@ export const SkillTreeStore = {
     return {
       // ── 地獄火 ────────────────────────────────────────────
       burnDoubleStack:      (L('1-4') ? 1 : 0),
-      burnMaxStackBonus:    (L('1-4-1') ? 5 : 0),
+      burnMaxStackBonus:    (L('1-4-1') ? 25 : 0),
       dotBonus:             (L('1-4-1-1') ? 0.15 : 0),
       burnSpreadSkillPx:    (L('1-4-2') ? 80 : 0),
       burnFieldEliteStacks: (L('1-4-2-1') ? 1 : 0),
       // ── 血環 ──────────────────────────────────────────────
       auraRadiusPct:    (L('1-1') ? 0.15 : 0) + (L('1-1-1') ? 0.25 : 0),
       auraDmgPct:       (L('1-1-1-1') ? 0.30 : 0),
+      auraBurn:         (L('1-1-1-1-1') ? 1 : 0),
       // ── 五連斬 ────────────────────────────────────────────
-      multiHitDmgPct:    (L('1-9') ? 0.10 : 0) + (L('1-9-1') ? 0.25 : 0),
-      multiHitNoStagger: (L('1-9-1-1') ? 1 : 0),
+      multiHitRangePct:  (L('1-9') ? 0.50 : 0),
+      multiHitDmgPct:    (L('1-9-1') ? 0.25 : 0),
+      multiHitLightning: (L('1-9-1-1') ? 0.25 : 0),
+      multiHitNoStagger: (L('1-9-1-1-1') ? 1 : 0),
       // ── 瞬步斬 ────────────────────────────────────────────
       dashDistPct:          (L('1-8') ? 0.30 : 0),
       dashDmgPct:           (L('1-8-1') ? 0.30 : 0),
@@ -271,10 +276,10 @@ export const SkillTreeStore = {
       boomerangDmgPct:      (L('1-3-1') ? 0.20 : 0),
       boomerangBounce:      (L('1-3-1-1') ? 1 : 0),
       // ── 呼喚雷霆 ──────────────────────────────────────────
-      lightningStrike:            (L('5') ? 1 : 0) + (L('5-1') ? 1 : 0),
-      lightningDmgBonus:          (L('5-1-1') ? 0.40 : 0) + (L('5-1-1-1') ? 0.90 : 0),
-      lightningSingleTarget:      (L('5-1-1-1') ? 1 : 0),
-      lightningIntervalReduction: (L('5-2') ? 400 : 0) + (L('5-2-1') ? 700 : 0),
+      lightningStrike:      (L('5') ? 1 : 0) + (L('5-1') ? 1 : 0),
+      lightningDmgBonus:    (L('5-1-1') ? 0.40 : 0) + (L('5-1-1-1') ? 0.90 : 0),
+      lightningSingleTarget:(L('5-1-1-1') ? 1 : 0),
+      lightningChancePct:   (L('5') ? 0.15 : 0) + (L('5-2') ? 0.05 : 0) + (L('5-2-1') ? 0.10 : 0),
       // ── 傷害溢出 ──────────────────────────────────────────
       overkillSplash:        (L('8') ? 1 : 0),
       overkillDmgPct:        (L('8-1') ? 2.0 : 0),
@@ -312,7 +317,7 @@ export const SkillTreeStore = {
       // ── 不死花召喚 ────────────────────────────────────
       skillFlowerChance:    (L('9') && !L('9-1-1-1') ? 0.065 : 0),
       skillFlowerCap:       (L('9') ? 1 : 0) + (L('9-1-1') ? 1 : 0) + (L('9-1-1-1-1-1') ? 1 : 0),
-      skillFlowerHpPct:     (L('9-1-1-1-1') ? 1.50 : 0),
+      skillFlowerHpPct:     (L('9-1-1-1-1') ? 1.00 : 0),
       summonFlowerDmgPct:   (L('9-1') ? 0.30 : 0) + (L('9-1-1-1') ? 0.50 : 0),
       // ── 吸血天賦 ──────────────────────────────────────
       lifesteal:          (L('10') ? 0.003 : 0) + (L('10-1') ? 0.005 : 0),

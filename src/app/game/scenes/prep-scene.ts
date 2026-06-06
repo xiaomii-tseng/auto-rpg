@@ -4098,6 +4098,27 @@ export class PrepScene extends Phaser.Scene {
     const xHit = s(this.add.rectangle(px + PW - P(18), py + hdrH / 2, P(44), P(44)).setDepth(D + 4).setInteractive({ useHandCursor: true }).setAlpha(0.001));
     xHit.on('pointerup', close);
 
+    // ── Skill guide button ────────────────────────────────────────────────
+    const sgBtnW = P(80), sgBtnH = P(26);
+    const sgBtnX = px + PW - P(18) - P(58) - sgBtnW / 2;
+    const sgBtnY = py + hdrH / 2;
+    const sgBtnBg = s(this.add.graphics().setDepth(D + 3));
+    const sgBtnTxt = s(this.add.text(sgBtnX, sgBtnY, '效果說明', {
+      fontSize: F(13), fontStyle: 'bold', color: '#e8c070', stroke: '#000', strokeThickness: 1,
+    }).setOrigin(0.5).setDepth(D + 4));
+    const sgBtnZone = s(this.add.rectangle(sgBtnX, sgBtnY, sgBtnW, sgBtnH).setDepth(D + 5).setInteractive({ useHandCursor: true }).setAlpha(0.001));
+    const drawSgBtn = (hover: boolean) => {
+      sgBtnBg.clear();
+      sgBtnBg.fillStyle(hover ? 0x4a2a10 : 0x2a1808, 1);
+      sgBtnBg.fillRoundedRect(sgBtnX - sgBtnW / 2, sgBtnY - sgBtnH / 2, sgBtnW, sgBtnH, P(4));
+      sgBtnBg.lineStyle(1, hover ? 0xa06828 : 0x6a4420, 1);
+      sgBtnBg.strokeRoundedRect(sgBtnX - sgBtnW / 2, sgBtnY - sgBtnH / 2, sgBtnW, sgBtnH, P(4));
+    };
+    drawSgBtn(false);
+    sgBtnZone.on('pointerover', () => { drawSgBtn(true);  sgBtnTxt.setColor('#ffd890'); });
+    sgBtnZone.on('pointerout',  () => { drawSgBtn(false); sgBtnTxt.setColor('#e8c070'); });
+    sgBtnZone.on('pointerup',   () => (window as any).__openSkillGuide?.());
+
     // ── Reset button (right of skill-points text) ─────────────────────────
     const resetBg = s(this.add.graphics().setDepth(D + 3));
     const resetBtnW = P(76), resetBtnH = P(28);
@@ -6112,6 +6133,8 @@ export class PrepScene extends Phaser.Scene {
         if (b.burnMaxStackBonus) lines.push(tr('card.stat.burnStack', { n: b.burnMaxStackBonus }));
         if (b.summonFlowerDmgPct) lines.push(tr('card.stat.summonDmg', { val: pct(b.summonFlowerDmgPct) }));
         if (b.skillFlowerHpPct) lines.push(tr('card.stat.summonHp', { val: pct(b.skillFlowerHpPct) }));
+        if (b.flowerChargeSpeedPct) lines.push(tr('card.stat.flowerChargeSpeed', { n: Math.round(b.flowerChargeSpeedPct * 100) }));
+        if (b.flowerChargeCap) lines.push(tr('card.stat.flowerChargeCap', { n: b.flowerChargeCap }));
         if (b.freeRevive) lines.push(tr('card.stat.revive', { n: b.freeRevive }));
         if (b.divineShieldChance) lines.push(tr('card.stat.shieldChance', { val: pct(b.divineShieldChance) }));
         if (b.executePct) lines.push(tr('card.stat.execute', { val: pct(b.executePct) }));

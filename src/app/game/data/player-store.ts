@@ -70,8 +70,10 @@ export interface EffectiveStats {
   dashDistPct?:          number;
   dashDmgPct?:           number;
   dashDoubleHit?:        number;
-  multiHitNoStagger?:    number;
+  multiHitRangePct?:     number;
   multiHitDmgPct?:       number;
+  multiHitLightning?:    number;
+  multiHitNoStagger?:    number;
   chargeSlamStunChance?: number;
   chargeSlamDmgPct?:     number;
   chargeSlamOverload?:   number;
@@ -81,6 +83,7 @@ export interface EffectiveStats {
   boomerangBounce?:      number;
   auraRadiusPct?:        number;
   auraDmgPct?:           number;
+  auraBurn?:             number;
   projectileDistBonus?:  number;
   projectileDistPct?:    number;
   projectileDmgPct?:     number;
@@ -131,7 +134,7 @@ export interface EffectiveStats {
   lightningStrike?:      number;
   onHitLightningChance?: number;
   lightningDmgBonus?:          number;
-  lightningIntervalReduction?: number;
+  lightningChancePct?:         number;
   lightningSingleTarget?:      number;
   divineShieldChance?:   number;
   infiniteDivineShield?: number;
@@ -143,6 +146,8 @@ export interface EffectiveStats {
   skillFlowerHpPct?:     number;
   summonFlowerDmgPct?:   number;
   flowerSummonMode?:     number;
+  flowerChargeSpeedPct?: number;
+  flowerChargeCap?:      number;
   lavaSlimeCompanion?:   number;
   executeBelow15?:       number;
   burnedEnemyDmgAmp?:   number;

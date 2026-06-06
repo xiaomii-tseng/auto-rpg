@@ -124,7 +124,7 @@ const COMBO1_BONUSES: Record<string, { name: string; bonus: StatBonus }> = {
   slime_red:   { name: t('combo1.slime_red.name'),   bonus: { critDmgMult: 1.25 } },
   slime_blue:  { name: t('combo1.slime_blue.name'),  bonus: { defToEvasion: 30 } },
   slime_white: { name: t('combo1.slime_white.name'), bonus: { atkSpeedMult: 1.20 } },
-  slime_zombie:{ name: t('combo1.slime_zombie.name'),bonus: { burnMaxStackBonus: 3 } },
+  slime_zombie:{ name: t('combo1.slime_zombie.name'),bonus: { burnMaxStackBonus: 15 } },
   slime_lava:  { name: t('combo1.slime_lava.name'),  bonus: { condPenAtk: 28 } },
   plant1:      { name: t('combo1.plant1.name'),      bonus: { atk: 15, dmgVsEliteOrBoss: 0.08 } },
   plant2:      { name: t('combo1.plant2.name'),      bonus: { evasion: 0.06 } },
@@ -281,8 +281,10 @@ export const CardStore = {
       b.dashDistPct          = (b.dashDistPct          ?? 0) + (e.dashDistPct          ?? 0);
       b.dashDmgPct           = (b.dashDmgPct           ?? 0) + (e.dashDmgPct           ?? 0);
       b.dashDoubleHit        = (b.dashDoubleHit        ?? 0) + (e.dashDoubleHit        ?? 0);
-      b.multiHitNoStagger    = (b.multiHitNoStagger    ?? 0) + (e.multiHitNoStagger    ?? 0);
+      b.multiHitRangePct     = (b.multiHitRangePct     ?? 0) + (e.multiHitRangePct     ?? 0);
       b.multiHitDmgPct       = (b.multiHitDmgPct       ?? 0) + (e.multiHitDmgPct       ?? 0);
+      b.multiHitLightning    = (b.multiHitLightning    ?? 0) + (e.multiHitLightning    ?? 0);
+      b.multiHitNoStagger    = (b.multiHitNoStagger    ?? 0) + (e.multiHitNoStagger    ?? 0);
       b.chargeSlamStunChance = (b.chargeSlamStunChance ?? 0) + (e.chargeSlamStunChance ?? 0);
       b.chargeSlamDmgPct     = (b.chargeSlamDmgPct     ?? 0) + (e.chargeSlamDmgPct     ?? 0);
       b.chargeSlamOverload   = (b.chargeSlamOverload   ?? 0) + (e.chargeSlamOverload   ?? 0);
@@ -329,7 +331,7 @@ export const CardStore = {
       b.onHitLightningChance = (b.onHitLightningChance ?? 0) + (e.onHitLightningChance ?? 0);
       b.onHitKnifeChance     = (b.onHitKnifeChance     ?? 0) + (e.onHitKnifeChance     ?? 0);
       b.lightningDmgBonus          = (b.lightningDmgBonus          ?? 0) + (e.lightningDmgBonus          ?? 0);
-      b.lightningIntervalReduction = (b.lightningIntervalReduction ?? 0) + (e.lightningIntervalReduction ?? 0);
+      b.lightningChancePct         = (b.lightningChancePct         ?? 0) + (e.lightningChancePct         ?? 0);
       b.lightningSingleTarget      = (b.lightningSingleTarget      ?? 0) + (e.lightningSingleTarget      ?? 0);
       b.divineShieldChance   = (b.divineShieldChance   ?? 0) + (e.divineShieldChance   ?? 0);
       b.infiniteDivineShield = (b.infiniteDivineShield ?? 0) + (e.infiniteDivineShield ?? 0);
@@ -341,6 +343,8 @@ export const CardStore = {
       b.skillFlowerHpPct     = (b.skillFlowerHpPct     ?? 0) + (e.skillFlowerHpPct     ?? 0);
       b.summonFlowerDmgPct   = (b.summonFlowerDmgPct   ?? 0) + (e.summonFlowerDmgPct   ?? 0);
       b.flowerSummonMode     = (b.flowerSummonMode     ?? 0) + (e.flowerSummonMode     ?? 0);
+      b.flowerChargeSpeedPct = (b.flowerChargeSpeedPct ?? 0) + (e.flowerChargeSpeedPct ?? 0);
+      b.flowerChargeCap      = (b.flowerChargeCap      ?? 0) + (e.flowerChargeCap      ?? 0);
       b.lavaSlimeCompanion   = (b.lavaSlimeCompanion   ?? 0) + (e.lavaSlimeCompanion   ?? 0);
       b.executePct           = (b.executePct           ?? 0) + (e.executePct           ?? 0);
       b.burnedEnemyDmgAmp    = (b.burnedEnemyDmgAmp    ?? 0) + (e.burnedEnemyDmgAmp    ?? 0);
@@ -464,8 +468,10 @@ export const CardStore = {
       dashDistPct:          bonus.dashDistPct,
       dashDmgPct:           bonus.dashDmgPct,
       dashDoubleHit:        bonus.dashDoubleHit,
-      multiHitNoStagger:    bonus.multiHitNoStagger,
+      multiHitRangePct:     bonus.multiHitRangePct,
       multiHitDmgPct:       bonus.multiHitDmgPct,
+      multiHitLightning:    bonus.multiHitLightning,
+      multiHitNoStagger:    bonus.multiHitNoStagger,
       chargeSlamStunChance: bonus.chargeSlamStunChance,
       chargeSlamDmgPct:     bonus.chargeSlamDmgPct,
       chargeSlamOverload:   bonus.chargeSlamOverload,
@@ -475,6 +481,7 @@ export const CardStore = {
       boomerangBounce:      bonus.boomerangBounce,
       auraRadiusPct:        bonus.auraRadiusPct,
       auraDmgPct:           bonus.auraDmgPct,
+      auraBurn:             bonus.auraBurn,
       projectileDistBonus:  bonus.projectileDistBonus,
       projectileDistPct:    bonus.projectileDistPct,
       projectileDmgPct:     bonus.projectileDmgPct,
@@ -516,7 +523,7 @@ export const CardStore = {
       lightningStrike:      bonus.lightningStrike,
       onHitLightningChance: bonus.onHitLightningChance,
       lightningDmgBonus:          bonus.lightningDmgBonus,
-      lightningIntervalReduction: bonus.lightningIntervalReduction,
+      lightningChancePct:         bonus.lightningChancePct,
       lightningSingleTarget:      bonus.lightningSingleTarget,
       divineShieldChance:   bonus.divineShieldChance,
       infiniteDivineShield: bonus.infiniteDivineShield,
@@ -528,6 +535,8 @@ export const CardStore = {
       skillFlowerHpPct:     bonus.skillFlowerHpPct,
       summonFlowerDmgPct:   (bonus.summonFlowerDmgPct ?? 0) * summonDmgMult || bonus.summonFlowerDmgPct,
       flowerSummonMode:     bonus.flowerSummonMode,
+      flowerChargeSpeedPct: bonus.flowerChargeSpeedPct,
+      flowerChargeCap:      bonus.flowerChargeCap,
       lavaSlimeCompanion:   bonus.lavaSlimeCompanion,
       executeBelow15:       undefined,
       burnedEnemyDmgAmp:    bonus.burnedEnemyDmgAmp,

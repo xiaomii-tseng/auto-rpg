@@ -615,12 +615,12 @@ export const CARD_DEFS: CardDef[] = [
   { id: 'card_slime_zombie_e', name: t('card.card_slime_zombie_e'), monsterId: 'elite_slime_zombie',
     family: 'slime_zombie', race: 'slime', cardType: 'e',
     element: 'none', tint: 0xccff44,
-    effect: { dotBonus: 0.07, burnMaxStackBonus: 1 },
+    effect: { dotBonus: 0.07, burnMaxStackBonus: 5 },
     desc: t('card.card_slime_zombie_e.desc') },
   { id: 'card_slime_zombie_b', name: t('card.card_slime_zombie_b'), monsterId: 'boss_zombie_slime',
     family: 'slime_zombie', race: 'slime', cardType: 'b',
     element: 'none', tint: 0x99dd44,
-    effect: { dotBonus: 0.20, allDmgPct: 0.12, burnedEnemyDmgAmp: 0.28, burnMaxStackBonus: 3 },
+    effect: { dotBonus: 0.20, allDmgPct: 0.12, burnedEnemyDmgAmp: 0.28, burnMaxStackBonus: 15 },
     desc: t('card.card_slime_zombie_b.desc') },
 
   // ── 熔岩史萊姆家族（穿透主題）──
@@ -687,12 +687,12 @@ export const CARD_DEFS: CardDef[] = [
   { id: 'card_plant3_e', name: t('card.card_plant3_e'), monsterId: 'elite_plant3',
     family: 'plant3', race: 'flower', cardType: 'e',
     element: 'fire', tint: 0xff8822,
-    effect: { summonFlowerDmgPct: 0.10, skillFlowerHpPct: 0.15 },
+    effect: { summonFlowerDmgPct: 0.10, flowerChargeSpeedPct: 0.30 },
     desc: t('card.card_plant3_e.desc') },
   { id: 'card_plant3_b', name: t('card.card_plant3_b'), monsterId: 'boss_flower_three',
     family: 'plant3', race: 'flower', cardType: 'b',
     element: 'fire', tint: 0xff6600,
-    effect: { summonFlowerDmgPct: 0.50, summonFlowerCap: 2, skillFlowerHpPct: 0.35 },
+    effect: { summonFlowerDmgPct: 0.50, summonFlowerCap: 1, flowerChargeCap: 1, flowerChargeSpeedPct: 0.60 },
     desc: t('card.card_plant3_b.desc') },
 
   // ════════════════════════════════════════════════════

@@ -1,0 +1,28 @@
+<div class="sg-overlay" (click)="close()"></div>
+
+<div class="sg-panel">
+  <div class="sg-header">
+    <span class="sg-title">技能效果說明</span>
+    <button class="sg-close" (click)="close()">✕</button>
+  </div>
+
+  <div class="sg-list">
+    @for (entry of entries; track entry.id) {
+      <div class="sg-entry">
+        <div class="entry-header">
+          <span class="entry-name">{{ entry.name }}</span>
+          <span class="entry-badge"
+                [style.color]="entry.badgeColor"
+                [style.border-color]="entry.badgeColor">
+            {{ entry.badge }}
+          </span>
+        </div>
+        <ul class="entry-lines">
+          @for (line of entry.lines; track line) {
+            <li>{{ line }}</li>
+          }
+        </ul>
+      </div>
+    }
+  </div>
+</div>

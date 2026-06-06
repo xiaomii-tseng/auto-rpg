@@ -25,10 +25,12 @@ import { AffixGuideComponent }          from './game/affix-guide/affix-guide.com
 import { AffixGuideVisibilityService }  from './game/affix-guide/affix-guide-visibility.service';
 import { CardGuideComponent }           from './game/card-guide/card-guide.component';
 import { CardGuideVisibilityService }   from './game/card-guide/card-guide-visibility.service';
+import { SkillGuideComponent }          from './game/skill-guide/skill-guide.component';
+import { SkillGuideVisibilityService }  from './game/skill-guide/skill-guide-visibility.service';
 
 @Component({
   selector: 'app-root',
-  imports: [AuthComponent, MarketComponent, ReportComponent, PlayerProfileComponent, AffixGuideComponent, CardGuideComponent],
+  imports: [AuthComponent, MarketComponent, ReportComponent, PlayerProfileComponent, AffixGuideComponent, CardGuideComponent, SkillGuideComponent],
   templateUrl: './app.html',
   styleUrl: './app.scss',
 })
@@ -43,6 +45,7 @@ export class App implements AfterViewInit {
   private readonly playerProfileVis = inject(PlayerProfileVisibilityService);
   private readonly affixGuideVis   = inject(AffixGuideVisibilityService);
   private readonly cardGuideVis    = inject(CardGuideVisibilityService);
+  private readonly skillGuideVis   = inject(SkillGuideVisibilityService);
   readonly pushSvc           = inject(PushService);
 
   showAuth            = true;
@@ -52,6 +55,7 @@ export class App implements AfterViewInit {
   showPlayerProfile   = this.playerProfileVis.visible;
   showAffixGuide      = this.affixGuideVis.visible;
   showCardGuide       = this.cardGuideVis.visible;
+  showSkillGuide      = this.skillGuideVis.visible;
   autoLoginLoading    = signal(false);
   autoLoginHint       = signal('');
   private _phaserInited = false;
@@ -226,6 +230,7 @@ export class App implements AfterViewInit {
     (window as any).__openPlayerProfile = (id: string) => this.ngZone.run(() => this.playerProfileVis.open(id));
     (window as any).__openAffixGuide    = () => this.ngZone.run(() => this.affixGuideVis.open());
     (window as any).__openCardGuide     = () => this.ngZone.run(() => this.cardGuideVis.open());
+    (window as any).__openSkillGuide    = () => this.ngZone.run(() => this.skillGuideVis.open());
     (window as any).__saveAndLogout = async () => {
       SaveStore.save();
       await this.saveSync.uploadNow();
