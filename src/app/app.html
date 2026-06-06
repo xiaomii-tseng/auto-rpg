@@ -34,6 +34,10 @@
   <app-skill-guide></app-skill-guide>
 }
 
+@if (showChat()) {
+  <app-chat></app-chat>
+}
+
 @if (showPlayerProfile()) {
   <app-player-profile></app-player-profile>
 }

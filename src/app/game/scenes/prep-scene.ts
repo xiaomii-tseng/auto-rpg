@@ -465,6 +465,9 @@ export class PrepScene extends Phaser.Scene {
     this.drawTopBar(W);
     this.drawBottomNav(W, H);
 
+    (window as any).__showChat?.();
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => (window as any).__hideChat?.());
+
     const onGoldChange = () => {
       this.goldText?.setText(InventoryStore.getGold().toLocaleString());
     };

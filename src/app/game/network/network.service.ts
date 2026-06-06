@@ -46,6 +46,8 @@ interface TownCallbacks {
   partyCancelled?: () => void;
   townDisconnected?: () => void;
   townAnimal?: (data: any) => void;
+  chatMsg?:     (data: { nickname: string; text: string; ts: number }) => void;
+  chatHistory?: (data: { messages: { nickname: string; text: string; ts: number }[] }) => void;
 }
 
 // ── Replaceable callback slots ─────────────────────────────────────────────
@@ -525,6 +527,8 @@ class NetworkServiceClass {
     r.onMessage('partyRoomCode',    (d: any) => this._townCbs.partyRoomCode?.(d));
     r.onMessage('partyCancelled',   ()       => this._townCbs.partyCancelled?.());
     r.onMessage('townAnimal',       (d: any) => this._townCbs.townAnimal?.(d));
+    r.onMessage('chat_msg',         (d: any) => this._townCbs.chatMsg?.(d));
+    r.onMessage('chat_history',     (d: any) => this._townCbs.chatHistory?.(d));
     r.onLeave((code) => {
       if (code !== 1000) {
         this.townRoom = undefined;
@@ -603,6 +607,18 @@ class NetworkServiceClass {
 
   onTownAnimal(cb: (data: any) => void): void {
     this._townCbs.townAnimal = cb;
+  }
+
+  sendChat(text: string): void {
+    this.townRoom?.send('chat', { text });
+  }
+
+  onChatMsg(cb: (data: { nickname: string; text: string; ts: number }) => void): void {
+    this._townCbs.chatMsg = cb;
+  }
+
+  onChatHistory(cb: (data: { messages: { nickname: string; text: string; ts: number }[] }) => void): void {
+    this._townCbs.chatHistory = cb;
   }
 
   leaveTown(): void {

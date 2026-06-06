@@ -1,0 +1,35 @@
+<div class="chat-window" [class.minimized]="minimized">
+  <div class="chat-header" (click)="toggleMinimize()">
+    <span class="chat-title">聊天頻道</span>
+    <span class="chat-toggle">{{ minimized ? '▲' : '▼' }}</span>
+  </div>
+
+  @if (!minimized) {
+    <div class="chat-messages" #msgList>
+      @for (msg of messages(); track msg.ts) {
+        <div class="chat-msg">
+          <span class="msg-nick">{{ msg.nickname }}</span>
+          <span class="msg-sep">：</span>
+          <span class="msg-text">{{ msg.text }}</span>
+        </div>
+      }
+      @if (messages().length === 0) {
+        <div class="chat-empty">尚無訊息</div>
+      }
+    </div>
+
+    <div class="chat-input-row">
+      <input
+        class="chat-input"
+        type="text"
+        placeholder="說點什麼..."
+        maxlength="60"
+        [(ngModel)]="inputText"
+        (keydown)="onKeydown($event)"
+        (focus)="onInputFocus()"
+        (blur)="onInputBlur()"
+      />
+      <button class="chat-send" (click)="send()">送出</button>
+    </div>
+  }
+</div>

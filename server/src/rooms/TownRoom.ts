@@ -20,6 +20,7 @@ export class TownRoom extends Room {
   maxClients = 30;
   private _players        = new Map<string, TownPlayer>();
   private _pendingInvites = new Map<string, PendingInvite>(); // key = toSid
+  private _chatHistory: { nickname: string; text: string; ts: number }[] = [];
 
   onCreate(): void {
     this.onMessage<{ x: number; y: number; lastDir: string }>('townMove', (client, msg) => {
@@ -97,6 +98,18 @@ export class TownRoom extends Room {
     this.onMessage<any>('townAnimal', (client, msg) => {
       this.broadcast('townAnimal', msg, { except: client });
     });
+
+    // ── Chat ──────────────────────────────────────────────────
+    this.onMessage<{ text: string }>('chat', (client, msg) => {
+      const p = this._players.get(client.sessionId);
+      if (!p) return;
+      const text = (msg.text ?? '').toString().trim().slice(0, 60);
+      if (!text) return;
+      const entry = { nickname: p.nickname || '???', text, ts: Date.now() };
+      this._chatHistory.push(entry);
+      if (this._chatHistory.length > 50) this._chatHistory.shift();
+      this.broadcast('chat_msg', entry);
+    });
   }
 
   onJoin(client: Client): void {
@@ -116,6 +129,8 @@ export class TownRoom extends Room {
       if (pl.sessionId !== client.sessionId) existing.push({ ...pl });
     });
     client.send('townJoined', { sessionId: client.sessionId, x: p.x, y: p.y, existing });
+    if (this._chatHistory.length > 0)
+      client.send('chat_history', { messages: this._chatHistory.slice(-30) });
 
     this.broadcast('townPlayerJoined', {
       sessionId: client.sessionId, x: p.x, y: p.y, lastDir: 'down', nickname: '', level: 1, skinId: 0,

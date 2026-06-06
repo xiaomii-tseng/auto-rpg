@@ -27,10 +27,11 @@ import { CardGuideComponent }           from './game/card-guide/card-guide.compo
 import { CardGuideVisibilityService }   from './game/card-guide/card-guide-visibility.service';
 import { SkillGuideComponent }          from './game/skill-guide/skill-guide.component';
 import { SkillGuideVisibilityService }  from './game/skill-guide/skill-guide-visibility.service';
+import { ChatComponent }                from './game/chat/chat.component';
 
 @Component({
   selector: 'app-root',
-  imports: [AuthComponent, MarketComponent, ReportComponent, PlayerProfileComponent, AffixGuideComponent, CardGuideComponent, SkillGuideComponent],
+  imports: [AuthComponent, MarketComponent, ReportComponent, PlayerProfileComponent, AffixGuideComponent, CardGuideComponent, SkillGuideComponent, ChatComponent],
   templateUrl: './app.html',
   styleUrl: './app.scss',
 })
@@ -56,6 +57,7 @@ export class App implements AfterViewInit {
   showAffixGuide      = this.affixGuideVis.visible;
   showCardGuide       = this.cardGuideVis.visible;
   showSkillGuide      = this.skillGuideVis.visible;
+  showChat            = signal(false);
   autoLoginLoading    = signal(false);
   autoLoginHint       = signal('');
   private _phaserInited = false;
@@ -231,6 +233,8 @@ export class App implements AfterViewInit {
     (window as any).__openAffixGuide    = () => this.ngZone.run(() => this.affixGuideVis.open());
     (window as any).__openCardGuide     = () => this.ngZone.run(() => this.cardGuideVis.open());
     (window as any).__openSkillGuide    = () => this.ngZone.run(() => this.skillGuideVis.open());
+    (window as any).__showChat          = () => this.ngZone.run(() => this.showChat.set(true));
+    (window as any).__hideChat          = () => this.ngZone.run(() => this.showChat.set(false));
     (window as any).__saveAndLogout = async () => {
       SaveStore.save();
       await this.saveSync.uploadNow();
