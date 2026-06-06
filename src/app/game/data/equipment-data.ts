@@ -67,14 +67,15 @@ export interface StatBonus {
   whirlwindRangePct?:   number;  // 旋風斬範圍 ×(1+X)
   whirlwindDmgPct?:     number;  // 旋風斬傷害 ×(1+X)
   slash180DmgPct?:      number;  // 半月斬傷害 ×(1+X)
-  laserRadiusPct?:        number;  // 雷電輻射半徑 ×(1+X)（base P(20)）
-  laserExplode?:          number;  // 1=每4tick核爆脈衝，60px內等量傷害（ATK×30%，滿層×60%）
+  laserRadiusPct?:        number;  // 1=快速充能（3.5s→1.5s 回滿）
+  laserExplode?:          number;  // 1=每6tick核爆脈衝，60px內等量傷害（ATK×90%，滿層×180%）
   laserChain?:            number;  // 連鎖子閃電條數，鎖定75px內最遠敵人（各70%傷害）
   laserDoubleDuration?:   number;  // 1=滿充能持續時間×2（4s→8s）
   burnMaxStackBonus?:   number;  // 燃燒上限 +X 層
   burnSpread?:          number;  // 燃燒擴散半徑（張數 × 80px）
   burnSpreadSkillPx?:   number;  // 技能燃燒擴散半徑（CSS px，game scene 乘 DPR）
   burnDoubleStack?:     number;  // 業火：1 = 所有目標每 tick 疊兩層
+  burnFieldEliteStacks?: number; // 1 = 火場對一般/菁英每 tick 疊5層（Boss維持burnDoubleStack層數）
   dashDistBonus?:       number;  // 瞬步斬距離 +X（物理像素，卡片用）
   dashDistPct?:         number;  // 瞬步斬距離 ×(1+X)（百分比，技能用）
   dashDmgPct?:          number;  // 瞬步斬傷害 ×(1+X)
@@ -87,6 +88,7 @@ export interface StatBonus {
   meteorGiant?:         number;  // 巨型隕石（1=啟用，覆蓋流星雨，傷害×1.4）
   boomerangRangePct?:   number;  // 迴旋飛刃範圍 ×(1+X)
   boomerangDmgPct?:     number;  // 迴旋飛刃傷害 ×(1+X)
+  boomerangBounce?:     number;  // 1=命中彈跳至 150px 內最近未命中敵人
   auraRadiusPct?:       number;  // 血環半徑 ×(1+X)
   auraDmgPct?:          number;  // 血環傷害 ×(1+X)
   projectileDistBonus?: number;  // 風刃距離 +X（物理像素，卡片用）
@@ -177,6 +179,7 @@ export interface StatBonus {
   // ── 再生護盾 ──
   regenShieldMax?:    number;  // 自動再生護盾上限（HP值，停止受傷2.5s後每秒回填25%）
   regenShieldMaxPct?: number;  // 自動再生護盾上限（最大HP倍率，0.15=15%）
+  executePct?:        number;  // 敵人HP低於X%時直接斬殺
 }
 
 // ── Affix system ───────────────────────────────────────────────────────────────

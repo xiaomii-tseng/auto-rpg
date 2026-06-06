@@ -593,7 +593,7 @@ export class MarketComponent implements OnInit, OnDestroy {
     if (b.skillFlowerHpPct)  lines.push(t('card.stat.summonHp',    { val: pct(b.skillFlowerHpPct) }));
     if (b.freeRevive)        lines.push(t('card.stat.revive',       { n: b.freeRevive }));
     if (b.divineShieldChance)lines.push(t('card.stat.shieldChance', { val: pct(b.divineShieldChance) }));
-    if (b.executeBelow15)    lines.push(t('card.stat.execute'));
+    if (b.executePct)        lines.push(t('card.stat.execute', { val: pct(b.executePct) }));
     if (b.critDmgMult && b.critDmgMult !== 1)     lines.push(t('card.stat.critDmgMult',   { n: b.critDmgMult.toFixed(2) }));
     if (b.atkSpeedMult && b.atkSpeedMult !== 1)   lines.push(t('card.stat.atkSpeedMult',  { n: b.atkSpeedMult.toFixed(2) }));
     if (b.summonDmgMult && b.summonDmgMult !== 1) lines.push(t('card.stat.summonDmgMult', { n: b.summonDmgMult.toFixed(2) }));

@@ -586,7 +586,7 @@ export const CARD_DEFS: CardDef[] = [
   { id: 'card_slime_blue_b', name: t('card.card_slime_blue_b'), monsterId: 'boss_slime_blue',
     family: 'slime_blue', race: 'slime', cardType: 'b',
     element: 'water', tint: 0x1188ff,
-    effect: { divineShieldChance: 0.18, takenDmgPct: -0.12, executeBelow15: 1 },
+    effect: { divineShieldChance: 0.18, takenDmgPct: -0.12, executePct: 0.12 },
     desc: t('card.card_slime_blue_b.desc') },
 
   // ── 白史萊姆家族（速度主題）──

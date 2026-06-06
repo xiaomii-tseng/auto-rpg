@@ -276,6 +276,7 @@ export const CardStore = {
       b.burnSpread           = (b.burnSpread           ?? 0) + (e.burnSpread           ?? 0);
       b.burnSpreadSkillPx    = (b.burnSpreadSkillPx    ?? 0) + (e.burnSpreadSkillPx    ?? 0);
       b.burnDoubleStack      = (b.burnDoubleStack      ?? 0) + (e.burnDoubleStack      ?? 0);
+      b.burnFieldEliteStacks = (b.burnFieldEliteStacks ?? 0) + (e.burnFieldEliteStacks ?? 0);
       b.dashDistBonus        = (b.dashDistBonus        ?? 0) + (e.dashDistBonus        ?? 0);
       b.dashDistPct          = (b.dashDistPct          ?? 0) + (e.dashDistPct          ?? 0);
       b.dashDmgPct           = (b.dashDmgPct           ?? 0) + (e.dashDmgPct           ?? 0);
@@ -288,6 +289,7 @@ export const CardStore = {
       b.meteorGiant          = (b.meteorGiant          ?? 0) + (e.meteorGiant          ?? 0);
       b.boomerangRangePct    = (b.boomerangRangePct    ?? 0) + (e.boomerangRangePct    ?? 0);
       b.boomerangDmgPct      = (b.boomerangDmgPct      ?? 0) + (e.boomerangDmgPct      ?? 0);
+      b.boomerangBounce      = (b.boomerangBounce      ?? 0) + (e.boomerangBounce      ?? 0);
       b.auraRadiusPct        = (b.auraRadiusPct        ?? 0) + (e.auraRadiusPct        ?? 0);
       b.auraDmgPct           = (b.auraDmgPct           ?? 0) + (e.auraDmgPct           ?? 0);
       b.projectileDistBonus  = (b.projectileDistBonus  ?? 0) + (e.projectileDistBonus  ?? 0);
@@ -340,7 +342,7 @@ export const CardStore = {
       b.summonFlowerDmgPct   = (b.summonFlowerDmgPct   ?? 0) + (e.summonFlowerDmgPct   ?? 0);
       b.flowerSummonMode     = (b.flowerSummonMode     ?? 0) + (e.flowerSummonMode     ?? 0);
       b.lavaSlimeCompanion   = (b.lavaSlimeCompanion   ?? 0) + (e.lavaSlimeCompanion   ?? 0);
-      b.executeBelow15       = (b.executeBelow15       ?? 0) + (e.executeBelow15       ?? 0);
+      b.executePct           = (b.executePct           ?? 0) + (e.executePct           ?? 0);
       b.burnedEnemyDmgAmp    = (b.burnedEnemyDmgAmp    ?? 0) + (e.burnedEnemyDmgAmp    ?? 0);
       b.condLowHpAtk         = (b.condLowHpAtk         ?? 0) + (e.condLowHpAtk         ?? 0);
       b.freeRevive           = (b.freeRevive           ?? 0) + (e.freeRevive           ?? 0);
@@ -457,6 +459,7 @@ export const CardStore = {
       burnSpread:           bonus.burnSpread,
       burnSpreadSkillPx:    bonus.burnSpreadSkillPx,
       burnDoubleStack:      bonus.burnDoubleStack,
+      burnFieldEliteStacks: bonus.burnFieldEliteStacks,
       dashDistBonus:        bonus.dashDistBonus,
       dashDistPct:          bonus.dashDistPct,
       dashDmgPct:           bonus.dashDmgPct,
@@ -469,6 +472,7 @@ export const CardStore = {
       meteorGiant:          bonus.meteorGiant,
       boomerangRangePct:    bonus.boomerangRangePct,
       boomerangDmgPct:      bonus.boomerangDmgPct,
+      boomerangBounce:      bonus.boomerangBounce,
       auraRadiusPct:        bonus.auraRadiusPct,
       auraDmgPct:           bonus.auraDmgPct,
       projectileDistBonus:  bonus.projectileDistBonus,
@@ -483,7 +487,7 @@ export const CardStore = {
       dropRatePct:          base.dropRatePct,
       rarityBonus:          base.rarityBonus,
       killShieldPerKill:    base.killShieldPerKill,
-      executePct:           base.executePct,
+      executePct:           ((base.executePct ?? 0) + (bonus.executePct ?? 0)) || undefined,
       regenShieldMax:       Math.round(((base.regenShieldMax ?? 0) + (bonus.regenShieldMax ?? 0)) * (1 + (bonus.regenShieldMaxPct ?? 0))) || undefined,
       condDotStackBonus:    bonus.condDotStackBonus,
       orbitFireBalls:       bonus.orbitFireBalls,
@@ -525,7 +529,7 @@ export const CardStore = {
       summonFlowerDmgPct:   (bonus.summonFlowerDmgPct ?? 0) * summonDmgMult || bonus.summonFlowerDmgPct,
       flowerSummonMode:     bonus.flowerSummonMode,
       lavaSlimeCompanion:   bonus.lavaSlimeCompanion,
-      executeBelow15:       bonus.executeBelow15,
+      executeBelow15:       undefined,
       burnedEnemyDmgAmp:    bonus.burnedEnemyDmgAmp,
       condLowHpAtk:         bonus.condLowHpAtk,
       freeRevive:           bonus.freeRevive,

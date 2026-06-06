@@ -65,6 +65,7 @@ export interface EffectiveStats {
   burnSpread?:           number;
   burnSpreadSkillPx?:    number;
   burnDoubleStack?:      number;
+  burnFieldEliteStacks?: number;
   dashDistBonus?:        number;
   dashDistPct?:          number;
   dashDmgPct?:           number;
@@ -77,6 +78,7 @@ export interface EffectiveStats {
   meteorGiant?:          number;
   boomerangRangePct?:    number;
   boomerangDmgPct?:      number;
+  boomerangBounce?:      number;
   auraRadiusPct?:        number;
   auraDmgPct?:           number;
   projectileDistBonus?:  number;

@@ -1,0 +1,45 @@
+<div class="cg-overlay" (click)="close()"></div>
+
+<div class="cg-panel">
+  <div class="cg-header">
+    <span class="cg-title">卡片效果說明</span>
+    <button class="cg-close" (click)="close()">✕</button>
+  </div>
+
+  <div class="cg-priority">
+    <div class="priority-label">觸發優先度</div>
+    @for (note of priorityNote; track note) {
+      <div class="priority-item">{{ note }}</div>
+    }
+  </div>
+
+  <div class="cg-tabs">
+    @for (tab of tabs; track tab.key) {
+      <button
+        class="cg-tab"
+        [class.active]="activeTab() === tab.key"
+        (click)="setTab(tab.key)">
+        {{ tab.label }}
+      </button>
+    }
+  </div>
+
+  <div class="cg-list">
+    @for (entry of entries; track entry.id) {
+      <div class="cg-entry">
+        <div class="entry-header">
+          <span class="entry-name">{{ entry.name }}</span>
+          <span class="entry-condition" [style.color]="entry.conditionColor"
+                [style.border-color]="entry.conditionColor">
+            {{ entry.condition }}
+          </span>
+        </div>
+        <ul class="entry-effects">
+          @for (effect of entry.effects; track effect) {
+            <li>{{ effect }}</li>
+          }
+        </ul>
+      </div>
+    }
+  </div>
+</div>

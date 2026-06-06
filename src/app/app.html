@@ -22,6 +22,14 @@
   <app-market></app-market>
 }
 
+@if (showAffixGuide()) {
+  <app-affix-guide></app-affix-guide>
+}
+
+@if (showCardGuide()) {
+  <app-card-guide></app-card-guide>
+}
+
 @if (showPlayerProfile()) {
   <app-player-profile></app-player-profile>
 }

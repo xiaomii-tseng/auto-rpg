@@ -2250,6 +2250,36 @@ export class PrepScene extends Phaser.Scene {
     closeBtn.on('pointerup', closePanelFn);
     container.once('destroy', () => { if (closeBtn.active) closeBtn.destroy(); });
 
+    const affixBtnW = P(80); const affixBtnH = P(26);
+    const affixBtnX = W / 2 + px + PW - P(90);
+    const affixBtnY = H / 2 + py + P(21);
+
+    const affixBtnBg  = this.add.graphics().setDepth(D + 1).setScrollFactor(0);
+    const affixBtnTxt = this.add.text(affixBtnX, affixBtnY, '詞墜說明', {
+      fontSize: F(13), fontStyle: 'bold', color: '#e8c070',
+    }).setOrigin(0.5).setDepth(D + 1).setScrollFactor(0);
+    const affixBtnZone = this.add.zone(affixBtnX, affixBtnY, affixBtnW, affixBtnH)
+      .setInteractive({ useHandCursor: true }).setDepth(D + 1).setScrollFactor(0);
+
+    const drawAffixBtn = (hover: boolean) => {
+      affixBtnBg.clear();
+      affixBtnBg.fillStyle(hover ? 0x4a2a10 : 0x2a1808, 1);
+      affixBtnBg.fillRoundedRect(affixBtnX - affixBtnW / 2, affixBtnY - affixBtnH / 2, affixBtnW, affixBtnH, P(4));
+      affixBtnBg.lineStyle(1, hover ? 0xa06828 : 0x6a4420, 1);
+      affixBtnBg.strokeRoundedRect(affixBtnX - affixBtnW / 2, affixBtnY - affixBtnH / 2, affixBtnW, affixBtnH, P(4));
+    };
+    drawAffixBtn(false);
+
+    affixBtnZone.on('pointerover', () => { drawAffixBtn(true);  affixBtnTxt.setColor('#ffd890'); });
+    affixBtnZone.on('pointerout',  () => { drawAffixBtn(false); affixBtnTxt.setColor('#e8c070'); });
+    affixBtnZone.on('pointerup',   () => (window as any).__openAffixGuide?.());
+
+    container.once('destroy', () => {
+      if (affixBtnBg.active)   affixBtnBg.destroy();
+      if (affixBtnTxt.active)  affixBtnTxt.destroy();
+      if (affixBtnZone.active) affixBtnZone.destroy();
+    });
+
     // ── Slot definitions ──────────────────────────────────
     const slotDefs: { label: string; color: number; slotKey: EquipSlot }[] = [
       { label: tr('equip.slot.sword'), color: 0xdd8844, slotKey: 'sword' },
@@ -5163,6 +5193,33 @@ export class PrepScene extends Phaser.Scene {
     closeBtn.on('pointerup', () => { cleanup(); container.destroy(); });
     container.add(closeBtn);
 
+    // ── Card guide button ──────────────────────────────────
+    const cgBtnW = P(80); const cgBtnH = P(26);
+    const cgBtnX = px + PW - P(110);
+    const cgBtnY = py + P(18);
+
+    const cgBtnBg = this.add.graphics();
+    const cgBtnTxt = this.add.text(cgBtnX, cgBtnY, '效果說明', {
+      fontSize: F(13), fontStyle: 'bold', color: '#e8c070',
+    }).setOrigin(0.5);
+    const cgBtnZone = this.add.zone(cgBtnX, cgBtnY, cgBtnW, cgBtnH)
+      .setInteractive({ useHandCursor: true });
+
+    const drawCgBtn = (hover: boolean) => {
+      cgBtnBg.clear();
+      cgBtnBg.fillStyle(hover ? 0x4a2a10 : 0x2a1808, 1);
+      cgBtnBg.fillRoundedRect(cgBtnX - cgBtnW / 2, cgBtnY - cgBtnH / 2, cgBtnW, cgBtnH, P(4));
+      cgBtnBg.lineStyle(1, hover ? 0xa06828 : 0x6a4420, 1);
+      cgBtnBg.strokeRoundedRect(cgBtnX - cgBtnW / 2, cgBtnY - cgBtnH / 2, cgBtnW, cgBtnH, P(4));
+    };
+    drawCgBtn(false);
+
+    cgBtnZone.on('pointerover', () => { drawCgBtn(true);  cgBtnTxt.setColor('#ffd890'); });
+    cgBtnZone.on('pointerout',  () => { drawCgBtn(false); cgBtnTxt.setColor('#e8c070'); });
+    cgBtnZone.on('pointerup',   () => (window as any).__openCardGuide?.());
+
+    container.add([cgBtnBg, cgBtnTxt, cgBtnZone]);
+
     // Layout constants
     const CARD_W = P(72);
     const CARD_H = P(96);
@@ -6057,7 +6114,7 @@ export class PrepScene extends Phaser.Scene {
         if (b.skillFlowerHpPct) lines.push(tr('card.stat.summonHp', { val: pct(b.skillFlowerHpPct) }));
         if (b.freeRevive) lines.push(tr('card.stat.revive', { n: b.freeRevive }));
         if (b.divineShieldChance) lines.push(tr('card.stat.shieldChance', { val: pct(b.divineShieldChance) }));
-        if (b.executeBelow15) lines.push(tr('card.stat.execute'));
+        if (b.executePct) lines.push(tr('card.stat.execute', { val: pct(b.executePct) }));
         if (b.critDmgMult && b.critDmgMult !== 1) lines.push(tr('card.stat.critDmgMult', { n: b.critDmgMult.toFixed(2) }));
         if (b.atkSpeedMult && b.atkSpeedMult !== 1) lines.push(tr('card.stat.atkSpeedMult', { n: b.atkSpeedMult.toFixed(2) }));
         if (b.summonDmgMult && b.summonDmgMult !== 1) lines.push(tr('card.stat.summonDmgMult', { n: b.summonDmgMult.toFixed(2) }));

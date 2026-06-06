@@ -238,10 +238,11 @@ export const SkillTreeStore = {
     const L = (id: string) => _learned.has(id);
     return {
       // ── 地獄火 ────────────────────────────────────────────
-      dotBonus:           (L('1-4') ? 0.15 : 0),
-      burnMaxStackBonus:  (L('1-4-1') ? 5 : 0),
-      burnDoubleStack:    (L('1-4-1-1') ? 1 : 0),
-      burnSpreadSkillPx:  L('1-4-2-1') ? 40 : L('1-4-2') ? 12 : 0,
+      burnDoubleStack:      (L('1-4') ? 1 : 0),
+      burnMaxStackBonus:    (L('1-4-1') ? 5 : 0),
+      dotBonus:             (L('1-4-1-1') ? 0.15 : 0),
+      burnSpreadSkillPx:    (L('1-4-2') ? 80 : 0),
+      burnFieldEliteStacks: (L('1-4-2-1') ? 1 : 0),
       // ── 血環 ──────────────────────────────────────────────
       auraRadiusPct:    (L('1-1') ? 0.15 : 0) + (L('1-1-1') ? 0.25 : 0),
       auraDmgPct:       (L('1-1-1-1') ? 0.30 : 0),
@@ -266,8 +267,9 @@ export const SkillTreeStore = {
       whirlwindRangePct:    (L('1-5') ? 0.10 : 0) + (L('1-5-1') ? 0.20 : 0),
       whirlwindDmgPct:      (L('1-5-1-1') ? 0.30 : 0),
       // ── 迴旋飛刃 ──────────────────────────────────────────
-      boomerangRangePct:    (L('1-3') ? 0.15 : 0) + (L('1-3-1') ? 0.15 : 0),
-      boomerangDmgPct:      (L('1-3-1-1') ? 0.20 : 0),
+      boomerangRangePct:    (L('1-3') ? 0.30 : 0),
+      boomerangDmgPct:      (L('1-3-1') ? 0.20 : 0),
+      boomerangBounce:      (L('1-3-1-1') ? 1 : 0),
       // ── 呼喚雷霆 ──────────────────────────────────────────
       lightningStrike:            (L('5') ? 1 : 0) + (L('5-1') ? 1 : 0),
       lightningDmgBonus:          (L('5-1-1') ? 0.40 : 0) + (L('5-1-1-1') ? 0.90 : 0),

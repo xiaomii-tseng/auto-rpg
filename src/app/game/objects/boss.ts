@@ -291,9 +291,9 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
 
     if (this.hp <= 0) {
       this.die();
-    } else if ((CardStore.getTotalStats().executeBelow15 ?? 0) > 0 && this.hp / this.maxHp < 0.12) {
-      this.hp = 0;
-      this.die();
+    } else {
+      const execPct = CardStore.getTotalStats().executePct ?? 0;
+      if (execPct > 0 && this.hp / this.maxHp < execPct) { this.hp = 0; this.die(); }
     }
   }
 

@@ -21,10 +21,14 @@ import { ReportVisibilityService }  from './game/report/report-visibility.servic
 import { PushService }              from './game/push/push.service';
 import { PlayerProfileComponent }         from './game/leaderboard/player-profile.component';
 import { PlayerProfileVisibilityService } from './game/leaderboard/player-profile-visibility.service';
+import { AffixGuideComponent }          from './game/affix-guide/affix-guide.component';
+import { AffixGuideVisibilityService }  from './game/affix-guide/affix-guide-visibility.service';
+import { CardGuideComponent }           from './game/card-guide/card-guide.component';
+import { CardGuideVisibilityService }   from './game/card-guide/card-guide-visibility.service';
 
 @Component({
   selector: 'app-root',
-  imports: [AuthComponent, MarketComponent, ReportComponent, PlayerProfileComponent],
+  imports: [AuthComponent, MarketComponent, ReportComponent, PlayerProfileComponent, AffixGuideComponent, CardGuideComponent],
   templateUrl: './app.html',
   styleUrl: './app.scss',
 })
@@ -37,6 +41,8 @@ export class App implements AfterViewInit {
   private readonly marketVis      = inject(MarketVisibilityService);
   private readonly reportVis      = inject(ReportVisibilityService);
   private readonly playerProfileVis = inject(PlayerProfileVisibilityService);
+  private readonly affixGuideVis   = inject(AffixGuideVisibilityService);
+  private readonly cardGuideVis    = inject(CardGuideVisibilityService);
   readonly pushSvc           = inject(PushService);
 
   showAuth            = true;
@@ -44,6 +50,8 @@ export class App implements AfterViewInit {
   showPushPrompt      = signal(false);
   showMarket          = this.marketVis.visible;
   showPlayerProfile   = this.playerProfileVis.visible;
+  showAffixGuide      = this.affixGuideVis.visible;
+  showCardGuide       = this.cardGuideVis.visible;
   autoLoginLoading    = signal(false);
   autoLoginHint       = signal('');
   private _phaserInited = false;
@@ -216,6 +224,8 @@ export class App implements AfterViewInit {
     (window as any).__openMarket        = () => this.ngZone.run(() => this.marketVis.open());
     (window as any).__openReport        = () => this.ngZone.run(() => this.reportVis.open());
     (window as any).__openPlayerProfile = (id: string) => this.ngZone.run(() => this.playerProfileVis.open(id));
+    (window as any).__openAffixGuide    = () => this.ngZone.run(() => this.affixGuideVis.open());
+    (window as any).__openCardGuide     = () => this.ngZone.run(() => this.cardGuideVis.open());
     (window as any).__saveAndLogout = async () => {
       SaveStore.save();
       await this.saveSync.uploadNow();

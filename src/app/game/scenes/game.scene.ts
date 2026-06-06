@@ -2636,7 +2636,8 @@ export class GameScene extends Phaser.Scene {
         if (this._laserEnergy <= 0) this._laserEnergyReady = false;
       } else {
         // 未在射擊時持續充能，但耗盡後需等到全滿才能再射
-        this._laserEnergy = Math.min(100, this._laserEnergy + eDelta * (100 / 2000));
+        const chargeMs = (eStats.laserRadiusPct ?? 0) >= 1 ? 1500 : 3000;
+        this._laserEnergy = Math.min(100, this._laserEnergy + eDelta * (100 / chargeMs));
         if (this._laserEnergy >= 100) this._laserEnergyReady = true;
       }
 
@@ -2855,7 +2856,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   protected _fireHoldAttack(): void {
-    if (this.gameOver || !this.player.active) return;
+    if (this.gameOver || this.teleporting || !this.player.active) return;
     const isDash = SkillTreeStore.getAttackMode() === 'dashPierce';
     const isFlowerMode = (CardStore.getTotalStats().flowerSummonMode ?? 0) > 0 || SkillTreeStore.getAttackMode() === 'flowerMode';
     if (isFlowerMode) {
@@ -3339,7 +3340,7 @@ export class GameScene extends Phaser.Scene {
   private attackBoomerang(_tx: number, _ty: number): void {
     const bStats = CardStore.getTotalStats();
     const spd = 1 + this.getEffectiveAtkSpeed();
-    const cd = Math.round(1500 / spd);
+    const cd = Math.round(1150 / spd);
     if (!this.player.lockCooldown(cd)) return;
     this.playSfx('sfx_swing5');
     const { dir, rad } = this.resolveAttackDir(P(240));
@@ -3347,7 +3348,7 @@ export class GameScene extends Phaser.Scene {
 
     const rangeMult = 1 + (bStats.boomerangRangePct ?? 0);
     const HIT_R = Math.round(P(20) * rangeMult);
-    const SPIN_R = Math.round(P(32) * rangeMult);
+    const SPIN_R = Math.round(P(26) * rangeMult);
     const MAX_DIST = P(160);
     const SPIN_MS = Math.round(800 / spd);
     const destX = this.player.x + Math.cos(rad) * MAX_DIST;
@@ -3376,6 +3377,20 @@ export class GameScene extends Phaser.Scene {
           }
           return centerHit;
         },
+        onBounce: (bStats.boomerangBounce ?? 0) >= 1 ? (bx, by) => {
+          const boomMult = 1 + (bStats.boomerangDmgPct ?? 0);
+          let bounceTarget: ReturnType<typeof this.getHittableTargets>[0] | undefined;
+          let maxD = -1;
+          for (const bt of this.getHittableTargets()) {
+            if (hitOut.has(bt)) continue;
+            const bd = Phaser.Math.Distance.Between(bx, by, bt.x, bt.y);
+            if (bd <= P(75) && bd > maxD) { maxD = bd; bounceTarget = bt; }
+          }
+          if (!bounceTarget) return null;
+          hitOut.add(bounceTarget);
+          this.dealDamage(bounceTarget, 0.60 * boomMult, bx, by, dir);
+          return { x: bounceTarget.x, y: bounceTarget.y };
+        } : undefined,
         onSpinTick: (bx, by) => this.hitInArea(bx, by, SPIN_R, 0.30 * (1 + (bStats.boomerangDmgPct ?? 0)), 360, 0, dir),
         onHitBack: (bx, by) => {
           const boomMult = 1 + (bStats.boomerangDmgPct ?? 0);
@@ -3414,10 +3429,10 @@ export class GameScene extends Phaser.Scene {
     const MAX_DIST = P(200);
     const ORB_R = P(14);
     const FIRE_R = P(25);
-    const FIRE_DUR = 3000;
+    const FIRE_DUR = 4500;
 
     const spawnFire = (fx: number, fy: number) => {
-      this.fxMagicFireGround(fx, fy);
+      this.fxMagicFireGround(fx, fy, FIRE_R);
 
       const fireEntry = { x: fx, y: fy, r: FIRE_R, expiresAt: this.time.now + FIRE_DUR };
       this.activeFires.push(fireEntry);
@@ -3441,7 +3456,6 @@ export class GameScene extends Phaser.Scene {
         for (const t of this.getHittableTargets()) {
           if (Phaser.Math.Distance.Between(ox, oy, t.x, t.y) > ORB_R) continue;
           hit = true;
-          this.dealDamage(t, 0.30, ox, oy, dir, 'fire');
           return true;
         }
         return false;
@@ -3466,8 +3480,8 @@ export class GameScene extends Phaser.Scene {
 
     const RANGE    = P(180);
     const BASE_RAD = P(20);
-    const radR     = Math.round(BASE_RAD * (1 + (stats.laserRadiusPct ?? 0)));
-    const TICK_DMG = 0.12; // 100ms tick × 1.2/s ≈ 隕石術基礎 DPS
+    const radR     = BASE_RAD;
+    const TICK_DMG = 0.14; // 100ms tick × 1.4/s ≈ 隕石術基礎 DPS
 
     // 找最近敵人（任意方向）
     let tgtX = 0, tgtY = 0, hasTarget = false, minDist = Infinity;
@@ -3501,7 +3515,7 @@ export class GameScene extends Phaser.Scene {
 
     // tick 計數 & 爆炸判斷
     this._laserTickCount++;
-    const isExplode  = (stats.laserExplode ?? 0) >= 1 && this._laserTickCount % 4 === 0;
+    const isExplode  = (stats.laserExplode ?? 0) >= 1 && this._laserTickCount % 6 === 0;
     const chainCount = Math.round(stats.laserChain ?? 0);
     const D          = this.player.depth;
 
@@ -3514,7 +3528,7 @@ export class GameScene extends Phaser.Scene {
       this.fxLaserExplosion(tgtX, tgtY, D, explodeR);
       for (const t of this.getHittableTargets()) {
         if (Phaser.Math.Distance.Between(tgtX, tgtY, t.x, t.y) > explodeR) continue;
-        this.dealDamage(t, TICK_DMG * 2.5 * focusMult, px, py, dir);
+        this.dealDamage(t, 0.75 * focusMult, px, py, dir);
       }
     } else {
       // ── 普通 tick：輻射傷害（含 focus 加成）──────────────
@@ -3696,24 +3710,23 @@ export class GameScene extends Phaser.Scene {
     // condDotStackBonus：dotBonus≥30% 時每層額外加成
     const condDotActive = stats.dotBonus >= 0.30 && (stats.condDotStackBonus ?? 0) > 0;
 
-    // 業火：技能控制是否所有目標每 tick 疊兩層
-    const isDoubleStack = (stats.burnDoubleStack ?? 0) >= 1;
+    // 火場每 tick 疊層數：基礎=1，節點1=2，節點2-1-1=對一般/菁英5層（Boss維持節點1層數）
+    const baseStacks   = (stats.burnDoubleStack      ?? 0) >= 1 ? 2 : 1;
+    const eliteStacks  = (stats.burnFieldEliteStacks ?? 0) >= 1 ? 5 : baseStacks;
 
     // 對踩在任意火焰內的敵人疊層，同時記錄誰在火裡
     const minionInFire = new Set<(typeof this.allMinions)[number]>();
     for (const m of this.allMinions) {
       if (m.isDead) continue;
       if (this.activeFires.some(f => Phaser.Math.Distance.Between(m.x, m.y, f.x, f.y) <= f.r)) {
-        m.applyBurn(now, burnCap, this.BURN_DURATION);
-        if (isDoubleStack) m.applyBurn(now, burnCap, this.BURN_DURATION);
+        for (let i = 0; i < eliteStacks; i++) m.applyBurn(now, burnCap, this.BURN_DURATION);
         minionInFire.add(m);
       }
     }
     let bossInFire = false;
     if (this.bossActive && this.boss.active) {
       if (this.activeFires.some(f => Phaser.Math.Distance.Between(this.boss.x, this.boss.y, f.x, f.y) <= f.r)) {
-        this.boss.applyBurn(now, burnCap, this.BURN_DURATION);
-        if (isDoubleStack) this.boss.applyBurn(now, burnCap, this.BURN_DURATION);
+        for (let i = 0; i < baseStacks; i++) this.boss.applyBurn(now, burnCap, this.BURN_DURATION);
         bossInFire = true;
       }
     }
@@ -8118,7 +8131,7 @@ export class GameScene extends Phaser.Scene {
       decoGfx.strokePoints(innerPts, true);
     }
     decoGfx.lineStyle(P(1), 0x660077, 0.22);
-    decoGfx.strokeCircle(cx, cy, Math.min(R * 0.55, P(240)));
+    decoGfx.strokeCircle(cx, cy, Math.min(R * 0.55, P(240)));http://localhost:4200/
 
     // 中央儀式圈
     decoGfx.fillStyle(0x1a0025, 0.55); decoGfx.fillCircle(cx, cy, P(85));
@@ -11053,12 +11066,20 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
+  private fxBounceLine(x1: number, y1: number, x2: number, y2: number, depth: number): void {
+    const g = this.add.graphics().setDepth(depth + 2);
+    g.lineStyle(P(2), 0x44ffcc, 1.0);
+    g.lineBetween(x1, y1, x2, y2);
+    this.tweens.add({ targets: g, alpha: 0, duration: 200, onComplete: () => g.destroy() });
+  }
+
   private fxBoomerang(
     startX: number, startY: number, destX: number, destY: number,
     rad: number, D: number, HIT_R: number, SPIN_R: number, SPIN_MS: number,
     getReturnPos: () => { x: number; y: number },
     cbs?: {
       onHitOut?: (bx: number, by: number) => boolean;
+      onBounce?: (bx: number, by: number) => { x: number; y: number } | null;
       onSpinTick?: (bx: number, by: number) => void;
       onHitBack?: (bx: number, by: number) => void;
     },
@@ -11184,15 +11205,26 @@ export class GameScene extends Phaser.Scene {
       onUpdate: () => {
         if (cbs?.onHitOut?.(blade.x, blade.y)) {
           outTween.stop();
-          startSpin();
+          const doBounce = (pos: { x: number; y: number }) => {
+            this.tweens.add({
+              targets: blade, x: pos.x, y: pos.y,
+              duration: 180, ease: 'Linear',
+              onComplete: () => {
+                const next = cbs?.onBounce?.(blade.x, blade.y);
+                if (next) { doBounce(next); } else { startSpin(); }
+              },
+            });
+          };
+          const bouncePos = cbs?.onBounce?.(blade.x, blade.y);
+          if (bouncePos) { doBounce(bouncePos); } else { startSpin(); }
         }
       },
       onComplete: () => startSpin(),
     });
   }
 
-  private fxMagicFireGround(fx: number, fy: number): void {
-    const FIRE_R = P(25);
+  private fxMagicFireGround(fx: number, fy: number, fireR?: number): void {
+    const FIRE_R = fireR ?? P(25);
     const FIRE_DUR = 3000;
 
     const flash = this.add.graphics().setDepth(15);
