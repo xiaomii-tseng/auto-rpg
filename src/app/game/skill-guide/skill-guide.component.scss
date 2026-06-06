@@ -6,6 +6,16 @@
   align-items: center;
   justify-content: center;
   pointer-events: none;
+
+  @media (orientation: portrait) {
+    inset: unset;
+    top: 0;
+    left: 0;
+    width: 100vh;
+    height: 100vw;
+    transform-origin: top left;
+    transform: rotate(90deg) translateY(-100%);
+  }
 }
 
 .sg-overlay {
