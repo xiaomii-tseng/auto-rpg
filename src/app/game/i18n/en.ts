@@ -221,7 +221,7 @@ export const EN: Record<ZHKeys, string> = {
   'skill.1-3-1-1.label':   'Chain Bounce',
   'skill.1-3-1-1.desc':    'On hit, blade bounces to the farthest enemy within 90px for equal damage',
   'skill.1-4.label':       'Blazing Ground',
-  'skill.1-4.desc':        'Double stacking: normal/elite +4/tick (was +2), Boss +2/tick (was +1)',
+  'skill.1-4.desc':        'Double stacking: normal/elite +4/tick (was +2), Boss +5/tick (was +1)',
   'skill.1-4-1.label':     'Deep Hellfire',
   'skill.1-4-1.desc':      'Burn explosion damage +25%',
   'skill.1-4-1-1.label':   'Inferno',

@@ -299,6 +299,7 @@ export class GameScene extends Phaser.Scene {
   private activeFires: { x: number; y: number; r: number; expiresAt: number }[] = [];
   protected _leechPool = 0;
   private _laserTickCount  = 0;
+  private _laserCycleLightningDone = false;
   private _laserSlowTimer?: Phaser.Time.TimerEvent;
   private _laserLastDir     = '';
   private _laserBeamGfx?: Phaser.GameObjects.Graphics;
@@ -521,6 +522,7 @@ export class GameScene extends Phaser.Scene {
     this._questMiniObjs = [];
     this._miniMapZoom    = 1;
     this._laserTickCount = 0;
+    this._laserCycleLightningDone = false;
     this._laserSlowTimer?.destroy();
     this._laserSlowTimer = undefined;
     this._laserLastDir   = '';
@@ -3098,7 +3100,9 @@ export class GameScene extends Phaser.Scene {
     // 攻擊觸發落雷
     if (!skipOnHitProcs) {
       const onHitLightning = (stats.onHitLightningChance ?? 0) + (stats.lightningChancePct ?? 0);
-      if (onHitLightning > 0 && Math.random() < onHitLightning) {
+      const isLaserMode = SkillTreeStore.getAttackMode() === 'laserBeam';
+      if (onHitLightning > 0 && !(isLaserMode && this._laserCycleLightningDone) && Math.random() < onHitLightning) {
+        if (isLaserMode) this._laserCycleLightningDone = true;
         if ((stats.lightningStrike ?? 0) >= 1) this.fireLightningStrike();
         else this.fireOnHitLightning(stats);
       }
@@ -3559,6 +3563,7 @@ export class GameScene extends Phaser.Scene {
 
     // tick 計數 & 爆炸判斷
     this._laserTickCount++;
+    if (this._laserTickCount % 4 === 0) this._laserCycleLightningDone = false;
     const isExplode  = (stats.laserExplode ?? 0) >= 1 && this._laserTickCount % 6 === 0;
     const chainCount = Math.round(stats.laserChain ?? 0);
     const D          = this.player.depth;
@@ -3865,10 +3870,10 @@ export class GameScene extends Phaser.Scene {
     // condDotStackBonus：dotBonus≥30% 時每層額外加成
     const condDotActive = stats.dotBonus >= 0.30 && (stats.condDotStackBonus ?? 0) > 0;
 
-    // 火場每 tick 疊層數：基礎=1；節點1-4：一般/菁英4層，Boss2層
+    // 火場每 tick 疊層數：基礎=1；節點1-4：一般/菁英4層，Boss5層
     const hasDoubleStack = (stats.burnDoubleStack ?? 0) >= 1;
     const minionStacks  = hasDoubleStack ? 4 : 2;
-    const bossStacks    = hasDoubleStack ? 2 : 1;
+    const bossStacks    = hasDoubleStack ? 5 : 1;
 
     // 對踩在任意火焰內的敵人疊層，同時記錄誰在火裡
     const minionInFire = new Set<(typeof this.allMinions)[number]>();
