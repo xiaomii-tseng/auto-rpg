@@ -325,9 +325,9 @@ app.post('/report', limiterReport, upload.single('image'), async (req: any, res)
 // LEADERBOARD — TOWER
 // ══════════════════════════════════════════════════════════════════════════════
 
-// GET /leaderboard/tower?limit=50
+// GET /leaderboard/tower?limit=100
 app.get('/leaderboard/tower', async (req, res) => {
-  const limit = Math.min(Number(req.query.limit) || 50, 100);
+  const limit = Math.min(Number(req.query.limit) || 100, 200);
 
   const { data: testProfiles } = await supabase
     .from('profiles')
@@ -383,9 +383,9 @@ app.post('/leaderboard/tower', requireAuth, async (req: any, res) => {
 // LEADERBOARD — LEVEL
 // ══════════════════════════════════════════════════════════════════════════════
 
-// GET /leaderboard/level?limit=50
+// GET /leaderboard/level?limit=100
 app.get('/leaderboard/level', async (req, res) => {
-  const limit = Math.min(Number(req.query.limit) || 50, 100);
+  const limit = Math.min(Number(req.query.limit) || 100, 200);
 
   const [savesRes, profilesRes] = await Promise.all([
     supabase.from('player_saves').select('user_id, save_data'),
