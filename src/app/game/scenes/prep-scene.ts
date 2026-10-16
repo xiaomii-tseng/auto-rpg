@@ -7469,7 +7469,7 @@ export class PrepScene extends Phaser.Scene {
       const raw = localStorage.getItem('rg_user');
       const token = raw ? (JSON.parse(raw) as { accessToken: string }).accessToken : '';
       const apiUrl = (window as any).__apiUrl as string ?? '';
-      const resp = await fetch(`${apiUrl}/leaderboard/level`, {
+      const resp = await fetch(`${apiUrl}/leaderboard/level?limit=100`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       if (resp.ok) entries = await resp.json();
